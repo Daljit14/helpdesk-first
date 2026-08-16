@@ -5,14 +5,21 @@ import { categories, platforms } from "./helpdesk-data";
 const categoryIds = categories.map((category) => category.id);
 const platformSet = new Set(platforms);
 
-const networkIssueSlugs = new Set([
-  "no-internet-connection",
-  "wi-fi-keeps-disconnecting",
-]);
+const networkIssueSlugs = new Set(
+  issues
+    .filter((issue) => issue.categoryId === "internet")
+    .map((issue) => issue.slug)
+);
+
+const emailIssueSlugs = new Set(
+  issues
+    .filter((issue) => issue.categoryId === "email")
+    .map((issue) => issue.slug)
+);
 
 describe("knowledge base data", () => {
-  test("contains at least 12 issues", () => {
-    expect(issues.length).toBeGreaterThanOrEqual(12);
+  test("contains at least 30 issues", () => {
+    expect(issues.length).toBeGreaterThanOrEqual(30);
   });
 
   test("has no duplicate slugs", () => {
@@ -53,7 +60,7 @@ describe("knowledge base data", () => {
       ].join(" ");
 
       const hasAuthorization =
-        /authorized|own it|contact IT|workplace|school|shared network/i.test(
+        /authorized|own it|contact IT|workplace|school|shared network|managed network/i.test(
           combined
         );
       expect(
@@ -84,5 +91,30 @@ describe("knowledge base data", () => {
     expect(warnings).toMatch(/re-add/i);
     expect(warnings).toMatch(/local/i);
     expect(warnings).toMatch(/IT/i);
+  });
+
+  test("email issues never ask for a password", () => {
+    for (const issue of issues) {
+      if (!emailIssueSlugs.has(issue.slug)) continue;
+      const text = [
+        issue.title,
+        ...issue.symptoms,
+        ...issue.steps,
+        issue.safetyWarning ?? "",
+      ].join(" ");
+      expect(text).not.toMatch(/enter your password here|paste your password/i);
+    }
+  });
+
+  test("issues do not contain destructive instructions", () => {
+    const forbidden =
+      /registry|BIOS|firmware|format disk|delete system files|disable security|unknown terminal|unknown powershell|registry editor/i;
+    for (const issue of issues) {
+      const text = issue.steps.join(" ");
+      expect(
+        forbidden.test(text),
+        `${issue.title} should not contain destructive instructions`
+      ).toBe(false);
+    }
   });
 });

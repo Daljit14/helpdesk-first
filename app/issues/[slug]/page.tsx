@@ -11,6 +11,7 @@ import {
 import { categories } from "@/lib/helpdesk-data";
 import { getIssueBySlug, getAllIssueSlugs } from "@/lib/search";
 import { BackToResults } from "@/components/back-to-results";
+import { StartGuideButton } from "@/components/start-guide-button";
 import type { Metadata } from "next";
 
 export async function generateStaticParams() {
@@ -69,6 +70,22 @@ export default async function IssuePage({
         <h1 className="mt-6 text-3xl font-bold tracking-tight sm:text-4xl">
           {issue.title}
         </h1>
+
+        <div className="mt-4">
+          <Suspense
+            fallback={
+              <button
+                type="button"
+                disabled
+                className="inline-flex h-8 items-center rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground opacity-50"
+              >
+                Start troubleshooting guide
+              </button>
+            }
+          >
+            <StartGuideButton slug={issue.slug} />
+          </Suspense>
+        </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
           <span className="rounded-full border border-border bg-background px-3 py-1">

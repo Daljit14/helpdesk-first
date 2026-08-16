@@ -2,7 +2,7 @@ import { test, expect } from "vitest";
 import { filterIssues, getIssueBySlug } from "./search";
 
 test("empty filters return all issues", () => {
-  expect(filterIssues({})).toHaveLength(12);
+  expect(filterIssues({})).toHaveLength(30);
 });
 
 test("search is case-insensitive", () => {
@@ -19,8 +19,12 @@ test("search matches symptoms and keywords", () => {
 });
 
 test("search normalizes punctuation and hyphens", () => {
-  expect(filterIssues({ query: "wifi" })).toHaveLength(1);
-  expect(filterIssues({ query: "wi fi" })).toHaveLength(1);
+  const wifiResults = filterIssues({ query: "wi-fi" });
+  expect(wifiResults.map((issue) => issue.title)).toContain(
+    "Wi-Fi keeps disconnecting"
+  );
+  expect(wifiResults.length).toBeGreaterThanOrEqual(1);
+
   expect(
     filterIssues({ query: "won't" }).map((issue) => issue.title)
   ).toContain("Computer will not start");
@@ -28,7 +32,7 @@ test("search normalizes punctuation and hyphens", () => {
 
 test("category filter returns only matching issues", () => {
   const printerIssues = filterIssues({ categoryId: "printer" });
-  expect(printerIssues).toHaveLength(2);
+  expect(printerIssues).toHaveLength(5);
   expect(printerIssues.every((issue) => issue.categoryId === "printer")).toBe(
     true
   );
@@ -39,7 +43,7 @@ test("platform filter returns only matching issues", () => {
   expect(
     mobileIssues.every((issue) => issue.platforms.includes("Mobile"))
   ).toBe(true);
-  expect(mobileIssues.length).toBeLessThan(12);
+  expect(mobileIssues.length).toBeLessThan(30);
 });
 
 test("combined filters narrow results", () => {

@@ -56,7 +56,9 @@ test("search submission updates the URL and moves focus to results", async ({
 
   await expect(page).toHaveURL(/\?q=no\+sound/);
   await expect(page.getByLabel("Search results")).toBeFocused();
-  await expect(page.getByRole("link", { name: /No sound/i })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: /No sound/i }).first()
+  ).toBeVisible();
 });
 
 test("URL filter parameters initialize filters and results", async ({
@@ -70,7 +72,7 @@ test("URL filter parameters initialize filters and results", async ({
   await expect(
     page.getByRole("link", { name: /Print job stuck/i })
   ).toBeVisible();
-  await expect(page.getByText(/2 matching problems/)).toBeVisible();
+  await expect(page.getByText(/5 matching problems/)).toBeVisible();
 });
 
 test("category and platform filters can be combined", async ({ page }) => {
@@ -96,7 +98,7 @@ test("clearing filters resets results", async ({ page }) => {
   await expect(
     page.getByPlaceholder("What problem are you having?")
   ).toHaveValue("");
-  await expect(page.getByText(/12 matching problems/)).toBeVisible();
+  await expect(page.getByText(/30 matching problems/)).toBeVisible();
 });
 
 test("user can open an issue and return to previous filtered results", async ({

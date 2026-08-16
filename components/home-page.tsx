@@ -2,14 +2,22 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { X } from "lucide-react";
+import Link from "next/link";
+import { History, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/lib/button-variants";
+import { cn } from "@/lib/utils";
 import { SearchBox } from "@/components/search-box";
 import { CategoryGrid } from "@/components/category-grid";
 import { PlatformButtons } from "@/components/platform-buttons";
 import { IssueList } from "@/components/issue-list";
 import { filterIssues } from "@/lib/search";
 import { platforms, type Platform } from "@/lib/helpdesk-data";
+import {
+  clearAllSessions,
+  getActiveSessions,
+  type TroubleshootingSession,
+} from "@/lib/session";
 
 type HomePageProps = {
   initialQuery?: string;
@@ -45,6 +53,9 @@ export function HomePage({
   const [platform, setPlatform] = useState<Platform | null>(
     platformFromParam(paramToString(initialPlatform ?? ""))
   );
+  const [activeSessions, setActiveSessions] = useState<
+    TroubleshootingSession[]
+  >(() => getActiveSessions());
 
   const matchingCount = useMemo(
     () => filterIssues({ query, categoryId, platform }).length,
@@ -110,6 +121,11 @@ export function HomePage({
     resultsRef.current?.focus({ preventScroll: true });
   }
 
+  function handleClearHistory() {
+    clearAllSessions();
+    setActiveSessions([]);
+  }
+
   function clearFilters() {
     if (debounceRef.current) {
       clearTimeout(debounceRef.current);
@@ -132,6 +148,43 @@ export function HomePage({
             support guidance.
           </p>
         </div>
+
+        {activeSessions.length > 0 && (
+          <div
+            className="mt-6 rounded-lg border border-primary/20 bg-primary/5 p-4"
+            aria-live="polite"
+          >
+            <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+              <div>
+                <p className="font-medium">
+                  You have an unfinished troubleshooting session
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {activeSessions[0].issueTitle} on {activeSessions[0].platform}
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <Link
+                  href={`/issues/${activeSessions[0].issueSlug}/guide?platform=${activeSessions[0].platform}`}
+                  className={cn(
+                    buttonVariants({ variant: "outline", size: "sm" })
+                  )}
+                >
+                  <History className="mr-2 h-4 w-4" />
+                  Resume
+                </Link>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleClearHistory}
+                >
+                  Clear history
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="mt-8 flex justify-center">
           <div className="w-full max-w-3xl">

@@ -1,6 +1,6 @@
 import { test, expect } from "vitest";
-import { greet } from "./utils";
+import { cn } from "./utils";
 
-test("greet returns a personalized greeting", () => {
-  expect(greet("HelpDesk")).toBe("Hello, HelpDesk");
+test("cn merges and deduplicates tailwind classes", () => {
+  expect(cn("px-2 py-1", "px-4")).toBe("py-1 px-4");
 });

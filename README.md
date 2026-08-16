@@ -1,6 +1,6 @@
 # HelpDesk First
 
-AI-powered helpdesk foundation built with Next.js, TypeScript, Tailwind CSS, and Supabase.
+Foundation built with Next.js, TypeScript, Tailwind CSS, and Supabase.
 
 ## Prerequisites
 
@@ -64,13 +64,10 @@ npx playwright install --with-deps
 
 ```
 ├── app/            # Next.js App Router pages and layout
+├── components/     # React components, including shadcn/ui
 ├── lib/            # Shared utilities and helpers
 ├── public/         # Static assets
 ├── tests/e2e/      # Playwright end-to-end tests
 ├── .env.example    # Environment-variable placeholders
 └── README.md       # This file
 ```
-
-## License
-
-[MIT](./LICENSE)

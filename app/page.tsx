@@ -7,8 +7,8 @@ export default function Home() {
         HelpDesk First
       </h1>
       <p className="mt-6 max-w-2xl text-lg text-muted-foreground">
-        Foundation for an AI-powered helpdesk — fast, accessible, and ready for
-        your Supabase backend.
+        Foundation for customer support — fast, accessible, and ready for your
+        Supabase backend.
       </p>
       <Button className="mt-8" size="lg">
         Get started

@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "HelpDesk First",
-  description: "Foundation for streamlined customer support.",
+  description: "Level-1 IT support self-service portal.",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

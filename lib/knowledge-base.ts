@@ -31,7 +31,7 @@ export const issues: Issue[] = [
       "Mouse or keyboard input feels delayed",
       "Fan is loud and the device is warm",
     ],
-    keywords: ["slow", "lag", " freezing ", "performance", "speed", "stutter"],
+    keywords: ["slow", "lag", "freezing", "performance", "speed", "stutter"],
     difficulty: "Medium",
     estimatedTimeMinutes: 20,
     riskLevel: "Low",
@@ -98,14 +98,16 @@ export const issues: Issue[] = [
     difficulty: "Medium",
     estimatedTimeMinutes: 20,
     riskLevel: "Low",
+    safetyWarning:
+      "Only restart a router, modem or access point if you own it or your organization has authorized you to do so. On a workplace, school or shared network, contact IT before restarting any network equipment.",
     escalationWarning:
       "If other devices are also offline, the problem may be with the ISP or building network; contact IT.",
     steps: [
       "Check whether Wi-Fi is turned on or the Ethernet cable is securely connected.",
       "Try loading a website on another device to see if the problem is widespread.",
-      "Restart your router or modem by unplugging it for 10 seconds, then plug it back in.",
+      "If you own the equipment or have authorization, restart the router or modem by unplugging it for 10 seconds, then plug it back in. On workplace, school or shared networks, contact IT instead of restarting it yourself.",
       "Reconnect to the network and test again.",
-      "If wired, try a different Ethernet cable or wall jack.",
+      "If wired and you are authorized, try a different Ethernet cable or wall jack. Escalate managed wiring to IT.",
     ],
   },
   {
@@ -128,9 +130,11 @@ export const issues: Issue[] = [
     difficulty: "Medium",
     estimatedTimeMinutes: 20,
     riskLevel: "Low",
+    safetyWarning:
+      "Only restart a router or access point if you own it or are authorized by your organization. On workplace, school or shared networks, ask IT before restarting network equipment.",
     steps: [
       "Move closer to the wireless access point.",
-      "Restart the router or access point.",
+      "If you own or are authorized to restart the access point, restart it. On a shared or managed network, contact IT instead.",
       "Forget the network on your device and reconnect with the correct password.",
       "Remove sources of interference such as microwaves, baby monitors, or large metal objects.",
       "Check for software or driver updates for your wireless adapter.",
@@ -211,12 +215,16 @@ export const issues: Issue[] = [
     difficulty: "Easy",
     estimatedTimeMinutes: 10,
     riskLevel: "Low",
+    safetyWarning:
+      "Do not remove or re-add an email account without guidance from your IT team. Re-adding an account can delete local emails, calendar events or contacts that have not synced yet.",
+    escalationWarning:
+      "If your email is managed by your organization, or if you are unsure whether the account is managed, contact IT instead of changing settings.",
     steps: [
       "Check that you have an active internet connection.",
       "Refresh the inbox by pulling down or clicking the refresh button.",
       "Close the email app completely, then reopen it.",
-      "Verify your account settings and password are still correct.",
-      "If using a mobile device, remove and re-add the email account if the problem continues.",
+      "Check that your account server settings, such as incoming and outgoing mail addresses, are correct. Do not enter your password into this tool.",
+      "If the problem continues on a managed or uncertain account, contact your IT team before removing or re-adding the account.",
     ],
   },
   {

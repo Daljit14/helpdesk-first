@@ -46,6 +46,33 @@ test("search updates results as the user types", async ({ page }) => {
   await expect(page.getByText(/1 matching problem/)).toBeVisible();
 });
 
+test("search submission updates the URL and moves focus to results", async ({
+  page,
+}) => {
+  await page.goto("/");
+
+  await page.getByPlaceholder("What problem are you having?").fill("no sound");
+  await page.getByRole("button", { name: /^Search$/i }).click();
+
+  await expect(page).toHaveURL(/\?q=no\+sound/);
+  await expect(page.getByLabel("Search results")).toBeFocused();
+  await expect(page.getByRole("link", { name: /No sound/i })).toBeVisible();
+});
+
+test("URL filter parameters initialize filters and results", async ({
+  page,
+}) => {
+  await page.goto("/?category=printer&platform=Windows");
+
+  await expect(
+    page.getByRole("link", { name: /Printer showing offline/i })
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: /Print job stuck/i })
+  ).toBeVisible();
+  await expect(page.getByText(/2 matching problems/)).toBeVisible();
+});
+
 test("category and platform filters can be combined", async ({ page }) => {
   await page.goto("/");
 
@@ -72,19 +99,29 @@ test("clearing filters resets results", async ({ page }) => {
   await expect(page.getByText(/12 matching problems/)).toBeVisible();
 });
 
-test("user can open an issue and return to results", async ({ page }) => {
+test("user can open an issue and return to previous filtered results", async ({
+  page,
+}) => {
   await page.goto("/");
 
-  await page.getByPlaceholder("What problem are you having?").fill("no sound");
-  await page.getByRole("link", { name: /No sound/i }).click();
+  await page.getByPlaceholder("What problem are you having?").fill("printer");
+  await page.getByRole("button", { name: /Search/i }).click();
+  await page.getByRole("link", { name: /Print job stuck/i }).click();
 
-  await expect(page).toHaveTitle(/No sound/);
-  await expect(page.getByRole("heading", { name: /No sound/ })).toBeVisible();
-  await expect(page.getByText(/Initial troubleshooting steps/)).toBeVisible();
+  await expect(page).toHaveURL(/issues\/print-job-stuck\?q=printer/);
+  await expect(
+    page.getByRole("heading", { name: /Print job stuck/i })
+  ).toBeVisible();
 
   await page.getByRole("link", { name: /Back to results/i }).click();
-  await expect(page).toHaveURL(/\/$/);
-  await expect(page.locator("main")).toBeVisible();
+
+  await expect(page).toHaveURL(/\?q=printer/);
+  await expect(
+    page.getByPlaceholder("What problem are you having?")
+  ).toHaveValue("printer");
+  await expect(
+    page.getByRole("link", { name: /Print job stuck/i })
+  ).toBeVisible();
 });
 
 test("empty search shows a helpful no-results message", async ({ page }) => {

@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import {
@@ -9,6 +10,7 @@ import {
 } from "lucide-react";
 import { categories } from "@/lib/helpdesk-data";
 import { getIssueBySlug, getAllIssueSlugs } from "@/lib/search";
+import { BackToResults } from "@/components/back-to-results";
 import type { Metadata } from "next";
 
 export async function generateStaticParams() {
@@ -50,13 +52,19 @@ export default async function IssuePage({
   return (
     <section className="flex flex-1 flex-col px-4 py-12 sm:px-6 lg:px-8">
       <div className="mx-auto w-full max-w-3xl">
-        <Link
-          href="/"
-          className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+        <Suspense
+          fallback={
+            <Link
+              href="/"
+              className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back to results
+            </Link>
+          }
         >
-          <ArrowLeft className="h-4 w-4" />
-          Back to results
-        </Link>
+          <BackToResults />
+        </Suspense>
 
         <h1 className="mt-6 text-3xl font-bold tracking-tight sm:text-4xl">
           {issue.title}

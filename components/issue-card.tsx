@@ -4,9 +4,10 @@ import { type Issue } from "@/lib/knowledge-base";
 
 type IssueCardProps = {
   issue: Issue;
+  backParams?: string;
 };
 
-export function IssueCard({ issue }: IssueCardProps) {
+export function IssueCard({ issue, backParams = "" }: IssueCardProps) {
   const riskColor =
     issue.riskLevel === "High"
       ? "text-destructive"
@@ -14,10 +15,12 @@ export function IssueCard({ issue }: IssueCardProps) {
         ? "text-amber-600"
         : "text-emerald-600";
 
+  const href = `/issues/${issue.slug}${backParams ? `?${backParams}` : ""}`;
+
   return (
     <li>
       <Link
-        href={`/issues/${issue.slug}`}
+        href={href}
         className="group block rounded-xl border border-border bg-background p-5 shadow-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <div className="flex items-start justify-between gap-4">

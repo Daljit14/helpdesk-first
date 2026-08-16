@@ -6,12 +6,14 @@ type IssueListProps = {
   query?: string;
   categoryId?: string | null;
   platform?: Platform | null;
+  backParams?: string;
 };
 
 export function IssueList({
   query = "",
   categoryId = null,
   platform = null,
+  backParams = "",
 }: IssueListProps) {
   const issues = filterIssues({ query, categoryId, platform });
 
@@ -29,7 +31,7 @@ export function IssueList({
   return (
     <ul className="grid gap-4">
       {issues.map((issue) => (
-        <IssueCard key={issue.slug} issue={issue} />
+        <IssueCard key={issue.slug} issue={issue} backParams={backParams} />
       ))}
     </ul>
   );

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SearchBox } from "@/components/search-box";
@@ -8,24 +9,115 @@ import { CategoryGrid } from "@/components/category-grid";
 import { PlatformButtons } from "@/components/platform-buttons";
 import { IssueList } from "@/components/issue-list";
 import { filterIssues } from "@/lib/search";
-import { type Platform } from "@/lib/helpdesk-data";
+import { platforms, type Platform } from "@/lib/helpdesk-data";
 
-export function HomePage() {
-  const [query, setQuery] = useState("");
-  const [categoryId, setCategoryId] = useState<string | null>(null);
-  const [platform, setPlatform] = useState<Platform | null>(null);
+type HomePageProps = {
+  initialQuery?: string;
+  initialCategory?: string | null;
+  initialPlatform?: Platform | null;
+};
+
+function platformFromParam(value: string | null): Platform | null {
+  if (!value) return null;
+  return platforms.includes(value as Platform) ? (value as Platform) : null;
+}
+
+function paramToString(value: string | string[] | undefined): string {
+  if (Array.isArray(value)) return value[0] ?? "";
+  if (typeof value === "string") return value;
+  return "";
+}
+
+export function HomePage({
+  initialQuery = "",
+  initialCategory = null,
+  initialPlatform = null,
+}: HomePageProps) {
+  const router = useRouter();
+  const isFirstRender = useRef(true);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const resultsRef = useRef<HTMLDivElement>(null);
+
+  const [query, setQuery] = useState(paramToString(initialQuery ?? "").trim());
+  const [categoryId, setCategoryId] = useState<string | null>(
+    initialCategory ?? null
+  );
+  const [platform, setPlatform] = useState<Platform | null>(
+    platformFromParam(paramToString(initialPlatform ?? ""))
+  );
 
   const matchingCount = useMemo(
     () => filterIssues({ query, categoryId, platform }).length,
     [query, categoryId, platform]
   );
 
-  const hasActiveFilters = query || categoryId || platform;
+  const backParams = useMemo(() => {
+    const params = new URLSearchParams();
+    if (query) params.set("q", query);
+    if (categoryId) params.set("category", categoryId);
+    if (platform) params.set("platform", platform);
+    return params.toString();
+  }, [query, categoryId, platform]);
+
+  const hasActiveFilters = Boolean(query || categoryId || platform);
+
+  const replaceUrl = useCallback(
+    (
+      nextQuery: string,
+      nextCategory: string | null,
+      nextPlatform: Platform | null
+    ) => {
+      const params = new URLSearchParams();
+      if (nextQuery) params.set("q", nextQuery);
+      if (nextCategory) params.set("category", nextCategory);
+      if (nextPlatform) params.set("platform", nextPlatform);
+      const search = params.toString();
+      const href = search ? `/?${search}` : "/";
+      router.replace(href, { scroll: false });
+    },
+    [router]
+  );
+
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+    }
+
+    debounceRef.current = setTimeout(() => {
+      replaceUrl(query, categoryId, platform);
+      debounceRef.current = null;
+    }, 250);
+
+    return () => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+      }
+    };
+  }, [query, categoryId, platform, replaceUrl]);
+
+  function handleSearchSubmit() {
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
+    replaceUrl(query, categoryId, platform);
+    resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    resultsRef.current?.focus({ preventScroll: true });
+  }
 
   function clearFilters() {
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+    }
     setQuery("");
     setCategoryId(null);
     setPlatform(null);
+    router.replace("/", { scroll: false });
   }
 
   return (
@@ -46,6 +138,7 @@ export function HomePage() {
             <SearchBox
               value={query}
               onChange={setQuery}
+              onSubmit={handleSearchSubmit}
               placeholder="What problem are you having?"
             />
           </div>
@@ -79,11 +172,17 @@ export function HomePage() {
           )}
         </div>
 
-        <div className="mt-6">
+        <div
+          ref={resultsRef}
+          tabIndex={-1}
+          aria-label="Search results"
+          className="mt-6 outline-none"
+        >
           <IssueList
             query={query}
             categoryId={categoryId}
             platform={platform}
+            backParams={backParams}
           />
         </div>
       </div>

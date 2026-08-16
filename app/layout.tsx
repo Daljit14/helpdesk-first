@@ -16,8 +16,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "HelpDesk First",
-  description:
-    "AI-powered helpdesk foundation for streamlined customer support.",
+  description: "Level-1 IT support self-service portal.",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
@@ -34,7 +33,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           Skip to main content
         </a>
 
-        <header className="border-b border-zinc-200 dark:border-zinc-800">
+        <header className="border-b border-zinc-200">
           <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
             <span className="text-lg font-semibold">HelpDesk First</span>
             <nav aria-label="Primary">
@@ -42,11 +41,6 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                 <li>
                   <Link href="/" className="hover:underline">
                     Dashboard
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/tickets" className="hover:underline">
-                    Tickets
                   </Link>
                 </li>
               </ul>
@@ -62,7 +56,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           {children}
         </main>
 
-        <footer className="border-t border-zinc-200 py-6 text-center text-sm text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
+        <footer className="border-t border-zinc-200 py-6 text-center text-sm text-zinc-500">
           &copy; {new Date().getFullYear()} HelpDesk First. All rights reserved.
         </footer>
       </body>

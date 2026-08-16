@@ -1,7 +1,8 @@
 import type { MetadataRoute } from "next";
+import { getSiteUrl } from "@/lib/site-url";
 
 export default function robots(): MetadataRoute.Robots {
-  const baseUrl = "https://helpdesk-first.vercel.app";
+  const baseUrl = getSiteUrl();
 
   return {
     rules: {

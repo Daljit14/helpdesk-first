@@ -1,9 +1,9 @@
 import type { MetadataRoute } from "next";
 import { getAllIssueSlugs } from "@/lib/search";
+import { getSiteUrl } from "@/lib/site-url";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = "https://helpdesk-first.vercel.app";
-
+  const baseUrl = getSiteUrl();
   const issueSlugs = getAllIssueSlugs();
 
   const issuePages = issueSlugs.map((slug) => ({

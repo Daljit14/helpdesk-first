@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
 import { ReactNode } from "react";
 import "./globals.css";
+import { Footer } from "@/components/footer";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -56,9 +57,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           {children}
         </main>
 
-        <footer className="border-t border-zinc-200 py-6 text-center text-sm text-zinc-500">
-          &copy; {new Date().getFullYear()} HelpDesk First. All rights reserved.
-        </footer>
+        <Footer />
       </body>
     </html>
   );

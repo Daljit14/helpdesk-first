@@ -1,12 +1,11 @@
 # HelpDesk First
 
-Foundation built with Next.js, TypeScript, Tailwind CSS, and Supabase.
+Level-1 IT support self-service portal built with Next.js, TypeScript, and Tailwind CSS.
 
-## Prerequisites
+## Requirements
 
 - [Node.js](https://nodejs.org/) 20 or later
 - [npm](https://www.npmjs.com/) 10 or later
-- A [Supabase](https://supabase.com/) project (URL and anon key only needed for runtime)
 
 ## Getting started
 
@@ -18,17 +17,11 @@ Foundation built with Next.js, TypeScript, Tailwind CSS, and Supabase.
    npm install
    ```
 
-2. Copy the example environment file and fill in your Supabase credentials:
+2. Copy the example environment file:
 
    ```bash
    cp .env.example .env.local
    ```
-
-   Edit `.env.local` with values from your Supabase project:
-
-   - `NEXT_PUBLIC_SUPABASE_URL`
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - `SUPABASE_SERVICE_ROLE_KEY`
 
 3. Start the development server:
 
@@ -65,7 +58,7 @@ npx playwright install --with-deps
 ```
 ├── app/            # Next.js App Router pages and layout
 ├── components/     # React components, including shadcn/ui
-├── lib/            # Shared utilities and helpers
+├── lib/            # Shared utilities and data
 ├── public/         # Static assets
 ├── tests/e2e/      # Playwright end-to-end tests
 ├── .env.example    # Environment-variable placeholders

@@ -1,0 +1,65 @@
+import { test, expect } from "vitest";
+import { filterIssues, getIssueBySlug } from "./search";
+
+test("empty filters return all issues", () => {
+  expect(filterIssues({})).toHaveLength(12);
+});
+
+test("search is case-insensitive", () => {
+  const results = filterIssues({ query: "SLOW COMPUTER" });
+  expect(results).toHaveLength(1);
+  expect(results[0].title).toBe("Slow computer");
+});
+
+test("search matches symptoms and keywords", () => {
+  const results = filterIssues({ query: "black screen" });
+  expect(results.map((issue) => issue.title)).toContain(
+    "Computer will not start"
+  );
+});
+
+test("search normalizes punctuation and hyphens", () => {
+  expect(filterIssues({ query: "wifi" })).toHaveLength(1);
+  expect(filterIssues({ query: "wi fi" })).toHaveLength(1);
+  expect(
+    filterIssues({ query: "won't" }).map((issue) => issue.title)
+  ).toContain("Computer will not start");
+});
+
+test("category filter returns only matching issues", () => {
+  const printerIssues = filterIssues({ categoryId: "printer" });
+  expect(printerIssues).toHaveLength(2);
+  expect(printerIssues.every((issue) => issue.categoryId === "printer")).toBe(
+    true
+  );
+});
+
+test("platform filter returns only matching issues", () => {
+  const mobileIssues = filterIssues({ platform: "Mobile" });
+  expect(
+    mobileIssues.every((issue) => issue.platforms.includes("Mobile"))
+  ).toBe(true);
+  expect(mobileIssues.length).toBeLessThan(12);
+});
+
+test("combined filters narrow results", () => {
+  const results = filterIssues({
+    query: "print",
+    categoryId: "printer",
+    platform: "Windows",
+  });
+  expect(results.length).toBeGreaterThan(0);
+  expect(results.every((issue) => issue.categoryId === "printer")).toBe(true);
+  expect(results.every((issue) => issue.platforms.includes("Windows"))).toBe(
+    true
+  );
+});
+
+test("filters can return an empty result set", () => {
+  expect(filterIssues({ query: "nonexistent problem xyz" })).toHaveLength(0);
+});
+
+test("getIssueBySlug returns the correct issue", () => {
+  expect(getIssueBySlug("no-sound")?.title).toBe("No sound");
+  expect(getIssueBySlug("does-not-exist")).toBeUndefined();
+});

@@ -117,7 +117,9 @@ test("user can open an issue and return to previous filtered results", async ({
 
   await page.getByRole("link", { name: /Back to results/i }).click();
 
-  await expect(page).toHaveURL(/\?q=printer/);
+  await expect(page).toHaveURL(
+    (url) => url.pathname === "/" && url.search === "?q=printer"
+  );
   await expect(
     page.getByPlaceholder("What problem are you having?")
   ).toHaveValue("printer");

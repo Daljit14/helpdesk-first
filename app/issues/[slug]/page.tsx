@@ -32,11 +32,27 @@ export async function generateMetadata({
 
 export default async function IssuePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const { slug } = await params;
+  const query = await searchParams;
   const issue = getIssueBySlug(slug);
+
+  const backParams = new URLSearchParams();
+  const q = Array.isArray(query.q) ? query.q[0] : query.q;
+  if (q) backParams.set("q", q);
+  const categoryId = Array.isArray(query.category)
+    ? query.category[0]
+    : query.category;
+  if (categoryId) backParams.set("category", categoryId);
+  const platform = Array.isArray(query.platform)
+    ? query.platform[0]
+    : query.platform;
+  if (platform) backParams.set("platform", platform);
+  const backHref = backParams.toString() ? `/?${backParams.toString()}` : "/";
 
   if (!issue) {
     notFound();
@@ -56,7 +72,7 @@ export default async function IssuePage({
         <Suspense
           fallback={
             <Link
-              href="/"
+              href={backHref}
               className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
             >
               <ArrowLeft className="h-4 w-4" />

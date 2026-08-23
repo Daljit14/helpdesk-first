@@ -44,6 +44,13 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                     Dashboard
                   </Link>
                 </li>
+                {process.env.NEXT_PUBLIC_AI_ENABLED === "true" && (
+                  <li>
+                    <Link href="/assistant" className="hover:underline">
+                      Ask the Assistant
+                    </Link>
+                  </li>
+                )}
               </ul>
             </nav>
           </div>

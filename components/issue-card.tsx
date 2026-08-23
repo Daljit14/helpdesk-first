@@ -25,9 +25,9 @@ export function IssueCard({ issue, backParams = "" }: IssueCardProps) {
       >
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h3 className="text-lg font-semibold group-hover:underline">
+            <h2 className="text-lg font-semibold group-hover:underline">
               {issue.title}
-            </h3>
+            </h2>
             <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
               {issue.symptoms.join(" · ")}
             </p>

@@ -23,6 +23,10 @@ export default defineConfig({
   ],
   webServer: {
     command: "npm run dev",
+    env: {
+      HELP_DESK_AI_ENABLED: "true",
+      NEXT_PUBLIC_AI_ENABLED: "true",
+    },
     url: "http://localhost:3000",
     reuseExistingServer: !process.env.CI,
   },

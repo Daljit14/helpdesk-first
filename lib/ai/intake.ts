@@ -9,9 +9,9 @@ import {
 } from "./types";
 import {
   checkUserMessageSafety,
+  getProviderTimeoutMs,
   isAiEnabled,
   validateAndCoerceOutput,
-  validateAiOutput,
   type AiAvailability,
   type UserMessageSafety,
 } from "./safety-policy";
@@ -63,10 +63,8 @@ export async function processAiIntake(
 
   const { provider } = options;
 
-  let rawOutput: AiIntakeOutput;
-  try {
-    rawOutput = await provider.classify(input);
-  } catch {
+  const rawOutput = await classifyWithTimeout(provider, input);
+  if (!rawOutput) {
     return {
       status: "unavailable",
       reason:
@@ -78,20 +76,6 @@ export async function processAiIntake(
   const allowedQuestions = options.allowedQuestions ?? diagnosticQuestions;
   const allowedPlatforms = options.allowedPlatforms ?? platforms;
 
-  const validation = validateAiOutput(
-    rawOutput,
-    allowedSlugs,
-    allowedQuestions,
-    allowedPlatforms
-  );
-  if (!validation.valid) {
-    return {
-      status: "unavailable",
-      reason:
-        "The assistant returned an unsafe or invalid response. Please use the search page.",
-    };
-  }
-
   const coerced = validateAndCoerceOutput(
     rawOutput,
     allowedSlugs,
@@ -102,17 +86,51 @@ export async function processAiIntake(
     return {
       status: "unavailable",
       reason:
-        "The assistant response could not be safely validated. Please use the search page.",
+        "The assistant returned an unsafe or invalid response. Please use the search page.",
     };
   }
 
   return { status: "success", output: coerced };
 }
 
+async function classifyWithTimeout(
+  provider: AiProvider,
+  input: AiIntakeInput
+): Promise<AiIntakeOutput | null> {
+  const timeoutMs = getProviderTimeoutMs();
+  const controller = new AbortController();
+
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  let abortedByTimeout = false;
+
+  const timeoutPromise = new Promise<AiIntakeOutput>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      abortedByTimeout = true;
+      controller.abort();
+      reject(new Error("AI provider timeout"));
+    }, timeoutMs);
+  });
+
+  try {
+    const output = await Promise.race([
+      provider.classify(input, { signal: controller.signal }),
+      timeoutPromise,
+    ]);
+    return output;
+  } catch (error) {
+    if (
+      abortedByTimeout ||
+      (error instanceof Error && error.name === "AbortError")
+    ) {
+      return null;
+    }
+    return null;
+  } finally {
+    if (timeoutId !== undefined) {
+      clearTimeout(timeoutId);
+    }
+  }
+}
+
 export type { AiAvailability, UserMessageSafety };
-export {
-  checkUserMessageSafety,
-  isAiEnabled,
-  validateAiOutput,
-  validateAndCoerceOutput,
-};
+export { checkUserMessageSafety, isAiEnabled, validateAndCoerceOutput };

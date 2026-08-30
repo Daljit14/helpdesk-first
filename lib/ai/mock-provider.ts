@@ -3,7 +3,7 @@ import type { Platform } from "@/lib/helpdesk-data";
 import { getIssueBySlug } from "@/lib/search";
 import type { AiIntakeInput, AiIntakeOutput, AiProvider } from "./types";
 import { diagnosticQuestions } from "./types";
-import { getSafeResponseLimit } from "./safety-policy";
+import { getSafeResponseLimit, isPasswordRecovery } from "./safety-policy";
 
 // Thresholds tuned for deterministic matching against the approved knowledge base.
 // A title-phrase match alone is usually enough to clear the threshold,
@@ -96,8 +96,39 @@ const STOP_WORDS = new Set([
 ]);
 
 export class MockAiProvider implements AiProvider {
-  async classify(input: AiIntakeInput): Promise<AiIntakeOutput> {
+  async classify(
+    input: AiIntakeInput,
+    options?: { signal?: AbortSignal }
+  ): Promise<AiIntakeOutput> {
+    if (options?.signal?.aborted) {
+      return {
+        decision: "escalate",
+        escalationReason: "AI request was cancelled.",
+      };
+    }
+
     const combined = buildCombinedText(input);
+
+    if (isPasswordRecovery(combined)) {
+      const detectedPlatform = input.platform ?? detectPlatform(combined);
+      if (!detectedPlatform) {
+        return {
+          decision: "clarify",
+          detectedPlatform: null,
+          diagnosticQuestionIds: ["which-platform"],
+          explanation:
+            "To route you to the email sign-in guide, please let me know which device or operating system you are using.",
+        };
+      }
+      return {
+        decision: "match",
+        matchedIssueSlug: "email-sign-in-problem",
+        detectedPlatform,
+        explanation:
+          "It sounds like you need help with your email sign-in. Please follow the approved email sign-in guide; never enter your password into any unofficial site.",
+      };
+    }
+
     const detectedPlatform = input.platform ?? detectPlatform(combined);
     const scored = scoreIssues(combined, detectedPlatform);
     const sorted = scored

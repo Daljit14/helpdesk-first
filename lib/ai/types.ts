@@ -23,7 +23,10 @@ export type AiIntakeOutput = {
 };
 
 export interface AiProvider {
-  classify(input: AiIntakeInput): Promise<AiIntakeOutput>;
+  classify(
+    input: AiIntakeInput,
+    options?: { signal?: AbortSignal }
+  ): Promise<AiIntakeOutput>;
 }
 
 export type DiagnosticQuestion = {

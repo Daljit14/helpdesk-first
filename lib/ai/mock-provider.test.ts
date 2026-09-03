@@ -2,16 +2,11 @@ import { describe, expect, test } from "vitest";
 import { createAiProvider } from "./mock-provider";
 import { diagnosticQuestions } from "./types";
 import { issues } from "@/lib/knowledge-base";
-import { getIssueBySlug } from "@/lib/search";
+import { getAllIssueSlugs, getIssueBySlug } from "@/lib/search";
 
 const provider = createAiProvider();
 const approvedSlugs = issues.map((issue) => issue.slug);
-const approvedOutputSlugs = [
-  ...new Set(
-    issues.map((issue) => getIssueBySlug(issue.slug)?.id ?? issue.slug)
-  ),
-  ...approvedSlugs,
-];
+const approvedOutputSlugs = getAllIssueSlugs();
 
 describe("MockAiProvider", () => {
   test.each(approvedSlugs)(
@@ -22,11 +17,7 @@ describe("MockAiProvider", () => {
         platform: "Windows",
       });
       expect(result.decision).not.toBe("escalate");
-      expect(result.matchedIssueSlug).toBe(
-        slug === "email-sign-in-problem"
-          ? slug
-          : (getIssueBySlug(slug)?.id ?? slug)
-      );
+      expect(result.matchedIssueSlug).toBe(getIssueBySlug(slug)!.id);
       expect(result.explanation).toMatch(/issue|guide|troubleshoot/i);
     }
   );

@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -54,6 +54,18 @@ export default async function IssuePage({
 
   if (!issue) {
     notFound();
+  }
+  if (slug !== issue.id) {
+    const search = new URLSearchParams();
+    for (const [key, value] of Object.entries(query)) {
+      if (Array.isArray(value)) {
+        value.forEach((item) => search.append(key, item));
+      } else if (value !== undefined) {
+        search.set(key, value);
+      }
+    }
+    const suffix = search.toString() ? `?${search.toString()}` : "";
+    permanentRedirect(`/issues/${issue.id}${suffix}`);
   }
 
   const backParams = new URLSearchParams();

@@ -1,7 +1,10 @@
 import { issues as legacyIssues } from "./knowledge-base";
 import { CATEGORY_STEPS, type Issue } from "./issues";
+import { resolveIssueId } from "./legacy-slugs";
 
-const legacyById = new Map(legacyIssues.map((i) => [i.slug, i]));
+const legacyById = new Map(
+  legacyIssues.map((issue) => [resolveIssueId(issue.slug), issue])
+);
 
 export function getIssueSteps(issue: Issue): string[] {
   const legacy = legacyById.get(issue.id);

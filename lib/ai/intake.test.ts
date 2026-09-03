@@ -6,15 +6,7 @@ import { issues } from "@/lib/knowledge-base";
 import { getIssueBySlug } from "@/lib/search";
 
 const safeProvider = createAiProvider();
-const options = {
-  provider: safeProvider,
-  allowedSlugs: [
-    ...new Set([
-      ...issues.map((issue) => issue.slug),
-      ...issues.map((issue) => getIssueBySlug(issue.slug)?.id ?? issue.slug),
-    ]),
-  ],
-};
+const options = { provider: safeProvider };
 
 describe("processAiIntake", () => {
   beforeEach(() => {
@@ -48,11 +40,7 @@ describe("processAiIntake", () => {
       expect(result.status).toBe("success");
       if (result.status === "success") {
         expect(result.output.decision).toBe("match");
-        expect(result.output.matchedIssueSlug).toBe(
-          slug === "email-sign-in-problem"
-            ? slug
-            : (getIssueBySlug(slug)?.id ?? slug)
-        );
+        expect(result.output.matchedIssueSlug).toBe(getIssueBySlug(slug)!.id);
         expect(result.output.explanation).toBeTruthy();
       }
     }
@@ -291,7 +279,7 @@ describe("processAiIntake", () => {
     expect(result.status).toBe("success");
     if (result.status === "success") {
       expect(result.output.decision).toBe("match");
-      expect(result.output.matchedIssueSlug).toBe("email-sign-in-problem");
+      expect(result.output.matchedIssueSlug).toBe("email-sign-in");
     }
   });
 
@@ -305,7 +293,7 @@ describe("processAiIntake", () => {
     );
     expect(result.status).toBe("success");
     if (result.status === "success") {
-      expect(result.output.matchedIssueSlug).toBe("email-sign-in-problem");
+      expect(result.output.matchedIssueSlug).toBe("email-sign-in");
     }
   });
 
@@ -319,7 +307,7 @@ describe("processAiIntake", () => {
     );
     expect(result.status).toBe("success");
     if (result.status === "success") {
-      expect(result.output.matchedIssueSlug).toBe("email-sign-in-problem");
+      expect(result.output.matchedIssueSlug).toBe("email-sign-in");
     }
   });
 

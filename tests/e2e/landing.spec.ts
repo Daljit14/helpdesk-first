@@ -143,6 +143,16 @@ test("user can open an issue and return to previous filtered results", async ({
   ).toBeVisible();
 });
 
+test("legacy issue URLs redirect to the canonical issue id", async ({
+  page,
+}) => {
+  await page.goto("/issues/computer-will-not-start?platform=Windows");
+
+  await expect(page).toHaveURL(
+    /\/issues\/computer-wont-start\?platform=Windows/
+  );
+});
+
 test("empty search shows a helpful no-results message", async ({ page }) => {
   await page.goto("/");
 

@@ -122,7 +122,7 @@ export class MockAiProvider implements AiProvider {
       }
       return {
         decision: "match",
-        matchedIssueSlug: "email-sign-in-problem",
+        matchedIssueSlug: "email-sign-in",
         detectedPlatform,
         explanation:
           "It sounds like you need help with your email sign-in. Please follow the approved email sign-in guide; never enter your password into any unofficial site.",

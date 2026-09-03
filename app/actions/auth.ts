@@ -46,13 +46,17 @@ export async function signUpAction(
   }
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.signUp({
+  const { data, error } = await supabase.auth.signUp({
     email: parsed.data.email,
     password: parsed.data.password,
   });
 
   if (error) {
     return { error: error.message };
+  }
+
+  if (data.session) {
+    redirect(safeNextPath(formData.get("next")));
   }
 
   redirect("/check-email");

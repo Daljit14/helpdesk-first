@@ -16,6 +16,7 @@ export type Ticket = {
   message: string;
   status: string;
   created_at: string;
+  attachment_path: string | null;
 };
 
 export async function getBookmarkedIssueIds(userId: string): Promise<string[]> {
@@ -80,7 +81,9 @@ export async function getTickets(userId: string): Promise<Ticket[]> {
   const supabase = await createClient();
   const { data } = await supabase
     .from("tickets")
-    .select("id, issue_id, issue_title, message, status, created_at")
+    .select(
+      "id, issue_id, issue_title, message, status, created_at, attachment_path"
+    )
     .eq("user_id", userId)
     .order("created_at", { ascending: false });
   return (data ?? []) as Ticket[];

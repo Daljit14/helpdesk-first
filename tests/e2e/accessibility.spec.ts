@@ -5,6 +5,7 @@ const pages = [
   { name: "Support Assistant", url: "/assistant" },
   { name: "Issue detail", url: "/issues/slow-computer" },
   { name: "Guide", url: "/issues/slow-computer/guide" },
+  { name: "Forgot password", url: "/forgot-password" },
   { name: "Not found", url: "/issues/unknown-issue" },
 ];
 

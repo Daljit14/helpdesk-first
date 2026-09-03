@@ -130,6 +130,7 @@ export async function submitTicket(
   const parsed = submitTicketSchema.safeParse({
     issueId: formData.get("issueId"),
     message: formData.get("message"),
+    attachmentPath: formData.get("attachmentPath") ?? undefined,
   });
   if (!parsed.success) {
     const fieldErrors: Record<string, string> = {};
@@ -139,12 +140,20 @@ export async function submitTicket(
     return { fieldErrors };
   }
 
+  const attachmentPath =
+    parsed.data.attachmentPath &&
+    parsed.data.attachmentPath.startsWith(`${result.user.id}/`) &&
+    !parsed.data.attachmentPath.includes("..")
+      ? parsed.data.attachmentPath
+      : null;
+
   const supabase = await createClient();
   const { error } = await supabase.from("tickets").insert({
     user_id: result.user.id,
     issue_id: result.issue.id,
     issue_title: result.issue.title,
     message: parsed.data.message,
+    attachment_path: attachmentPath,
   });
   if (error) return { error: "Unable to submit ticket." };
   revalidatePath("/tickets");

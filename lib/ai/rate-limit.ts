@@ -1,3 +1,5 @@
+import { UpstashRateLimiter } from "./upstash-rate-limiter";
+
 export type RateLimitCheck = {
   allowed: boolean;
   retryAfter?: number;
@@ -70,12 +72,14 @@ export class DisabledRateLimiter implements RateLimiter {
   }
 }
 
-export type RateLimiterKind = "memory" | "disabled" | "external" | null;
+export type RateLimiterKind =
+  "memory" | "disabled" | "external" | "upstash" | null;
 
 export function getRateLimiterKind(): RateLimiterKind {
   const env = process.env.HELP_DESK_AI_RATE_LIMIT_PROVIDER;
   if (env === "memory") return "memory";
   if (env === "disabled") return "disabled";
+  if (env === "upstash") return "upstash";
   if (env === "vercel-firewall" || env === "external") return "external";
   return null;
 }
@@ -90,6 +94,10 @@ export function getRateLimiter(): RateLimiter | null {
   if (kind === "external") {
     // Trusts an upstream managed rate limiter such as Vercel Firewall.
     return new DisabledRateLimiter();
+  }
+
+  if (kind === "upstash") {
+    return new UpstashRateLimiter(getRateLimitConfig());
   }
 
   if (kind === "memory") {

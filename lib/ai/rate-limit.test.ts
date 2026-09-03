@@ -1,5 +1,10 @@
-import { describe, expect, test } from "vitest";
-import { checkRateLimit, MemoryRateLimiter } from "./rate-limit";
+import { describe, expect, test, vi } from "vitest";
+import {
+  checkRateLimit,
+  getRateLimiter,
+  getRateLimiterKind,
+  MemoryRateLimiter,
+} from "./rate-limit";
 
 describe("MemoryRateLimiter", () => {
   test("allows requests under the limit", async () => {
@@ -32,5 +37,20 @@ describe("checkRateLimit", () => {
     const result = await checkRateLimit(request, null);
     expect(result.allowed).toBe(false);
     expect(result.reason).toMatch(/rate limiting.*not configured/i);
+  });
+});
+
+describe("UpstashRateLimiter configuration", () => {
+  test("requires Upstash environment variables", () => {
+    vi.stubEnv("HELP_DESK_AI_RATE_LIMIT_PROVIDER", "upstash");
+    vi.stubEnv("UPSTASH_REDIS_REST_URL", "");
+    vi.stubEnv("UPSTASH_REDIS_REST_TOKEN", "");
+    vi.stubEnv("KV_REST_API_URL", "");
+    vi.stubEnv("KV_REST_API_TOKEN", "");
+
+    expect(getRateLimiterKind()).toBe("upstash");
+    expect(() => getRateLimiter()).toThrow(/UPSTASH_REDIS_REST_URL/);
+
+    vi.unstubAllEnvs();
   });
 });

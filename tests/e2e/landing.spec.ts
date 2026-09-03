@@ -22,6 +22,9 @@ test("homepage renders with search, categories and platform filters", async ({
   await expect(page.locator("main")).toBeVisible();
 
   await expect(searchInput(page)).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: /Ask the Support Assistant/i })
+  ).toHaveAttribute("href", "/assistant");
 
   for (const label of [
     "Computer",
@@ -36,7 +39,7 @@ test("homepage renders with search, categories and platform filters", async ({
     ).toBeVisible();
   }
 
-  for (const platform of ["Windows", "Mac", "Mobile", "Other"]) {
+  for (const platform of ["Windows", "Mac", "iOS", "Android", "Other"]) {
     await expect(
       page.getByRole("button", { name: new RegExp(`^${platform}$`, "i") })
     ).toBeVisible();

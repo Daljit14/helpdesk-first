@@ -1,32 +1,32 @@
 import { describe, expect, test } from "vitest";
 import { createAiProvider } from "./mock-provider";
 import { diagnosticQuestions } from "./types";
-import { issues } from "@/lib/knowledge-base";
-import { getAllIssueSlugs, getIssueBySlug } from "@/lib/search";
+import { ISSUES } from "@/lib/issues";
+import { getAllIssueSlugs } from "@/lib/search";
 
 const provider = createAiProvider();
-const approvedSlugs = issues.map((issue) => issue.slug);
+const approvedSlugs = ISSUES.map((issue) => issue.id);
 const approvedOutputSlugs = getAllIssueSlugs();
 
 describe("MockAiProvider", () => {
   test.each(approvedSlugs)(
     "matches the approved issue with slug '%s' when described plainly",
-    async (slug) => {
+    async (id) => {
       const result = await provider.classify({
-        message: slug.replace(/-/g, " ") + " on windows",
+        message: id.replace(/-/g, " ") + " on windows",
         platform: "Windows",
       });
       expect(result.decision).not.toBe("escalate");
-      expect(result.matchedIssueSlug).toBe(getIssueBySlug(slug)!.id);
+      expect(result.matchedIssueSlug).toBe(id);
       expect(result.explanation).toMatch(/issue|guide|troubleshoot/i);
     }
   );
 
   test.each(approvedSlugs)(
     "returns one of the approved slugs '%s' without generated steps or commands",
-    async (slug) => {
+    async (id) => {
       const result = await provider.classify({
-        message: slug.replace(/-/g, " ") + " on windows",
+        message: id.replace(/-/g, " ") + " on windows",
         platform: "Windows",
       });
       expect(result).not.toHaveProperty("steps");
@@ -43,6 +43,27 @@ describe("MockAiProvider", () => {
     });
     expect(result.decision).toBe("match");
     expect(result.detectedPlatform).toBe("Mac");
+  });
+
+  test.each([
+    ["iPhone", "iOS"],
+    ["iPad", "iOS"],
+    ["iOS", "iOS"],
+    ["Android", "Android"],
+  ])("detects %s as %s", async (device, expectedPlatform) => {
+    const result = await provider.classify({
+      message: `I cannot sign in to email on my ${device}`,
+    });
+    expect(result.detectedPlatform).toBe(expectedPlatform);
+  });
+
+  test("asks for the platform when only mobile wording is provided", async () => {
+    const result = await provider.classify({
+      message: "I cannot sign in to email on my phone",
+    });
+    expect(result.detectedPlatform).toBeNull();
+    expect(result.decision).toBe("clarify");
+    expect(result.diagnosticQuestionIds).toContain("which-platform");
   });
 
   test("handles misspelled descriptions", async () => {

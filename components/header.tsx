@@ -32,6 +32,13 @@ export function Header({ user }: { user?: User | null }) {
                 Guides
               </Link>
             </li>
+            {process.env.NEXT_PUBLIC_AI_ENABLED === "true" && (
+              <li>
+                <Link href="/assistant" className="hover:text-indigo-500">
+                  Assistant
+                </Link>
+              </li>
+            )}
             {user && (
               <li>
                 <Link href="/bookmarks" className="hover:text-indigo-500">
@@ -100,6 +107,13 @@ export function Header({ user }: { user?: User | null }) {
                   Guides
                 </Link>
               </li>
+              {process.env.NEXT_PUBLIC_AI_ENABLED === "true" && (
+                <li>
+                  <Link href="/assistant" onClick={() => setOpen(false)}>
+                    Assistant
+                  </Link>
+                </li>
+              )}
               {user && (
                 <li>
                   <Link href="/bookmarks" onClick={() => setOpen(false)}>

@@ -1,0 +1,35 @@
+"use client";
+
+import { useSyncExternalStore } from "react";
+import { getRecentlyViewed, subscribeToRecentlyViewed } from "@/lib/recent";
+import { getIssueBySlug } from "@/lib/search";
+import { IssueCard } from "@/components/issue-card";
+import type { Issue } from "@/lib/issues";
+
+const EMPTY_RECENT: string[] = [];
+
+export function RecentlyViewed() {
+  const recentIds = useSyncExternalStore(
+    subscribeToRecentlyViewed,
+    getRecentlyViewed,
+    () => EMPTY_RECENT
+  );
+  const issues = recentIds
+    .map((id) => getIssueBySlug(id))
+    .filter((issue): issue is Issue => Boolean(issue));
+
+  if (issues.length === 0) return null;
+
+  return (
+    <section className="mt-8" aria-labelledby="recently-viewed-heading">
+      <h2 id="recently-viewed-heading" className="text-lg font-semibold">
+        Recently viewed
+      </h2>
+      <ul className="mt-3 grid gap-4 sm:grid-cols-2">
+        {issues.map((issue) => (
+          <IssueCard key={issue.id} issue={issue} />
+        ))}
+      </ul>
+    </section>
+  );
+}

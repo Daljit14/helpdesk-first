@@ -7,10 +7,12 @@ import {
   cleanup,
 } from "@testing-library/react";
 import { TroubleshootingGuide } from "./troubleshooting-guide";
-import { issues } from "@/lib/knowledge-base";
+import { ISSUES } from "@/lib/issues";
+import { getIssueSteps } from "@/lib/steps";
 import { clearAllSessions } from "@/lib/session";
 
-const issue = issues.find((i) => i.slug === "no-sound")!;
+const issue = ISSUES.find((i) => i.id === "no-sound")!;
+const steps = getIssueSteps(issue);
 
 vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams("platform=Windows"),
@@ -31,7 +33,7 @@ describe("TroubleshootingGuide", () => {
     await waitFor(() => {
       expect(screen.getByTestId("step-count")).toHaveTextContent(/Step 1 of 5/);
     });
-    expect(screen.getByTestId("step-title")).toHaveTextContent(issue.steps[0]);
+    expect(screen.getByTestId("step-title")).toHaveTextContent(steps[0]);
   });
 
   test("completing steps advances and marks resolved at the final step", async () => {
@@ -40,17 +42,17 @@ describe("TroubleshootingGuide", () => {
       expect(screen.getByTestId("step-count")).toHaveTextContent(/Step 1 of 5/)
     );
 
-    for (let i = 0; i < issue.steps.length; i++) {
+    for (let i = 0; i < steps.length; i++) {
       expect(screen.getByTestId("step-count")).toHaveTextContent(
-        `Step ${i + 1} of ${issue.steps.length}`
+        `Step ${i + 1} of ${steps.length}`
       );
       fireEvent.click(
         screen.getByRole("button", { name: "I completed this step" })
       );
-      if (i < issue.steps.length - 1) {
+      if (i < steps.length - 1) {
         await waitFor(() =>
           expect(screen.getByTestId("step-count")).toHaveTextContent(
-            `Step ${i + 2} of ${issue.steps.length}`
+            `Step ${i + 2} of ${steps.length}`
           )
         );
       }
@@ -71,13 +73,13 @@ describe("TroubleshootingGuide", () => {
       expect(screen.getByTestId("step-count")).toHaveTextContent(/Step 1 of 5/)
     );
 
-    for (let i = 0; i < issue.steps.length - 1; i++) {
+    for (let i = 0; i < steps.length - 1; i++) {
       fireEvent.click(
         screen.getByRole("button", { name: "I completed this step" })
       );
       await waitFor(() =>
         expect(screen.getByTestId("step-count")).toHaveTextContent(
-          `Step ${i + 2} of ${issue.steps.length}`
+          `Step ${i + 2} of ${steps.length}`
         )
       );
     }

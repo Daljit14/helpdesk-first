@@ -535,7 +535,7 @@ export function validateAiOutput(
       if (
         issue &&
         typeof o.detectedPlatform === "string" &&
-        !issue.platforms.includes(o.detectedPlatform as Platform)
+        !issue.devices.includes(o.detectedPlatform as Platform)
       ) {
         errors.push(
           `Issue "${issue.title}" does not support platform "${o.detectedPlatform}".`

@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { SearchBox } from "@/components/search-box";
 import { CategoryGrid } from "@/components/category-grid";
 import { PlatformButtons } from "@/components/platform-buttons";
+import { RecentlyViewed } from "@/components/recently-viewed";
 import { IssueList } from "@/components/issue-list";
 import { filterIssues } from "@/lib/search";
 import { platforms, type Platform } from "@/lib/helpdesk-data";
@@ -55,7 +56,13 @@ export function HomePage({
   );
   const [activeSessions, setActiveSessions] = useState<
     TroubleshootingSession[]
-  >(() => getActiveSessions());
+  >([]);
+
+  useEffect(() => {
+    queueMicrotask(() => {
+      setActiveSessions(getActiveSessions());
+    });
+  }, []);
 
   const matchingCount = useMemo(
     () => filterIssues({ query, categoryId, platform }).length,
@@ -195,6 +202,10 @@ export function HomePage({
               placeholder="What problem are you having?"
             />
           </div>
+        </div>
+
+        <div className="mt-8">
+          <RecentlyViewed />
         </div>
 
         <div className="mt-8">

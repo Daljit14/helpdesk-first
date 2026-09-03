@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -15,13 +15,21 @@ import { Button } from "./ui/button";
 import { buttonVariants } from "@/lib/button-variants";
 import { BackToResults } from "./back-to-results";
 import { cn } from "@/lib/utils";
-import type { Issue } from "@/lib/knowledge-base";
+import type { Issue } from "@/lib/issues";
 import { platforms, type Platform } from "@/lib/helpdesk-data";
 import type { StepOutcome, TroubleshootingSession } from "@/lib/session";
 import { clearSession, getSession, saveSession } from "@/lib/session";
+import {
+  getIssueSteps,
+  getIssueSafetyWarning,
+  getIssueEscalationWarning,
+} from "@/lib/steps";
+import { saveProgress } from "@/app/actions/guides";
 
 type TroubleshootingGuideProps = {
   issue: Issue;
+  initialCompletedSteps?: number[];
+  canPersist?: boolean;
 };
 
 type GuideState = {
@@ -52,17 +60,26 @@ function formatOutcome(outcome: StepOutcome): string {
   }
 }
 
-export function TroubleshootingGuide({ issue }: TroubleshootingGuideProps) {
+export function TroubleshootingGuide({
+  issue,
+  initialCompletedSteps = [],
+  canPersist = false,
+}: TroubleshootingGuideProps) {
   const searchParams = useSearchParams();
   const platform: string = useMemo(() => {
     const raw = searchParams.get("platform");
     const fromQuery =
       raw && platforms.includes(raw as Platform) ? (raw as Platform) : null;
-    return fromQuery ?? issue.platforms[0];
-  }, [searchParams, issue.platforms]);
+    return fromQuery ?? issue.devices[0];
+  }, [searchParams, issue.devices]);
 
+  const steps = useMemo(() => getIssueSteps(issue), [issue]);
+  const [completedSteps, setCompletedSteps] = useState<number[]>(() => [
+    ...new Set(initialCompletedSteps),
+  ]);
+  const [, startTransition] = useTransition();
   const [state, setState] = useState<GuideState>(() => {
-    const saved = getSession(issue.slug, platform);
+    const saved = getSession(issue.id, platform);
     if (saved) {
       return {
         currentStepIndex: saved.currentStepIndex,
@@ -73,17 +90,26 @@ export function TroubleshootingGuide({ issue }: TroubleshootingGuideProps) {
         rating: saved.rating,
       };
     }
-    return initialState();
+    const firstIncomplete = steps.findIndex(
+      (_, index) => !initialCompletedSteps.includes(index)
+    );
+    return {
+      ...initialState(),
+      currentStepIndex:
+        firstIncomplete === -1
+          ? Math.max(steps.length - 1, 0)
+          : firstIncomplete,
+    };
   });
 
   const statusRef = useRef<HTMLDivElement>(null);
 
-  const totalSteps = issue.steps.length;
-  const currentStep = issue.steps[state.currentStepIndex];
+  const totalSteps = steps.length;
+  const currentStep = steps[state.currentStepIndex];
 
   useEffect(() => {
     const session: TroubleshootingSession = {
-      issueSlug: issue.slug,
+      issueSlug: issue.id,
       issueTitle: issue.title,
       platform,
       currentStepIndex: state.currentStepIndex,
@@ -108,6 +134,15 @@ export function TroubleshootingGuide({ issue }: TroubleshootingGuideProps) {
 
   function handleCompleted() {
     const step = recordAttempt("completed");
+    const nextCompleted = [
+      ...new Set([...completedSteps, state.currentStepIndex]),
+    ];
+    setCompletedSteps(nextCompleted);
+    if (canPersist) {
+      startTransition(() => {
+        void saveProgress(issue.id, nextCompleted);
+      });
+    }
     if (state.currentStepIndex === totalSteps - 1) {
       setState((prev) => ({
         ...prev,
@@ -156,7 +191,13 @@ export function TroubleshootingGuide({ issue }: TroubleshootingGuideProps) {
   }
 
   function handleRestart() {
-    clearSession(issue.slug, platform);
+    clearSession(issue.id, platform);
+    setCompletedSteps([]);
+    if (canPersist) {
+      startTransition(() => {
+        void saveProgress(issue.id, []);
+      });
+    }
     setState(initialState());
     statusRef.current?.focus();
   }
@@ -241,8 +282,11 @@ function StepView({
   onSolved: () => void;
 }) {
   const index = state.currentStepIndex;
-  const total = issue.steps.length;
-  const step = issue.steps[index];
+  const steps = getIssueSteps(issue);
+  const total = steps.length;
+  const step = steps[index];
+  const safetyWarning = getIssueSafetyWarning(issue);
+  const escalationWarning = getIssueEscalationWarning(issue);
 
   return (
     <div className="mt-6 space-y-6">
@@ -260,10 +304,10 @@ function StepView({
         </h2>
       </div>
 
-      {issue.safetyWarning && index === 0 && (
-        <div className="rounded-lg border-l-4 border-amber-500 bg-amber-50 p-4 text-amber-900">
+      {safetyWarning && index === 0 && (
+        <div className="rounded-lg border-l-4 border-amber-500 bg-amber-50 p-4 text-amber-900 dark:bg-amber-950 dark:text-amber-100">
           <p className="font-semibold">Safety note</p>
-          <p className="mt-1">{issue.safetyWarning}</p>
+          <p className="mt-1">{safetyWarning}</p>
         </div>
       )}
 
@@ -286,16 +330,16 @@ function StepView({
         </Button>
       </div>
 
-      {issue.escalationWarning && (
+      {escalationWarning && (
         <div className="rounded-lg border-l-4 border-destructive bg-destructive/5 p-4 text-destructive">
           <p className="font-semibold">Escalate if needed</p>
-          <p className="mt-1">{issue.escalationWarning}</p>
+          <p className="mt-1">{escalationWarning}</p>
         </div>
       )}
 
       <button
         type="button"
-        onClick={() => clearSession(issue.slug, platform)}
+        onClick={() => clearSession(issue.id, platform)}
         className="text-sm text-muted-foreground underline hover:text-foreground"
       >
         Clear my troubleshooting history for this issue
@@ -303,7 +347,6 @@ function StepView({
     </div>
   );
 }
-
 function SuccessView({
   state,
   onChange,
@@ -427,7 +470,7 @@ function EscalationView({
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `escalation-${issue.slug}-${platform.toLowerCase()}.txt`;
+    a.download = `escalation-${issue.id}-${platform.toLowerCase()}.txt`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);

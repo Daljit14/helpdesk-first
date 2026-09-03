@@ -1,12 +1,15 @@
 import { describe, expect, test } from "vitest";
 import { createAiProvider } from "./mock-provider";
 import { diagnosticQuestions } from "./types";
-import { getAllIssueSlugs } from "@/lib/search";
+import { issues } from "@/lib/knowledge-base";
+import { getAllIssueSlugs, getIssueBySlug } from "@/lib/search";
 
 const provider = createAiProvider();
+const approvedSlugs = issues.map((issue) => issue.slug);
+const approvedOutputSlugs = getAllIssueSlugs();
 
 describe("MockAiProvider", () => {
-  test.each(getAllIssueSlugs())(
+  test.each(approvedSlugs)(
     "matches the approved issue with slug '%s' when described plainly",
     async (slug) => {
       const result = await provider.classify({
@@ -14,12 +17,12 @@ describe("MockAiProvider", () => {
         platform: "Windows",
       });
       expect(result.decision).not.toBe("escalate");
-      expect(result.matchedIssueSlug).toBe(slug);
+      expect(result.matchedIssueSlug).toBe(getIssueBySlug(slug)!.id);
       expect(result.explanation).toMatch(/issue|guide|troubleshoot/i);
     }
   );
 
-  test.each(getAllIssueSlugs())(
+  test.each(approvedSlugs)(
     "returns one of the approved slugs '%s' without generated steps or commands",
     async (slug) => {
       const result = await provider.classify({
@@ -29,7 +32,7 @@ describe("MockAiProvider", () => {
       expect(result).not.toHaveProperty("steps");
       expect(result).not.toHaveProperty("commands");
       if (result.matchedIssueSlug) {
-        expect(getAllIssueSlugs()).toContain(result.matchedIssueSlug);
+        expect(approvedOutputSlugs).toContain(result.matchedIssueSlug);
       }
     }
   );

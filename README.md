@@ -6,7 +6,11 @@ Level-1 IT support self-service portal built with Next.js, TypeScript, and Tailw
 
 ## What it does
 
-HelpDesk First helps users resolve common Level-1 IT problems without needing to run the website locally. It includes a searchable knowledge base of 30 common support issues, category and platform filters, and a guided troubleshooting flow with success feedback and escalation reports.
+HelpDesk First helps users resolve common Level-1 IT problems without needing to run the website locally. It includes a searchable knowledge base of 100 common support issues, category and platform filters, and a guided troubleshooting flow with success feedback and escalation reports.
+
+## Accounts (Supabase)
+
+Optional accounts power bookmarks, saved guide progress, guide ratings, and support tickets. Apply [`supabase/schema.sql`](supabase/schema.sql), then set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` in your environment. The site works without these variables; accounts are simply disabled.
 
 ## Requirements
 
@@ -46,8 +50,7 @@ Vercel configuration:
 - Framework preset: Next.js
 - Build command: default (`next build`)
 - Output directory: default
-- No database required
-- No authentication required
+- Supabase is optional for accounts and saved user data
 - No secret API keys required
 
 ### Production URL

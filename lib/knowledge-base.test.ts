@@ -7,7 +7,7 @@ const platformSet = new Set(platforms);
 
 const networkIssueSlugs = new Set(
   issues
-    .filter((issue) => issue.categoryId === "internet")
+    .filter((issue) => issue.categoryId === "network")
     .map((issue) => issue.slug)
 );
 

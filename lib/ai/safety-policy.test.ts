@@ -218,7 +218,7 @@ describe("validateAiOutput", () => {
     const result = validateAiOutput(
       {
         decision: "match",
-        matchedIssueSlug: "screen-sharing-problem",
+        matchedIssueSlug: "screen-sharing",
         detectedPlatform: "Mobile",
         explanation: "This looks like an issue.",
       },

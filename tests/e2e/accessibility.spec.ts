@@ -34,7 +34,7 @@ for (const { name, url } of pages) {
 test("Support assistant is keyboard navigable", async ({ page }) => {
   await page.goto("/assistant");
   const input = page.getByLabel("What problem are you experiencing?");
-  const maxTabs = 6;
+  const maxTabs = 7;
 
   for (let i = 0; i < maxTabs; i++) {
     if (

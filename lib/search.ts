@@ -1,10 +1,16 @@
-import { issues, type Issue } from "./knowledge-base";
-import type { Platform } from "./helpdesk-data";
+import {
+  ISSUES,
+  CATEGORIES,
+  type Issue,
+  type Device,
+  type IssueCategoryId,
+} from "./issues";
+import { resolveIssueId } from "./legacy-slugs";
 
 export type IssueFilters = {
   query?: string;
   categoryId?: string | null;
-  platform?: Platform | null;
+  platform?: Device | null;
 };
 
 function normalize(value: string): string {
@@ -12,6 +18,10 @@ function normalize(value: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "")
     .trim();
+}
+
+function categoryLabel(id: IssueCategoryId): string {
+  return CATEGORIES.find((c) => c.id === id)?.label ?? id;
 }
 
 function matchesQuery(issue: Issue, rawQuery: string): boolean {
@@ -27,7 +37,13 @@ function matchesQuery(issue: Issue, rawQuery: string): boolean {
   if (tokens.length === 0) return true;
 
   const haystack = normalize(
-    [issue.title, ...issue.symptoms, ...issue.keywords].join(" ")
+    [
+      issue.id,
+      issue.title,
+      categoryLabel(issue.category),
+      ...issue.symptoms,
+      ...issue.devices,
+    ].join(" ")
   );
 
   return tokens.every((token) => haystack.includes(token));
@@ -36,12 +52,12 @@ function matchesQuery(issue: Issue, rawQuery: string): boolean {
 export function filterIssues(filters: IssueFilters): Issue[] {
   const { query = "", categoryId = null, platform = null } = filters;
 
-  return issues.filter((issue) => {
-    if (categoryId && issue.categoryId !== categoryId) {
+  return ISSUES.filter((issue) => {
+    if (categoryId && issue.category !== categoryId) {
       return false;
     }
 
-    if (platform && !issue.platforms.includes(platform)) {
+    if (platform && !issue.devices.includes(platform)) {
       return false;
     }
 
@@ -50,9 +66,9 @@ export function filterIssues(filters: IssueFilters): Issue[] {
 }
 
 export function getIssueBySlug(slug: string): Issue | undefined {
-  return issues.find((issue) => issue.slug === slug);
+  return ISSUES.find((issue) => issue.id === resolveIssueId(slug));
 }
 
 export function getAllIssueSlugs(): string[] {
-  return issues.map((issue) => issue.slug);
+  return ISSUES.map((issue) => issue.id);
 }

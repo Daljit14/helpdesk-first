@@ -1,13 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "./ui/button";
 import { clearAllSessions, getAllSessions } from "@/lib/session";
 
 export function Footer() {
-  const [sessionCount, setSessionCount] = useState(
-    () => getAllSessions().length
-  );
+  const [sessionCount, setSessionCount] = useState(0);
+
+  useEffect(() => {
+    queueMicrotask(() => {
+      setSessionCount(getAllSessions().length);
+    });
+  }, []);
 
   function handleClear() {
     clearAllSessions();

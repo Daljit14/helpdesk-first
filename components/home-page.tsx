@@ -56,7 +56,13 @@ export function HomePage({
   );
   const [activeSessions, setActiveSessions] = useState<
     TroubleshootingSession[]
-  >(() => getActiveSessions());
+  >([]);
+
+  useEffect(() => {
+    queueMicrotask(() => {
+      setActiveSessions(getActiveSessions());
+    });
+  }, []);
 
   const matchingCount = useMemo(
     () => filterIssues({ query, categoryId, platform }).length,

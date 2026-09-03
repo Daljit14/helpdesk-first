@@ -46,11 +46,6 @@ export function Header({ user }: { user?: User | null }) {
                 </Link>
               </li>
             )}
-            <li>
-              <Link href="/about" className="hover:text-indigo-500">
-                About
-              </Link>
-            </li>
           </ul>
         </nav>
 
@@ -119,11 +114,6 @@ export function Header({ user }: { user?: User | null }) {
                   </Link>
                 </li>
               )}
-              <li>
-                <Link href="/about" onClick={() => setOpen(false)}>
-                  About
-                </Link>
-              </li>
             </ul>
           </nav>
         </div>

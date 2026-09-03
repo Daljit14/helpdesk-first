@@ -35,6 +35,24 @@ export function pushRecentlyViewed(id: string): void {
   listeners.forEach((listener) => listener());
 }
 
+export function removeRecentlyViewed(id: string): void {
+  if (typeof window === "undefined") return;
+  const next = getRecentlyViewed().filter((item) => item !== id);
+  const storageValue = JSON.stringify(next);
+  localStorage.setItem(RECENT_KEY, storageValue);
+  cachedStorageValue = storageValue;
+  cachedRecent = next;
+  listeners.forEach((listener) => listener());
+}
+
+export function clearRecentlyViewed(): void {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(RECENT_KEY);
+  cachedStorageValue = null;
+  cachedRecent = EMPTY_RECENT;
+  listeners.forEach((listener) => listener());
+}
+
 export function subscribeToRecentlyViewed(listener: () => void): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);

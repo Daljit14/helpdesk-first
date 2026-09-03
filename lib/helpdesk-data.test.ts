@@ -20,6 +20,6 @@ test("categories includes all support categories", () => {
   ]);
 });
 
-test("platforms includes Windows, Mac, Mobile and Other", () => {
-  expect(platforms).toEqual(["Windows", "Mac", "Mobile", "Other"]);
+test("platforms includes Windows, Mac, iOS, Android and Other", () => {
+  expect(platforms).toEqual(["Windows", "Mac", "iOS", "Android", "Other"]);
 });

@@ -245,13 +245,9 @@ function detectPlatform(text: string): Platform | null {
   if (/\bmac\b|\bmacbook\b|\bmacos\b|\bos\s?x\b|\bapple\b/i.test(normalized)) {
     return "Mac";
   }
-  if (
-    /\bmobile\b|\bphone\b|\biphone\b|\bandroid\b|\bios\b|\bipad\b/i.test(
-      normalized
-    )
-  ) {
-    return "Mobile";
-  }
+  if (/\biphone\b|\bios\b|\bipad\b/i.test(normalized)) return "iOS";
+  if (/\bandroid\b/i.test(normalized)) return "Android";
+  if (/\bmobile\b|\bphone\b/i.test(normalized)) return null;
   if (/\bother\b|\blinux\b|\bchromebook\b/i.test(normalized)) {
     return "Other";
   }

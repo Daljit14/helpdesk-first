@@ -13,7 +13,7 @@ export type IssueCategoryId =
   | "collab"
   | "security";
 
-export type Device = "Windows" | "Mac" | "Mobile" | "Other";
+export type Device = "Windows" | "Mac" | "iOS" | "Android" | "Other";
 export type Risk = "Low" | "Medium" | "High";
 
 export type Issue = {
@@ -95,7 +95,7 @@ export const CATEGORIES = [
   },
 ] as const;
 
-export const DEVICES: Device[] = ["Windows", "Mac", "Mobile", "Other"];
+export const DEVICES: Device[] = ["Windows", "Mac", "iOS", "Android", "Other"];
 
 export const CATEGORY_STEPS: Record<IssueCategoryId, string[]> = {
   computer: [
@@ -228,7 +228,7 @@ export const ISSUES: Issue[] = [
     risk: "Low",
     difficulty: 1,
     time: "15 min",
-    devices: ["Windows", "Mac", "Mobile", "Other"],
+    devices: ["Windows", "Mac", "iOS", "Android", "Other"],
     symptoms: [
       "A disk space warning appears",
       "You cannot save new files",
@@ -256,7 +256,7 @@ export const ISSUES: Issue[] = [
     risk: "Low",
     difficulty: 2,
     time: "20 min",
-    devices: ["Windows", "Mac", "Mobile", "Other"],
+    devices: ["Windows", "Mac", "iOS", "Android", "Other"],
     symptoms: [
       "Web pages will not load",
       "Apps show a connection error",
@@ -270,7 +270,7 @@ export const ISSUES: Issue[] = [
     risk: "Low",
     difficulty: 2,
     time: "20 min",
-    devices: ["Windows", "Mac", "Mobile", "Other"],
+    devices: ["Windows", "Mac", "iOS", "Android", "Other"],
     symptoms: [
       "Wi-Fi drops every few minutes",
       "The network connection is unstable",
@@ -284,7 +284,7 @@ export const ISSUES: Issue[] = [
     risk: "Low",
     difficulty: 2,
     time: "20 min",
-    devices: ["Windows", "Mac", "Mobile", "Other"],
+    devices: ["Windows", "Mac", "iOS", "Android", "Other"],
     symptoms: [
       "Web pages load very slowly",
       "Video streams buffer often",
@@ -396,7 +396,7 @@ export const ISSUES: Issue[] = [
     risk: "Low",
     difficulty: 1,
     time: "10 min",
-    devices: ["Windows", "Mac", "Mobile", "Other"],
+    devices: ["Windows", "Mac", "iOS", "Android", "Other"],
     symptoms: [
       "New emails do not appear",
       "The Sent folder is not up to date",
@@ -410,7 +410,7 @@ export const ISSUES: Issue[] = [
     risk: "Low",
     difficulty: 2,
     time: "15 min",
-    devices: ["Windows", "Mac", "Mobile", "Other"],
+    devices: ["Windows", "Mac", "iOS", "Android", "Other"],
     symptoms: [
       "Emails stay in the Outbox",
       "The send button returns an error",
@@ -424,7 +424,7 @@ export const ISSUES: Issue[] = [
     risk: "Low",
     difficulty: 2,
     time: "15 min",
-    devices: ["Windows", "Mac", "Mobile", "Other"],
+    devices: ["Windows", "Mac", "iOS", "Android", "Other"],
     symptoms: [
       "Expected emails never arrive",
       "Senders say messages bounce back",
@@ -438,7 +438,7 @@ export const ISSUES: Issue[] = [
     risk: "Low",
     difficulty: 1,
     time: "10 min",
-    devices: ["Windows", "Mac", "Mobile", "Other"],
+    devices: ["Windows", "Mac", "iOS", "Android", "Other"],
     symptoms: [
       "You cannot open an attachment",
       "An attachment is blocked or missing",
@@ -452,7 +452,7 @@ export const ISSUES: Issue[] = [
     risk: "Medium",
     difficulty: 2,
     time: "15 min",
-    devices: ["Windows", "Mac", "Mobile", "Other"],
+    devices: ["Windows", "Mac", "iOS", "Android", "Other"],
     symptoms: [
       "The email app keeps asking for a password",
       "You are told the password is wrong",
@@ -508,7 +508,7 @@ export const ISSUES: Issue[] = [
     risk: "Low",
     difficulty: 2,
     time: "20 min",
-    devices: ["Windows", "Mac", "Mobile", "Other"],
+    devices: ["Windows", "Mac", "iOS", "Android", "Other"],
     symptoms: [
       "An app or system update keeps failing",
       "The update gets stuck at a percentage",
@@ -550,7 +550,7 @@ export const ISSUES: Issue[] = [
     risk: "Low",
     difficulty: 2,
     time: "15 min",
-    devices: ["Windows", "Mac", "Mobile", "Other"],
+    devices: ["Windows", "Mac", "iOS", "Android", "Other"],
     symptoms: [
       "The video call camera is black",
       "The microphone does not pick up sound",
@@ -564,7 +564,7 @@ export const ISSUES: Issue[] = [
     risk: "Low",
     difficulty: 1,
     time: "10 min",
-    devices: ["Windows", "Mac", "Mobile", "Other"],
+    devices: ["Windows", "Mac", "iOS", "Android", "Other"],
     symptoms: [
       "No one can hear you on calls",
       "The mic icon is muted or not detected",
@@ -578,7 +578,7 @@ export const ISSUES: Issue[] = [
     risk: "Low",
     difficulty: 2,
     time: "15 min",
-    devices: ["Windows", "Mac", "Mobile", "Other"],
+    devices: ["Windows", "Mac", "iOS", "Android", "Other"],
     symptoms: [
       "The headset will not connect",
       "Audio cuts in and out",
@@ -606,7 +606,7 @@ export const ISSUES: Issue[] = [
     risk: "Low",
     difficulty: 1,
     time: "10 min",
-    devices: ["Windows", "Mac", "Mobile", "Other"],
+    devices: ["Windows", "Mac", "iOS", "Android", "Other"],
     symptoms: [
       "You cannot remember your account password",
       "The login screen rejects every attempt",
@@ -620,7 +620,7 @@ export const ISSUES: Issue[] = [
     risk: "Medium",
     difficulty: 2,
     time: "15 min",
-    devices: ["Windows", "Mac", "Mobile", "Other"],
+    devices: ["Windows", "Mac", "iOS", "Android", "Other"],
     symptoms: [
       "Too many failed attempts locked the account",
       "A lockout message appears at login",
@@ -634,7 +634,7 @@ export const ISSUES: Issue[] = [
     risk: "Medium",
     difficulty: 2,
     time: "15 min",
-    devices: ["Windows", "Mac", "Mobile", "Other"],
+    devices: ["Windows", "Mac", "iOS", "Android", "Other"],
     symptoms: [
       "The verification code never arrives",
       "The authenticator app shows an invalid code",
@@ -648,7 +648,7 @@ export const ISSUES: Issue[] = [
     risk: "Low",
     difficulty: 1,
     time: "10 min",
-    devices: ["Windows", "Mac", "Mobile", "Other"],
+    devices: ["Windows", "Mac", "iOS", "Android", "Other"],
     symptoms: [
       "A message says your password has expired",
       "You are forced to reset before signing in",
@@ -662,7 +662,7 @@ export const ISSUES: Issue[] = [
     risk: "Medium",
     difficulty: 2,
     time: "15 min",
-    devices: ["Windows", "Mac", "Mobile", "Other"],
+    devices: ["Windows", "Mac", "iOS", "Android", "Other"],
     symptoms: [
       "You received an alert about an unfamiliar sign-in",
       "A login location or device looks unfamiliar",
@@ -676,7 +676,7 @@ export const ISSUES: Issue[] = [
     risk: "Medium",
     difficulty: 2,
     time: "15 min",
-    devices: ["Windows", "Mac", "Mobile", "Other"],
+    devices: ["Windows", "Mac", "iOS", "Android", "Other"],
     symptoms: [
       "The reset link never arrives",
       "The reset link says it has expired",
@@ -690,7 +690,7 @@ export const ISSUES: Issue[] = [
     risk: "Medium",
     difficulty: 2,
     time: "20 min",
-    devices: ["Windows", "Mac", "Mobile", "Other"],
+    devices: ["Windows", "Mac", "iOS", "Android", "Other"],
     symptoms: [
       "SSO redirects back to the login page repeatedly",
       "An error mentions the identity provider",
@@ -704,7 +704,7 @@ export const ISSUES: Issue[] = [
     risk: "Low",
     difficulty: 1,
     time: "10 min",
-    devices: ["Windows", "Mac", "Mobile", "Other"],
+    devices: ["Windows", "Mac", "iOS", "Android", "Other"],
     symptoms: [
       "Your display name or title is incorrect",
       "Your profile photo will not update",
@@ -718,7 +718,7 @@ export const ISSUES: Issue[] = [
     risk: "Low",
     difficulty: 1,
     time: "10 min",
-    devices: ["Windows", "Mac", "Mobile", "Other"],
+    devices: ["Windows", "Mac", "iOS", "Android", "Other"],
     symptoms: [
       "The answer you enter is marked incorrect",
       "You cannot recall which answers were set",
@@ -732,7 +732,7 @@ export const ISSUES: Issue[] = [
     risk: "Low",
     difficulty: 2,
     time: "15 min",
-    devices: ["Windows", "Mac", "Mobile", "Other"],
+    devices: ["Windows", "Mac", "iOS", "Android", "Other"],
     symptoms: [
       "You are signed out every few minutes",
       "Saved login details are not remembered",
@@ -760,7 +760,7 @@ export const ISSUES: Issue[] = [
     risk: "Low",
     difficulty: 2,
     time: "15 min",
-    devices: ["Windows", "Mac", "Mobile", "Other"],
+    devices: ["Windows", "Mac", "iOS", "Android", "Other"],
     symptoms: [
       "A sync error icon appears on the file",
       "Changes are not appearing on other devices",
@@ -774,7 +774,7 @@ export const ISSUES: Issue[] = [
     risk: "Low",
     difficulty: 1,
     time: "10 min",
-    devices: ["Windows", "Mac", "Mobile", "Other"],
+    devices: ["Windows", "Mac", "iOS", "Android", "Other"],
     symptoms: [
       "The upload bar stalls partway through",
       "An error appears when adding the file",
@@ -802,7 +802,7 @@ export const ISSUES: Issue[] = [
     risk: "Medium",
     difficulty: 2,
     time: "20 min",
-    devices: ["Windows", "Mac", "Mobile", "Other"],
+    devices: ["Windows", "Mac", "iOS", "Android", "Other"],
     symptoms: [
       "A file or folder is missing",
       "You accidentally deleted an important document",
@@ -830,7 +830,7 @@ export const ISSUES: Issue[] = [
     risk: "Low",
     difficulty: 1,
     time: "10 min",
-    devices: ["Windows", "Mac", "Mobile", "Other"],
+    devices: ["Windows", "Mac", "iOS", "Android", "Other"],
     symptoms: [
       "A storage full warning appears",
       "New files fail to save to the cloud",
@@ -886,7 +886,7 @@ export const ISSUES: Issue[] = [
     risk: "Low",
     difficulty: 1,
     time: "10 min",
-    devices: ["Windows", "Mac", "Mobile", "Other"],
+    devices: ["Windows", "Mac", "iOS", "Android", "Other"],
     symptoms: [
       "The join link returns an error",
       "The meeting app will not open",
@@ -900,7 +900,7 @@ export const ISSUES: Issue[] = [
     risk: "Low",
     difficulty: 2,
     time: "15 min",
-    devices: ["Windows", "Mac", "Mobile", "Other"],
+    devices: ["Windows", "Mac", "iOS", "Android", "Other"],
     symptoms: [
       "Others cannot see your video",
       "Your camera preview is black",
@@ -914,7 +914,7 @@ export const ISSUES: Issue[] = [
     risk: "Low",
     difficulty: 2,
     time: "15 min",
-    devices: ["Windows", "Mac", "Mobile", "Other"],
+    devices: ["Windows", "Mac", "iOS", "Android", "Other"],
     symptoms: [
       "Your own voice echoes back",
       "A high-pitched feedback sound occurs",
@@ -956,7 +956,7 @@ export const ISSUES: Issue[] = [
     risk: "Low",
     difficulty: 2,
     time: "15 min",
-    devices: ["Windows", "Mac", "Mobile", "Other"],
+    devices: ["Windows", "Mac", "iOS", "Android", "Other"],
     symptoms: [
       "You cannot hear other participants",
       "Other participants cannot hear you",
@@ -984,7 +984,7 @@ export const ISSUES: Issue[] = [
     risk: "Low",
     difficulty: 1,
     time: "10 min",
-    devices: ["Windows", "Mac", "Mobile", "Other"],
+    devices: ["Windows", "Mac", "iOS", "Android", "Other"],
     symptoms: [
       "The calendar invite never arrived",
       "The meeting is missing from your calendar",
@@ -1012,7 +1012,7 @@ export const ISSUES: Issue[] = [
     risk: "Medium",
     difficulty: 2,
     time: "20 min",
-    devices: ["Windows", "Mac", "Mobile", "Other"],
+    devices: ["Windows", "Mac", "iOS", "Android", "Other"],
     symptoms: [
       "The app closes unexpectedly during calls",
       "A crash report appears after joining",
@@ -1026,7 +1026,7 @@ export const ISSUES: Issue[] = [
     risk: "Low",
     difficulty: 1,
     time: "10 min",
-    devices: ["Mobile"],
+    devices: ["iOS", "Android"],
     symptoms: [
       "New messages do not appear on the phone",
       "The mail app shows an old sync time",
@@ -1035,12 +1035,12 @@ export const ISSUES: Issue[] = [
   },
   {
     id: "mobile-app-crashing",
-    title: "Mobile app crashing",
+    title: "App crashing on phone",
     category: "mobile",
     risk: "Low",
     difficulty: 1,
     time: "10 min",
-    devices: ["Mobile"],
+    devices: ["iOS", "Android"],
     symptoms: [
       "The app closes right after opening",
       "The app freezes and stops responding",
@@ -1054,7 +1054,7 @@ export const ISSUES: Issue[] = [
     risk: "Low",
     difficulty: 1,
     time: "10 min",
-    devices: ["Mobile"],
+    devices: ["iOS", "Android"],
     symptoms: [
       "You stop receiving alerts for new messages",
       "Notifications are delayed by hours",
@@ -1063,12 +1063,12 @@ export const ISSUES: Issue[] = [
   },
   {
     id: "mobile-hotspot-not-working",
-    title: "Mobile hotspot not working",
+    title: "Phone hotspot not working",
     category: "mobile",
     risk: "Low",
     difficulty: 2,
     time: "15 min",
-    devices: ["Mobile", "Other"],
+    devices: ["iOS", "Android", "Other"],
     symptoms: [
       "Devices cannot find the hotspot",
       "The hotspot connects but has no internet",
@@ -1077,12 +1077,12 @@ export const ISSUES: Issue[] = [
   },
   {
     id: "mobile-app-wont-update",
-    title: "Mobile app will not update",
+    title: "App will not update on phone",
     category: "mobile",
     risk: "Low",
     difficulty: 1,
     time: "10 min",
-    devices: ["Mobile"],
+    devices: ["iOS", "Android"],
     symptoms: [
       "The update is stuck in the app store",
       "An error appears when updating",
@@ -1096,7 +1096,7 @@ export const ISSUES: Issue[] = [
     risk: "Medium",
     difficulty: 2,
     time: "20 min",
-    devices: ["Mobile"],
+    devices: ["iOS", "Android"],
     symptoms: [
       "The enrollment step fails or times out",
       "An error blocks work profile setup",
@@ -1110,7 +1110,7 @@ export const ISSUES: Issue[] = [
     risk: "Low",
     difficulty: 2,
     time: "15 min",
-    devices: ["Mobile"],
+    devices: ["iOS", "Android"],
     symptoms: [
       "The battery drops faster than usual",
       "The phone feels warm during normal use",
@@ -1124,7 +1124,7 @@ export const ISSUES: Issue[] = [
     risk: "Low",
     difficulty: 2,
     time: "15 min",
-    devices: ["Mobile"],
+    devices: ["iOS", "Android"],
     symptoms: [
       "Calls fail to connect on the work line",
       "Text messages do not send",
@@ -1138,7 +1138,7 @@ export const ISSUES: Issue[] = [
     risk: "Low",
     difficulty: 1,
     time: "10 min",
-    devices: ["Mobile"],
+    devices: ["iOS", "Android"],
     symptoms: [
       "A storage full warning appears",
       "Photos or apps will not download",
@@ -1152,7 +1152,7 @@ export const ISSUES: Issue[] = [
     risk: "Medium",
     difficulty: 2,
     time: "15 min",
-    devices: ["Mobile"],
+    devices: ["iOS", "Android"],
     symptoms: [
       "The device does not appear on the map",
       "The last known location is very outdated",
@@ -1306,7 +1306,7 @@ export const ISSUES: Issue[] = [
     risk: "Low",
     difficulty: 1,
     time: "10 min",
-    devices: ["Windows", "Mac", "Mobile", "Other"],
+    devices: ["Windows", "Mac", "iOS", "Android", "Other"],
     symptoms: [
       "New messages do not trigger an alert",
       "The unread badge does not update",
@@ -1320,7 +1320,7 @@ export const ISSUES: Issue[] = [
     risk: "Low",
     difficulty: 2,
     time: "15 min",
-    devices: ["Windows", "Mac", "Mobile", "Other"],
+    devices: ["Windows", "Mac", "iOS", "Android", "Other"],
     symptoms: [
       "New invites do not appear on the calendar",
       "Accepted meetings are missing from the schedule",
@@ -1362,7 +1362,7 @@ export const ISSUES: Issue[] = [
     risk: "Low",
     difficulty: 2,
     time: "15 min",
-    devices: ["Windows", "Mac", "Mobile", "Other"],
+    devices: ["Windows", "Mac", "iOS", "Android", "Other"],
     symptoms: [
       "You are logged out several times a day",
       "Saved sign-in details are not remembered",
@@ -1376,7 +1376,7 @@ export const ISSUES: Issue[] = [
     risk: "Low",
     difficulty: 1,
     time: "10 min",
-    devices: ["Windows", "Mac", "Mobile", "Other"],
+    devices: ["Windows", "Mac", "iOS", "Android", "Other"],
     symptoms: [
       "Typing @ does not show a name list",
       "A colleague's name will not appear when searched",
@@ -1390,7 +1390,7 @@ export const ISSUES: Issue[] = [
     risk: "Low",
     difficulty: 1,
     time: "5 min",
-    devices: ["Windows", "Mac", "Mobile", "Other"],
+    devices: ["Windows", "Mac", "iOS", "Android", "Other"],
     symptoms: [
       "Your status shows away or offline incorrectly",
       "The status does not update after activity",
@@ -1418,7 +1418,7 @@ export const ISSUES: Issue[] = [
     risk: "Low",
     difficulty: 2,
     time: "15 min",
-    devices: ["Windows", "Mac", "Mobile", "Other"],
+    devices: ["Windows", "Mac", "iOS", "Android", "Other"],
     symptoms: [
       "A channel you were added to is not visible",
       "Search cannot find the expected group",
@@ -1460,7 +1460,7 @@ export const ISSUES: Issue[] = [
     risk: "Medium",
     difficulty: 2,
     time: "15 min",
-    devices: ["Windows", "Mac", "Mobile", "Other"],
+    devices: ["Windows", "Mac", "iOS", "Android", "Other"],
     symptoms: [
       "Unexpected pop-ups appear while browsing",
       "A pop-up claims your device is infected",
@@ -1502,7 +1502,7 @@ export const ISSUES: Issue[] = [
     risk: "Medium",
     difficulty: 2,
     time: "15 min",
-    devices: ["Windows", "Mac", "Mobile", "Other"],
+    devices: ["Windows", "Mac", "iOS", "Android", "Other"],
     symptoms: [
       "A device you do not recognize is listed as active",
       "You received an alert about a new device",
@@ -1516,7 +1516,7 @@ export const ISSUES: Issue[] = [
     risk: "Medium",
     difficulty: 1,
     time: "10 min",
-    devices: ["Windows", "Mac", "Mobile", "Other"],
+    devices: ["Windows", "Mac", "iOS", "Android", "Other"],
     symptoms: [
       "An email asks you to confirm your password",
       "A link or sender address looks slightly off",
@@ -1558,7 +1558,7 @@ export const ISSUES: Issue[] = [
     risk: "Medium",
     difficulty: 2,
     time: "15 min",
-    devices: ["Windows", "Mac", "Mobile", "Other"],
+    devices: ["Windows", "Mac", "iOS", "Android", "Other"],
     symptoms: [
       "A work device is missing or was stolen",
       "You need to remotely lock or wipe it",

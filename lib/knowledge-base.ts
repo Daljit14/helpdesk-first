@@ -112,7 +112,7 @@ export const issues: Issue[] = [
     slug: "low-storage",
     title: "Low storage",
     categoryId: "computer",
-    platforms: ["Windows", "Mac", "Mobile", "Other"],
+    platforms: ["Windows", "Mac", "iOS", "Android", "Other"],
     symptoms: [
       "Disk space warning appears",
       "Cannot save new files",
@@ -173,7 +173,7 @@ export const issues: Issue[] = [
     slug: "no-internet-connection",
     title: "No internet connection",
     categoryId: "network",
-    platforms: ["Windows", "Mac", "Mobile", "Other"],
+    platforms: ["Windows", "Mac", "iOS", "Android", "Other"],
     symptoms: [
       "Web pages will not load",
       "Apps show a connection error",
@@ -206,7 +206,7 @@ export const issues: Issue[] = [
     slug: "wi-fi-keeps-disconnecting",
     title: "Wi-Fi keeps disconnecting",
     categoryId: "network",
-    platforms: ["Windows", "Mac", "Mobile", "Other"],
+    platforms: ["Windows", "Mac", "iOS", "Android", "Other"],
     symptoms: [
       "Wi-Fi drops every few minutes",
       "Network connection is unstable",
@@ -236,7 +236,7 @@ export const issues: Issue[] = [
     slug: "slow-internet",
     title: "Slow internet",
     categoryId: "network",
-    platforms: ["Windows", "Mac", "Mobile", "Other"],
+    platforms: ["Windows", "Mac", "iOS", "Android", "Other"],
     symptoms: [
       "Web pages load very slowly",
       "Video streams buffer often",
@@ -446,7 +446,7 @@ export const issues: Issue[] = [
     slug: "email-not-syncing",
     title: "Email not syncing",
     categoryId: "email",
-    platforms: ["Windows", "Mac", "Mobile", "Other"],
+    platforms: ["Windows", "Mac", "iOS", "Android", "Other"],
     symptoms: [
       "New emails do not appear",
       "Sent folder is not up to date",
@@ -478,7 +478,7 @@ export const issues: Issue[] = [
     slug: "cannot-send-email",
     title: "Cannot send email",
     categoryId: "email",
-    platforms: ["Windows", "Mac", "Mobile", "Other"],
+    platforms: ["Windows", "Mac", "iOS", "Android", "Other"],
     symptoms: [
       "Emails stay in the Outbox",
       "Send button returns an error",
@@ -506,7 +506,7 @@ export const issues: Issue[] = [
     slug: "not-receiving-email",
     title: "Not receiving email",
     categoryId: "email",
-    platforms: ["Windows", "Mac", "Mobile", "Other"],
+    platforms: ["Windows", "Mac", "iOS", "Android", "Other"],
     symptoms: [
       "Expected emails never arrive",
       "Senders say messages bounce back",
@@ -534,7 +534,7 @@ export const issues: Issue[] = [
     slug: "attachment-problem",
     title: "Attachment problem",
     categoryId: "email",
-    platforms: ["Windows", "Mac", "Mobile", "Other"],
+    platforms: ["Windows", "Mac", "iOS", "Android", "Other"],
     symptoms: [
       "You cannot open an attachment",
       "An attachment is blocked or missing",
@@ -562,7 +562,7 @@ export const issues: Issue[] = [
     slug: "email-sign-in-problem",
     title: "Email sign-in problem",
     categoryId: "email",
-    platforms: ["Windows", "Mac", "Mobile", "Other"],
+    platforms: ["Windows", "Mac", "iOS", "Android", "Other"],
     symptoms: [
       "Email app keeps asking for a password",
       "You are told the password is wrong",
@@ -680,7 +680,7 @@ export const issues: Issue[] = [
     slug: "update-failure",
     title: "Update failure",
     categoryId: "software",
-    platforms: ["Windows", "Mac", "Mobile", "Other"],
+    platforms: ["Windows", "Mac", "iOS", "Android", "Other"],
     symptoms: [
       "An app or system update keeps failing",
       "Update gets stuck at a percentage",
@@ -764,7 +764,7 @@ export const issues: Issue[] = [
     slug: "camera-or-microphone-not-working",
     title: "Camera or microphone not working",
     categoryId: "audio",
-    platforms: ["Windows", "Mac", "Mobile", "Other"],
+    platforms: ["Windows", "Mac", "iOS", "Android", "Other"],
     symptoms: [
       "Video call camera is black",
       "Microphone does not pick up sound",
@@ -792,7 +792,7 @@ export const issues: Issue[] = [
     slug: "microphone-not-working",
     title: "Microphone not working",
     categoryId: "audio",
-    platforms: ["Windows", "Mac", "Mobile", "Other"],
+    platforms: ["Windows", "Mac", "iOS", "Android", "Other"],
     symptoms: [
       "No one can hear you on calls",
       "The mic icon is muted or not detected",
@@ -820,7 +820,7 @@ export const issues: Issue[] = [
     slug: "bluetooth-headset-problem",
     title: "Bluetooth headset problem",
     categoryId: "audio",
-    platforms: ["Windows", "Mac", "Mobile", "Other"],
+    platforms: ["Windows", "Mac", "iOS", "Android", "Other"],
     symptoms: [
       "Headset will not connect",
       "Audio cuts in and out",

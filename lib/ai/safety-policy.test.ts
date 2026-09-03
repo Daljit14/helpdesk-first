@@ -219,7 +219,7 @@ describe("validateAiOutput", () => {
       {
         decision: "match",
         matchedIssueSlug: "screen-sharing",
-        detectedPlatform: "Mobile",
+        detectedPlatform: "iOS",
         explanation: "This looks like an issue.",
       },
       allowedSlugs,

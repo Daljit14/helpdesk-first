@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, test } from "vitest";
-import { getRecentlyViewed, pushRecentlyViewed } from "./recent";
+import {
+  clearRecentlyViewed,
+  getRecentlyViewed,
+  pushRecentlyViewed,
+  removeRecentlyViewed,
+} from "./recent";
 
 describe("recently viewed issues", () => {
   beforeEach(() => localStorage.clear());
@@ -24,5 +29,19 @@ describe("recently viewed issues", () => {
     expect(getRecentlyViewed()).toHaveLength(8);
     expect(getRecentlyViewed()[0]).toBe("issue-9");
     expect(getRecentlyViewed()[7]).toBe("issue-2");
+  });
+
+  test("removes one issue", () => {
+    pushRecentlyViewed("one");
+    pushRecentlyViewed("two");
+    removeRecentlyViewed("one");
+    expect(getRecentlyViewed()).toEqual(["two"]);
+  });
+
+  test("clears all issues", () => {
+    pushRecentlyViewed("one");
+    clearRecentlyViewed();
+    expect(getRecentlyViewed()).toEqual([]);
+    expect(localStorage.getItem("hf-recent")).toBeNull();
   });
 });

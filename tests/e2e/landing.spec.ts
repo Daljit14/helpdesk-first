@@ -22,6 +22,9 @@ test("homepage renders with search, categories and platform filters", async ({
   await expect(page.locator("main")).toBeVisible();
 
   await expect(searchInput(page)).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: /Ask the Support Assistant/i })
+  ).toHaveAttribute("href", "/assistant");
 
   for (const label of [
     "Computer",

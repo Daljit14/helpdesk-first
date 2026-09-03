@@ -24,6 +24,7 @@ import {
 } from "@/lib/guides-data";
 import { GuideActions } from "@/components/guide-actions";
 import { RecentTracker } from "@/components/recent-tracker";
+import { NetworkCheckWidget } from "@/components/network-check-widget";
 
 export async function generateStaticParams() {
   return getAllIssueSlugs().map((slug) => ({ slug }));
@@ -147,6 +148,8 @@ export default async function IssuePage({
           <span className="font-medium text-foreground">Applies to:</span>{" "}
           {issue.devices.join(", ")}
         </div>
+
+        {issue.category === "network" && <NetworkCheckWidget />}
 
         <div className="mt-6">
           <StartGuideButton slug={issue.id} />

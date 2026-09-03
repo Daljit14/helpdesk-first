@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { History, X } from "lucide-react";
+import { Bot, ChevronRight, History, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/lib/button-variants";
 import { cn } from "@/lib/utils";
@@ -229,6 +229,28 @@ export function HomePage({
               Clear my troubleshooting history ({sessionCount})
             </Button>
           </div>
+        )}
+
+        {process.env.NEXT_PUBLIC_AI_ENABLED === "true" && (
+          <Link
+            href="/assistant"
+            className="group mt-4 flex items-center gap-3 rounded-xl border bg-card p-4 text-left transition-colors hover:ring-2 hover:ring-primary/20"
+          >
+            <Bot className="h-5 w-5 shrink-0 text-primary" aria-hidden />
+            <span className="min-w-0 flex-1">
+              <span className="block font-medium">
+                Not sure where to start? Ask the Support Assistant
+              </span>
+              <span className="mt-1 block text-sm text-muted-foreground">
+                Describe the problem in plain words and get routed to the right
+                guide.
+              </span>
+            </span>
+            <ChevronRight
+              className="h-5 w-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
+              aria-hidden
+            />
+          </Link>
         )}
 
         <div className="mt-8">

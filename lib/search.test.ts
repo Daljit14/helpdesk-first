@@ -40,9 +40,9 @@ test("category filter returns only matching issues", () => {
 
 test("platform filter returns only matching issues", () => {
   const mobileIssues = filterIssues({ platform: "Mobile" });
-  expect(
-    mobileIssues.every((issue) => issue.devices.includes("Mobile"))
-  ).toBe(true);
+  expect(mobileIssues.every((issue) => issue.devices.includes("Mobile"))).toBe(
+    true
+  );
   expect(mobileIssues.length).toBeLessThan(100);
 });
 

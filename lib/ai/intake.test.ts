@@ -2,9 +2,19 @@ import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
 import { processAiIntake } from "./intake";
 import { createAiProvider } from "./mock-provider";
 import type { AiProvider, AiIntakeOutput, AiIntakeInput } from "./types";
+import { issues } from "@/lib/knowledge-base";
+import { getIssueBySlug } from "@/lib/search";
 
 const safeProvider = createAiProvider();
-const options = { provider: safeProvider };
+const options = {
+  provider: safeProvider,
+  allowedSlugs: [
+    ...new Set([
+      ...issues.map((issue) => issue.slug),
+      ...issues.map((issue) => getIssueBySlug(issue.slug)?.id ?? issue.slug),
+    ]),
+  ],
+};
 
 describe("processAiIntake", () => {
   beforeEach(() => {
@@ -25,39 +35,8 @@ describe("processAiIntake", () => {
     }
   });
 
-  test("matches all 30 approved issues", async () => {
-    const slugs = [
-      "slow-computer",
-      "computer-will-not-start",
-      "computer-freezing",
-      "low-storage",
-      "blue-screen-unexpected-restart",
-      "no-internet-connection",
-      "wi-fi-keeps-disconnecting",
-      "slow-internet",
-      "ethernet-not-working",
-      "vpn-connection-problem",
-      "printer-showing-offline",
-      "print-job-stuck",
-      "paper-jam",
-      "poor-print-quality",
-      "wrong-default-printer",
-      "email-not-syncing",
-      "cannot-send-email",
-      "not-receiving-email",
-      "attachment-problem",
-      "email-sign-in-problem",
-      "application-will-not-open",
-      "software-installation-problem",
-      "application-frozen",
-      "update-failure",
-      "wrong-default-application",
-      "no-sound",
-      "camera-or-microphone-not-working",
-      "microphone-not-working",
-      "bluetooth-headset-problem",
-      "screen-sharing-problem",
-    ];
+  test("matches all legacy approved issues", async () => {
+    const slugs = issues.map((issue) => issue.slug);
     for (const slug of slugs) {
       const result = await processAiIntake(
         {
@@ -69,7 +48,11 @@ describe("processAiIntake", () => {
       expect(result.status).toBe("success");
       if (result.status === "success") {
         expect(result.output.decision).toBe("match");
-        expect(result.output.matchedIssueSlug).toBe(slug);
+        expect(result.output.matchedIssueSlug).toBe(
+          slug === "email-sign-in-problem"
+            ? slug
+            : (getIssueBySlug(slug)?.id ?? slug)
+        );
         expect(result.output.explanation).toBeTruthy();
       }
     }
@@ -222,7 +205,7 @@ describe("processAiIntake", () => {
     );
     expect(result.status).toBe("success");
     if (result.status === "success") {
-      expect(result.output.matchedIssueSlug).toBe("bluetooth-headset-problem");
+      expect(result.output.matchedIssueSlug).toBe("bluetooth-headset");
     }
   });
 

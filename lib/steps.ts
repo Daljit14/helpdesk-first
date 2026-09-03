@@ -1,5 +1,5 @@
 import { issues as legacyIssues } from "./knowledge-base";
-import { CATEGORY_STEPS, type Issue, type IssueCategoryId } from "./issues";
+import { CATEGORY_STEPS, type Issue } from "./issues";
 
 const legacyById = new Map(legacyIssues.map((i) => [i.slug, i]));
 

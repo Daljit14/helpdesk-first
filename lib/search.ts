@@ -1,4 +1,28 @@
-import { ISSUES, CATEGORIES, type Issue, type Device, type IssueCategoryId } from "./issues";
+import {
+  ISSUES,
+  CATEGORIES,
+  type Issue,
+  type Device,
+  type IssueCategoryId,
+} from "./issues";
+
+const LEGACY_SLUG_ALIASES: Record<string, string> = {
+  "computer-will-not-start": "computer-wont-start",
+  "blue-screen-unexpected-restart": "blue-screen",
+  "no-internet-connection": "no-internet",
+  "wi-fi-keeps-disconnecting": "wifi-disconnecting",
+  "vpn-connection-problem": "vpn-problem",
+  "printer-showing-offline": "printer-offline",
+  "email-sign-in-problem": "email-sign-in",
+  "application-will-not-open": "app-wont-open",
+  "software-installation-problem": "install-problem",
+  "application-frozen": "app-frozen",
+  "wrong-default-application": "wrong-default-app",
+  "camera-or-microphone-not-working": "camera-mic-not-working",
+  "microphone-not-working": "mic-not-working",
+  "bluetooth-headset-problem": "bluetooth-headset",
+  "screen-sharing-problem": "screen-sharing",
+};
 
 export type IssueFilters = {
   query?: string;
@@ -30,7 +54,13 @@ function matchesQuery(issue: Issue, rawQuery: string): boolean {
   if (tokens.length === 0) return true;
 
   const haystack = normalize(
-    [issue.id, issue.title, categoryLabel(issue.category), ...issue.symptoms, ...issue.devices].join(" ")
+    [
+      issue.id,
+      issue.title,
+      categoryLabel(issue.category),
+      ...issue.symptoms,
+      ...issue.devices,
+    ].join(" ")
   );
 
   return tokens.every((token) => haystack.includes(token));
@@ -53,7 +83,8 @@ export function filterIssues(filters: IssueFilters): Issue[] {
 }
 
 export function getIssueBySlug(slug: string): Issue | undefined {
-  return ISSUES.find((issue) => issue.id === slug);
+  const id = LEGACY_SLUG_ALIASES[slug] ?? slug;
+  return ISSUES.find((issue) => issue.id === id);
 }
 
 export function getAllIssueSlugs(): string[] {

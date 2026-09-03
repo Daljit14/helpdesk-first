@@ -1,5 +1,10 @@
 import { getCategoryIcon } from "@/components/category-icon";
-import { CATEGORIES as ISSUE_CATEGORIES, DEVICES, type IssueCategoryId, type Device } from "./issues";
+import {
+  CATEGORIES as ISSUE_CATEGORIES,
+  DEVICES,
+  type IssueCategoryId,
+  type Device,
+} from "./issues";
 
 export type Category = {
   id: IssueCategoryId;

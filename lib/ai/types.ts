@@ -48,13 +48,7 @@ export const diagnosticQuestions: DiagnosticQuestion[] = [
   {
     id: "when-started",
     text: "When did the problem start, and does it happen every time?",
-    categoryIds: [
-      "computer",
-      "network",
-      "printer",
-      "software",
-      "audio",
-    ],
+    categoryIds: ["computer", "network", "printer", "software", "audio"],
   },
   {
     id: "error-message",

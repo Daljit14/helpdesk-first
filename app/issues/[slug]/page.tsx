@@ -1,11 +1,29 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Clock, Gauge, Monitor, ShieldAlert, ShieldCheck } from "lucide-react";
+import {
+  ArrowLeft,
+  Clock,
+  Gauge,
+  ShieldAlert,
+  ShieldCheck,
+} from "lucide-react";
 import { getAllIssueSlugs, getIssueBySlug } from "@/lib/search";
 import { categories } from "@/lib/helpdesk-data";
 import { StartGuideButton } from "@/components/start-guide-button";
 import type { Metadata } from "next";
-import { getIssueSteps, getIssueSafetyWarning, getIssueEscalationWarning } from "@/lib/steps";
+import {
+  getIssueSteps,
+  getIssueSafetyWarning,
+  getIssueEscalationWarning,
+} from "@/lib/steps";
+import { getCurrentUser } from "@/lib/supabase/user";
+import {
+  getBookmarkedIssueIds,
+  getRatingTotals,
+  getUserRating,
+} from "@/lib/guides-data";
+import { GuideActions } from "@/components/guide-actions";
+import { RecentTracker } from "@/components/recent-tracker";
 
 export async function generateStaticParams() {
   return getAllIssueSlugs().map((slug) => ({ slug }));
@@ -41,9 +59,13 @@ export default async function IssuePage({
   const backParams = new URLSearchParams();
   const q = Array.isArray(query.q) ? query.q[0] : query.q;
   if (q) backParams.set("q", q);
-  const categoryId = Array.isArray(query.category) ? query.category[0] : query.category;
+  const categoryId = Array.isArray(query.category)
+    ? query.category[0]
+    : query.category;
   if (categoryId) backParams.set("category", categoryId);
-  const platform = Array.isArray(query.platform) ? query.platform[0] : query.platform;
+  const platform = Array.isArray(query.platform)
+    ? query.platform[0]
+    : query.platform;
   if (platform) backParams.set("platform", platform);
   const backHref = backParams.toString() ? `/?${backParams.toString()}` : "/";
 
@@ -51,6 +73,12 @@ export default async function IssuePage({
   const steps = getIssueSteps(issue);
   const safetyWarning = getIssueSafetyWarning(issue);
   const escalationWarning = getIssueEscalationWarning(issue);
+  const user = await getCurrentUser();
+  const [bookmarkedIds, userRating, ratingTotals] = await Promise.all([
+    user ? getBookmarkedIssueIds(user.id) : Promise.resolve([]),
+    user ? getUserRating(user.id, issue.id) : Promise.resolve(null),
+    getRatingTotals(issue.id),
+  ]);
 
   const riskColor =
     issue.risk === "High"
@@ -62,6 +90,7 @@ export default async function IssuePage({
   return (
     <section className="flex flex-1 flex-col px-4 py-12 sm:px-6 lg:px-8">
       <div className="mx-auto w-full max-w-3xl">
+        <RecentTracker issueId={issue.id} />
         <Link
           href={backHref}
           className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
@@ -74,7 +103,9 @@ export default async function IssuePage({
           {issue.title}
         </h1>
 
-        <p className="mt-2 text-muted-foreground">{issue.symptoms.join(" · ")}</p>
+        <p className="mt-2 text-muted-foreground">
+          {issue.symptoms.join(" · ")}
+        </p>
 
         <div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
           <span className="rounded-full border border-border bg-card px-3 py-1">
@@ -88,7 +119,9 @@ export default async function IssuePage({
             <Clock className="h-4 w-4" />
             {issue.time}
           </span>
-          <span className={`inline-flex items-center gap-1 font-medium ${riskColor}`}>
+          <span
+            className={`inline-flex items-center gap-1 font-medium ${riskColor}`}
+          >
             {issue.risk === "Low" ? (
               <ShieldCheck className="h-4 w-4" />
             ) : (
@@ -107,6 +140,14 @@ export default async function IssuePage({
           <StartGuideButton slug={issue.id} />
         </div>
 
+        <GuideActions
+          issueId={issue.id}
+          user={user}
+          initialBookmarked={bookmarkedIds.includes(issue.id)}
+          initialVote={userRating}
+          initialTotals={ratingTotals}
+        />
+
         {safetyWarning && (
           <div className="mt-6 rounded-lg border-l-4 border-amber-500 bg-amber-50 p-4 text-amber-900 dark:bg-amber-950 dark:text-amber-100">
             <p className="font-semibold">Safety note</p>
@@ -115,7 +156,9 @@ export default async function IssuePage({
         )}
 
         <div className="mt-8">
-          <h2 className="text-xl font-semibold">Initial troubleshooting steps</h2>
+          <h2 className="text-xl font-semibold">
+            Initial troubleshooting steps
+          </h2>
           <ol className="mt-4 list-decimal space-y-3 rounded-xl border border-border bg-card p-6 pl-10">
             {steps.map((step, index) => (
               <li key={index} className="pl-2 text-muted-foreground">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -19,10 +19,17 @@ import type { Issue } from "@/lib/issues";
 import { platforms, type Platform } from "@/lib/helpdesk-data";
 import type { StepOutcome, TroubleshootingSession } from "@/lib/session";
 import { clearSession, getSession, saveSession } from "@/lib/session";
-import { getIssueSteps, getIssueSafetyWarning, getIssueEscalationWarning } from "@/lib/steps";
+import {
+  getIssueSteps,
+  getIssueSafetyWarning,
+  getIssueEscalationWarning,
+} from "@/lib/steps";
+import { saveProgress } from "@/app/actions/guides";
 
 type TroubleshootingGuideProps = {
   issue: Issue;
+  initialCompletedSteps?: number[];
+  canPersist?: boolean;
 };
 
 type GuideState = {
@@ -53,7 +60,11 @@ function formatOutcome(outcome: StepOutcome): string {
   }
 }
 
-export function TroubleshootingGuide({ issue }: TroubleshootingGuideProps) {
+export function TroubleshootingGuide({
+  issue,
+  initialCompletedSteps = [],
+  canPersist = false,
+}: TroubleshootingGuideProps) {
   const searchParams = useSearchParams();
   const platform: string = useMemo(() => {
     const raw = searchParams.get("platform");
@@ -63,9 +74,10 @@ export function TroubleshootingGuide({ issue }: TroubleshootingGuideProps) {
   }, [searchParams, issue.devices]);
 
   const steps = useMemo(() => getIssueSteps(issue), [issue]);
-  const safetyWarning = useMemo(() => getIssueSafetyWarning(issue), [issue]);
-  const escalationWarning = useMemo(() => getIssueEscalationWarning(issue), [issue]);
-
+  const [completedSteps, setCompletedSteps] = useState<number[]>(() => [
+    ...new Set(initialCompletedSteps),
+  ]);
+  const [, startTransition] = useTransition();
   const [state, setState] = useState<GuideState>(() => {
     const saved = getSession(issue.id, platform);
     if (saved) {
@@ -78,7 +90,16 @@ export function TroubleshootingGuide({ issue }: TroubleshootingGuideProps) {
         rating: saved.rating,
       };
     }
-    return initialState();
+    const firstIncomplete = steps.findIndex(
+      (_, index) => !initialCompletedSteps.includes(index)
+    );
+    return {
+      ...initialState(),
+      currentStepIndex:
+        firstIncomplete === -1
+          ? Math.max(steps.length - 1, 0)
+          : firstIncomplete,
+    };
   });
 
   const statusRef = useRef<HTMLDivElement>(null);
@@ -113,6 +134,15 @@ export function TroubleshootingGuide({ issue }: TroubleshootingGuideProps) {
 
   function handleCompleted() {
     const step = recordAttempt("completed");
+    const nextCompleted = [
+      ...new Set([...completedSteps, state.currentStepIndex]),
+    ];
+    setCompletedSteps(nextCompleted);
+    if (canPersist) {
+      startTransition(() => {
+        void saveProgress(issue.id, nextCompleted);
+      });
+    }
     if (state.currentStepIndex === totalSteps - 1) {
       setState((prev) => ({
         ...prev,
@@ -162,6 +192,12 @@ export function TroubleshootingGuide({ issue }: TroubleshootingGuideProps) {
 
   function handleRestart() {
     clearSession(issue.id, platform);
+    setCompletedSteps([]);
+    if (canPersist) {
+      startTransition(() => {
+        void saveProgress(issue.id, []);
+      });
+    }
     setState(initialState());
     statusRef.current?.focus();
   }

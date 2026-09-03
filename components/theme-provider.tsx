@@ -31,31 +31,34 @@ export function ThemeProvider({
   const [theme, setTheme] = useState<Theme>(defaultTheme);
   const [mounted, setMounted] = useState(false);
 
-  useEffect(() => {
-    const stored = window.localStorage.getItem("hf-theme");
-    if (stored === "light" || stored === "dark") {
-      applyTheme(stored);
-    } else {
-      applyTheme(defaultTheme);
-    }
-    setMounted(true);
-  }, [defaultTheme]);
-
-  const applyTheme = (next: Theme) => {
+  function applyTheme(next: Theme) {
     const root = document.documentElement;
     root.classList.remove("light", "dark");
     root.classList.add(next);
-    setTheme(next);
-  };
+  }
+
+  useEffect(() => {
+    const stored = window.localStorage.getItem("hf-theme");
+    const nextTheme =
+      stored === "light" || stored === "dark" ? stored : defaultTheme;
+    applyTheme(nextTheme);
+    queueMicrotask(() => {
+      setTheme(nextTheme);
+      setMounted(true);
+    });
+  }, [defaultTheme]);
 
   const toggleTheme = () => {
     const next = theme === "dark" ? "light" : "dark";
     applyTheme(next);
+    setTheme(next);
     window.localStorage.setItem("hf-theme", next);
   };
 
   return (
-    <ThemeContext.Provider value={{ theme: mounted ? theme : defaultTheme, toggleTheme }}>
+    <ThemeContext.Provider
+      value={{ theme: mounted ? theme : defaultTheme, toggleTheme }}
+    >
       {children}
     </ThemeContext.Provider>
   );

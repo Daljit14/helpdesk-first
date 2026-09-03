@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { createElement } from "react";
 import { Clock, Monitor } from "lucide-react";
 import type { Issue } from "@/lib/issues";
 import { getCategoryIcon } from "@/components/category-icon";
@@ -23,7 +24,7 @@ export function IssueCard({ issue, backParams = "" }: IssueCardProps) {
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-start gap-3">
             <div className="mt-1 rounded-lg bg-muted p-2 text-indigo-500">
-              <Icon className="h-5 w-5" />
+              {createElement(Icon, { className: "h-5 w-5" })}
             </div>
             <div>
               <h2 className="text-lg font-semibold group-hover:underline">

@@ -1035,7 +1035,7 @@ export const ISSUES: Issue[] = [
   },
   {
     id: "mobile-app-crashing",
-    title: "App crashing on phone",
+    title: "Mobile app crashing",
     category: "mobile",
     risk: "Low",
     difficulty: 1,
@@ -1063,7 +1063,7 @@ export const ISSUES: Issue[] = [
   },
   {
     id: "mobile-hotspot-not-working",
-    title: "Phone hotspot not working",
+    title: "Mobile hotspot not working",
     category: "mobile",
     risk: "Low",
     difficulty: 2,
@@ -1077,7 +1077,7 @@ export const ISSUES: Issue[] = [
   },
   {
     id: "mobile-app-wont-update",
-    title: "App will not update on phone",
+    title: "Mobile app will not update",
     category: "mobile",
     risk: "Low",
     difficulty: 1,

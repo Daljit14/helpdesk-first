@@ -2,7 +2,7 @@ import { test, expect } from "vitest";
 import { filterIssues, getIssueBySlug } from "./search";
 
 test("empty filters return all issues", () => {
-  expect(filterIssues({})).toHaveLength(30);
+  expect(filterIssues({})).toHaveLength(100);
 });
 
 test("search is case-insensitive", () => {
@@ -33,7 +33,7 @@ test("search normalizes punctuation and hyphens", () => {
 test("category filter returns only matching issues", () => {
   const printerIssues = filterIssues({ categoryId: "printer" });
   expect(printerIssues).toHaveLength(5);
-  expect(printerIssues.every((issue) => issue.categoryId === "printer")).toBe(
+  expect(printerIssues.every((issue) => issue.category === "printer")).toBe(
     true
   );
 });
@@ -41,9 +41,9 @@ test("category filter returns only matching issues", () => {
 test("platform filter returns only matching issues", () => {
   const mobileIssues = filterIssues({ platform: "Mobile" });
   expect(
-    mobileIssues.every((issue) => issue.platforms.includes("Mobile"))
+    mobileIssues.every((issue) => issue.devices.includes("Mobile"))
   ).toBe(true);
-  expect(mobileIssues.length).toBeLessThan(30);
+  expect(mobileIssues.length).toBeLessThan(100);
 });
 
 test("combined filters narrow results", () => {
@@ -53,8 +53,8 @@ test("combined filters narrow results", () => {
     platform: "Windows",
   });
   expect(results.length).toBeGreaterThan(0);
-  expect(results.every((issue) => issue.categoryId === "printer")).toBe(true);
-  expect(results.every((issue) => issue.platforms.includes("Windows"))).toBe(
+  expect(results.every((issue) => issue.category === "printer")).toBe(true);
+  expect(results.every((issue) => issue.devices.includes("Windows"))).toBe(
     true
   );
 });

@@ -31,7 +31,7 @@ export function IssueList({
   return (
     <ul className="grid gap-4">
       {issues.map((issue) => (
-        <IssueCard key={issue.slug} issue={issue} backParams={backParams} />
+        <IssueCard key={issue.id} issue={issue} backParams={backParams} />
       ))}
     </ul>
   );

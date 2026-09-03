@@ -43,17 +43,17 @@ export const diagnosticQuestions: DiagnosticQuestion[] = [
   {
     id: "where-happens",
     text: "Where does this problem happen? For example, a specific app, website, or location.",
-    categoryIds: ["software", "email", "audio-camera", "printer"],
+    categoryIds: ["software", "email", "audio", "printer"],
   },
   {
     id: "when-started",
     text: "When did the problem start, and does it happen every time?",
     categoryIds: [
       "computer",
-      "internet",
+      "network",
       "printer",
       "software",
-      "audio-camera",
+      "audio",
     ],
   },
   {
@@ -63,7 +63,7 @@ export const diagnosticQuestions: DiagnosticQuestion[] = [
   {
     id: "network-owner",
     text: "Do you own this router or network equipment, or is it managed by your workplace, school, or someone else?",
-    categoryIds: ["internet"],
+    categoryIds: ["network"],
   },
   {
     id: "account-managed",
@@ -73,7 +73,7 @@ export const diagnosticQuestions: DiagnosticQuestion[] = [
   {
     id: "already-restarted",
     text: "Have you already tried restarting the device or app?",
-    categoryIds: ["computer", "software", "audio-camera"],
+    categoryIds: ["computer", "software", "audio"],
   },
   {
     id: "printer-connected",

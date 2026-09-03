@@ -172,7 +172,7 @@ export const issues: Issue[] = [
   {
     slug: "no-internet-connection",
     title: "No internet connection",
-    categoryId: "internet",
+    categoryId: "network",
     platforms: ["Windows", "Mac", "Mobile", "Other"],
     symptoms: [
       "Web pages will not load",
@@ -205,7 +205,7 @@ export const issues: Issue[] = [
   {
     slug: "wi-fi-keeps-disconnecting",
     title: "Wi-Fi keeps disconnecting",
-    categoryId: "internet",
+    categoryId: "network",
     platforms: ["Windows", "Mac", "Mobile", "Other"],
     symptoms: [
       "Wi-Fi drops every few minutes",
@@ -235,7 +235,7 @@ export const issues: Issue[] = [
   {
     slug: "slow-internet",
     title: "Slow internet",
-    categoryId: "internet",
+    categoryId: "network",
     platforms: ["Windows", "Mac", "Mobile", "Other"],
     symptoms: [
       "Web pages load very slowly",
@@ -263,7 +263,7 @@ export const issues: Issue[] = [
   {
     slug: "ethernet-not-working",
     title: "Ethernet not working",
-    categoryId: "internet",
+    categoryId: "network",
     platforms: ["Windows", "Mac", "Other"],
     symptoms: [
       "No connection when plugged in with a cable",
@@ -291,7 +291,7 @@ export const issues: Issue[] = [
   {
     slug: "vpn-connection-problem",
     title: "VPN connection problem",
-    categoryId: "internet",
+    categoryId: "network",
     platforms: ["Windows", "Mac", "Other"],
     symptoms: [
       "VPN client will not connect",
@@ -735,7 +735,7 @@ export const issues: Issue[] = [
   {
     slug: "no-sound",
     title: "No sound",
-    categoryId: "audio-camera",
+    categoryId: "audio",
     platforms: ["Windows", "Mac", "Other"],
     symptoms: [
       "No audio from speakers or headphones",
@@ -763,7 +763,7 @@ export const issues: Issue[] = [
   {
     slug: "camera-or-microphone-not-working",
     title: "Camera or microphone not working",
-    categoryId: "audio-camera",
+    categoryId: "audio",
     platforms: ["Windows", "Mac", "Mobile", "Other"],
     symptoms: [
       "Video call camera is black",
@@ -791,7 +791,7 @@ export const issues: Issue[] = [
   {
     slug: "microphone-not-working",
     title: "Microphone not working",
-    categoryId: "audio-camera",
+    categoryId: "audio",
     platforms: ["Windows", "Mac", "Mobile", "Other"],
     symptoms: [
       "No one can hear you on calls",
@@ -819,7 +819,7 @@ export const issues: Issue[] = [
   {
     slug: "bluetooth-headset-problem",
     title: "Bluetooth headset problem",
-    categoryId: "audio-camera",
+    categoryId: "audio",
     platforms: ["Windows", "Mac", "Mobile", "Other"],
     symptoms: [
       "Headset will not connect",
@@ -846,7 +846,7 @@ export const issues: Issue[] = [
   {
     slug: "screen-sharing-problem",
     title: "Screen-sharing problem",
-    categoryId: "audio-camera",
+    categoryId: "audio",
     platforms: ["Windows", "Mac", "Other"],
     symptoms: [
       "Others see a black screen when you share",

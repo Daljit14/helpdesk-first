@@ -191,7 +191,7 @@ export class MockAiProvider implements AiProvider {
       }
       return {
         decision: "match",
-        matchedIssueSlug: issue.slug,
+        matchedIssueSlug: issue.id,
         detectedPlatform,
         explanation: `Based on your description, this looks like "${issue.title}" for ${detectedPlatform ?? "your device"}. I can start the approved troubleshooting guide for that issue.`,
       };

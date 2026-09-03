@@ -1,0 +1,2011 @@
+export type IssueCategoryId =
+  | "computer"
+  | "network"
+  | "printer"
+  | "email"
+  | "software"
+  | "audio"
+  | "accounts"
+  | "files"
+  | "video"
+  | "mobile"
+  | "peripherals"
+  | "collab"
+  | "security";
+
+export type Device = "Windows" | "Mac" | "Mobile" | "Other";
+export type Risk = "Low" | "Medium" | "High";
+
+export type Issue = {
+  id: string;
+  title: string;
+  category: IssueCategoryId;
+  risk: Risk;
+  difficulty: 1 | 2 | 3;
+  time: string;
+  devices: Device[];
+  symptoms: string[];
+};
+
+export const CATEGORIES = [
+  {
+    "id": "computer",
+    "label": "Computer",
+    "icon": "Monitor"
+  },
+  {
+    "id": "network",
+    "label": "Internet & Wi-Fi",
+    "icon": "Wifi"
+  },
+  {
+    "id": "printer",
+    "label": "Printer",
+    "icon": "Printer"
+  },
+  {
+    "id": "email",
+    "label": "Email",
+    "icon": "Mail"
+  },
+  {
+    "id": "software",
+    "label": "Software",
+    "icon": "AppWindow"
+  },
+  {
+    "id": "audio",
+    "label": "Audio & camera",
+    "icon": "Volume2"
+  },
+  {
+    "id": "accounts",
+    "label": "Accounts & security",
+    "icon": "KeyRound"
+  },
+  {
+    "id": "files",
+    "label": "Files & storage",
+    "icon": "FolderOpen"
+  },
+  {
+    "id": "video",
+    "label": "Video conferencing",
+    "icon": "Video"
+  },
+  {
+    "id": "mobile",
+    "label": "Mobile devices",
+    "icon": "Smartphone"
+  },
+  {
+    "id": "peripherals",
+    "label": "Peripherals & hardware",
+    "icon": "Cable"
+  },
+  {
+    "id": "collab",
+    "label": "Collaboration tools",
+    "icon": "MessagesSquare"
+  },
+  {
+    "id": "security",
+    "label": "Security & malware",
+    "icon": "ShieldAlert"
+  }
+] as const;
+
+export const DEVICES: Device[] = [
+  "Windows",
+  "Mac",
+  "Mobile",
+  "Other"
+];
+
+export const CATEGORY_STEPS: Record<IssueCategoryId, string[]> = {
+  "computer": [
+    "Save your work and restart the computer.",
+    "Close background apps that may be using high CPU or memory.",
+    "Check for pending system updates and install them.",
+    "If the problem continues, note any error messages and contact IT."
+  ],
+  "network": [
+    "Restart your router, modem, or Wi-Fi adapter.",
+    "Move closer to the access point or switch to a wired connection.",
+    "Forget and reconnect to the network, re-entering the password if needed.",
+    "If the problem continues, contact IT with your network name and location."
+  ],
+  "printer": [
+    "Restart the printer and confirm it is connected to the network or cable.",
+    "Clear any stuck jobs from the print queue.",
+    "Reinstall or update the printer driver.",
+    "If the problem continues, contact IT with the printer name and error shown."
+  ],
+  "email": [
+    "Restart the email app or reload webmail in your browser.",
+    "Confirm your account credentials are current and not expired.",
+    "Check storage limits and spam or blocked-sender settings.",
+    "If the problem continues, contact IT with the exact error message."
+  ],
+  "software": [
+    "Restart the application, then restart the device if needed.",
+    "Check for available updates to the app.",
+    "Reinstall the application if it still will not launch correctly.",
+    "If the problem continues, contact IT with any error codes shown."
+  ],
+  "audio": [
+    "Check that the correct microphone, speaker, or camera is selected in settings.",
+    "Restart the app you are using for the call or recording.",
+    "Update or reinstall the audio or camera driver.",
+    "If the problem continues, contact IT with the device model."
+  ],
+  "accounts": [
+    "Confirm you are entering the correct username and current password.",
+    "Use the official password reset or account recovery option.",
+    "Check for account lockout or security alerts in your inbox.",
+    "If the problem continues, contact IT to verify your account status."
+  ],
+  "files": [
+    "Confirm you have permission and a stable connection to the shared location.",
+    "Restart the sync client or sign out and back in.",
+    "Check available storage space on the device and in the cloud account.",
+    "If the problem continues, contact IT with the file or folder path."
+  ],
+  "video": [
+    "Restart the meeting app and rejoin the call.",
+    "Check camera, microphone, and speaker selection in the app settings.",
+    "Test your connection speed and close bandwidth-heavy apps.",
+    "If the problem continues, contact IT with the meeting platform and time."
+  ],
+  "mobile": [
+    "Restart the mobile device.",
+    "Confirm the app has the latest update from the app store.",
+    "Check mobile data, Wi-Fi, or notification permissions in device settings.",
+    "If the problem continues, contact IT with the device model and OS version."
+  ],
+  "peripherals": [
+    "Unplug and reconnect the device, trying a different cable or port.",
+    "Restart the computer with the device connected.",
+    "Update or reinstall the device driver.",
+    "If the problem continues, contact IT with the device make and model."
+  ],
+  "collab": [
+    "Sign out and back in to the app.",
+    "Check notification and calendar sync settings.",
+    "Confirm the app has the latest update installed.",
+    "If the problem continues, contact IT with the app name and error shown."
+  ],
+  "security": [
+    "Do not click links or enter credentials until this is checked.",
+    "Run a full scan with the organization antimalware tool.",
+    "Report the alert or message to IT immediately.",
+    "Avoid using the device for sensitive tasks until IT confirms it is safe."
+  ]
+};
+
+export const ISSUES: Issue[] = [
+  {
+    "id": "slow-computer",
+    "title": "Slow computer",
+    "category": "computer",
+    "risk": "Low",
+    "difficulty": 2,
+    "time": "20 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Other"
+    ],
+    "symptoms": [
+      "Programs take a long time to open",
+      "Mouse or keyboard input feels delayed",
+      "Fan is loud and the device is warm"
+    ]
+  },
+  {
+    "id": "computer-wont-start",
+    "title": "Computer will not start",
+    "category": "computer",
+    "risk": "Medium",
+    "difficulty": 3,
+    "time": "30 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Other"
+    ],
+    "symptoms": [
+      "Pressing the power button does nothing",
+      "Screen remains black",
+      "Lights or fans do not turn on"
+    ]
+  },
+  {
+    "id": "computer-freezing",
+    "title": "Computer freezing",
+    "category": "computer",
+    "risk": "Low",
+    "difficulty": 2,
+    "time": "20 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Other"
+    ],
+    "symptoms": [
+      "The screen or cursor stops responding",
+      "Apps freeze and become unclickable",
+      "You have to force the computer off"
+    ]
+  },
+  {
+    "id": "low-storage",
+    "title": "Low storage",
+    "category": "computer",
+    "risk": "Low",
+    "difficulty": 1,
+    "time": "15 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Mobile",
+      "Other"
+    ],
+    "symptoms": [
+      "A disk space warning appears",
+      "You cannot save new files",
+      "Apps report there is not enough space"
+    ]
+  },
+  {
+    "id": "blue-screen",
+    "title": "Blue screen or unexpected restart",
+    "category": "computer",
+    "risk": "Medium",
+    "difficulty": 3,
+    "time": "35 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Other"
+    ],
+    "symptoms": [
+      "The screen turns blue with an error message",
+      "The computer restarts without warning",
+      "A kernel panic or crash report appears"
+    ]
+  },
+  {
+    "id": "no-internet",
+    "title": "No internet connection",
+    "category": "network",
+    "risk": "Low",
+    "difficulty": 2,
+    "time": "20 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Mobile",
+      "Other"
+    ],
+    "symptoms": [
+      "Web pages will not load",
+      "Apps show a connection error",
+      "The network icon shows no connection"
+    ]
+  },
+  {
+    "id": "wifi-disconnecting",
+    "title": "Wi-Fi keeps disconnecting",
+    "category": "network",
+    "risk": "Low",
+    "difficulty": 2,
+    "time": "20 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Mobile",
+      "Other"
+    ],
+    "symptoms": [
+      "Wi-Fi drops every few minutes",
+      "The network connection is unstable",
+      "Video calls freeze or buffer"
+    ]
+  },
+  {
+    "id": "slow-internet",
+    "title": "Slow internet",
+    "category": "network",
+    "risk": "Low",
+    "difficulty": 2,
+    "time": "20 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Mobile",
+      "Other"
+    ],
+    "symptoms": [
+      "Web pages load very slowly",
+      "Video streams buffer often",
+      "Downloads take longer than usual"
+    ]
+  },
+  {
+    "id": "ethernet-not-working",
+    "title": "Ethernet not working",
+    "category": "network",
+    "risk": "Low",
+    "difficulty": 1,
+    "time": "15 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Other"
+    ],
+    "symptoms": [
+      "No connection when plugged in with a cable",
+      "The Ethernet port light is off",
+      "The computer says the cable is unplugged"
+    ]
+  },
+  {
+    "id": "vpn-problem",
+    "title": "VPN connection problem",
+    "category": "network",
+    "risk": "Low",
+    "difficulty": 2,
+    "time": "20 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Other"
+    ],
+    "symptoms": [
+      "The VPN client will not connect",
+      "VPN disconnects frequently",
+      "You cannot reach internal resources while on VPN"
+    ]
+  },
+  {
+    "id": "printer-offline",
+    "title": "Printer showing offline",
+    "category": "printer",
+    "risk": "Low",
+    "difficulty": 1,
+    "time": "10 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Other"
+    ],
+    "symptoms": [
+      "Printer status says Offline",
+      "Print jobs are not reaching the printer",
+      "The printer icon has a warning symbol"
+    ]
+  },
+  {
+    "id": "print-job-stuck",
+    "title": "Print job stuck",
+    "category": "printer",
+    "risk": "Low",
+    "difficulty": 1,
+    "time": "10 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Other"
+    ],
+    "symptoms": [
+      "A document shows as printing but nothing happens",
+      "The print queue has multiple pending jobs",
+      "The printer is not responding to new jobs"
+    ]
+  },
+  {
+    "id": "paper-jam",
+    "title": "Paper jam",
+    "category": "printer",
+    "risk": "Low",
+    "difficulty": 1,
+    "time": "10 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Other"
+    ],
+    "symptoms": [
+      "The printer reports a paper jam",
+      "Paper is crumpled or torn inside the printer",
+      "The printer will not feed paper"
+    ]
+  },
+  {
+    "id": "poor-print-quality",
+    "title": "Poor print quality",
+    "category": "printer",
+    "risk": "Low",
+    "difficulty": 1,
+    "time": "15 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Other"
+    ],
+    "symptoms": [
+      "Prints look faded or streaky",
+      "Colors are incorrect or smudged",
+      "There are lines or spots on the page"
+    ]
+  },
+  {
+    "id": "wrong-default-printer",
+    "title": "Wrong default printer",
+    "category": "printer",
+    "risk": "Low",
+    "difficulty": 1,
+    "time": "5 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Other"
+    ],
+    "symptoms": [
+      "Print jobs go to the wrong printer",
+      "A printer you do not use is selected by default",
+      "Documents print to a PDF or fax driver"
+    ]
+  },
+  {
+    "id": "email-not-syncing",
+    "title": "Email not syncing",
+    "category": "email",
+    "risk": "Low",
+    "difficulty": 1,
+    "time": "10 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Mobile",
+      "Other"
+    ],
+    "symptoms": [
+      "New emails do not appear",
+      "The Sent folder is not up to date",
+      "Calendar or contacts are missing changes"
+    ]
+  },
+  {
+    "id": "cannot-send-email",
+    "title": "Cannot send email",
+    "category": "email",
+    "risk": "Low",
+    "difficulty": 2,
+    "time": "15 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Mobile",
+      "Other"
+    ],
+    "symptoms": [
+      "Emails stay in the Outbox",
+      "The send button returns an error",
+      "Recipients report they did not receive the message"
+    ]
+  },
+  {
+    "id": "not-receiving-email",
+    "title": "Not receiving email",
+    "category": "email",
+    "risk": "Low",
+    "difficulty": 2,
+    "time": "15 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Mobile",
+      "Other"
+    ],
+    "symptoms": [
+      "Expected emails never arrive",
+      "Senders say messages bounce back",
+      "Only some emails are missing"
+    ]
+  },
+  {
+    "id": "attachment-problem",
+    "title": "Attachment problem",
+    "category": "email",
+    "risk": "Low",
+    "difficulty": 1,
+    "time": "10 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Mobile",
+      "Other"
+    ],
+    "symptoms": [
+      "You cannot open an attachment",
+      "An attachment is blocked or missing",
+      "The attachment file size is too large"
+    ]
+  },
+  {
+    "id": "email-sign-in",
+    "title": "Email sign-in problem",
+    "category": "email",
+    "risk": "Medium",
+    "difficulty": 2,
+    "time": "15 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Mobile",
+      "Other"
+    ],
+    "symptoms": [
+      "The email app keeps asking for a password",
+      "You are told the password is wrong",
+      "You cannot log in to webmail"
+    ]
+  },
+  {
+    "id": "app-wont-open",
+    "title": "Application will not open",
+    "category": "software",
+    "risk": "Low",
+    "difficulty": 1,
+    "time": "10 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Other"
+    ],
+    "symptoms": [
+      "Double-clicking the app does nothing",
+      "The app opens and immediately closes",
+      "An error appears at launch"
+    ]
+  },
+  {
+    "id": "install-problem",
+    "title": "Software installation problem",
+    "category": "software",
+    "risk": "Medium",
+    "difficulty": 2,
+    "time": "20 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Other"
+    ],
+    "symptoms": [
+      "The installer fails before completing",
+      "An error message appears during setup",
+      "The installed app is missing features"
+    ]
+  },
+  {
+    "id": "app-frozen",
+    "title": "Application frozen",
+    "category": "software",
+    "risk": "Low",
+    "difficulty": 1,
+    "time": "5 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Other"
+    ],
+    "symptoms": [
+      "An app is not responding to clicks",
+      "The app window is greyed out",
+      "You cannot close the app normally"
+    ]
+  },
+  {
+    "id": "update-failure",
+    "title": "Update failure",
+    "category": "software",
+    "risk": "Low",
+    "difficulty": 2,
+    "time": "20 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Mobile",
+      "Other"
+    ],
+    "symptoms": [
+      "An app or system update keeps failing",
+      "The update gets stuck at a percentage",
+      "An error appears during an update"
+    ]
+  },
+  {
+    "id": "wrong-default-app",
+    "title": "Wrong default application",
+    "category": "software",
+    "risk": "Low",
+    "difficulty": 1,
+    "time": "5 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Other"
+    ],
+    "symptoms": [
+      "Files open in the wrong program",
+      "Links open in an unexpected browser",
+      "PDFs or documents use the wrong app"
+    ]
+  },
+  {
+    "id": "no-sound",
+    "title": "No sound",
+    "category": "audio",
+    "risk": "Low",
+    "difficulty": 1,
+    "time": "15 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Other"
+    ],
+    "symptoms": [
+      "No audio from speakers or headphones",
+      "The volume icon shows a mute symbol",
+      "Apps do not play sound"
+    ]
+  },
+  {
+    "id": "camera-mic-not-working",
+    "title": "Camera or microphone not working",
+    "category": "audio",
+    "risk": "Low",
+    "difficulty": 2,
+    "time": "15 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Mobile",
+      "Other"
+    ],
+    "symptoms": [
+      "The video call camera is black",
+      "The microphone does not pick up sound",
+      "Apps cannot access the camera or mic"
+    ]
+  },
+  {
+    "id": "mic-not-working",
+    "title": "Microphone not working",
+    "category": "audio",
+    "risk": "Low",
+    "difficulty": 1,
+    "time": "10 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Mobile",
+      "Other"
+    ],
+    "symptoms": [
+      "No one can hear you on calls",
+      "The mic icon is muted or not detected",
+      "Voice recordings are silent"
+    ]
+  },
+  {
+    "id": "bluetooth-headset",
+    "title": "Bluetooth headset problem",
+    "category": "audio",
+    "risk": "Low",
+    "difficulty": 2,
+    "time": "15 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Mobile",
+      "Other"
+    ],
+    "symptoms": [
+      "The headset will not connect",
+      "Audio cuts in and out",
+      "The headset is paired but has no sound"
+    ]
+  },
+  {
+    "id": "screen-sharing",
+    "title": "Screen-sharing problem",
+    "category": "audio",
+    "risk": "Low",
+    "difficulty": 2,
+    "time": "15 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Other"
+    ],
+    "symptoms": [
+      "Others see a black screen when you share",
+      "The screen-sharing option is greyed out",
+      "Screen sharing is blurry or freezes"
+    ]
+  },
+  {
+    "id": "forgot-password",
+    "title": "Forgot password",
+    "category": "accounts",
+    "risk": "Low",
+    "difficulty": 1,
+    "time": "10 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Mobile",
+      "Other"
+    ],
+    "symptoms": [
+      "You cannot remember your account password",
+      "The login screen rejects every attempt",
+      "You need to reset your password to continue"
+    ]
+  },
+  {
+    "id": "account-locked",
+    "title": "Account locked out",
+    "category": "accounts",
+    "risk": "Medium",
+    "difficulty": 2,
+    "time": "15 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Mobile",
+      "Other"
+    ],
+    "symptoms": [
+      "Too many failed attempts locked the account",
+      "A lockout message appears at login",
+      "You cannot sign in even with the correct password"
+    ]
+  },
+  {
+    "id": "2fa-not-working",
+    "title": "Two-factor authentication not working",
+    "category": "accounts",
+    "risk": "Medium",
+    "difficulty": 2,
+    "time": "15 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Mobile",
+      "Other"
+    ],
+    "symptoms": [
+      "The verification code never arrives",
+      "The authenticator app shows an invalid code",
+      "You lost access to your verification device"
+    ]
+  },
+  {
+    "id": "password-expired",
+    "title": "Password expired",
+    "category": "accounts",
+    "risk": "Low",
+    "difficulty": 1,
+    "time": "10 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Mobile",
+      "Other"
+    ],
+    "symptoms": [
+      "A message says your password has expired",
+      "You are forced to reset before signing in",
+      "The new password is rejected as too similar"
+    ]
+  },
+  {
+    "id": "suspicious-signin-alert",
+    "title": "Suspicious sign-in alert",
+    "category": "accounts",
+    "risk": "Medium",
+    "difficulty": 2,
+    "time": "15 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Mobile",
+      "Other"
+    ],
+    "symptoms": [
+      "You received an alert about an unfamiliar sign-in",
+      "A login location or device looks unfamiliar",
+      "You did not request the sign-in notification"
+    ]
+  },
+  {
+    "id": "cannot-reset-password",
+    "title": "Cannot reset password",
+    "category": "accounts",
+    "risk": "Medium",
+    "difficulty": 2,
+    "time": "15 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Mobile",
+      "Other"
+    ],
+    "symptoms": [
+      "The reset link never arrives",
+      "The reset link says it has expired",
+      "The reset page shows an error"
+    ]
+  },
+  {
+    "id": "sso-login-failure",
+    "title": "Single sign-on login failure",
+    "category": "accounts",
+    "risk": "Medium",
+    "difficulty": 2,
+    "time": "20 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Mobile",
+      "Other"
+    ],
+    "symptoms": [
+      "SSO redirects back to the login page repeatedly",
+      "An error mentions the identity provider",
+      "Some apps sign in while others fail"
+    ]
+  },
+  {
+    "id": "account-wrong-details",
+    "title": "Account shows wrong name or details",
+    "category": "accounts",
+    "risk": "Low",
+    "difficulty": 1,
+    "time": "10 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Mobile",
+      "Other"
+    ],
+    "symptoms": [
+      "Your display name or title is incorrect",
+      "Your profile photo will not update",
+      "Contact details are outdated across apps"
+    ]
+  },
+  {
+    "id": "security-question-not-accepted",
+    "title": "Security question not accepted",
+    "category": "accounts",
+    "risk": "Low",
+    "difficulty": 1,
+    "time": "10 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Mobile",
+      "Other"
+    ],
+    "symptoms": [
+      "The answer you enter is marked incorrect",
+      "You cannot recall which answers were set",
+      "The recovery step will not proceed"
+    ]
+  },
+  {
+    "id": "session-keeps-logging-out",
+    "title": "Session keeps logging out",
+    "category": "accounts",
+    "risk": "Low",
+    "difficulty": 2,
+    "time": "15 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Mobile",
+      "Other"
+    ],
+    "symptoms": [
+      "You are signed out every few minutes",
+      "Saved login details are not remembered",
+      "You must repeatedly re-enter credentials"
+    ]
+  },
+  {
+    "id": "shared-drive-access",
+    "title": "Cannot access shared drive",
+    "category": "files",
+    "risk": "Low",
+    "difficulty": 2,
+    "time": "15 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Other"
+    ],
+    "symptoms": [
+      "The shared drive does not appear",
+      "An access denied message is shown",
+      "The drive was accessible yesterday but not today"
+    ]
+  },
+  {
+    "id": "file-sync-error",
+    "title": "File sync error",
+    "category": "files",
+    "risk": "Low",
+    "difficulty": 2,
+    "time": "15 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Mobile",
+      "Other"
+    ],
+    "symptoms": [
+      "A sync error icon appears on the file",
+      "Changes are not appearing on other devices",
+      "The sync app shows it is stuck"
+    ]
+  },
+  {
+    "id": "file-wont-upload",
+    "title": "File will not upload",
+    "category": "files",
+    "risk": "Low",
+    "difficulty": 1,
+    "time": "10 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Mobile",
+      "Other"
+    ],
+    "symptoms": [
+      "The upload bar stalls partway through",
+      "An error appears when adding the file",
+      "The file type is rejected"
+    ]
+  },
+  {
+    "id": "permission-denied-file",
+    "title": "Permission denied on shared file",
+    "category": "files",
+    "risk": "Low",
+    "difficulty": 2,
+    "time": "15 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Other"
+    ],
+    "symptoms": [
+      "You cannot open a file a colleague shared",
+      "An access-denied message appears",
+      "Edit access is missing though view works"
+    ]
+  },
+  {
+    "id": "lost-deleted-file",
+    "title": "Lost or deleted file recovery",
+    "category": "files",
+    "risk": "Medium",
+    "difficulty": 2,
+    "time": "20 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Mobile",
+      "Other"
+    ],
+    "symptoms": [
+      "A file or folder is missing",
+      "You accidentally deleted an important document",
+      "The file is not in the recycle bin or trash"
+    ]
+  },
+  {
+    "id": "cannot-share-file",
+    "title": "Cannot share a file externally",
+    "category": "files",
+    "risk": "Medium",
+    "difficulty": 2,
+    "time": "15 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Other"
+    ],
+    "symptoms": [
+      "The share link will not generate",
+      "External recipients report access denied",
+      "Sharing settings are greyed out"
+    ]
+  },
+  {
+    "id": "storage-quota-exceeded",
+    "title": "Cloud storage quota exceeded",
+    "category": "files",
+    "risk": "Low",
+    "difficulty": 1,
+    "time": "10 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Mobile",
+      "Other"
+    ],
+    "symptoms": [
+      "A storage full warning appears",
+      "New files fail to save to the cloud",
+      "Sync pauses until space is freed"
+    ]
+  },
+  {
+    "id": "duplicate-files-syncing",
+    "title": "Duplicate files appearing after sync",
+    "category": "files",
+    "risk": "Low",
+    "difficulty": 2,
+    "time": "15 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Other"
+    ],
+    "symptoms": [
+      "Multiple copies of the same file appear",
+      "File names include a conflicted copy tag",
+      "Folders show doubled content after sync"
+    ]
+  },
+  {
+    "id": "cannot-open-shared-folder",
+    "title": "Shared folder will not open",
+    "category": "files",
+    "risk": "Low",
+    "difficulty": 1,
+    "time": "10 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Other"
+    ],
+    "symptoms": [
+      "Double-clicking the folder does nothing",
+      "An error says the folder is unavailable",
+      "The folder appears empty though files exist"
+    ]
+  },
+  {
+    "id": "version-history-missing",
+    "title": "Version history missing",
+    "category": "files",
+    "risk": "Low",
+    "difficulty": 2,
+    "time": "15 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Other"
+    ],
+    "symptoms": [
+      "You need to restore an earlier version of a file",
+      "The version history option is not available",
+      "Recent edits overwrote content you needed"
+    ]
+  },
+  {
+    "id": "cant-join-meeting",
+    "title": "Cannot join a meeting",
+    "category": "video",
+    "risk": "Low",
+    "difficulty": 1,
+    "time": "10 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Mobile",
+      "Other"
+    ],
+    "symptoms": [
+      "The join link returns an error",
+      "The meeting app will not open",
+      "You are stuck on a loading screen"
+    ]
+  },
+  {
+    "id": "no-video-in-meeting",
+    "title": "No video in meeting",
+    "category": "video",
+    "risk": "Low",
+    "difficulty": 2,
+    "time": "15 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Mobile",
+      "Other"
+    ],
+    "symptoms": [
+      "Others cannot see your video",
+      "Your camera preview is black",
+      "The video toggle will not turn on"
+    ]
+  },
+  {
+    "id": "echo-audio-feedback",
+    "title": "Echo or audio feedback in calls",
+    "category": "video",
+    "risk": "Low",
+    "difficulty": 2,
+    "time": "15 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Mobile",
+      "Other"
+    ],
+    "symptoms": [
+      "Your own voice echoes back",
+      "A high-pitched feedback sound occurs",
+      "Other participants report hearing an echo"
+    ]
+  },
+  {
+    "id": "meeting-screen-share-issue",
+    "title": "Screen share not showing in meeting",
+    "category": "video",
+    "risk": "Low",
+    "difficulty": 2,
+    "time": "15 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Other"
+    ],
+    "symptoms": [
+      "Participants see a black or frozen screen",
+      "The share option is greyed out",
+      "Only part of the screen appears shared"
+    ]
+  },
+  {
+    "id": "meeting-recording-issue",
+    "title": "Meeting recording issue",
+    "category": "video",
+    "risk": "Medium",
+    "difficulty": 2,
+    "time": "15 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Other"
+    ],
+    "symptoms": [
+      "The recording never starts",
+      "The saved recording has no audio",
+      "You cannot find the recording afterward"
+    ]
+  },
+  {
+    "id": "meeting-audio-not-working",
+    "title": "No audio in meeting",
+    "category": "video",
+    "risk": "Low",
+    "difficulty": 2,
+    "time": "15 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Mobile",
+      "Other"
+    ],
+    "symptoms": [
+      "You cannot hear other participants",
+      "Other participants cannot hear you",
+      "Audio cuts in and out during the call"
+    ]
+  },
+  {
+    "id": "virtual-background-not-working",
+    "title": "Virtual background not working",
+    "category": "video",
+    "risk": "Low",
+    "difficulty": 1,
+    "time": "10 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Other"
+    ],
+    "symptoms": [
+      "The background will not apply",
+      "Your background flickers or glitches",
+      "The blur effect is missing from settings"
+    ]
+  },
+  {
+    "id": "meeting-invite-not-received",
+    "title": "Meeting invite not received",
+    "category": "video",
+    "risk": "Low",
+    "difficulty": 1,
+    "time": "10 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Mobile",
+      "Other"
+    ],
+    "symptoms": [
+      "The calendar invite never arrived",
+      "The meeting is missing from your calendar",
+      "You were told you were invited but see nothing"
+    ]
+  },
+  {
+    "id": "breakout-rooms-not-working",
+    "title": "Breakout rooms not working",
+    "category": "video",
+    "risk": "Low",
+    "difficulty": 2,
+    "time": "15 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Other"
+    ],
+    "symptoms": [
+      "Participants are not assigned to rooms",
+      "You cannot return to the main session",
+      "The breakout option is missing from the menu"
+    ]
+  },
+  {
+    "id": "meeting-app-crashing",
+    "title": "Meeting app keeps crashing",
+    "category": "video",
+    "risk": "Medium",
+    "difficulty": 2,
+    "time": "20 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Mobile",
+      "Other"
+    ],
+    "symptoms": [
+      "The app closes unexpectedly during calls",
+      "A crash report appears after joining",
+      "The app will not reopen after crashing"
+    ]
+  },
+  {
+    "id": "work-email-not-syncing-mobile",
+    "title": "Work email not syncing on phone",
+    "category": "mobile",
+    "risk": "Low",
+    "difficulty": 1,
+    "time": "10 min",
+    "devices": [
+      "Mobile"
+    ],
+    "symptoms": [
+      "New messages do not appear on the phone",
+      "The mail app shows an old sync time",
+      "Folders are missing on the mobile app"
+    ]
+  },
+  {
+    "id": "mobile-app-crashing",
+    "title": "Mobile app crashing",
+    "category": "mobile",
+    "risk": "Low",
+    "difficulty": 1,
+    "time": "10 min",
+    "devices": [
+      "Mobile"
+    ],
+    "symptoms": [
+      "The app closes right after opening",
+      "The app freezes and stops responding",
+      "An error appears when the app launches"
+    ]
+  },
+  {
+    "id": "push-notifications-not-working",
+    "title": "Push notifications not working",
+    "category": "mobile",
+    "risk": "Low",
+    "difficulty": 1,
+    "time": "10 min",
+    "devices": [
+      "Mobile"
+    ],
+    "symptoms": [
+      "You stop receiving alerts for new messages",
+      "Notifications are delayed by hours",
+      "No sound or banner appears for new items"
+    ]
+  },
+  {
+    "id": "mobile-hotspot-not-working",
+    "title": "Mobile hotspot not working",
+    "category": "mobile",
+    "risk": "Low",
+    "difficulty": 2,
+    "time": "15 min",
+    "devices": [
+      "Mobile",
+      "Other"
+    ],
+    "symptoms": [
+      "Devices cannot find the hotspot",
+      "The hotspot connects but has no internet",
+      "The hotspot disconnects repeatedly"
+    ]
+  },
+  {
+    "id": "mobile-app-wont-update",
+    "title": "Mobile app will not update",
+    "category": "mobile",
+    "risk": "Low",
+    "difficulty": 1,
+    "time": "10 min",
+    "devices": [
+      "Mobile"
+    ],
+    "symptoms": [
+      "The update is stuck in the app store",
+      "An error appears when updating",
+      "The app still shows the old version after updating"
+    ]
+  },
+  {
+    "id": "device-not-enrolling-mdm",
+    "title": "Device will not enroll in management profile",
+    "category": "mobile",
+    "risk": "Medium",
+    "difficulty": 2,
+    "time": "20 min",
+    "devices": [
+      "Mobile"
+    ],
+    "symptoms": [
+      "The enrollment step fails or times out",
+      "An error blocks work profile setup",
+      "The device is stuck on a verification screen"
+    ]
+  },
+  {
+    "id": "mobile-battery-draining-fast",
+    "title": "Phone battery draining quickly",
+    "category": "mobile",
+    "risk": "Low",
+    "difficulty": 2,
+    "time": "15 min",
+    "devices": [
+      "Mobile"
+    ],
+    "symptoms": [
+      "The battery drops faster than usual",
+      "The phone feels warm during normal use",
+      "One app shows unusually high battery use"
+    ]
+  },
+  {
+    "id": "text-calls-not-working-work-line",
+    "title": "Work calls or texts not going through",
+    "category": "mobile",
+    "risk": "Low",
+    "difficulty": 2,
+    "time": "15 min",
+    "devices": [
+      "Mobile"
+    ],
+    "symptoms": [
+      "Calls fail to connect on the work line",
+      "Text messages do not send",
+      "Voicemail is not being received"
+    ]
+  },
+  {
+    "id": "mobile-storage-full",
+    "title": "Phone storage full",
+    "category": "mobile",
+    "risk": "Low",
+    "difficulty": 1,
+    "time": "10 min",
+    "devices": [
+      "Mobile"
+    ],
+    "symptoms": [
+      "A storage full warning appears",
+      "Photos or apps will not download",
+      "The phone slows down noticeably"
+    ]
+  },
+  {
+    "id": "find-my-device-not-working",
+    "title": "Find my device not working",
+    "category": "mobile",
+    "risk": "Medium",
+    "difficulty": 2,
+    "time": "15 min",
+    "devices": [
+      "Mobile"
+    ],
+    "symptoms": [
+      "The device does not appear on the map",
+      "The last known location is very outdated",
+      "Remote lock or wipe options fail to send"
+    ]
+  },
+  {
+    "id": "external-monitor-not-detected",
+    "title": "External monitor not detected",
+    "category": "peripherals",
+    "risk": "Low",
+    "difficulty": 2,
+    "time": "15 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Other"
+    ],
+    "symptoms": [
+      "The second screen stays black",
+      "The display is not listed in settings",
+      "The monitor flickers before losing signal"
+    ]
+  },
+  {
+    "id": "usb-device-not-recognized",
+    "title": "USB device not recognized",
+    "category": "peripherals",
+    "risk": "Low",
+    "difficulty": 1,
+    "time": "10 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Other"
+    ],
+    "symptoms": [
+      "The computer does not detect the device",
+      "A driver error appears when connecting",
+      "The device worked on another port but not this one"
+    ]
+  },
+  {
+    "id": "keyboard-mouse-not-working",
+    "title": "Keyboard or mouse not working",
+    "category": "peripherals",
+    "risk": "Low",
+    "difficulty": 1,
+    "time": "10 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Other"
+    ],
+    "symptoms": [
+      "Key presses or clicks are not registered",
+      "The cursor does not move on screen",
+      "The device shows as disconnected"
+    ]
+  },
+  {
+    "id": "docking-station-not-charging",
+    "title": "Docking station not charging laptop",
+    "category": "peripherals",
+    "risk": "Low",
+    "difficulty": 2,
+    "time": "15 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Other"
+    ],
+    "symptoms": [
+      "The laptop battery keeps dropping while docked",
+      "No charging indicator appears when connected",
+      "Peripherals connected to the dock stop working"
+    ]
+  },
+  {
+    "id": "laptop-battery-draining-fast",
+    "title": "Laptop battery drains quickly",
+    "category": "peripherals",
+    "risk": "Low",
+    "difficulty": 2,
+    "time": "15 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Other"
+    ],
+    "symptoms": [
+      "Battery life is far shorter than usual",
+      "The battery percentage drops suddenly",
+      "The laptop gets hot during light use"
+    ]
+  },
+  {
+    "id": "external-webcam-not-detected",
+    "title": "External webcam not detected",
+    "category": "peripherals",
+    "risk": "Low",
+    "difficulty": 1,
+    "time": "10 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Other"
+    ],
+    "symptoms": [
+      "The webcam does not appear in the device list",
+      "Apps default to the built-in camera instead",
+      "A driver error appears when plugging it in"
+    ]
+  },
+  {
+    "id": "touchpad-not-working",
+    "title": "Touchpad not working",
+    "category": "peripherals",
+    "risk": "Low",
+    "difficulty": 1,
+    "time": "10 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Other"
+    ],
+    "symptoms": [
+      "The touchpad does not respond to touch",
+      "The cursor jumps or moves erratically",
+      "Scrolling or gestures stop working"
+    ]
+  },
+  {
+    "id": "external-drive-not-recognized",
+    "title": "External hard drive not recognized",
+    "category": "peripherals",
+    "risk": "Low",
+    "difficulty": 2,
+    "time": "15 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Other"
+    ],
+    "symptoms": [
+      "The drive does not appear in the file browser",
+      "A message asks to format the drive",
+      "The drive makes a clicking or spinning sound"
+    ]
+  },
+  {
+    "id": "monitor-resolution-wrong",
+    "title": "Monitor resolution or scaling looks wrong",
+    "category": "peripherals",
+    "risk": "Low",
+    "difficulty": 1,
+    "time": "10 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Other"
+    ],
+    "symptoms": [
+      "Text and icons appear too large or blurry",
+      "The display does not fill the screen",
+      "Resolution options are missing or greyed out"
+    ]
+  },
+  {
+    "id": "laptop-overheating",
+    "title": "Laptop overheating",
+    "category": "peripherals",
+    "risk": "Medium",
+    "difficulty": 2,
+    "time": "20 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Other"
+    ],
+    "symptoms": [
+      "The laptop is hot to the touch during normal use",
+      "The fan runs loudly and constantly",
+      "The device shuts down unexpectedly when hot"
+    ]
+  },
+  {
+    "id": "chat-notifications-not-working",
+    "title": "Chat app notifications not working",
+    "category": "collab",
+    "risk": "Low",
+    "difficulty": 1,
+    "time": "10 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Mobile",
+      "Other"
+    ],
+    "symptoms": [
+      "New messages do not trigger an alert",
+      "The unread badge does not update",
+      "Notification sound or banner is missing"
+    ]
+  },
+  {
+    "id": "calendar-invites-not-syncing",
+    "title": "Calendar invites not syncing",
+    "category": "collab",
+    "risk": "Low",
+    "difficulty": 2,
+    "time": "15 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Mobile",
+      "Other"
+    ],
+    "symptoms": [
+      "New invites do not appear on the calendar",
+      "Accepted meetings are missing from the schedule",
+      "Changes made on one device do not update another"
+    ]
+  },
+  {
+    "id": "shared-calendar-not-updating",
+    "title": "Shared calendar not updating",
+    "category": "collab",
+    "risk": "Low",
+    "difficulty": 2,
+    "time": "15 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Other"
+    ],
+    "symptoms": [
+      "Colleagues' updates do not appear",
+      "The calendar shows outdated availability",
+      "Free or busy status is not reflecting changes"
+    ]
+  },
+  {
+    "id": "cannot-create-meeting-invite",
+    "title": "Cannot create a meeting invite",
+    "category": "collab",
+    "risk": "Low",
+    "difficulty": 1,
+    "time": "10 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Other"
+    ],
+    "symptoms": [
+      "The new meeting button does not respond",
+      "An error appears when adding attendees",
+      "The invite will not save or send"
+    ]
+  },
+  {
+    "id": "app-keeps-signing-out",
+    "title": "Collaboration app keeps signing out",
+    "category": "collab",
+    "risk": "Low",
+    "difficulty": 2,
+    "time": "15 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Mobile",
+      "Other"
+    ],
+    "symptoms": [
+      "You are logged out several times a day",
+      "Saved sign-in details are not remembered",
+      "You must reauthenticate repeatedly during the day"
+    ]
+  },
+  {
+    "id": "cannot-tag-mention-colleague",
+    "title": "Cannot tag or mention a colleague",
+    "category": "collab",
+    "risk": "Low",
+    "difficulty": 1,
+    "time": "10 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Mobile",
+      "Other"
+    ],
+    "symptoms": [
+      "Typing @ does not show a name list",
+      "A colleague's name will not appear when searched",
+      "Mentions do not send a notification"
+    ]
+  },
+  {
+    "id": "workspace-status-stuck",
+    "title": "Status shows as away when active",
+    "category": "collab",
+    "risk": "Low",
+    "difficulty": 1,
+    "time": "5 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Mobile",
+      "Other"
+    ],
+    "symptoms": [
+      "Your status shows away or offline incorrectly",
+      "The status does not update after activity",
+      "Colleagues report you appear offline"
+    ]
+  },
+  {
+    "id": "file-preview-not-loading",
+    "title": "File preview not loading in chat",
+    "category": "collab",
+    "risk": "Low",
+    "difficulty": 1,
+    "time": "10 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Other"
+    ],
+    "symptoms": [
+      "Shared files show a blank preview",
+      "A loading spinner never completes",
+      "An error appears instead of the file content"
+    ]
+  },
+  {
+    "id": "group-channel-missing",
+    "title": "Team channel or group missing",
+    "category": "collab",
+    "risk": "Low",
+    "difficulty": 2,
+    "time": "15 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Mobile",
+      "Other"
+    ],
+    "symptoms": [
+      "A channel you were added to is not visible",
+      "Search cannot find the expected group",
+      "You were removed without notice"
+    ]
+  },
+  {
+    "id": "app-integration-not-working",
+    "title": "App integration not working",
+    "category": "collab",
+    "risk": "Low",
+    "difficulty": 2,
+    "time": "15 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Other"
+    ],
+    "symptoms": [
+      "A connected app no longer posts updates",
+      "An integration shows a disconnected status",
+      "Reauthorizing the integration fails"
+    ]
+  },
+  {
+    "id": "antivirus-alert",
+    "title": "Antivirus alert appeared",
+    "category": "security",
+    "risk": "Medium",
+    "difficulty": 2,
+    "time": "15 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Other"
+    ],
+    "symptoms": [
+      "A security warning popped up on screen",
+      "The antivirus quarantined a file",
+      "You are unsure if the alert is genuine"
+    ]
+  },
+  {
+    "id": "suspicious-popups",
+    "title": "Suspicious pop-ups appearing",
+    "category": "security",
+    "risk": "Medium",
+    "difficulty": 2,
+    "time": "15 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Mobile",
+      "Other"
+    ],
+    "symptoms": [
+      "Unexpected pop-ups appear while browsing",
+      "A pop-up claims your device is infected",
+      "Pop-ups appear even with the browser closed"
+    ]
+  },
+  {
+    "id": "ransomware-warning",
+    "title": "Ransomware or encryption warning",
+    "category": "security",
+    "risk": "Medium",
+    "difficulty": 3,
+    "time": "30 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Other"
+    ],
+    "symptoms": [
+      "Files suddenly cannot be opened",
+      "A message demands payment to unlock files",
+      "File names or extensions changed unexpectedly"
+    ]
+  },
+  {
+    "id": "firewall-blocking-app",
+    "title": "Firewall blocking an application",
+    "category": "security",
+    "risk": "Low",
+    "difficulty": 2,
+    "time": "15 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Other"
+    ],
+    "symptoms": [
+      "An app cannot connect to the internet",
+      "A firewall warning appears when opening the app",
+      "Network features work on other devices but not this one"
+    ]
+  },
+  {
+    "id": "unknown-device-on-account",
+    "title": "Unknown device signed in to your account",
+    "category": "security",
+    "risk": "Medium",
+    "difficulty": 2,
+    "time": "15 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Mobile",
+      "Other"
+    ],
+    "symptoms": [
+      "A device you do not recognize is listed as active",
+      "You received an alert about a new device",
+      "Account activity shows a location you do not recognize"
+    ]
+  },
+  {
+    "id": "phishing-email-received",
+    "title": "Suspected phishing email received",
+    "category": "security",
+    "risk": "Medium",
+    "difficulty": 1,
+    "time": "10 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Mobile",
+      "Other"
+    ],
+    "symptoms": [
+      "An email asks you to confirm your password",
+      "A link or sender address looks slightly off",
+      "The message pressures you to act urgently"
+    ]
+  },
+  {
+    "id": "browser-hijacked",
+    "title": "Browser homepage or search hijacked",
+    "category": "security",
+    "risk": "Medium",
+    "difficulty": 2,
+    "time": "20 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Other"
+    ],
+    "symptoms": [
+      "The homepage changed without your input",
+      "An unfamiliar search engine is now default",
+      "Extra toolbars or extensions appeared unexpectedly"
+    ]
+  },
+  {
+    "id": "encryption-status-unknown",
+    "title": "Not sure if device is encrypted",
+    "category": "security",
+    "risk": "Low",
+    "difficulty": 1,
+    "time": "10 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Other"
+    ],
+    "symptoms": [
+      "You are unsure if disk encryption is enabled",
+      "A compliance check flagged the device",
+      "You cannot find the encryption setting"
+    ]
+  },
+  {
+    "id": "lost-stolen-device",
+    "title": "Device lost or stolen",
+    "category": "security",
+    "risk": "Medium",
+    "difficulty": 2,
+    "time": "15 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Mobile",
+      "Other"
+    ],
+    "symptoms": [
+      "A work device is missing or was stolen",
+      "You need to remotely lock or wipe it",
+      "Accounts on the device may be at risk"
+    ]
+  },
+  {
+    "id": "usb-drive-security-warning",
+    "title": "USB drive blocked by security policy",
+    "category": "security",
+    "risk": "Low",
+    "difficulty": 1,
+    "time": "10 min",
+    "devices": [
+      "Windows",
+      "Mac",
+      "Other"
+    ],
+    "symptoms": [
+      "A removable drive is not recognized",
+      "A policy message blocks the USB device",
+      "Files cannot be copied to or from the drive"
+    ]
+  }
+];

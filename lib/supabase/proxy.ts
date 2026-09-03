@@ -1,8 +1,13 @@
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
+import { isSupabaseConfigured } from "./config";
 
 export async function updateSession(request: NextRequest) {
-  let response = NextResponse.next({
+  if (!isSupabaseConfigured()) {
+    return NextResponse.next();
+  }
+
+  const response = NextResponse.next({
     request: {
       headers: request.headers,
     },

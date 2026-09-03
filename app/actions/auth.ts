@@ -3,11 +3,23 @@
 import { redirect } from "next/navigation";
 import { signUpSchema, loginSchema } from "@/lib/validation";
 import { createClient } from "@/lib/supabase/server";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
 
 export type AuthState = {
   error?: string;
   fieldErrors?: Record<string, string>;
 } | null;
+
+function safeNextPath(value: FormDataEntryValue | null): string {
+  if (
+    typeof value !== "string" ||
+    !value.startsWith("/") ||
+    value.startsWith("//")
+  ) {
+    return "/";
+  }
+  return value;
+}
 
 function fieldErrorsFrom(issues: { path: PropertyKey[]; message: string }[]) {
   const out: Record<string, string> = {};
@@ -19,6 +31,10 @@ export async function signUpAction(
   _prevState: AuthState,
   formData: FormData
 ): Promise<AuthState> {
+  if (!isSupabaseConfigured()) {
+    return { error: "Accounts are not enabled on this deployment." };
+  }
+
   const parsed = signUpSchema.safeParse({
     email: formData.get("email"),
     password: formData.get("password"),
@@ -46,6 +62,10 @@ export async function loginAction(
   _prevState: AuthState,
   formData: FormData
 ): Promise<AuthState> {
+  if (!isSupabaseConfigured()) {
+    return { error: "Accounts are not enabled on this deployment." };
+  }
+
   const parsed = loginSchema.safeParse({
     email: formData.get("email"),
     password: formData.get("password"),
@@ -62,10 +82,14 @@ export async function loginAction(
     return { error: "Incorrect email or password." };
   }
 
-  redirect("/");
+  redirect(safeNextPath(formData.get("next")));
 }
 
 export async function logoutAction() {
+  if (!isSupabaseConfigured()) {
+    redirect("/");
+  }
+
   const supabase = await createClient();
   await supabase.auth.signOut();
   redirect("/");

@@ -5,7 +5,8 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/supabase/user";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
 
 const spaceGrotesk = Space_Grotesk({
   variable: "--font-space-grotesk",
@@ -20,14 +21,16 @@ const ibmPlexMono = IBM_Plex_Mono({
 
 export const metadata: Metadata = {
   title: { default: "HelpDesk First", template: "%s · HelpDesk First" },
-  description: "Level-1 IT support self-service portal with safe guided troubleshooting.",
+  description:
+    "Level-1 IT support self-service portal with safe guided troubleshooting.",
 };
 
-export default async function RootLayout({ children }: { children: ReactNode }) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+export default async function RootLayout({
+  children,
+}: {
+  children: ReactNode;
+}) {
+  const user = isSupabaseConfigured() ? await getCurrentUser() : null;
 
   return (
     <html

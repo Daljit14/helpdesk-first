@@ -1,15 +1,22 @@
 import { test, expect } from "vitest";
 import { categories, platforms } from "./helpdesk-data";
 
-test("categories includes the six required support categories", () => {
-  expect(categories).toHaveLength(6);
+test("categories includes all support categories", () => {
+  expect(categories).toHaveLength(13);
   expect(categories.map((c) => c.label)).toEqual([
     "Computer",
-    "Internet and Wi-Fi",
+    "Internet & Wi-Fi",
     "Printer",
     "Email",
     "Software",
-    "Audio and Camera",
+    "Audio & camera",
+    "Accounts & security",
+    "Files & storage",
+    "Video conferencing",
+    "Mobile devices",
+    "Peripherals & hardware",
+    "Collaboration tools",
+    "Security & malware",
   ]);
 });
 

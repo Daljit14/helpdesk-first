@@ -17,7 +17,9 @@ test("starts troubleshooting guide from issue page", async ({ page }) => {
 test("completes guide and rates it helpful", async ({ page }) => {
   await page.goto("/issues/no-sound/guide?platform=Windows");
 
-  await expect(page.getByText(/Step 1 of 5/)).toBeVisible();
+  await expect(
+    page.locator("#main-content").getByText(/Step 1 of 5/)
+  ).toBeVisible();
 
   for (let i = 0; i < 4; i++) {
     await page.getByRole("button", { name: "I completed this step" }).click();

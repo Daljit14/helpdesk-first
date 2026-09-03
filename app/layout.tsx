@@ -1,10 +1,12 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Space_Grotesk, IBM_Plex_Mono } from "next/font/google";
 import { ReactNode } from "react";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
+import { ServiceWorkerRegister } from "@/components/sw-register";
+import { InstallPrompt } from "@/components/install-prompt";
 import { getCurrentUser } from "@/lib/supabase/user";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 
@@ -23,6 +25,11 @@ export const metadata: Metadata = {
   title: { default: "HelpDesk First", template: "%s · HelpDesk First" },
   description:
     "Level-1 IT support self-service portal with safe guided troubleshooting.",
+  manifest: "/manifest.webmanifest",
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0b0e14",
 };
 
 export default async function RootLayout({
@@ -47,6 +54,7 @@ export default async function RootLayout({
         </a>
 
         <ThemeProvider>
+          <ServiceWorkerRegister />
           <Header user={user} />
           <main
             id="main-content"
@@ -56,6 +64,7 @@ export default async function RootLayout({
             {children}
           </main>
           <Footer />
+          <InstallPrompt />
         </ThemeProvider>
       </body>
     </html>

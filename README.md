@@ -9,6 +9,14 @@ Level-1 IT support self-service portal built with Next.js, TypeScript, and Tailw
 HelpDesk First helps users resolve common Level-1 IT problems without needing to run the website locally. It includes a searchable knowledge base of 100 common support issues, category and platform filters, and a guided troubleshooting flow with success feedback and escalation reports.
 Network-related guides also include a browser-based network check widget for measuring connectivity to this site.
 
+Cloud features include installable/offline PWA support, ticket screenshots,
+live ticket status, web push alerts, and a public system status page. Apply
+[`supabase/cloud-features.sql`](supabase/cloud-features.sql) after the base
+schema, then configure the service-role key, webhook secret, VAPID keys, and
+optional Sentry variables from `.env.example`. Wire the Supabase ticket
+webhook to `/api/push/ticket-webhook`; Sentry and push notifications are
+no-ops when unconfigured.
+
 ## Accounts (Supabase)
 
 Optional accounts power bookmarks, saved guide progress, guide ratings, and support tickets. Apply [`supabase/schema.sql`](supabase/schema.sql), then set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` in your environment. Password reset uses Supabase email; add `<site>/auth/callback` to the Supabase Redirect URL allowlist (the existing `https://helpdesk-first.vercel.app/**` wildcard covers it). The site works without these variables; accounts are simply disabled.

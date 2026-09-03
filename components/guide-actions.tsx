@@ -141,7 +141,7 @@ export function GuideActions({
           </Link>
         )}
       </div>
-      {showTicket && user && <TicketForm issueId={issueId} />}
+      {showTicket && user && <TicketForm issueId={issueId} userId={user.id} />}
     </div>
   );
 }

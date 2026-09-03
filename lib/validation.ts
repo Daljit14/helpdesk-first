@@ -58,6 +58,7 @@ export const submitTicketSchema = z.object({
     .trim()
     .min(10, "Message must be at least 10 characters.")
     .max(2000, "Message must be 2000 characters or fewer."),
+  attachmentPath: z.string().trim().min(1).optional(),
 });
 
 export type SignUpInput = z.infer<typeof signUpSchema>;

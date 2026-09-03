@@ -14,11 +14,11 @@ test("homepage renders with search, categories and platform filters", async ({
 
   for (const label of [
     "Computer",
-    "Internet and Wi-Fi",
+    "Internet & Wi-Fi",
     "Printer",
     "Email",
     "Software",
-    "Audio and Camera",
+    "Audio & camera",
   ]) {
     await expect(
       page.getByRole("button", { name: new RegExp(label, "i") })
@@ -41,7 +41,9 @@ test("search updates results as the user types", async ({ page }) => {
   await searchInput.fill("printer offline");
 
   await expect(
-    page.getByRole("link", { name: /Printer showing offline/i })
+    page
+      .getByLabel("Search results")
+      .getByRole("link", { name: /Printer showing offline/i })
   ).toBeVisible();
   await expect(page.getByText(/1 matching problem/)).toBeVisible();
 });
@@ -67,12 +69,18 @@ test("URL filter parameters initialize filters and results", async ({
   await page.goto("/?category=printer&platform=Windows");
 
   await expect(
-    page.getByRole("link", { name: /Printer showing offline/i })
+    page
+      .getByLabel("Search results")
+      .getByRole("link", { name: /Printer showing offline/i })
   ).toBeVisible();
   await expect(
-    page.getByRole("link", { name: /Print job stuck/i })
+    page
+      .getByLabel("Search results")
+      .getByRole("link", { name: /Print job stuck/i })
   ).toBeVisible();
-  await expect(page.getByText(/5 matching problems/)).toBeVisible();
+  await expect(
+    page.locator("#main-content").getByText(/5 matching problems/)
+  ).toBeVisible();
 });
 
 test("category and platform filters can be combined", async ({ page }) => {
@@ -84,7 +92,9 @@ test("category and platform filters can be combined", async ({ page }) => {
   await page.getByRole("button", { name: /^Windows$/i }).click();
 
   await expect(
-    page.getByRole("link", { name: /Slow computer/i })
+    page
+      .getByLabel("Search results")
+      .getByRole("link", { name: /Slow computer/i })
   ).toBeVisible();
   await expect(page.getByText(/matching problems?/)).toBeVisible();
 });
@@ -98,7 +108,7 @@ test("clearing filters resets results", async ({ page }) => {
   await expect(
     page.getByPlaceholder("What problem are you having?")
   ).toHaveValue("");
-  await expect(page.getByText(/30 matching problems/)).toBeVisible();
+  await expect(page.getByText(/100 matching problems/)).toBeVisible();
 });
 
 test("user can open an issue and return to previous filtered results", async ({
@@ -108,7 +118,10 @@ test("user can open an issue and return to previous filtered results", async ({
 
   await page.getByPlaceholder("What problem are you having?").fill("printer");
   await page.getByRole("button", { name: /Search/i }).click();
-  await page.getByRole("link", { name: /Print job stuck/i }).click();
+  await page
+    .getByLabel("Search results")
+    .getByRole("link", { name: /Print job stuck/i })
+    .click();
 
   await expect(page).toHaveURL(/issues\/print-job-stuck\?q=printer/);
   await expect(
@@ -124,7 +137,9 @@ test("user can open an issue and return to previous filtered results", async ({
     page.getByPlaceholder("What problem are you having?")
   ).toHaveValue("printer");
   await expect(
-    page.getByRole("link", { name: /Print job stuck/i })
+    page
+      .getByLabel("Search results")
+      .getByRole("link", { name: /Print job stuck/i })
   ).toBeVisible();
 });
 

@@ -13,7 +13,9 @@ export function RiskDot({ risk }: { risk: Risk }) {
         className={`h-1.5 w-1.5 shrink-0 rounded-full ${riskClass[risk] ?? "bg-muted-foreground"}`}
         aria-hidden
       />
-      <span className="font-mono text-xs text-muted-foreground">{risk} risk</span>
+      <span className="font-mono text-xs text-muted-foreground">
+        {risk} risk
+      </span>
     </span>
   );
 }

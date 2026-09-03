@@ -10,7 +10,7 @@ HelpDesk First helps users resolve common Level-1 IT problems without needing to
 
 ## Accounts (Supabase)
 
-Optional accounts power bookmarks, saved guide progress, guide ratings, and support tickets. Apply [`supabase/schema.sql`](supabase/schema.sql), then set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` in your environment. The site works without these variables; accounts are simply disabled.
+Optional accounts power bookmarks, saved guide progress, guide ratings, and support tickets. Apply [`supabase/schema.sql`](supabase/schema.sql), then set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` in your environment. Password reset uses Supabase email; add `<site>/auth/callback` to the Supabase Redirect URL allowlist (the existing `https://helpdesk-first.vercel.app/**` wildcard covers it). The site works without these variables; accounts are simply disabled.
 
 ## Requirements
 

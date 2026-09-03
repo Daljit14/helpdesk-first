@@ -1,23 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Button } from "./ui/button";
-import { clearAllSessions, getAllSessions } from "@/lib/session";
-
 export function Footer() {
-  const [sessionCount, setSessionCount] = useState(0);
-
-  useEffect(() => {
-    queueMicrotask(() => {
-      setSessionCount(getAllSessions().length);
-    });
-  }, []);
-
-  function handleClear() {
-    clearAllSessions();
-    setSessionCount(0);
-  }
-
   return (
     <footer className="border-t border-zinc-200 px-6 py-8">
       <div className="mx-auto max-w-5xl space-y-4">
@@ -33,16 +16,6 @@ export function Footer() {
             &copy; {new Date().getFullYear()} HelpDesk First. All rights
             reserved.
           </p>
-          {sessionCount > 0 && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={handleClear}
-            >
-              Clear my troubleshooting history ({sessionCount})
-            </Button>
-          )}
         </div>
       </div>
     </footer>

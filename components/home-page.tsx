@@ -12,11 +12,13 @@ import { CategoryGrid } from "@/components/category-grid";
 import { PlatformButtons } from "@/components/platform-buttons";
 import { RecentlyViewed } from "@/components/recently-viewed";
 import { IssueList } from "@/components/issue-list";
+import { ResultsNav } from "@/components/results-nav";
 import { filterIssues } from "@/lib/search";
 import { platforms, type Platform } from "@/lib/helpdesk-data";
 import {
   clearAllSessions,
   getActiveSessions,
+  getAllSessions,
   type TroubleshootingSession,
 } from "@/lib/session";
 
@@ -46,6 +48,7 @@ export function HomePage({
   const isFirstRender = useRef(true);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
+  const resultsEndRef = useRef<HTMLDivElement>(null);
 
   const [query, setQuery] = useState(paramToString(initialQuery ?? "").trim());
   const [categoryId, setCategoryId] = useState<string | null>(
@@ -57,10 +60,12 @@ export function HomePage({
   const [activeSessions, setActiveSessions] = useState<
     TroubleshootingSession[]
   >([]);
+  const [sessionCount, setSessionCount] = useState(0);
 
   useEffect(() => {
     queueMicrotask(() => {
       setActiveSessions(getActiveSessions());
+      setSessionCount(getAllSessions().length);
     });
   }, []);
 
@@ -118,19 +123,28 @@ export function HomePage({
     };
   }, [query, categoryId, platform, replaceUrl]);
 
+  function scrollToResults() {
+    const behavior = window.matchMedia("(prefers-reduced-motion: reduce)")
+      .matches
+      ? "auto"
+      : "smooth";
+    resultsRef.current?.scrollIntoView({ behavior, block: "start" });
+    resultsRef.current?.focus({ preventScroll: true });
+  }
+
   function handleSearchSubmit() {
     if (debounceRef.current) {
       clearTimeout(debounceRef.current);
       debounceRef.current = null;
     }
     replaceUrl(query, categoryId, platform);
-    resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    resultsRef.current?.focus({ preventScroll: true });
+    scrollToResults();
   }
 
   function handleClearHistory() {
     clearAllSessions();
     setActiveSessions([]);
+    setSessionCount(0);
   }
 
   function clearFilters() {
@@ -204,16 +218,41 @@ export function HomePage({
           </div>
         </div>
 
+        {activeSessions.length === 0 && sessionCount > 0 && (
+          <div className="mt-2 flex justify-end">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={handleClearHistory}
+            >
+              Clear my troubleshooting history ({sessionCount})
+            </Button>
+          </div>
+        )}
+
         <div className="mt-8">
           <RecentlyViewed />
         </div>
 
         <div className="mt-8">
-          <PlatformButtons selected={platform} onSelect={setPlatform} />
+          <PlatformButtons
+            selected={platform}
+            onSelect={(nextPlatform) => {
+              setPlatform(nextPlatform);
+              if (nextPlatform) scrollToResults();
+            }}
+          />
         </div>
 
         <div className="mt-8">
-          <CategoryGrid selected={categoryId} onSelect={setCategoryId} />
+          <CategoryGrid
+            selected={categoryId}
+            onSelect={(nextCategory) => {
+              setCategoryId(nextCategory);
+              if (nextCategory) scrollToResults();
+            }}
+          />
         </div>
 
         <div className="mt-8 flex flex-col items-center justify-between gap-4 sm:flex-row">
@@ -248,7 +287,11 @@ export function HomePage({
             platform={platform}
             backParams={backParams}
           />
+          <div ref={resultsEndRef} aria-hidden="true" />
         </div>
+        {matchingCount > 0 && (
+          <ResultsNav topRef={resultsRef} bottomRef={resultsEndRef} />
+        )}
       </div>
     </section>
   );

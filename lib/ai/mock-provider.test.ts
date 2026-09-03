@@ -45,6 +45,27 @@ describe("MockAiProvider", () => {
     expect(result.detectedPlatform).toBe("Mac");
   });
 
+  test.each([
+    ["iPhone", "iOS"],
+    ["iPad", "iOS"],
+    ["iOS", "iOS"],
+    ["Android", "Android"],
+  ])("detects %s as %s", async (device, expectedPlatform) => {
+    const result = await provider.classify({
+      message: `I cannot sign in to email on my ${device}`,
+    });
+    expect(result.detectedPlatform).toBe(expectedPlatform);
+  });
+
+  test("asks for the platform when only mobile wording is provided", async () => {
+    const result = await provider.classify({
+      message: "I cannot sign in to email on my phone",
+    });
+    expect(result.detectedPlatform).toBeNull();
+    expect(result.decision).toBe("clarify");
+    expect(result.diagnosticQuestionIds).toContain("which-platform");
+  });
+
   test("handles misspelled descriptions", async () => {
     const result = await provider.classify({
       message: "my computer is runing slow",

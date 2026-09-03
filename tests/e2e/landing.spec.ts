@@ -36,7 +36,7 @@ test("homepage renders with search, categories and platform filters", async ({
     ).toBeVisible();
   }
 
-  for (const platform of ["Windows", "Mac", "Mobile", "Other"]) {
+  for (const platform of ["Windows", "Mac", "iOS", "Android", "Other"]) {
     await expect(
       page.getByRole("button", { name: new RegExp(`^${platform}$`, "i") })
     ).toBeVisible();

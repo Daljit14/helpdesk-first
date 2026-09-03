@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createElement } from "react";
+import type { ReactNode } from "react";
 import { Clock, Monitor } from "lucide-react";
 import type { Issue } from "@/lib/issues";
 import { getCategoryIcon } from "@/components/category-icon";
@@ -9,14 +10,19 @@ import { DifficultyMeter } from "@/components/difficulty-meter";
 type IssueCardProps = {
   issue: Issue;
   backParams?: string;
+  children?: ReactNode;
 };
 
-export function IssueCard({ issue, backParams = "" }: IssueCardProps) {
+export function IssueCard({
+  issue,
+  backParams = "",
+  children,
+}: IssueCardProps) {
   const Icon = getCategoryIcon(issue.category);
   const href = `/issues/${issue.id}${backParams ? `?${backParams}` : ""}`;
 
   return (
-    <li>
+    <li className="relative">
       <Link
         href={href}
         className="group block rounded-xl border border-border bg-card p-5 shadow-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -55,6 +61,7 @@ export function IssueCard({ issue, backParams = "" }: IssueCardProps) {
           </span>
         </div>
       </Link>
+      {children}
     </li>
   );
 }

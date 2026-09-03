@@ -38,12 +38,16 @@ test("category filter returns only matching issues", () => {
   );
 });
 
-test("platform filter returns only matching issues", () => {
-  const mobileIssues = filterIssues({ platform: "Mobile" });
-  expect(mobileIssues.every((issue) => issue.devices.includes("Mobile"))).toBe(
-    true
-  );
-  expect(mobileIssues.length).toBeLessThan(100);
+test("platform filters return only matching issues", () => {
+  const iosIssues = filterIssues({ platform: "iOS" });
+  expect(iosIssues.every((issue) => issue.devices.includes("iOS"))).toBe(true);
+  expect(iosIssues.length).toBeLessThan(100);
+
+  const androidIssues = filterIssues({ platform: "Android" });
+  expect(
+    androidIssues.every((issue) => issue.devices.includes("Android"))
+  ).toBe(true);
+  expect(androidIssues.length).toBeLessThan(100);
 });
 
 test("combined filters narrow results", () => {

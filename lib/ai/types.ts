@@ -38,7 +38,7 @@ export type DiagnosticQuestion = {
 export const diagnosticQuestions: DiagnosticQuestion[] = [
   {
     id: "which-platform",
-    text: "Which device or operating system are you using? (Windows, Mac, Mobile, or Other)",
+    text: "Which device or operating system are you using? (Windows, Mac, iOS, Android, or Other)",
   },
   {
     id: "where-happens",

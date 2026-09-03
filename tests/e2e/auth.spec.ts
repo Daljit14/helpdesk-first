@@ -16,9 +16,11 @@ test("expired reset links show an explanation", async ({ page }) => {
   await page.goto("/forgot-password?error=expired");
 
   await expect(
-    page.getByText(
-      "That reset link is invalid or has expired. Request a new one below."
-    )
+    page
+      .locator("#main-content")
+      .getByText(
+        "That reset link is invalid or has expired. Request a new one below."
+      )
   ).toBeVisible();
 });
 

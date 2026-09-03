@@ -11,13 +11,15 @@ let cached: Ratelimit | null = null;
 function getUpstashRatelimit(config: RateLimitConfig): Ratelimit {
   if (cached) return cached;
 
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  const url = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
+  const token =
+    process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
 
   if (!url || !token) {
     throw new Error(
-      "UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN must be set to use " +
-        "HELP_DESK_AI_RATE_LIMIT_PROVIDER=upstash."
+      "UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN (or the Vercel " +
+        "Upstash integration's KV_REST_API_URL and KV_REST_API_TOKEN) must be " +
+        "set to use HELP_DESK_AI_RATE_LIMIT_PROVIDER=upstash."
     );
   }
 

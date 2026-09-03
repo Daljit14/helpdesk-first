@@ -1,9 +1,15 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { signUpSchema, loginSchema } from "@/lib/validation";
+import {
+  forgotPasswordSchema,
+  loginSchema,
+  resetPasswordSchema,
+  signUpSchema,
+} from "@/lib/validation";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { getSiteUrl } from "@/lib/site-url";
 
 export type AuthState = {
   error?: string;
@@ -87,6 +93,82 @@ export async function loginAction(
   }
 
   redirect(safeNextPath(formData.get("next")));
+}
+
+export async function forgotPasswordAction(
+  _prevState: AuthState,
+  formData: FormData
+): Promise<AuthState> {
+  if (!isSupabaseConfigured()) {
+    return { error: "Accounts are not enabled on this deployment." };
+  }
+
+  const parsed = forgotPasswordSchema.safeParse({
+    email: formData.get("email"),
+  });
+
+  if (!parsed.success) {
+    return { fieldErrors: fieldErrorsFrom(parsed.error.issues) };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.auth.resetPasswordForEmail(
+    parsed.data.email,
+    {
+      redirectTo: `${getSiteUrl()}/auth/callback?next=/reset-password`,
+    }
+  );
+
+  if (error?.message.toLowerCase().includes("rate limit")) {
+    return {
+      error:
+        "Too many reset emails were sent recently. Please try again in an hour.",
+    };
+  }
+
+  redirect("/forgot-password/sent");
+}
+
+export async function resetPasswordAction(
+  _prevState: AuthState,
+  formData: FormData
+): Promise<AuthState> {
+  if (!isSupabaseConfigured()) {
+    return { error: "Accounts are not enabled on this deployment." };
+  }
+
+  const parsed = resetPasswordSchema.safeParse({
+    password: formData.get("password"),
+    confirmPassword: formData.get("confirmPassword"),
+  });
+
+  if (!parsed.success) {
+    return { fieldErrors: fieldErrorsFrom(parsed.error.issues) };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return {
+      error: "This reset link is invalid or has expired. Request a new one.",
+    };
+  }
+
+  const { error } = await supabase.auth.updateUser({
+    password: parsed.data.password,
+  });
+
+  if (error) {
+    return {
+      error:
+        "Could not update your password. Request a new reset link and try again.",
+    };
+  }
+
+  redirect("/");
 }
 
 export async function logoutAction() {

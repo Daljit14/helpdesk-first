@@ -307,6 +307,37 @@ const SYNONYMS: Record<string, string> = {
   recognition: "recognize",
 };
 
+const ISSUE_BOOSTS: Partial<
+  Record<string, { all?: RegExp[]; none?: RegExp[]; score: number }[]>
+> = {
+  "no-internet": [
+    {
+      all: [
+        /\b(no|not|cannot|can['’]?t|unable|offline)\b/i,
+        /\b(internet|online|web|connection|connect)\b/i,
+      ],
+      none: [/\b(vpn|wifi|wireless|ethernet|cable)\b/i],
+      score: 2,
+    },
+  ],
+  "ethernet-not-working": [
+    {
+      all: [/\b(ethernet|wired|cable)\b/i],
+      score: 2,
+    },
+  ],
+  "usb-device-not-recognized": [
+    {
+      all: [
+        /\busb\b/i,
+        /\b(show|showing|shows|detect|detected|recognize|recognized)\b/i,
+      ],
+      none: [/\b(security|policy|blocked|warning)\b/i],
+      score: 1,
+    },
+  ],
+};
+
 type IssueDocument = {
   issue: Issue;
   titleTokens: string[];
@@ -593,29 +624,13 @@ function scoreIssues(text: string, platform: Platform | null): ScoredIssue[] {
     if (containsPhrase(normalizedTitleText, document.idTokens)) {
       score += 0.4;
     }
-    if (
-      document.issue.id === "no-internet" &&
-      /\b(no|not|cannot|can['’]?t|unable|offline)\b/i.test(normalizedText) &&
-      /\b(internet|online|web|connection|connect)\b/i.test(normalizedText) &&
-      !/\b(vpn|wifi|wireless|ethernet|cable)\b/i.test(normalizedText)
-    ) {
-      score += 2;
-    }
-    if (
-      document.issue.id === "ethernet-not-working" &&
-      /\b(ethernet|wired|cable)\b/i.test(normalizedText)
-    ) {
-      score += 2;
-    }
-    if (
-      document.issue.id === "usb-device-not-recognized" &&
-      /\busb\b/i.test(normalizedText) &&
-      /\b(show|showing|shows|detect|detected|recognize|recognized)\b/i.test(
-        normalizedText
-      ) &&
-      !/\b(security|policy|blocked|warning)\b/i.test(normalizedText)
-    ) {
-      score += 1;
+    for (const boost of ISSUE_BOOSTS[document.issue.id] ?? []) {
+      if (
+        boost.all?.every((regex) => regex.test(normalizedText)) !== false &&
+        !boost.none?.some((regex) => regex.test(normalizedText))
+      ) {
+        score += boost.score;
+      }
     }
     if (
       hasMeaningfulTokens &&

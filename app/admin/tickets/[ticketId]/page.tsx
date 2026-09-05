@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAudit, requireAdminPage } from "@/lib/admin/auth";
 import {
+  categoryLabel,
   normalizePlatform,
   normalizePriority,
   normalizeStatus,
@@ -70,7 +71,7 @@ export default async function AdminTicketPage({
         <div className="mt-6 grid gap-4 rounded-xl border border-slate-200 p-5 sm:grid-cols-2 lg:grid-cols-3">
           <p>Status: {status}</p>
           <p>Priority: {priority}</p>
-          <p>Category: {ticket.category ?? "Other"}</p>
+          <p>Category: {ticket.category ?? categoryLabel(ticket.issue_id)}</p>
           <p>Platform: {normalizePlatform(ticket.platform)}</p>
           <p>Agent: {ticket.assigned_agent ?? "Unassigned"}</p>
           <p>SLA due: {new Date(due).toLocaleString()}</p>

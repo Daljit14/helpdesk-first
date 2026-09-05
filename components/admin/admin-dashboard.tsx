@@ -15,6 +15,9 @@ import type {
 
 type RefreshStatus = "idle" | "refreshing" | "error";
 
+const ADMIN_OUTLINE_BUTTON =
+  "border-slate-300 bg-white text-slate-900 hover:bg-slate-100 hover:text-slate-900";
+
 const metricLabels: [keyof AdminMetric, string][] = [
   ["activeUsers", "Active users"],
   ["uniqueVisitorsToday", "Unique visitors today"],
@@ -256,6 +259,7 @@ export function AdminDashboard({
             <Button
               type="button"
               variant="outline"
+              className={ADMIN_OUTLINE_BUTTON}
               onClick={() => void refresh()}
               disabled={status === "refreshing"}
               aria-busy={status === "refreshing"}
@@ -490,6 +494,7 @@ export function AdminDashboard({
               <Button
                 type="button"
                 variant="outline"
+                className={ADMIN_OUTLINE_BUTTON}
                 disabled={filters.page <= 1}
                 onClick={() => updateFilter("page", filters.page - 1)}
               >
@@ -498,6 +503,7 @@ export function AdminDashboard({
               <Button
                 type="button"
                 variant="outline"
+                className={ADMIN_OUTLINE_BUTTON}
                 disabled={filters.page >= totalPages}
                 onClick={() => updateFilter("page", filters.page + 1)}
               >

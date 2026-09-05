@@ -25,6 +25,18 @@ Optional accounts power bookmarks, saved guide progress, guide ratings, and supp
 
 For production, set `HELP_DESK_AI_RATE_LIMIT_PROVIDER=upstash` and configure `UPSTASH_REDIS_REST_URL` plus `UPSTASH_REDIS_REST_TOKEN` (or connect the Vercel Upstash integration, which provides `KV_REST_API_URL` / `KV_REST_API_TOKEN`) to use a distributed Upstash Redis limiter. Keep the provider set to `memory` for local development and previews.
 
+## Operations export
+
+Apply [`supabase/operations.sql`](supabase/operations.sql), then set
+`OPERATIONS_EXPORT_KEY`, optional `OPERATIONS_PSEUDONYM_SALT`, and
+`OPERATIONS_ADMIN_EMAILS`. Export with
+`curl -H "Authorization: Bearer $OPERATIONS_EXPORT_KEY" https://your-site.example/api/admin/operations/export`.
+The response maps to `LiveTicketsTable`: Ticket ID, Created At, Updated At,
+Status, Priority, Category, Issue Title, User Key, Assigned Agent, SLA Due,
+First Response At, Resolved At, Platform, and Has Attachment. Age Minutes and
+SLA State remain Excel formulas. Traffic and agent queue data map to
+`TrafficTimelineTable` and `AgentQueueTable`.
+
 ## Requirements
 
 - [Node.js](https://nodejs.org/) 20 or later

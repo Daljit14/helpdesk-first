@@ -15,6 +15,9 @@ vi.mock("@/lib/supabase/user", () => ({
 vi.mock("@/lib/supabase/server", () => ({
   createClient: mocks.createClient,
 }));
+vi.mock("@/lib/analytics/events", () => ({
+  recordAnalyticsEvent: vi.fn(),
+}));
 
 afterEach(() => {
   vi.unstubAllEnvs();

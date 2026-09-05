@@ -9,6 +9,7 @@ import { ServiceWorkerRegister } from "@/components/sw-register";
 import { InstallPrompt } from "@/components/install-prompt";
 import { getCurrentUser } from "@/lib/supabase/user";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { AnalyticsTracker } from "@/components/analytics-tracker";
 
 const spaceGrotesk = Space_Grotesk({
   variable: "--font-space-grotesk",
@@ -55,6 +56,7 @@ export default async function RootLayout({
 
         <ThemeProvider>
           <ServiceWorkerRegister />
+          <AnalyticsTracker />
           <Header user={user} />
           <main
             id="main-content"

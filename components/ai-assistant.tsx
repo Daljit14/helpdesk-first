@@ -41,8 +41,21 @@ export function AiAssistant() {
   async function submitIntake(
     nextProblem = problem,
     nextPlatform = platform,
-    nextAnswers = previousAnswers
+    nextAnswers = previousAnswers,
+    isFirstSubmission = false
   ) {
+    if (isFirstSubmission) {
+      void fetch("/api/analytics/event", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "assistant_start",
+          path: "/assistant",
+          platform: nextPlatform,
+        }),
+        keepalive: true,
+      }).catch(() => {});
+    }
     setLoading(true);
     setError(null);
     try {
@@ -92,7 +105,7 @@ export function AiAssistant() {
     event.preventDefault();
     if (!problem.trim()) return;
     setStarted(true);
-    void submitIntake(problem.trim(), null, []);
+    void submitIntake(problem.trim(), null, [], true);
   }
 
   function handleSubmitPlatform(event: FormEvent) {

@@ -8,6 +8,7 @@ import { getCurrentUser } from "@/lib/supabase/user";
 import { submitTicketSchema } from "@/lib/validation";
 import type { User } from "@supabase/supabase-js";
 import type { Issue } from "@/lib/issues";
+import { recordAnalyticsEvent } from "@/lib/analytics/events";
 
 type GuideActionError = { error: string };
 type AuthenticatedIssueResult = GuideActionError | { user: User; issue: Issue };
@@ -156,6 +157,13 @@ export async function submitTicket(
     attachment_path: attachmentPath,
   });
   if (error) return { error: "Unable to submit ticket." };
+  await recordAnalyticsEvent({
+    eventType: "ticket_created",
+    path: `/issues/${result.issue.id}`,
+    issueId: result.issue.id,
+    visitorKey: "server",
+    platform: null,
+  });
   revalidatePath("/tickets");
   revalidatePath(`/issues/${result.issue.id}`);
   return { success: true };

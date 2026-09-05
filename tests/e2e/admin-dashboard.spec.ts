@@ -3,7 +3,11 @@ import AxeBuilder from "@axe-core/playwright";
 
 test("admin dashboard requires the role-based sign in", async ({ page }) => {
   await page.goto("/admin/operations");
-  await expect(page).toHaveURL(/\/admin\/login\?next=\/admin\/operations/);
+  await expect(page).toHaveURL(
+    (url) =>
+      url.pathname === "/admin/login" &&
+      url.searchParams.get("next") === "/admin/operations"
+  );
   await expect(
     page.getByRole("heading", { name: "Admin sign in" })
   ).toBeVisible();

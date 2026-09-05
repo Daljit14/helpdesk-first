@@ -49,7 +49,11 @@ export function AdminLoginForm({ next }: { next: string }) {
           <p className="text-sm text-red-700">{state.fieldErrors.password}</p>
         )}
       </div>
-      <Button type="submit" disabled={pending} className="w-full">
+      <Button
+        type="submit"
+        disabled={pending}
+        className="w-full bg-foreground text-background hover:bg-foreground/90"
+      >
         {pending ? "Signing in…" : "Sign in"}
       </Button>
       <Link

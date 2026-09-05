@@ -42,8 +42,10 @@ SLA State remain Excel formulas. Traffic and agent queue data map to
 The role-based dashboard is controlled by `HELP_DESK_ADMIN_DASHBOARD_ENABLED`
 and `HELP_DESK_ADMIN_SESSION_SECRET`. It also requires
 `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
-`SUPABASE_SERVICE_ROLE_KEY`, `HELP_DESK_AI_RATE_LIMIT_PROVIDER`, and the
-corresponding Upstash variables when using the Upstash provider. Apply
+`SUPABASE_SERVICE_ROLE_KEY`, `OPERATIONS_PSEUDONYM_SALT` (or
+`OPERATIONS_EXPORT_KEY`) for pseudonymous user keys,
+`HELP_DESK_AI_RATE_LIMIT_PROVIDER`, and the corresponding Upstash variables
+when using the Upstash provider. Apply
 `supabase/schema.sql`, `supabase/cloud-features.sql`,
 `supabase/operations.sql`, then `supabase/admin-dashboard.sql`.
 

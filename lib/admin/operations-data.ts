@@ -193,11 +193,31 @@ export async function getOperationsData(
     .order("created_at", { ascending: false });
 
   if (filters.status === "open") {
-    query = query.in("status", ["Open", "New", "In Progress", "Waiting"]);
+    query = query.in("status", [
+      "Open",
+      "open",
+      "New",
+      "new",
+      "In Progress",
+      "in progress",
+      "in_progress",
+      "in-progress",
+      "Waiting",
+      "waiting",
+    ]);
   } else if (filters.status === "completed") {
-    query = query.in("status", ["Resolved", "Closed"]);
+    query = query.in("status", ["Resolved", "resolved", "Closed", "closed"]);
+  } else if (filters.status === "New") {
+    query = query.in("status", ["New", "new", "Open", "open"]);
+  } else if (filters.status === "In Progress") {
+    query = query.in("status", [
+      "In Progress",
+      "in progress",
+      "in_progress",
+      "in-progress",
+    ]);
   } else if (filters.status) {
-    query = query.eq("status", filters.status);
+    query = query.in("status", [filters.status, filters.status.toLowerCase()]);
   }
   if (filters.priority) query = query.eq("priority", filters.priority);
   if (filters.category) query = query.eq("category", filters.category);

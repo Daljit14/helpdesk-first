@@ -141,6 +141,10 @@ export function AdminDashboard({
           `/api/admin/operations?${makeQuery(nextFilters)}`,
           { cache: "no-store" }
         );
+        if (response.status === 401 || response.status === 403) {
+          router.push("/admin/login?next=/admin/operations");
+          return;
+        }
         if (!response.ok) throw new Error("Unable to refresh operations data.");
         setSnapshot((await response.json()) as OperationsData);
         setLastSuccessAt(Date.now());
@@ -155,7 +159,7 @@ export function AdminDashboard({
         setStatus("error");
       }
     },
-    [filters]
+    [filters, router]
   );
 
   const refreshRef = useRef(refresh);

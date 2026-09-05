@@ -13,17 +13,20 @@ import {
   setAdminSessionCookie,
 } from "@/lib/admin/auth";
 import { isAdminDashboardEnabled } from "@/lib/admin/flags";
-import { MemoryRateLimiter } from "@/lib/ai/rate-limit";
+import { createRateLimiter } from "@/lib/ai/rate-limit";
 
 export type AdminAuthState = {
   error?: string;
   fieldErrors?: Record<string, string>;
 } | null;
 
-const loginLimiter = new MemoryRateLimiter({
-  windowMs: 15 * 60 * 1000,
-  maxRequests: 5,
-});
+const loginLimiter = createRateLimiter(
+  {
+    windowMs: 15 * 60 * 1000,
+    maxRequests: 5,
+  },
+  "admin-login"
+);
 const GENERIC_ERROR = "Invalid credentials or not authorized.";
 
 function fieldErrorsFrom(issues: { path: PropertyKey[]; message: string }[]) {

@@ -9,10 +9,14 @@ import { useTheme } from "@/components/theme-provider";
 import { logoutAction } from "@/app/actions/auth";
 import { Moon, Sun, Menu, X, Headset } from "lucide-react";
 import { useState } from "react";
+import { usePathname } from "next/navigation";
 
 export function Header({ user }: { user?: User | null }) {
+  const pathname = usePathname();
   const { theme, toggleTheme } = useTheme();
   const [open, setOpen] = useState(false);
+
+  if (pathname?.startsWith("/admin")) return null;
 
   return (
     <header className="sticky top-0 z-40 border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">

@@ -5,7 +5,7 @@ import {
   getOperationsData,
   type AdminFilters,
 } from "@/lib/admin/operations-data";
-import { MemoryRateLimiter } from "@/lib/ai/rate-limit";
+import { createRateLimiter } from "@/lib/ai/rate-limit";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -37,10 +37,13 @@ const querySchema = z
   })
   .strict();
 
-const rateLimiter = new MemoryRateLimiter({
-  windowMs: 60_000,
-  maxRequests: 60,
-});
+const rateLimiter = createRateLimiter(
+  {
+    windowMs: 60_000,
+    maxRequests: 60,
+  },
+  "admin-ops"
+);
 
 function parseFilters(request: Request): AdminFilters {
   const defaults = defaultAdminFilters();

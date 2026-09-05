@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { TicketUpdateForm } from "@/components/admin/ticket-update-form";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAudit, requireAdminPage } from "@/lib/admin/auth";
 import {
@@ -81,6 +82,12 @@ export default async function AdminTicketPage({
             {new Date(ticket.updated_at ?? ticket.created_at).toLocaleString()}
           </p>
         </div>
+        <TicketUpdateForm
+          ticketId={uuid}
+          status={status}
+          priority={priority}
+          assignedAgent={ticket.assigned_agent ?? ""}
+        />
         <div className="mt-6 rounded-xl border border-slate-200 p-5">
           <h2 className="font-semibold">Description</h2>
           <p className="mt-3 whitespace-pre-wrap text-slate-700">

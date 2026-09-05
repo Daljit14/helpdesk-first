@@ -28,6 +28,7 @@ export default defineConfig({
       NEXT_PUBLIC_AI_ENABLED: "true",
       HELP_DESK_AI_RATE_LIMIT_PROVIDER: "memory",
       HELP_DESK_AI_RATE_LIMIT_MAX: "10000",
+      HELP_DESK_ADMIN_DASHBOARD_ENABLED: "true",
     },
     url: "http://localhost:3000",
     reuseExistingServer: !process.env.CI,

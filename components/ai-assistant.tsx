@@ -49,7 +49,7 @@ export function AiAssistant() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          type: "assistant_start",
+          type: "assistant_started",
           path: "/assistant",
           platform: nextPlatform,
         }),
@@ -132,6 +132,15 @@ export function AiAssistant() {
   }
 
   function handleRejectMatch() {
+    void fetch("/api/analytics/event", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: "ai_recommendation_rejected",
+        path: "/assistant",
+      }),
+      keepalive: true,
+    }).catch(() => {});
     setCurrentOutput({
       decision: "escalate",
       escalationReason:
@@ -389,6 +398,18 @@ function MatchView({
       <div className="flex flex-wrap gap-3">
         <Link
           href={guideHref}
+          onClick={() => {
+            void fetch("/api/analytics/event", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                type: "ai_recommendation_accepted",
+                path: guideHref.split("?")[0],
+                issueId: output.matchedIssueSlug,
+              }),
+              keepalive: true,
+            }).catch(() => {});
+          }}
           className={cn(buttonVariants({ variant: "default" }))}
         >
           Start approved guide
@@ -432,6 +453,17 @@ function EscalateView({
       <div className="flex flex-wrap gap-3">
         <Link
           href={searchHref}
+          onClick={() => {
+            void fetch("/api/analytics/event", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                type: "ai_recommendation_rejected",
+                path: searchHref.split("?")[0] || "/",
+              }),
+              keepalive: true,
+            }).catch(() => {});
+          }}
           className={cn(buttonVariants({ variant: "outline" }))}
         >
           Search support guides

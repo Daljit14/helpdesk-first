@@ -5,5 +5,5 @@ test("operations routes remain private", async ({ page, request }) => {
   expect([401, 503]).toContain(exportResponse.status());
 
   await page.goto("/admin/operations");
-  await expect(page).toHaveURL(/\/login\?next=\/admin\/operations/);
+  await expect(page).toHaveURL(/\/admin\/login\?next=\/admin\/operations/);
 });

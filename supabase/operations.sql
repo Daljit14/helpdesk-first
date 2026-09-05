@@ -93,6 +93,7 @@ as $$
   today as (
     select visitor_key, created_at from public.analytics_events
     where created_at >= date_trunc('day', now())
+      and event_type <> 'ticket_created'
   ),
   gaps as (
     select
@@ -103,7 +104,7 @@ as $$
   )
   select
     now() as "timestamp",
-    (select count(distinct visitor_key) from recent)::int as active_users_5m,
+    (select count(distinct visitor_key) from recent where event_type <> 'ticket_created')::int as active_users_5m,
     round((select count(*) from recent where event_type in ('page_view', 'guide_view')) / 5.0, 2) as page_views_per_min,
     (select count(distinct visitor_key) from today)::int as unique_visitors_today,
     (select count(*) from gaps where prev_at is null or created_at - prev_at > interval '30 minutes')::int as sessions_today,

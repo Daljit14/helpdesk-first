@@ -21,31 +21,37 @@ export function toTicketId(uuid: string): string {
 }
 
 export function normalizeStatus(raw: unknown): OperationsStatus {
-  if (raw === "Open") return "New";
+  const value = typeof raw === "string" ? raw.trim().toLowerCase() : "";
+  if (value === "open" || value === "new") return "New";
   if (
-    raw === "New" ||
-    raw === "In Progress" ||
-    raw === "Waiting" ||
-    raw === "Resolved" ||
-    raw === "Closed"
+    value === "in progress" ||
+    value === "in_progress" ||
+    value === "in-progress"
   ) {
-    return raw;
+    return "In Progress";
   }
+  if (value === "waiting") return "Waiting";
+  if (value === "resolved") return "Resolved";
+  if (value === "closed") return "Closed";
   return "New";
 }
 
 export function normalizePriority(raw: unknown): OperationsPriority {
-  return raw === "Low" || raw === "High" || raw === "Urgent" ? raw : "Normal";
+  const value = typeof raw === "string" ? raw.trim().toLowerCase() : "";
+  if (value === "low") return "Low";
+  if (value === "high") return "High";
+  if (value === "urgent") return "Urgent";
+  return "Normal";
 }
 
 export function normalizePlatform(raw: unknown): OperationsPlatform {
-  return raw === "Windows" ||
-    raw === "macOS" ||
-    raw === "Linux" ||
-    raw === "Android" ||
-    raw === "iOS"
-    ? raw
-    : "Other";
+  const value = typeof raw === "string" ? raw.trim().toLowerCase() : "";
+  if (value === "windows") return "Windows";
+  if (value === "macos") return "macOS";
+  if (value === "linux") return "Linux";
+  if (value === "android") return "Android";
+  if (value === "ios") return "iOS";
+  return "Other";
 }
 
 export function slaDue(

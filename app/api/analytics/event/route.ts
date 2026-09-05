@@ -7,7 +7,7 @@ import { randomUUID } from "node:crypto";
 const eventSchema = z.object({
   type: z.enum(["page_view", "assistant_start"]),
   path: z.string().max(200).startsWith("/"),
-  platform: z.string().max(20).optional(),
+  platform: z.string().max(20).nullish(),
 });
 
 const PRIVATE_PREFIXES = [

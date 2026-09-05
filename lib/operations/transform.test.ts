@@ -31,12 +31,17 @@ describe("operations transforms", () => {
   });
 
   test("normalizes status, priority, and platform", () => {
-    expect(normalizeStatus("Open")).toBe("New");
+    expect(normalizeStatus(" open ")).toBe("New");
+    expect(normalizeStatus("CLOSED")).toBe("Closed");
+    expect(normalizeStatus("in_progress")).toBe("In Progress");
+    expect(normalizeStatus("In-Progress")).toBe("In Progress");
     expect(normalizeStatus("Waiting")).toBe("Waiting");
     expect(normalizeStatus("unknown")).toBe("New");
-    expect(normalizePriority("Urgent")).toBe("Urgent");
+    expect(normalizePriority(" urgent ")).toBe("Urgent");
+    expect(normalizePriority("HIGH")).toBe("High");
     expect(normalizePriority("unknown")).toBe("Normal");
-    expect(normalizePlatform("macOS")).toBe("macOS");
+    expect(normalizePlatform(" macos ")).toBe("macOS");
+    expect(normalizePlatform("IOS")).toBe("iOS");
     expect(normalizePlatform("unknown")).toBe("Other");
   });
 

@@ -25,11 +25,11 @@ begin
   new.updated_at := now();
 
   if new.status is distinct from old.status then
-    if new.first_response_at is null and old.status in ('Open', 'New') then
+    if new.first_response_at is null and lower(old.status) in ('open', 'new') then
       new.first_response_at := now();
     end if;
 
-    if new.status in ('Resolved', 'Closed') then
+    if lower(new.status) in ('resolved', 'closed') then
       if new.resolved_at is null then
         new.resolved_at := now();
       end if;

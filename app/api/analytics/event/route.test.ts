@@ -57,4 +57,17 @@ describe("analytics event route", () => {
       expect.objectContaining({ eventType: "page_view", path: "/" })
     );
   });
+
+  test("records assistant starts with a null platform", async () => {
+    const response = await POST(
+      request({ type: "assistant_start", path: "/assistant", platform: null })
+    );
+    expect(response.status).toBe(200);
+    expect(mockedRecord).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "assistant_start",
+        platform: null,
+      })
+    );
+  });
 });

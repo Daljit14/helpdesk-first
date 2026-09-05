@@ -117,6 +117,23 @@ export function getRateLimiter(): RateLimiter | null {
   return null;
 }
 
+function hasUpstashConfig(): boolean {
+  return Boolean(
+    (process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL) &&
+    (process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN)
+  );
+}
+
+export function createRateLimiter(
+  config: RateLimitConfig,
+  keyPrefix: string
+): RateLimiter {
+  if (getRateLimiterKind() === "upstash" && hasUpstashConfig()) {
+    return new UpstashRateLimiter(config, `helpdesk-first:${keyPrefix}`);
+  }
+  return new MemoryRateLimiter(config);
+}
+
 export function getClientIp(request: Request): string {
   const headers = request.headers;
   const forwarded = headers.get("x-forwarded-for");

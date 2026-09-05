@@ -29,13 +29,39 @@ For production, set `HELP_DESK_AI_RATE_LIMIT_PROVIDER=upstash` and configure `UP
 
 Apply [`supabase/operations.sql`](supabase/operations.sql), then set
 `OPERATIONS_EXPORT_KEY`, optional `OPERATIONS_PSEUDONYM_SALT`, and
-`OPERATIONS_ADMIN_EMAILS`. Export with
+the secure admin dashboard variables in `.env.example`. Export with
 `curl -H "Authorization: Bearer $OPERATIONS_EXPORT_KEY" https://your-site.example/api/admin/operations/export`.
 The response maps to `LiveTicketsTable`: Ticket ID, Created At, Updated At,
 Status, Priority, Category, Issue Title, User Key, Assigned Agent, SLA Due,
 First Response At, Resolved At, Platform, and Has Attachment. Age Minutes and
 SLA State remain Excel formulas. Traffic and agent queue data map to
 `TrafficTimelineTable` and `AgentQueueTable`.
+
+## Admin operations dashboard
+
+The role-based dashboard is controlled by `HELP_DESK_ADMIN_DASHBOARD_ENABLED`
+and `HELP_DESK_ADMIN_SESSION_SECRET`. It also requires
+`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
+`SUPABASE_SERVICE_ROLE_KEY`, `OPERATIONS_PSEUDONYM_SALT` (or
+`OPERATIONS_EXPORT_KEY`) for pseudonymous user keys,
+`HELP_DESK_AI_RATE_LIMIT_PROVIDER`, and the corresponding Upstash variables
+when using the Upstash provider. Apply
+`supabase/schema.sql`, `supabase/cloud-features.sql`,
+`supabase/operations.sql`, then `supabase/admin-dashboard.sql`.
+
+Invite an operator after applying the migrations:
+
+```sql
+insert into public.organization_members (organization_id, user_id, role)
+values ('00000000-0000-0000-0000-000000000001', '<auth-user-uuid>', 'support_agent');
+```
+
+Set `admin_profiles.mfa_enrolled` to `true` only after the operator has MFA
+enrolled; that operator must then authenticate at assurance level AAL2.
+Retention may be scheduled with pg_cron using the commented schedule in
+`supabase/admin-dashboard.sql`; the API also invokes retention opportunistically.
+Rollback statements in that migration are destructive and require explicit
+approval.
 
 ## Requirements
 

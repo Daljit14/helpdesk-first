@@ -1,6 +1,7 @@
 import { describe, expect, test, vi } from "vitest";
 import {
   checkRateLimit,
+  createRateLimiter,
   getRateLimiter,
   getRateLimiterKind,
   MemoryRateLimiter,
@@ -37,6 +38,18 @@ describe("checkRateLimit", () => {
     const result = await checkRateLimit(request, null);
     expect(result.allowed).toBe(false);
     expect(result.reason).toMatch(/rate limiting.*not configured/i);
+  });
+});
+
+describe("createRateLimiter", () => {
+  test("falls back to memory when Upstash is unavailable", () => {
+    vi.stubEnv("HELP_DESK_AI_RATE_LIMIT_PROVIDER", "memory");
+    const limiter = createRateLimiter(
+      { windowMs: 60_000, maxRequests: 2 },
+      "test"
+    );
+    expect(limiter).toBeInstanceOf(MemoryRateLimiter);
+    vi.unstubAllEnvs();
   });
 });
 

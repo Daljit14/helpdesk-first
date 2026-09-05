@@ -1,16 +1,22 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { recordAnalyticsEvent } from "@/lib/analytics/events";
+import {
+  recordAnalyticsEvent,
+  touchActiveSession,
+} from "@/lib/analytics/events";
 import { POST } from "./route";
 
 vi.mock("@/lib/analytics/events", () => ({
   recordAnalyticsEvent: vi.fn(),
+  touchActiveSession: vi.fn(),
 }));
 
 const mockedRecord = vi.mocked(recordAnalyticsEvent);
+const mockedTouch = vi.mocked(touchActiveSession);
 
 afterEach(() => {
   vi.unstubAllEnvs();
   mockedRecord.mockReset();
+  mockedTouch.mockReset();
 });
 
 function request(body: unknown, cookie?: string) {
@@ -29,7 +35,7 @@ describe("analytics event route", () => {
     const response = await POST(
       request(
         { type: "page_view", path: "/issues/no-internet?secret=1#top" },
-        "hd_vid=visitor-1"
+        "hd_sid=visitor-1"
       )
     );
     expect(response.status).toBe(200);
@@ -52,7 +58,9 @@ describe("analytics event route", () => {
 
   test("sets a visitor cookie when absent", async () => {
     const response = await POST(request({ type: "page_view", path: "/" }));
-    expect(response.headers.get("set-cookie")).toContain("hd_vid=");
+    expect(response.headers.get("set-cookie")).toMatch(
+      /hd_sid=.*Max-Age=86400/
+    );
     expect(mockedRecord).toHaveBeenCalledWith(
       expect.objectContaining({ eventType: "page_view", path: "/" })
     );
@@ -60,7 +68,7 @@ describe("analytics event route", () => {
 
   test("records assistant starts with a null platform", async () => {
     const response = await POST(
-      request({ type: "assistant_start", path: "/assistant", platform: null })
+      request({ type: "assistant_started", path: "/assistant", platform: null })
     );
     expect(response.status).toBe(200);
     expect(mockedRecord).toHaveBeenCalledWith(
@@ -69,5 +77,22 @@ describe("analytics event route", () => {
         platform: null,
       })
     );
+  });
+
+  test("rejects unknown payload keys", async () => {
+    const response = await POST(
+      request({ type: "page_view", path: "/", extra: true })
+    );
+    expect(response.status).toBe(400);
+    expect(mockedRecord).not.toHaveBeenCalled();
+  });
+
+  test("heartbeats touch a session without recording an event", async () => {
+    const response = await POST(
+      request({ type: "heartbeat", path: "/" }, "hd_sid=session-1")
+    );
+    expect(response.status).toBe(200);
+    expect(mockedTouch).toHaveBeenCalledWith("session-1");
+    expect(mockedRecord).not.toHaveBeenCalled();
   });
 });

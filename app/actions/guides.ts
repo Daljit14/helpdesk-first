@@ -153,6 +153,7 @@ export async function submitTicket(
     user_id: result.user.id,
     issue_id: result.issue.id,
     issue_title: result.issue.title,
+    category: result.issue.category,
     message: parsed.data.message,
     attachment_path: attachmentPath,
   });

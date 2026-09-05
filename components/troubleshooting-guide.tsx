@@ -103,6 +103,7 @@ export function TroubleshootingGuide({
   });
 
   const statusRef = useRef<HTMLDivElement>(null);
+  const completedEventSent = useRef(false);
 
   const totalSteps = steps.length;
   const currentStep = steps[state.currentStepIndex];
@@ -144,6 +145,19 @@ export function TroubleshootingGuide({
       });
     }
     if (state.currentStepIndex === totalSteps - 1) {
+      if (!completedEventSent.current) {
+        completedEventSent.current = true;
+        void fetch("/api/analytics/event", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: "troubleshooting_completed",
+            path: `/issues/${issue.id}/guide`,
+            issueId: issue.id,
+          }),
+          keepalive: true,
+        }).catch(() => {});
+      }
       setState((prev) => ({
         ...prev,
         status: "resolved",
@@ -178,6 +192,19 @@ export function TroubleshootingGuide({
   }
 
   function handleSolved() {
+    if (!completedEventSent.current) {
+      completedEventSent.current = true;
+      void fetch("/api/analytics/event", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "troubleshooting_completed",
+          path: `/issues/${issue.id}/guide`,
+          issueId: issue.id,
+        }),
+        keepalive: true,
+      }).catch(() => {});
+    }
     setState((prev) => ({
       ...prev,
       status: "resolved",

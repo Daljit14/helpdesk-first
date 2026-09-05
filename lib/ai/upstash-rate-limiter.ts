@@ -6,10 +6,15 @@ import type {
   RateLimiter,
 } from "./rate-limit";
 
-let cached: Ratelimit | null = null;
+const cached = new Map<string, Ratelimit>();
 
-function getUpstashRatelimit(config: RateLimitConfig): Ratelimit {
-  if (cached) return cached;
+function getUpstashRatelimit(
+  config: RateLimitConfig,
+  prefix: string
+): Ratelimit {
+  const cacheKey = `${prefix}:${config.windowMs}:${config.maxRequests}`;
+  const existing = cached.get(cacheKey);
+  if (existing) return existing;
 
   const url = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
   const token =
@@ -23,17 +28,18 @@ function getUpstashRatelimit(config: RateLimitConfig): Ratelimit {
     );
   }
 
-  cached = new Ratelimit({
+  const ratelimit = new Ratelimit({
     redis: new Redis({ url, token }),
     limiter: Ratelimit.slidingWindow(
       config.maxRequests,
       `${config.windowMs} ms`
     ),
     analytics: true,
-    prefix: "helpdesk-first:ai-intake",
+    prefix,
   });
 
-  return cached;
+  cached.set(cacheKey, ratelimit);
+  return ratelimit;
 }
 
 /**
@@ -47,8 +53,8 @@ function getUpstashRatelimit(config: RateLimitConfig): Ratelimit {
 export class UpstashRateLimiter implements RateLimiter {
   private readonly ratelimit: Ratelimit;
 
-  constructor(config: RateLimitConfig) {
-    this.ratelimit = getUpstashRatelimit(config);
+  constructor(config: RateLimitConfig, prefix = "helpdesk-first:ai-intake") {
+    this.ratelimit = getUpstashRatelimit(config, prefix);
   }
 
   async check(identifier: string): Promise<RateLimitCheck> {

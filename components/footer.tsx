@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 export function Footer() {
@@ -21,6 +22,12 @@ export function Footer() {
             &copy; {new Date().getFullYear()} HelpDesk First. All rights
             reserved.
           </p>
+          <Link
+            href="/admin/login"
+            className="text-sm text-zinc-500 underline-offset-4 hover:text-zinc-900 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+          >
+            Staff login
+          </Link>
         </div>
       </div>
     </footer>

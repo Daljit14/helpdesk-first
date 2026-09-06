@@ -12,6 +12,7 @@ import type {
   AdminOperationsTicket,
   OperationsData,
 } from "@/lib/admin/operations-data";
+import { formatSlaCountdown } from "@/lib/tickets/sla";
 
 type RefreshStatus = "idle" | "refreshing" | "error";
 
@@ -68,7 +69,13 @@ function makeQuery(filters: AdminFilters) {
   return params.toString();
 }
 
-function TicketTable({ tickets }: { tickets: AdminOperationsTicket[] }) {
+function TicketTable({
+  tickets,
+  now,
+}: {
+  tickets: AdminOperationsTicket[];
+  now: number;
+}) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[1100px] text-left text-sm">
@@ -120,6 +127,18 @@ function TicketTable({ tickets }: { tickets: AdminOperationsTicket[] }) {
                 <span className="rounded bg-slate-100 px-2 py-1">
                   {ticket.slaState}
                 </span>
+                {!["Resolved", "Closed"].includes(ticket.status) &&
+                  formatSlaCountdown(
+                    ticket.humanResponseDueAt ?? null,
+                    new Date(now)
+                  ) && (
+                    <span className="ml-2 whitespace-nowrap text-xs text-slate-600">
+                      {formatSlaCountdown(
+                        ticket.humanResponseDueAt ?? null,
+                        new Date(now)
+                      )}
+                    </span>
+                  )}
               </td>
               <td className="whitespace-nowrap px-4 py-3">
                 {new Date(ticket.lastUpdatedAt).toLocaleString()}
@@ -368,6 +387,7 @@ export function AdminDashboard({
                       <span>{item.count}</span>
                     </div>
                     <div
+                      role="img"
                       className="mt-1 h-2 rounded bg-blue-600"
                       style={{
                         width: `${(item.count / (max as number)) * 100}%`,
@@ -381,7 +401,11 @@ export function AdminDashboard({
           ))}
         </div>
 
-        <section className="overflow-x-auto rounded-xl border border-slate-200">
+        <section
+          tabIndex={0}
+          aria-label="Agent workload"
+          className="overflow-x-auto rounded-xl border border-slate-200"
+        >
           <h2 className="border-b border-slate-200 p-5 font-semibold">
             Agent workload
           </h2>
@@ -689,7 +713,7 @@ export function AdminDashboard({
               No tickets match these filters
             </p>
           ) : (
-            <TicketTable tickets={snapshot.tickets.rows} />
+            <TicketTable tickets={snapshot.tickets.rows} now={now} />
           )}
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 p-4">
             <span className="text-sm text-slate-600">

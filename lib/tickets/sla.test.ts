@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { humanResponseDue, slaState } from "./sla";
+import { formatSlaCountdown, humanResponseDue, slaState } from "./sla";
 
 describe("ticket SLA", () => {
   it("calculates urgent, high, and normal due times", () => {
@@ -41,5 +41,16 @@ describe("ticket SLA", () => {
         new Date("2025-01-06T10:01:00Z")
       )
     ).toBe("met");
+  });
+
+  it("formats SLA countdowns", () => {
+    const now = new Date("2025-01-06T09:00:00Z");
+    expect(formatSlaCountdown("2025-01-06T09:12:00Z", now)).toBe("12m left");
+    expect(formatSlaCountdown("2025-01-06T10:05:00Z", now)).toBe("1h 5m left");
+    expect(formatSlaCountdown("2025-01-08T12:00:00Z", now)).toBe("2d 3h left");
+    expect(formatSlaCountdown("2025-01-05T23:59:00Z", now)).toBe(
+      "overdue by 9h 1m"
+    );
+    expect(formatSlaCountdown(null, now)).toBeNull();
   });
 });

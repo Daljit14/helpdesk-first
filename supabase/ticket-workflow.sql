@@ -399,6 +399,116 @@ $$;
 revoke all on function public.record_ai_attempt_failed(uuid) from public, anon;
 grant execute on function public.record_ai_attempt_failed(uuid) to authenticated;
 
+create or replace function public.admin_resolution_metrics(org uuid)
+returns jsonb
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  with scoped as (
+    select *
+    from public.tickets
+    where organization_id = org
+  ),
+  completed as (
+    select *
+    from scoped
+    where lower(status) in ('resolved', 'closed')
+  ),
+  totals as (
+    select
+      count(*)::int as total_tickets,
+      count(*) filter (
+        where lower(status) in ('open', 'new', 'in progress', 'in_progress', 'in-progress', 'waiting')
+      )::int as open_tickets,
+      count(*) filter (where ai_attempted)::int as ai_attempted,
+      count(*) filter (where resolution_source = 'ai')::int as ai_solved,
+      count(*) filter (where resolution_source in ('agent', 'employee'))::int as agent_solved,
+      count(*) filter (where resolution_source = 'self_service')::int as self_service_solved,
+      count(*) filter (where escalated)::int as escalated,
+      coalesce(
+        avg(extract(epoch from (resolved_at - created_at)) / 60)
+          filter (
+            where lower(status) in ('resolved', 'closed')
+              and resolved_at is not null
+          ),
+        0
+      ) as avg_resolution_minutes,
+      coalesce(
+        avg(extract(epoch from (resolved_at - created_at)) / 60)
+          filter (
+            where lower(status) in ('resolved', 'closed')
+              and resolved_at is not null
+              and resolution_source = 'ai'
+          ),
+        0
+      ) as avg_ai_resolution_minutes,
+      coalesce(
+        avg(extract(epoch from (resolved_at - created_at)) / 60)
+          filter (
+            where lower(status) in ('resolved', 'closed')
+              and resolved_at is not null
+              and resolution_source in ('agent', 'employee')
+          ),
+        0
+      ) as avg_agent_resolution_minutes
+    from scoped
+  ),
+  days as (
+    select generate_series(
+      current_date - interval '13 days',
+      current_date,
+      interval '1 day'
+    )::date as day
+  ),
+  daily as (
+    select
+      days.day,
+      count(scoped.id) filter (where scoped.resolution_source = 'ai')::int as ai_solved,
+      count(scoped.id) filter (where scoped.resolution_source in ('agent', 'employee'))::int as agent_solved,
+      count(scoped.id) filter (where scoped.escalated)::int as escalated,
+      count(scoped.id)::int as created
+    from days
+    left join scoped on scoped.created_at::date = days.day
+    group by days.day
+    order by days.day
+  )
+  select jsonb_build_object(
+    'totalTickets', totals.total_tickets,
+    'openTickets', totals.open_tickets,
+    'aiAttempted', totals.ai_attempted,
+    'aiSolved', totals.ai_solved,
+    'agentSolved', totals.agent_solved,
+    'selfServiceSolved', totals.self_service_solved,
+    'escalated', totals.escalated,
+    'aiResolutionRate', round(
+      coalesce(totals.ai_solved * 100.0 / nullif(totals.ai_attempted, 0), 0)::numeric,
+      1
+    ),
+    'avgResolutionMinutes', totals.avg_resolution_minutes,
+    'avgAiResolutionMinutes', totals.avg_ai_resolution_minutes,
+    'avgAgentResolutionMinutes', totals.avg_agent_resolution_minutes,
+    'daily', coalesce(
+      (
+        select jsonb_agg(jsonb_build_object(
+          'day', to_char(daily.day, 'YYYY-MM-DD'),
+          'aiSolved', daily.ai_solved,
+          'agentSolved', daily.agent_solved,
+          'escalated', daily.escalated,
+          'created', daily.created
+        ) order by daily.day)
+        from daily
+      ),
+      '[]'::jsonb
+    )
+  )
+  from totals;
+$$;
+
+revoke all on function public.admin_resolution_metrics(uuid) from public, anon, authenticated;
+grant execute on function public.admin_resolution_metrics(uuid) to service_role;
+
 -- Optional destructive rollback; run only with approval:
 -- drop trigger if exists ticket_system_events_immutable_trigger on public.ticket_system_events;
 -- drop trigger if exists tickets_guard_resolution_columns_trigger on public.tickets;

@@ -62,8 +62,29 @@ test("shapes resolution metrics and keeps private fields out of list rows", asyn
           escalation_reason: "private",
           resolution_summary: "private",
         },
+        {
+          id: "00000000-0000-4000-8000-000000000002",
+          user_id: "user-2",
+          issue_id: "email",
+          issue_title: "Email unavailable",
+          category: "email",
+          status: "Resolved",
+          priority: "Normal",
+          assigned_agent: "Agent",
+          platform: "Windows",
+          created_at: "2025-01-01T00:00:00.000Z",
+          updated_at: "2025-01-01T01:00:00.000Z",
+          first_response_at: null,
+          resolved_at: "2025-01-01T01:00:00.000Z",
+          attachment_path: null,
+          resolution_source: "employee",
+          ai_attempted: false,
+          escalated: false,
+          escalation_reason: null,
+          resolution_summary: null,
+        },
       ],
-      count: 1,
+      count: 2,
       error: null,
     }),
   };
@@ -126,6 +147,9 @@ test("shapes resolution metrics and keeps private fields out of list rows", asyn
     resolvedBy: "AI assistant",
     aiAttempted: true,
     escalated: false,
+  });
+  expect(result.tickets.rows[1]).toMatchObject({
+    resolvedBy: "Support agent",
   });
   expect(JSON.stringify(result.tickets.rows[0])).not.toMatch(
     /escalation_reason|resolution_summary/

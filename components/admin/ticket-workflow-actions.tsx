@@ -79,6 +79,7 @@ export function TicketWorkflowActions({
     consentReceived: false,
   });
   const [resolution, setResolution] = useState(initialResolution);
+  const [resolutionError, setResolutionError] = useState<string | null>(null);
   const [notice, setNotice] = useState<{
     type: "error" | "success";
     text: string;
@@ -116,11 +117,12 @@ export function TicketWorkflowActions({
 
   const submitResolutionForm = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    setResolutionError(null);
     const missing = Object.entries(resolution).some(
       ([key, value]) => key !== "verificationMethod" && !value.trim()
     );
     if (missing) {
-      setNotice({ type: "error", text: "Complete every resolution field." });
+      setResolutionError("Complete every resolution field.");
       return;
     }
     run(() => submitResolution(ticketId, resolution));
@@ -359,7 +361,19 @@ export function TicketWorkflowActions({
         className="mt-6 grid gap-3 border-t border-slate-200 pt-5"
         onSubmit={(event) => {
           event.preventDefault();
-          run(() => recordAction({ ticketId, ...action }));
+          run(async () => {
+            const result = await recordAction({ ticketId, ...action });
+            if (!("error" in result)) {
+              setAction({
+                toolName: "",
+                actionSummary: "",
+                resultSummary: "",
+                consentRequired: false,
+                consentReceived: false,
+              });
+            }
+            return result;
+          });
         }}
       >
         <h3 className="font-medium">Record tool or action</h3>
@@ -433,6 +447,11 @@ export function TicketWorkflowActions({
         onSubmit={submitResolutionForm}
       >
         <h3 className="font-medium">Resolution report</h3>
+        {resolutionError && (
+          <p role="alert" className="rounded-md bg-red-50 p-3 text-red-800">
+            {resolutionError}
+          </p>
+        )}
         <label htmlFor="root-cause">Root cause</label>
         <textarea
           id="root-cause"

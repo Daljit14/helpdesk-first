@@ -28,6 +28,7 @@ export default async function AssistantPage() {
           resolutionTrackingEnabled={
             isResolutionTrackingEnabled() || isTicketWorkflowEnabled()
           }
+          workflowEnabled={isTicketWorkflowEnabled()}
           signedIn={Boolean(user)}
         />
       </Suspense>

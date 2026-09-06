@@ -101,6 +101,48 @@ describe("AdminDashboard", () => {
     expect(screen.getByText("No resolution activity.")).toBeInTheDocument();
   });
 
+  test("renders the breached SLA state for an overdue ticket", () => {
+    render(
+      <AdminDashboard
+        initialSnapshot={{
+          ...snapshot(),
+          tickets: {
+            rows: [
+              {
+                ticketUuid: "ticket-1",
+                ticketId: "TCK-1",
+                createdAt: "2025-01-01T00:00:00.000Z",
+                updatedAt: "2025-01-01T00:00:00.000Z",
+                lastUpdatedAt: "2025-01-01T00:00:00.000Z",
+                status: "In Progress",
+                priority: "Normal",
+                category: "Network",
+                issueTitle: "No internet",
+                userKey: "user",
+                assignedAgent: "Agent",
+                slaDue: "2025-01-01T00:00:00.000Z",
+                firstResponseAt: null,
+                resolvedAt: null,
+                platform: "Windows",
+                hasAttachment: false,
+                slaState: "Breached",
+                resolvedBy: null,
+                aiAttempted: false,
+                escalated: false,
+                humanResponseDueAt: "2025-01-01T00:00:00.000Z",
+              },
+            ],
+            page: 1,
+            pageSize: 25,
+            total: 1,
+          },
+        }}
+      />
+    );
+    expect(screen.getAllByText("Breached").length).toBeGreaterThan(0);
+    expect(screen.getByText(/overdue by/)).toBeInTheDocument();
+  });
+
   test("renders all workflow cards and filters the queue", async () => {
     vi.spyOn(global, "fetch").mockResolvedValue(
       new Response(JSON.stringify(snapshot()), { status: 200 })

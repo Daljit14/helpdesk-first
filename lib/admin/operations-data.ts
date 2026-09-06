@@ -441,7 +441,10 @@ export async function getOperationsData(
   if (filters.resolutionSource === "unresolved") {
     activeQuery = activeQuery.is("resolution_source", null);
   } else if (filters.resolutionSource) {
-    activeQuery = activeQuery.eq("resolution_source", filters.resolutionSource);
+    activeQuery =
+      filters.resolutionSource === "agent"
+        ? activeQuery.in("resolution_source", ["agent", "employee"])
+        : activeQuery.eq("resolution_source", filters.resolutionSource);
   }
   if (filters.priority)
     activeQuery = activeQuery.eq("priority", filters.priority);
@@ -518,7 +521,8 @@ export async function getOperationsData(
       resolvedBy:
         row.resolution_source === "ai"
           ? "AI assistant"
-          : row.resolution_source === "agent"
+          : row.resolution_source === "agent" ||
+              row.resolution_source === "employee"
             ? "Support agent"
             : row.resolution_source === "self_service"
               ? "Self-service"

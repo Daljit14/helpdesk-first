@@ -17,6 +17,13 @@ const statuses = [
   "Resolved",
   "Closed",
 ] as const;
+const workflowStatuses = [
+  "AI Reviewing",
+  "AI Resolving",
+  "Needs Human",
+  "Waiting for User",
+  "Pending Verification",
+] as const;
 const priorities = ["Low", "Normal", "High", "Urgent"] as const;
 
 export function TicketUpdateForm({
@@ -83,10 +90,16 @@ export function TicketUpdateForm({
             className="h-10 rounded-md border border-slate-300 bg-white px-3 text-slate-900 outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
           >
             {(workflowEnabled
-              ? ["New", "In Progress", "Waiting for User", "Needs Human"]
+              ? [...statuses, ...workflowStatuses]
               : statuses
             ).map((value) => (
-              <option key={value} value={value}>
+              <option
+                key={value}
+                value={value}
+                disabled={
+                  workflowEnabled && workflowStatuses.includes(value as never)
+                }
+              >
                 {value}
               </option>
             ))}

@@ -30,3 +30,22 @@ export function slaState(
   if (remaining <= 10 * 60_000) return "at_risk";
   return "ok";
 }
+
+export function formatSlaCountdown(
+  dueAt: string | null,
+  now: Date
+): string | null {
+  if (!dueAt) return null;
+  const difference = new Date(dueAt).getTime() - now.getTime();
+  const absoluteMinutes = Math.ceil(Math.abs(difference) / 60_000);
+  const days = Math.floor(absoluteMinutes / (24 * 60));
+  const hours = Math.floor((absoluteMinutes % (24 * 60)) / 60);
+  const minutes = absoluteMinutes % 60;
+  const duration =
+    days > 0
+      ? `${days}d${hours > 0 ? ` ${hours}h` : ""}`
+      : hours > 0
+        ? `${hours}h${minutes > 0 ? ` ${minutes}m` : ""}`
+        : `${minutes}m`;
+  return difference >= 0 ? `${duration} left` : `overdue by ${duration}`;
+}

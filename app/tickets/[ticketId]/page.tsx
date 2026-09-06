@@ -6,6 +6,38 @@ import { TicketConversation } from "@/components/ticket-conversation";
 
 export const dynamic = "force-dynamic";
 
+function handoffReasonLabel(
+  reason: string | null,
+  status: string
+): string | null {
+  if (
+    !["needs human", "in progress", "waiting for user"].includes(
+      status.toLowerCase()
+    )
+  )
+    return null;
+  const labels: Record<string, string> = {
+    admin_access_required: "This needs administrator access",
+    credentials: "This involves passwords or sign-in security",
+    credentials_involved: "This involves passwords or sign-in security",
+    malware: "This may involve a security concern",
+    unauthorized_access: "This may involve a security concern",
+    security_concern: "This may involve a security concern",
+    hardware: "This may need hardware repair",
+    hardware_repair: "This may need hardware repair",
+    remote_assistance: "This may need remote assistance",
+    remote_assistance_required: "This may need remote assistance",
+    low_confidence: "No approved self-service guide matched",
+    no_guide: "No approved self-service guide matched",
+    no_approved_guide: "No approved self-service guide matched",
+    repeated_failure: "The suggested steps did not fix it",
+    user_requested_human: "You asked for a person",
+    too_many_questions: "More detail is needed from a person",
+    insufficient_diagnostics: "More detail is needed from a person",
+  };
+  return reason ? (labels[reason] ?? null) : null;
+}
+
 export default async function TicketPage({
   params,
 }: {
@@ -18,7 +50,7 @@ export default async function TicketPage({
   const supabase = await createClient();
   const { data: ticket } = await supabase
     .from("tickets")
-    .select("id,issue_title,message,status,platform,created_at")
+    .select("id,issue_title,message,status,platform,created_at,handoff_reason")
     .eq("id", ticketId)
     .eq("user_id", user.id)
     .maybeSingle();
@@ -37,6 +69,12 @@ export default async function TicketPage({
         <p className="mt-3 rounded-full bg-muted px-3 py-1 text-sm inline-block">
           {ticket.status}
         </p>
+        {handoffReasonLabel(ticket.handoff_reason, ticket.status) && (
+          <p className="mt-3 text-sm text-muted-foreground">
+            Why a person is helping:{" "}
+            {handoffReasonLabel(ticket.handoff_reason, ticket.status)}
+          </p>
+        )}
         <div className="mt-6 rounded-xl border border-border p-5">
           <h2 className="font-semibold">Original problem</h2>
           <p className="mt-3 whitespace-pre-wrap">{ticket.message}</p>

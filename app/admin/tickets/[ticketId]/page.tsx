@@ -48,6 +48,8 @@ type TicketPageRow = {
   resolution_source: string | null;
   ai_attempted: boolean;
   ai_attempted_at: string | null;
+  ai_failed_attempts?: number | null;
+  ai_question_count?: number | null;
   ai_recommended_issue_id: string | null;
   ai_confidence?: number | null;
   ai_risk_level?: string | null;
@@ -90,7 +92,7 @@ export default async function AdminTicketPage({
       ? admin
           .from("tickets")
           .select(
-            "id, organization_id, user_id, issue_id, issue_title, category, status, priority, assigned_agent, assigned_agent_id, platform, created_at, updated_at, first_response_at, first_human_response_at, human_response_due_at, resolved_at, closed_at, attachment_path, message, resolution_source, ai_attempted, ai_attempted_at, ai_recommended_issue_id, ai_confidence, ai_risk_level, handoff_reason, diagnostic_answers, resolution_report, escalated, escalated_at, escalation_reason, resolution_summary, user_confirmed, user_confirmed_at"
+            "id, organization_id, user_id, issue_id, issue_title, category, status, priority, assigned_agent, assigned_agent_id, platform, created_at, updated_at, first_response_at, first_human_response_at, human_response_due_at, resolved_at, closed_at, attachment_path, message, resolution_source, ai_attempted, ai_attempted_at, ai_failed_attempts, ai_question_count, ai_recommended_issue_id, ai_confidence, ai_risk_level, handoff_reason, diagnostic_answers, resolution_report, escalated, escalated_at, escalation_reason, resolution_summary, user_confirmed, user_confirmed_at"
           )
       : admin
           .from("tickets")
@@ -228,9 +230,14 @@ export default async function AdminTicketPage({
               <p>Confidence: {ticket.ai_confidence ?? "—"}</p>
               <p>Risk: {ticket.ai_risk_level ?? "—"}</p>
               <p>Handoff reason: {ticket.handoff_reason ?? "—"}</p>
+              <p>AI attempts: {ticket.ai_failed_attempts ?? 0} failed of 2</p>
+              <p>Diagnostic questions asked: {ticket.ai_question_count ?? 0}</p>
               <p className="sm:col-span-2">
                 Diagnostic answers:{" "}
-                {JSON.stringify(ticket.diagnostic_answers ?? [])}
+                {Array.isArray(ticket.diagnostic_answers) &&
+                ticket.diagnostic_answers.length === 0
+                  ? "None recorded"
+                  : JSON.stringify(ticket.diagnostic_answers ?? [])}
               </p>
             </div>
             <div className="mt-6 rounded-xl border border-slate-200 p-5">
@@ -299,7 +306,8 @@ export default async function AdminTicketPage({
                 <dd>
                   {ticket.resolution_source === "ai"
                     ? "AI assistant"
-                    : ticket.resolution_source === "agent"
+                    : ticket.resolution_source === "agent" ||
+                        ticket.resolution_source === "employee"
                       ? "Support agent"
                       : ticket.resolution_source === "self_service"
                         ? "Self-service"

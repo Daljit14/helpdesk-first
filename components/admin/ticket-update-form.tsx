@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import {
   updateTicket,
   type UpdateTicketState,
@@ -38,6 +38,12 @@ export function TicketUpdateForm({
     updateTicket,
     null
   );
+  const [currentStatus, setCurrentStatus] = useState(status);
+  const [currentPriority, setCurrentPriority] = useState(priority);
+  const [currentAssignedAgent, setCurrentAssignedAgent] =
+    useState(assignedAgent);
+  const [currentResolutionSummary, setCurrentResolutionSummary] =
+    useState(resolutionSummary);
 
   return (
     <form
@@ -68,7 +74,10 @@ export function TicketUpdateForm({
           <select
             id="ticket-status"
             name="status"
-            defaultValue={status}
+            value={currentStatus}
+            onChange={(event) =>
+              setCurrentStatus(event.target.value as (typeof statuses)[number])
+            }
             className="h-10 rounded-md border border-slate-300 bg-white px-3 text-slate-900 outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
           >
             {statuses.map((value) => (
@@ -86,7 +95,12 @@ export function TicketUpdateForm({
           <select
             id="ticket-priority"
             name="priority"
-            defaultValue={priority}
+            value={currentPriority}
+            onChange={(event) =>
+              setCurrentPriority(
+                event.target.value as (typeof priorities)[number]
+              )
+            }
             className="h-10 rounded-md border border-slate-300 bg-white px-3 text-slate-900 outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
           >
             {priorities.map((value) => (
@@ -104,7 +118,8 @@ export function TicketUpdateForm({
           <input
             id="ticket-assigned-agent"
             name="assignedAgent"
-            defaultValue={assignedAgent}
+            value={currentAssignedAgent}
+            onChange={(event) => setCurrentAssignedAgent(event.target.value)}
             maxLength={80}
             className="h-10 rounded-md border border-slate-300 bg-white px-3 text-slate-900 outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
           />
@@ -119,7 +134,10 @@ export function TicketUpdateForm({
           <textarea
             id="ticket-resolution-summary"
             name="resolutionSummary"
-            defaultValue={resolutionSummary}
+            value={currentResolutionSummary}
+            onChange={(event) =>
+              setCurrentResolutionSummary(event.target.value)
+            }
             maxLength={500}
             rows={3}
             className="rounded-md border border-slate-300 bg-white p-3 text-slate-900 outline-none focus-visible:ring-2 focus-visible:ring-blue-600"

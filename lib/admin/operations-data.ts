@@ -45,7 +45,7 @@ export type AdminFilters = {
   platform?: string;
   agent?: string;
   from: string;
-  to: string;
+  to?: string;
   sla?: string;
   resolutionSource?: "ai" | "agent" | "self_service" | "unresolved";
   page: number;
@@ -240,9 +240,8 @@ function mapResolutionMetrics(value: unknown): ResolutionMetrics {
 }
 
 export function defaultAdminFilters(now = new Date()): AdminFilters {
-  const to = now.toISOString();
   const from = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
-  return { from, to, page: 1, pageSize: 25 };
+  return { from, page: 1, pageSize: 25 };
 }
 
 export async function getOperationsData(
@@ -277,8 +276,8 @@ export async function getOperationsData(
     )
     .eq("organization_id", session.organizationId)
     .gte("created_at", filters.from)
-    .lte("created_at", filters.to)
     .order("created_at", { ascending: false });
+  if (filters.to) query = query.lte("created_at", filters.to);
 
   if (filters.status === "open") {
     query = query.in("status", [

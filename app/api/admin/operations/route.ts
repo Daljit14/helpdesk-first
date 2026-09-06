@@ -54,17 +54,17 @@ function parseFilters(request: Request): AdminFilters {
   const raw = Object.fromEntries(params.entries());
   const parsed = querySchema.parse(raw);
   let from = parsed.from ?? defaults.from;
-  const to = parsed.to ?? defaults.to;
+  const to = parsed.to;
+  const rangeEnd = new Date(to ?? Date.now());
   const fromDate = new Date(from);
-  const toDate = new Date(to);
-  if (fromDate > toDate) {
+  if (to && fromDate > rangeEnd) {
     throw new z.ZodError([
       { code: "custom", path: ["from"], message: "from must be before to" },
     ]);
   }
   const maxRange = 90 * 24 * 60 * 60 * 1000;
-  if (toDate.getTime() - fromDate.getTime() > maxRange) {
-    from = new Date(toDate.getTime() - maxRange).toISOString();
+  if (rangeEnd.getTime() - fromDate.getTime() > maxRange) {
+    from = new Date(rangeEnd.getTime() - maxRange).toISOString();
   }
   return {
     status: parsed.status,

@@ -1,5 +1,5 @@
 import { afterEach, expect, test, vi } from "vitest";
-import { getOperationsData } from "./operations-data";
+import { defaultAdminFilters, getOperationsData } from "./operations-data";
 import type { AdminSession } from "./auth";
 
 const mocks = vi.hoisted(() => ({
@@ -172,4 +172,45 @@ test("expands the New status filter for legacy Open rows", async () => {
     "Open",
     "open",
   ]);
+});
+
+test("does not freeze the default upper date bound", () => {
+  const filters = defaultAdminFilters(new Date("2025-01-31T00:00:00.000Z"));
+  expect(filters).not.toHaveProperty("to");
+});
+
+test("does not apply an upper date bound when one is absent", async () => {
+  vi.stubEnv("OPERATIONS_PSEUDONYM_SALT", "test-salt");
+  mocks.isResolutionTrackingEnabled.mockReturnValue(false);
+  const ticketBuilder = {
+    select: vi.fn(() => ticketBuilder),
+    eq: vi.fn(() => ticketBuilder),
+    is: vi.fn(() => ticketBuilder),
+    in: vi.fn(() => ticketBuilder),
+    gte: vi.fn(() => ticketBuilder),
+    lte: vi.fn(() => ticketBuilder),
+    order: vi.fn(() => ticketBuilder),
+    range: vi.fn().mockResolvedValue({ data: [], count: 0, error: null }),
+  };
+  const organizationBuilder = {
+    select: vi.fn(() => organizationBuilder),
+    eq: vi.fn(() => organizationBuilder),
+    maybeSingle: vi
+      .fn()
+      .mockResolvedValue({ data: { name: "Org A" }, error: null }),
+  };
+  mocks.createAdminClient.mockReturnValue({
+    rpc: vi.fn().mockResolvedValue({ data: {}, error: null }),
+    from: vi.fn((table: string) =>
+      table === "tickets" ? ticketBuilder : organizationBuilder
+    ),
+  });
+
+  await getOperationsData(session, {
+    from: "2025-01-01T00:00:00.000Z",
+    page: 1,
+    pageSize: 25,
+  });
+
+  expect(ticketBuilder.lte).not.toHaveBeenCalled();
 });

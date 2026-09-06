@@ -65,6 +65,13 @@ body::before {
   filter: blur(80px);
 }
 
+.dark body::before {
+  background:
+    radial-gradient(circle at 12% 18%, rgb(99 102 241 / 0.18), transparent 34%),
+    radial-gradient(circle at 82% 12%, rgb(34 211 238 / 0.16), transparent 32%),
+    radial-gradient(circle at 55% 88%, rgb(236 72 153 / 0.15), transparent 35%);
+}
+
 @layer components {
   .glass {
     background: color-mix(in oklch, var(--card), transparent 0%);
@@ -166,7 +173,7 @@ body::before {
   --destructive: oklch(0.577 0.245 27.325);
   --border: oklch(0.9 0.01 260);
   --input: oklch(0.9 0.01 260);
-  --ring: oklch(0.5 0.2 265);
+  --ring: var(--primary);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -201,7 +208,7 @@ body::before {
   --destructive: oklch(0.64 0.24 27);
   --border: oklch(0.35 0.02 265);
   --input: oklch(0.35 0.02 265);
-  --ring: oklch(0.7 0.16 270);
+  --ring: var(--primary);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);

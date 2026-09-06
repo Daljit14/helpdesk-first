@@ -194,13 +194,13 @@ export default async function AdminTicketPage({
     : null;
 
   return (
-    <section className="flex flex-1 flex-col bg-white px-4 py-10 text-slate-900 sm:px-6 lg:px-8">
+    <section className="flex flex-1 flex-col px-4 py-10 sm:px-6 lg:px-8">
       <div className="mx-auto w-full max-w-4xl">
-        <p className="font-mono text-sm text-slate-500">
+        <p className="font-mono text-sm text-muted-foreground">
           {toTicketId(ticket.id)}
         </p>
         <h1 className="mt-2 text-3xl font-bold">{ticket.issue_title}</h1>
-        <div className="mt-6 grid gap-4 rounded-xl border border-slate-200 p-5 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="glass mt-6 grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-3">
           <p>Status: {status}</p>
           <p>Priority: {priority}</p>
           <p>Category: {ticket.category ?? categoryLabel(ticket.issue_id)}</p>
@@ -224,7 +224,7 @@ export default async function AdminTicketPage({
         />
         {workflowEnabled && (
           <>
-            <div className="mt-6 grid gap-4 rounded-xl border border-slate-200 p-5 sm:grid-cols-2">
+            <div className="glass mt-6 grid gap-4 p-5 sm:grid-cols-2">
               <h2 className="font-semibold sm:col-span-2">AI classification</h2>
               <p>Recommended guide: {ticket.ai_recommended_issue_id ?? "—"}</p>
               <p>Confidence: {ticket.ai_confidence ?? "—"}</p>
@@ -240,32 +240,32 @@ export default async function AdminTicketPage({
                   : JSON.stringify(ticket.diagnostic_answers ?? [])}
               </p>
             </div>
-            <div className="mt-6 rounded-xl border border-slate-200 p-5">
+            <div className="glass mt-6 p-5">
               <h2 className="font-semibold">Conversation</h2>
               <div className="mt-3 space-y-3">
                 {(comments ?? [])
                   .filter((comment) => comment.visibility === "public")
                   .map((comment) => (
-                    <p key={comment.id} className="rounded bg-slate-50 p-3">
+                    <p key={comment.id} className="rounded-2xl bg-muted/60 p-3">
                       <strong>{comment.author_type}:</strong> {comment.message}
                     </p>
                   ))}
               </div>
             </div>
-            <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-5">
+            <div className="glass mt-6 border-amber-500/30 bg-amber-500/10 p-5">
               <h2 className="font-semibold">Internal notes</h2>
               <p className="mt-1 text-sm">Internal — not visible to user</p>
               <div className="mt-3 space-y-3">
                 {(comments ?? [])
                   .filter((comment) => comment.visibility === "internal")
                   .map((comment) => (
-                    <p key={comment.id} className="rounded bg-white p-3">
+                    <p key={comment.id} className="rounded-2xl bg-amber-500/10 p-3">
                       {comment.message}
                     </p>
                   ))}
               </div>
             </div>
-            <div className="mt-6 rounded-xl border border-slate-200 p-5">
+            <div className="glass mt-6 p-5">
               <h2 className="font-semibold">System activity</h2>
               <ul className="mt-3 space-y-2 text-sm">
                 {(workflowEvents ?? []).map((event) => (
@@ -276,7 +276,7 @@ export default async function AdminTicketPage({
                 ))}
               </ul>
             </div>
-            <div className="mt-6 rounded-xl border border-slate-200 p-5">
+            <div className="glass mt-6 p-5">
               <h2 className="font-semibold">Tools &amp; actions</h2>
               <ul className="mt-3 space-y-2 text-sm">
                 {(actions ?? []).map((action) => (
@@ -298,7 +298,7 @@ export default async function AdminTicketPage({
           </>
         )}
         {resolutionTrackingEnabled && (
-          <div className="mt-6 rounded-xl border border-slate-200 p-5">
+          <div className="glass mt-6 p-5">
             <h2 className="font-semibold">Resolution</h2>
             <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
               <div>
@@ -355,9 +355,9 @@ export default async function AdminTicketPage({
             </dl>
           </div>
         )}
-        <div className="mt-6 rounded-xl border border-slate-200 p-5">
+        <div className="glass mt-6 p-5">
           <h2 className="font-semibold">Description</h2>
-          <p className="mt-3 whitespace-pre-wrap text-slate-700">
+          <p className="mt-3 whitespace-pre-wrap text-muted-foreground">
             {ticket.message}
           </p>
           {attachmentUrl && (
@@ -371,13 +371,13 @@ export default async function AdminTicketPage({
             </a>
           )}
         </div>
-        <div className="mt-6 rounded-xl border border-slate-200 p-5">
+        <div className="glass mt-6 p-5">
           <h2 className="font-semibold">Timeline</h2>
           <ol className="mt-4 space-y-3">
             {(events ?? []).map((event, index) => (
               <li key={`${event.created_at}-${index}`} className="text-sm">
                 <span className="font-medium">{event.event_type}</span>
-                <span className="ml-2 text-slate-500">
+                <span className="ml-2 text-muted-foreground">
                   {event.from_value ? `${event.from_value} → ` : ""}
                   {event.to_value ?? ""}
                   {" · "}

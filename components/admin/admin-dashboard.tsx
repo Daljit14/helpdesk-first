@@ -17,7 +17,7 @@ import { formatSlaCountdown } from "@/lib/tickets/sla";
 type RefreshStatus = "idle" | "refreshing" | "error";
 
 const ADMIN_OUTLINE_BUTTON =
-  "border-slate-300 bg-white text-slate-900 hover:bg-slate-100 hover:text-slate-900";
+  "glass-pill text-foreground hover:bg-muted";
 
 const metricLabels: [keyof AdminMetric, string][] = [
   ["activeUsers", "Active users"],
@@ -53,12 +53,12 @@ function formatDuration(minutes: number) {
 
 function metricTone(key: keyof AdminMetric) {
   if (["urgentOpenTickets", "slaBreached"].includes(key))
-    return "border-red-200 bg-red-50";
-  if (key === "waitingTickets") return "border-orange-200 bg-orange-50";
+    return "border-destructive/30 bg-destructive/10";
+  if (key === "waitingTickets") return "border-amber-500/30 bg-amber-500/10";
   if (["completedToday", "totalCompleted"].includes(key))
-    return "border-emerald-200 bg-emerald-50";
-  if (key === "newTickets") return "border-blue-200 bg-blue-50";
-  return "border-slate-200 bg-white";
+    return "border-emerald-500/30 bg-emerald-500/10";
+  if (key === "newTickets") return "border-primary/30 bg-primary/10";
+  return "border-border bg-card/40";
 }
 
 function makeQuery(filters: AdminFilters) {
@@ -79,7 +79,7 @@ function TicketTable({
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[1100px] text-left text-sm">
-        <thead className="bg-slate-100">
+        <thead className="bg-muted/60 backdrop-blur">
           <tr>
             {[
               "Ticket #",
@@ -102,11 +102,11 @@ function TicketTable({
         </thead>
         <tbody>
           {tickets.map((ticket) => (
-            <tr key={ticket.ticketUuid} className="border-t border-slate-200">
+            <tr key={ticket.ticketUuid} className="border-t border-border transition-colors hover:bg-muted/40">
               <td className="px-4 py-3 font-mono">
                 <Link
                   href={`/admin/tickets/${ticket.ticketUuid}`}
-                  className="underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+                  className="underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   {ticket.ticketId}
                 </Link>
@@ -124,7 +124,7 @@ function TicketTable({
                 {ticket.assignedAgent || "Unassigned"}
               </td>
               <td className="px-4 py-3">
-                <span className="rounded bg-slate-100 px-2 py-1">
+                <span className="glass-pill px-2 py-1 text-xs">
                   {ticket.slaState}
                 </span>
                 {!["Resolved", "Closed"].includes(ticket.status) &&
@@ -132,7 +132,7 @@ function TicketTable({
                     ticket.humanResponseDueAt ?? null,
                     new Date(now)
                   ) && (
-                    <span className="ml-2 whitespace-nowrap text-xs text-slate-600">
+                    <span className="ml-2 whitespace-nowrap text-xs text-muted-foreground">
                       {formatSlaCountdown(
                         ticket.humanResponseDueAt ?? null,
                         new Date(now)
@@ -260,15 +260,15 @@ export function AdminDashboard({
   );
 
   return (
-    <div className="bg-white text-slate-900">
+    <div>
       <div className="mx-auto w-full max-w-7xl space-y-8 px-4 py-10 sm:px-6 lg:px-8">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold">Operations</h1>
-            <p className="mt-2 text-slate-600">
+            <p className="mt-2 text-muted-foreground">
               Live support operations dashboard.
             </p>
-            <p className="mt-1 text-sm text-slate-500">
+            <p className="mt-1 text-sm text-muted-foreground">
               Organization: {snapshot.organizationName}
             </p>
           </div>
@@ -276,19 +276,19 @@ export function AdminDashboard({
             <span
               className={
                 freshness === "LIVE"
-                  ? "text-emerald-700"
+                  ? "text-emerald-600 dark:text-emerald-400"
                   : freshness === "DELAYED"
-                    ? "text-orange-700"
-                    : "text-red-700"
+                    ? "text-amber-600 dark:text-amber-400"
+                    : "text-destructive"
               }
             >
               {freshness === "LIVE" ? "✓ " : ""}
               {freshness}
             </span>
-            <span className="text-sm text-slate-600">
+            <span className="text-sm text-muted-foreground">
               Last updated {formatTime(lastSuccessAt)}
             </span>
-            <span className="text-sm text-slate-600">
+            <span className="text-sm text-muted-foreground">
               Next refresh {formatTime(lastSuccessAt + 300_000)}
             </span>
             <Button
@@ -308,18 +308,18 @@ export function AdminDashboard({
           <p
             role="alert"
             aria-live="polite"
-            className="rounded-md bg-red-50 p-3 text-red-800"
+            className="rounded-2xl bg-destructive/10 p-3 text-destructive"
           >
             {error}
           </p>
         )}
         {staleMessage && (
-          <p className="rounded-md bg-orange-50 p-3 text-orange-800">
+          <p className="rounded-2xl bg-amber-500/10 p-3 text-amber-700 dark:text-amber-300">
             {staleMessage}
           </p>
         )}
         {workflowEnabled && snapshot.workflow && (
-          <section className="rounded-xl border border-slate-200 p-5">
+          <section className="glass p-5">
             <h2 className="text-xl font-semibold">Ticket workflow</h2>
             <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
               {[
@@ -337,9 +337,9 @@ export function AdminDashboard({
               ].map(([label, value]) => (
                 <div
                   key={label}
-                  className="rounded-lg border border-slate-200 bg-white p-4"
+                  className="glass p-4"
                 >
-                  <p className="text-sm text-slate-600">{label}</p>
+                  <p className="text-sm text-muted-foreground">{label}</p>
                   <p className="mt-1 text-2xl font-bold">{value}</p>
                 </div>
               ))}
@@ -351,9 +351,9 @@ export function AdminDashboard({
           {metricLabels.map(([key, label]) => (
             <div
               key={key}
-              className={`rounded-xl border p-4 ${metricTone(key)}`}
+              className={`glass p-4 ${metricTone(key)}`}
             >
-              <p className="text-sm text-slate-600">{label}</p>
+              <p className="text-sm text-muted-foreground">{label}</p>
               <p className="mt-2 text-3xl font-bold">
                 {snapshot.metrics[key] as number}
               </p>
@@ -376,19 +376,19 @@ export function AdminDashboard({
           ].map(([title, items, max]) => (
             <section
               key={title as string}
-              className="rounded-xl border border-slate-200 p-5"
+              className="glass p-5"
             >
               <h2 className="font-semibold">{title as string}</h2>
               <div className="mt-4 space-y-3">
                 {(items as { key: string; count: number }[]).map((item) => (
                   <div key={item.key}>
-                    <div className="flex justify-between text-sm">
+                    <div className="flex justify-between text-sm text-muted-foreground">
                       <span>{item.key}</span>
                       <span>{item.count}</span>
                     </div>
                     <div
                       role="img"
-                      className="mt-1 h-2 rounded bg-blue-600"
+                      className="mt-1 h-2 rounded-full bg-primary"
                       style={{
                         width: `${(item.count / (max as number)) * 100}%`,
                       }}
@@ -404,13 +404,13 @@ export function AdminDashboard({
         <section
           tabIndex={0}
           aria-label="Agent workload"
-          className="overflow-x-auto rounded-xl border border-slate-200"
+          className="glass-strong overflow-x-auto"
         >
-          <h2 className="border-b border-slate-200 p-5 font-semibold">
+          <h2 className="border-b border-border p-5 font-semibold">
             Agent workload
           </h2>
           <table className="w-full min-w-[700px] text-left text-sm">
-            <thead className="bg-slate-100">
+            <thead className="bg-muted/60 backdrop-blur">
               <tr>
                 {[
                   "Agent",
@@ -428,7 +428,7 @@ export function AdminDashboard({
             </thead>
             <tbody>
               {snapshot.metrics.agentWorkload.map((row) => (
-                <tr key={row.agent} className="border-t border-slate-200">
+                <tr key={row.agent} className="border-t border-border transition-colors hover:bg-muted/40">
                   <td className="px-4 py-3">{row.agent}</td>
                   <td className="px-4 py-3">{row.open}</td>
                   <td className="px-4 py-3">{row.urgent}</td>
@@ -442,29 +442,29 @@ export function AdminDashboard({
         </section>
 
         {resolutionTrackingEnabled && snapshot.resolution && (
-          <section className="space-y-5 rounded-xl border border-slate-200 p-5">
+          <section className="glass space-y-5 p-5">
             <h2 className="font-semibold">Resolution tracking</h2>
             <div className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-7">
               {[
                 [
                   "Total tickets",
                   snapshot.resolution.totalTickets,
-                  "border-slate-200 bg-white",
+                    "border-border bg-card/40",
                 ],
                 [
                   "Solved by AI",
                   snapshot.resolution.aiSolved,
-                  "border-emerald-200 bg-emerald-50",
+                    "border-emerald-500/30 bg-emerald-500/10",
                 ],
                 [
                   "Solved by agents",
                   snapshot.resolution.agentSolved,
-                  "border-blue-200 bg-blue-50",
+                    "border-primary/30 bg-primary/10",
                 ],
                 [
                   "Escalated",
                   snapshot.resolution.escalated,
-                  "border-orange-200 bg-orange-50",
+                    "border-amber-500/30 bg-amber-500/10",
                 ],
                 [
                   "Open",
@@ -479,17 +479,17 @@ export function AdminDashboard({
                 [
                   "Avg resolution time",
                   formatDuration(snapshot.resolution.avgResolutionMinutes),
-                  "border-slate-200 bg-white",
+                  "border-border bg-card/40",
                 ],
               ].map(([label, value, tone]) => (
                 <div
                   key={String(label)}
-                  className={`rounded-xl border p-4 ${tone}`}
+                  className={`glass p-4 ${tone}`}
                 >
-                  <p className="text-sm text-slate-600">{label}</p>
+                  <p className="text-sm text-muted-foreground">{label}</p>
                   <p className="mt-2 text-2xl font-bold">{value}</p>
                   {label === "AI resolution rate" && (
-                    <p className="mt-1 text-xs text-slate-500">
+                    <p className="mt-1 text-xs text-muted-foreground">
                       of {snapshot.resolution?.aiAttempted ?? 0} AI-attempted
                     </p>
                   )}
@@ -501,7 +501,7 @@ export function AdminDashboard({
               aria-label="Fourteen day resolution tracking chart"
               className="space-y-2"
             >
-              <div className="flex items-center gap-4 text-xs text-slate-600">
+              <div className="flex items-center gap-4 text-xs text-muted-foreground">
                 <span>
                   <i className="mr-1 inline-block h-2 w-2 bg-emerald-500" />
                   AI solved
@@ -516,7 +516,7 @@ export function AdminDashboard({
                 </span>
               </div>
               {snapshot.resolution.daily.length === 0 ? (
-                <p className="text-sm text-slate-600">
+                <p className="text-sm text-muted-foreground">
                   No resolution activity.
                 </p>
               ) : (
@@ -526,10 +526,10 @@ export function AdminDashboard({
                   const width = Math.max(total, 1);
                   return (
                     <div key={point.day} className="flex items-center gap-3">
-                      <span className="w-24 text-xs text-slate-600">
+                      <span className="w-24 text-xs text-muted-foreground">
                         {point.day}
                       </span>
-                      <div className="flex h-5 flex-1 overflow-hidden rounded bg-slate-100">
+                      <div className="flex h-5 flex-1 overflow-hidden rounded-full bg-muted">
                         <div
                           className="bg-emerald-500"
                           style={{
@@ -558,15 +558,15 @@ export function AdminDashboard({
           </section>
         )}
 
-        <section id="tickets" className="rounded-xl border border-slate-200">
-          <div className="border-b border-slate-200 p-5">
+        <section id="tickets" className="glass-strong overflow-hidden">
+          <div className="border-b border-border p-5">
             <h2 className="font-semibold">Tickets</h2>
             <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <select
                 aria-label="Status"
                 value={filters.status ?? ""}
                 onChange={(event) => updateFilter("status", event.target.value)}
-                className="h-9 rounded-md border border-slate-300 px-3"
+                className="h-10 rounded-2xl border border-border/70 bg-background/60 px-3 backdrop-blur"
               >
                 <option value="">All statuses</option>
                 <option>New</option>
@@ -591,7 +591,7 @@ export function AdminDashboard({
                   onChange={(event) =>
                     updateFilter("queue", event.target.value)
                   }
-                  className="h-9 rounded-md border border-slate-300 px-3"
+                  className="h-10 rounded-2xl border border-border/70 bg-background/60 px-3 backdrop-blur"
                 >
                   <option value="">All queues</option>
                   <option value="needs_human">Needs human</option>
@@ -610,7 +610,7 @@ export function AdminDashboard({
                   onChange={(event) =>
                     updateFilter("resolutionSource", event.target.value)
                   }
-                  className="h-9 rounded-md border border-slate-300 px-3"
+                  className="h-10 rounded-2xl border border-border/70 bg-background/60 px-3 backdrop-blur"
                 >
                   <option value="">All resolutions</option>
                   <option value="ai">Solved by AI</option>
@@ -625,7 +625,7 @@ export function AdminDashboard({
                 onChange={(event) =>
                   updateFilter("priority", event.target.value)
                 }
-                className="h-9 rounded-md border border-slate-300 px-3"
+                className="h-10 rounded-2xl border border-border/70 bg-background/60 px-3 backdrop-blur"
               >
                 <option value="">All priorities</option>
                 <option>Low</option>
@@ -647,7 +647,7 @@ export function AdminDashboard({
                 onChange={(event) =>
                   updateFilter("platform", event.target.value)
                 }
-                className="h-9 rounded-md border border-slate-300 px-3"
+                className="h-10 rounded-2xl border border-border/70 bg-background/60 px-3 backdrop-blur"
               >
                 <option value="">All platforms</option>
                 <option>Windows</option>
@@ -693,7 +693,7 @@ export function AdminDashboard({
                 aria-label="SLA"
                 value={filters.sla ?? ""}
                 onChange={(event) => updateFilter("sla", event.target.value)}
-                className="h-9 rounded-md border border-slate-300 px-3"
+                className="h-10 rounded-2xl border border-border/70 bg-background/60 px-3 backdrop-blur"
               >
                 <option value="">All SLA states</option>
                 <option value="on_track">On track</option>
@@ -704,19 +704,19 @@ export function AdminDashboard({
             </div>
           </div>
           {status === "refreshing" && (
-            <div className="p-5 text-sm text-slate-600">
+            <div className="p-5 text-sm text-muted-foreground">
               Loading operations data…
             </div>
           )}
           {snapshot.tickets.rows.length === 0 && status !== "refreshing" ? (
-            <p className="p-8 text-center text-slate-600">
+            <p className="p-8 text-center text-muted-foreground">
               No tickets match these filters
             </p>
           ) : (
             <TicketTable tickets={snapshot.tickets.rows} now={now} />
           )}
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 p-4">
-            <span className="text-sm text-slate-600">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border p-4">
+            <span className="text-sm text-muted-foreground">
               Page {filters.page} of {totalPages}
             </span>
             <div className="flex gap-2">
@@ -744,7 +744,7 @@ export function AdminDashboard({
                 onChange={(event) =>
                   updateFilter("pageSize", Number(event.target.value))
                 }
-                className="h-9 rounded-md border border-slate-300 px-3"
+                className="h-10 rounded-2xl border border-border/70 bg-background/60 px-3 backdrop-blur"
               >
                 <option value={10}>10</option>
                 <option value={25}>25</option>
@@ -754,7 +754,7 @@ export function AdminDashboard({
             </div>
           </div>
         </section>
-        <p className="text-sm text-slate-600">
+        <p className="text-sm text-muted-foreground">
           Pseudonymous operations data only — no emails, messages, or
           attachments.
         </p>

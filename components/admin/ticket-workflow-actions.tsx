@@ -42,9 +42,9 @@ const initialResolution: ResolutionValues = {
 };
 
 const fieldClass =
-  "w-full rounded-lg border border-slate-300 bg-white p-2 text-slate-900";
+  "w-full rounded-2xl border border-border/70 bg-background/60 p-3 text-foreground backdrop-blur";
 const buttonClass =
-  "rounded-lg border border-slate-300 px-4 py-2 disabled:cursor-not-allowed disabled:opacity-60";
+  "glass-pill px-4 py-2 disabled:cursor-not-allowed disabled:opacity-60";
 
 export function TicketWorkflowActions({
   ticketId,
@@ -129,11 +129,11 @@ export function TicketWorkflowActions({
   };
 
   return (
-    <section className="mt-6 rounded-xl border border-slate-200 p-5">
+    <section className="glass mt-6 p-5">
       <h2 className="font-semibold">Employee actions</h2>
       {notice && (
         <p
-          className="mt-3 rounded-md bg-slate-50 p-3 text-sm"
+          className="mt-3 rounded-2xl bg-muted/60 p-3 text-sm"
           role={notice.type === "error" ? "alert" : "status"}
         >
           {notice.text}
@@ -201,7 +201,7 @@ export function TicketWorkflowActions({
       </div>
 
       <form
-        className="mt-6 grid gap-3 border-t border-slate-200 pt-5"
+        className="mt-6 grid gap-3 border-t border-border pt-5"
         onSubmit={(event) =>
           submitMessage(
             event,
@@ -232,7 +232,7 @@ export function TicketWorkflowActions({
       </form>
 
       <form
-        className="mt-6 grid gap-3 border-t border-slate-200 pt-5"
+        className="mt-6 grid gap-3 border-t border-border pt-5"
         onSubmit={(event) =>
           submitMessage(
             event,
@@ -262,7 +262,7 @@ export function TicketWorkflowActions({
         </button>
       </form>
 
-      <div className="mt-6 grid gap-6 border-t border-slate-200 pt-5 lg:grid-cols-2">
+      <div className="mt-6 grid gap-6 border-t border-border pt-5 lg:grid-cols-2">
         <form
           className="grid gap-3"
           onSubmit={(event) =>
@@ -326,7 +326,7 @@ export function TicketWorkflowActions({
       </div>
 
       <form
-        className="mt-6 grid gap-3 border-t border-slate-200 pt-5"
+        className="mt-6 grid gap-3 border-t border-border pt-5"
         onSubmit={(event) => {
           event.preventDefault();
           run(() => changeStatus(ticketId, nextStatus));
@@ -358,7 +358,7 @@ export function TicketWorkflowActions({
       </form>
 
       <form
-        className="mt-6 grid gap-3 border-t border-slate-200 pt-5"
+        className="mt-6 grid gap-3 border-t border-border pt-5"
         onSubmit={(event) => {
           event.preventDefault();
           run(async () => {
@@ -443,7 +443,7 @@ export function TicketWorkflowActions({
       </form>
 
       <form
-        className="mt-6 grid gap-3 border-t border-slate-200 pt-5"
+        className="mt-6 grid gap-3 border-t border-border pt-5"
         onSubmit={submitResolutionForm}
       >
         <h3 className="font-medium">Resolution report</h3>

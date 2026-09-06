@@ -17,7 +17,7 @@ export function AdminLoginForm({ next }: { next: string }) {
       {state?.error && (
         <p
           role="alert"
-          className="rounded-md bg-red-50 p-3 text-sm text-red-800"
+          className="rounded-2xl bg-destructive/10 p-3 text-sm text-destructive"
         >
           {state.error}
         </p>
@@ -33,7 +33,7 @@ export function AdminLoginForm({ next }: { next: string }) {
           required
         />
         {state?.fieldErrors?.email && (
-          <p className="text-sm text-red-700">{state.fieldErrors.email}</p>
+          <p className="text-sm text-destructive">{state.fieldErrors.email}</p>
         )}
       </div>
       <div className="space-y-2">
@@ -46,13 +46,13 @@ export function AdminLoginForm({ next }: { next: string }) {
           required
         />
         {state?.fieldErrors?.password && (
-          <p className="text-sm text-red-700">{state.fieldErrors.password}</p>
+          <p className="text-sm text-destructive">{state.fieldErrors.password}</p>
         )}
       </div>
       <Button
         type="submit"
         disabled={pending}
-        className="w-full bg-foreground text-background hover:bg-foreground/90"
+        className="w-full"
       >
         {pending ? "Signing in…" : "Sign in"}
       </Button>

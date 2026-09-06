@@ -370,67 +370,65 @@ export default async function AdminTicketPage({
                     ))}
                   </ul>
                 </div>
-                {resolutionTrackingEnabled && (
-                  <div className="glass p-5">
-                    <h2 className="font-semibold">Resolution</h2>
-                    <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
-                      <div>
-                        <dt className="font-medium">Resolved by</dt>
-                        <dd>
-                          {ticket.resolution_source === "ai"
-                            ? "AI assistant"
-                            : ticket.resolution_source === "agent" ||
-                                ticket.resolution_source === "employee"
-                              ? "Support agent"
-                              : ticket.resolution_source === "self_service"
-                                ? "Self-service"
-                                : "—"}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt className="font-medium">AI attempted</dt>
-                        <dd>
-                          {ticket.ai_attempted ? "Yes" : "No"}
-                          {ticket.ai_attempted_at
-                            ? ` · ${new Date(ticket.ai_attempted_at).toLocaleString()}`
-                            : ""}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt className="font-medium">Recommended guide</dt>
-                        <dd>{recommendedIssue?.title ?? "—"}</dd>
-                      </div>
-                      <div>
-                        <dt className="font-medium">Escalated</dt>
-                        <dd>
-                          {ticket.escalated ? "Yes" : "No"}
-                          {ticket.escalated_at
-                            ? ` · ${new Date(ticket.escalated_at).toLocaleString()}`
-                            : ""}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt className="font-medium">Escalation reason</dt>
-                        <dd>{ticket.escalation_reason ?? "—"}</dd>
-                      </div>
-                      <div>
-                        <dt className="font-medium">User confirmed</dt>
-                        <dd>
-                          {ticket.user_confirmed && ticket.user_confirmed_at
-                            ? new Date(
-                                ticket.user_confirmed_at
-                              ).toLocaleString()
-                            : "Not confirmed"}
-                        </dd>
-                      </div>
-                      <div className="sm:col-span-2">
-                        <dt className="font-medium">Resolution summary</dt>
-                        <dd>{ticket.resolution_summary ?? "—"}</dd>
-                      </div>
-                    </dl>
-                  </div>
-                )}
               </>
+            )}
+            {resolutionTrackingEnabled && (
+              <div className="glass p-5">
+                <h2 className="font-semibold">Resolution</h2>
+                <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+                  <div>
+                    <dt className="font-medium">Resolved by</dt>
+                    <dd>
+                      {ticket.resolution_source === "ai"
+                        ? "AI assistant"
+                        : ticket.resolution_source === "agent" ||
+                            ticket.resolution_source === "employee"
+                          ? "Support agent"
+                          : ticket.resolution_source === "self_service"
+                            ? "Self-service"
+                            : "—"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="font-medium">AI attempted</dt>
+                    <dd>
+                      {ticket.ai_attempted ? "Yes" : "No"}
+                      {ticket.ai_attempted_at
+                        ? ` · ${new Date(ticket.ai_attempted_at).toLocaleString()}`
+                        : ""}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="font-medium">Recommended guide</dt>
+                    <dd>{recommendedIssue?.title ?? "—"}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-medium">Escalated</dt>
+                    <dd>
+                      {ticket.escalated ? "Yes" : "No"}
+                      {ticket.escalated_at
+                        ? ` · ${new Date(ticket.escalated_at).toLocaleString()}`
+                        : ""}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="font-medium">Escalation reason</dt>
+                    <dd>{ticket.escalation_reason ?? "—"}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-medium">User confirmed</dt>
+                    <dd>
+                      {ticket.user_confirmed && ticket.user_confirmed_at
+                        ? new Date(ticket.user_confirmed_at).toLocaleString()
+                        : "Not confirmed"}
+                    </dd>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <dt className="font-medium">Resolution summary</dt>
+                    <dd>{ticket.resolution_summary ?? "—"}</dd>
+                  </div>
+                </dl>
+              </div>
             )}
             <div className="glass p-5">
               <h2 className="font-semibold">Timeline</h2>

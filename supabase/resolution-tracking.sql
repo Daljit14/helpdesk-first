@@ -69,7 +69,7 @@ returns trigger
 language plpgsql
 as $$
 begin
-  if current_setting('request.jwt.claim.role', true) = 'authenticated'
+  if current_user = 'authenticated'
     and coalesce(current_setting('helpdesk.resolution_rpc', true), '') <> 'on' then
     if tg_op = 'INSERT' then
       if new.resolution_source is not null

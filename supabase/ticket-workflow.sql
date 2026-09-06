@@ -44,6 +44,28 @@ alter table public.tickets add constraint tickets_employee_resolution_confirmati
   check (not (lower(status) = 'resolved' and resolution_source = 'employee' and not verified_by_user))
   not valid;
 
+do $$
+declare constraint_name text;
+begin
+  foreach constraint_name in array array[
+    'tickets_resolver_type_check',
+    'tickets_ai_risk_level_check',
+    'tickets_resolution_source_check',
+    'tickets_ai_requires_confirmation',
+    'tickets_workflow_status_check',
+    'tickets_employee_resolution_confirmation'
+  ] loop
+    begin
+      execute format(
+        'alter table public.tickets validate constraint %I',
+        constraint_name
+      );
+    exception when others then
+      raise notice 'Could not validate constraint %: %', constraint_name, sqlerrm;
+    end;
+  end loop;
+end $$;
+
 create index if not exists tickets_org_status_workflow_idx
   on public.tickets (organization_id, status);
 create index if not exists tickets_org_assigned_agent_idx
@@ -345,8 +367,15 @@ grant execute on function public.user_verify_ticket(uuid, boolean) to authentica
 
 create or replace function public.handoff_ticket(ticket uuid, reason text, handoff text)
 returns void language plpgsql security definer set search_path = public as $$
+declare current_status text;
 begin
   perform set_config('helpdesk.resolution_rpc', 'on', true);
+  select lower(status) into current_status
+  from public.tickets
+  where id = ticket and user_id = auth.uid();
+  if current_status in ('resolved', 'closed') then
+    raise exception 'not available';
+  end if;
   update public.tickets set status = 'Needs Human', escalated = true,
     handoff_reason = left(handoff, 500), escalation_reason = left(reason, 1000)
   where id = ticket and user_id = auth.uid();
@@ -363,8 +392,8 @@ begin
   update public.tickets set ai_failed_attempts = ai_failed_attempts + 1,
     status = case when ai_failed_attempts + 1 >= 2 then 'Needs Human' else 'AI Resolving' end,
     handoff_reason = case when ai_failed_attempts + 1 >= 2 then 'repeated_failure' else handoff_reason end
-  where id = ticket and user_id = auth.uid();
-  if not found then raise exception 'not found'; end if;
+  where id = ticket and user_id = auth.uid() and lower(status) = 'ai resolving';
+  if not found then raise exception 'not available'; end if;
 end;
 $$;
 revoke all on function public.record_ai_attempt_failed(uuid) from public, anon;

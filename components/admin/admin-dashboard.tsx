@@ -315,10 +315,6 @@ export function AdminDashboard({
                   "Resolved by employees",
                   snapshot.workflow.resolvedByEmployees,
                 ],
-                [
-                  "Unassigned needs human",
-                  snapshot.workflow.unassignedNeedsHuman,
-                ],
               ].map(([label, value]) => (
                 <div
                   key={label}

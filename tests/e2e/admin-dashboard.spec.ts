@@ -54,3 +54,49 @@ test("admin APIs and analytics enforce their contracts", async ({
   const robots = await request.get("/robots.txt");
   expect(await robots.text()).toContain("Disallow: /admin");
 });
+
+test("workflow dashboard and ticket detail are accessible", async ({
+  page,
+}) => {
+  test.skip(
+    !process.env.ADMIN_E2E_EMAIL ||
+      !process.env.ADMIN_E2E_PASSWORD ||
+      !process.env.ADMIN_E2E_TICKET_ID,
+    "Set admin E2E credentials and ticket ID for authenticated workflow coverage."
+  );
+  await page.goto("/admin/login");
+  await page.getByLabel("Email").fill(process.env.ADMIN_E2E_EMAIL!);
+  await page.getByLabel("Password").fill(process.env.ADMIN_E2E_PASSWORD!);
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.goto("/admin/operations");
+  for (const label of [
+    "Needs human",
+    "AI resolving",
+    "In progress",
+    "Waiting for user",
+    "Pending verification",
+    "SLA at risk",
+    "Resolved by AI",
+    "Resolved by employees",
+  ]) {
+    await expect(page.getByText(label, { exact: true })).toBeVisible();
+  }
+  await page.goto(`/admin/tickets/${process.env.ADMIN_E2E_TICKET_ID}`);
+  for (const heading of [
+    "Conversation",
+    "Internal notes",
+    "System activity",
+    "Tools & actions",
+  ]) {
+    await expect(page.getByRole("heading", { name: heading })).toBeVisible();
+  }
+  const results = await new AxeBuilder({ page })
+    .exclude("header")
+    .exclude("footer")
+    .analyze();
+  expect(
+    results.violations.filter((violation) =>
+      ["serious", "critical"].includes(violation.impact ?? "")
+    )
+  ).toEqual([]);
+});

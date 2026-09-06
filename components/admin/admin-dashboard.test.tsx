@@ -100,4 +100,84 @@ describe("AdminDashboard", () => {
     expect(screen.getAllByText("Solved by AI").length).toBeGreaterThan(0);
     expect(screen.getByText("No resolution activity.")).toBeInTheDocument();
   });
+
+  test("renders all workflow cards and filters the queue", async () => {
+    vi.spyOn(global, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(snapshot()), { status: 200 })
+    );
+    render(
+      <AdminDashboard
+        initialSnapshot={{
+          ...snapshot(),
+          workflow: {
+            needsHuman: 1,
+            aiResolving: 2,
+            inProgress: 3,
+            waitingForUser: 4,
+            pendingVerification: 5,
+            slaAtRisk: 6,
+            slaBreached: 7,
+            resolvedByAi: 8,
+            resolvedByEmployees: 9,
+            unassignedNeedsHuman: 10,
+          },
+        }}
+        workflowEnabled
+      />
+    );
+    expect(screen.getByText("Ticket workflow")).toBeInTheDocument();
+    expect(screen.getAllByText("Needs human").length).toBeGreaterThan(0);
+    expect(screen.getByText("Resolved by employees")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Queue" }), {
+      target: { value: "sla_breached" },
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(vi.mocked(global.fetch)).toHaveBeenCalledWith(
+      expect.stringContaining("queue=sla_breached"),
+      expect.objectContaining({ cache: "no-store" })
+    );
+  });
+
+  test("renders a breached SLA state for overdue tickets", () => {
+    render(
+      <AdminDashboard
+        initialSnapshot={{
+          ...snapshot(),
+          tickets: {
+            rows: [
+              {
+                ticketUuid: "ticket-1",
+                ticketId: "TCK-00000001",
+                createdAt: "2025-01-01T00:00:00.000Z",
+                updatedAt: "2025-01-01T00:00:00.000Z",
+                lastUpdatedAt: "2025-01-01T00:00:00.000Z",
+                status: "Needs Human",
+                priority: "High",
+                category: "Network",
+                issueTitle: "No internet",
+                userKey: "user-1",
+                assignedAgent: "",
+                slaDue: "2025-01-01T00:01:00.000Z",
+                firstResponseAt: null,
+                resolvedAt: null,
+                platform: "Windows",
+                hasAttachment: false,
+                slaState: "Breached",
+                resolvedBy: null,
+                aiAttempted: false,
+                escalated: true,
+              },
+            ],
+            page: 1,
+            pageSize: 25,
+            total: 1,
+          },
+        }}
+      />
+    );
+    expect(screen.getAllByText("Breached").length).toBeGreaterThan(0);
+  });
 });

@@ -62,6 +62,12 @@ type TicketPageRow = {
   user_confirmed_at: string | null;
 };
 
+type WorkflowMember = {
+  userId: string;
+  displayName: string;
+  role: "admin" | "support_agent";
+};
+
 export default async function AdminTicketPage({
   params,
 }: {
@@ -133,6 +139,40 @@ export default async function AdminTicketPage({
         .eq("ticket_id", uuid)
         .order("created_at", { ascending: true })
     : { data: [] };
+  const workflowMembers: WorkflowMember[] = [];
+  if (workflowEnabled && session.role === "admin") {
+    const { data: memberRows } = await admin
+      .from("organization_members")
+      .select("user_id,role")
+      .eq("organization_id", session.organizationId)
+      .in("role", ["admin", "support_agent"]);
+    const rows = (memberRows ?? []) as unknown as {
+      user_id: string;
+      role: "admin" | "support_agent";
+    }[];
+    const profiles = await admin
+      .from("admin_profiles")
+      .select("user_id,display_name")
+      .in(
+        "user_id",
+        rows.map((row) => row.user_id)
+      );
+    const names = new Map(
+      (
+        (profiles.data ?? []) as unknown as {
+          user_id: string;
+          display_name: string | null;
+        }[]
+      ).map((profile) => [profile.user_id, profile.display_name])
+    );
+    for (const row of rows) {
+      workflowMembers.push({
+        userId: row.user_id,
+        displayName: names.get(row.user_id) ?? row.user_id,
+        role: row.role,
+      });
+    }
+  }
   let attachmentUrl: string | null = null;
   if (ticket.attachment_path) {
     const signed = await admin.storage
@@ -243,6 +283,10 @@ export default async function AdminTicketPage({
             <TicketWorkflowActions
               ticketId={uuid}
               canClaim={!ticket.assigned_agent_id}
+              isAdmin={session.role === "admin"}
+              members={workflowMembers}
+              status={ticket.status}
+              assignedAgentId={ticket.assigned_agent_id}
             />
           </>
         )}

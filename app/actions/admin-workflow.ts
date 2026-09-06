@@ -10,6 +10,8 @@ import {
 import { isTicketWorkflowEnabled } from "@/lib/admin/flags";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendPushToUser } from "@/lib/push/send";
+import { humanResponseDue } from "@/lib/tickets/sla";
+import { notifyEmployeesOfHandoff } from "@/lib/tickets/notify";
 
 type Result = { error: string } | { success: true };
 const id = z.string().uuid();
@@ -101,12 +103,18 @@ export async function assignTicket(
     .select("user_id")
     .eq("organization_id", found.session.organizationId)
     .eq("user_id", agentUserId)
-    .eq("role", "support_agent")
+    .in("role", ["admin", "support_agent"])
     .maybeSingle();
   if (!member.data) return { error: "Invalid agent." };
+  const profile = await createAdminClient()
+    .from("admin_profiles")
+    .select("display_name")
+    .eq("user_id", agentUserId)
+    .maybeSingle();
   const result = await updateTicket(ticketId, found.session.organizationId, {
     assigned_agent_id: agentUserId,
     assigned_at: new Date().toISOString(),
+    assigned_agent: profile.data?.display_name ?? null,
     resolver_type: "employee",
     status: "In Progress",
   });
@@ -145,11 +153,32 @@ export async function changeStatus(
     !["In Progress", "Waiting for User", "Needs Human"].includes(status)
   )
     return { error: "Invalid status." };
-  const result = await updateTicket(ticketId, found.session.organizationId, {
-    status,
-  });
+  const values: Record<string, unknown> = { status };
+  if (status === "Needs Human") {
+    values.needs_human_at =
+      found.ticket.needs_human_at ?? new Date().toISOString();
+    values.human_response_due_at = humanResponseDue(
+      found.ticket.priority,
+      new Date()
+    ).toISOString();
+    values.handoff_reason =
+      found.ticket.handoff_reason ?? "employee_requested_human";
+  }
+  const result = await updateTicket(
+    ticketId,
+    found.session.organizationId,
+    values
+  );
   if (result.error) return { error: "Unable to update status." };
   await writeEvent(found.session, ticketId, "status.changed", { status });
+  if (status === "Needs Human") {
+    await notifyEmployeesOfHandoff(found.session.organizationId, {
+      id: ticketId,
+      issue_title: found.ticket.issue_title,
+      priority: found.ticket.priority,
+      human_response_due_at: values.human_response_due_at as string,
+    });
+  }
   await recordAudit(found.session, "ticket.status", ticketId);
   revalidatePath(`/admin/tickets/${ticketId}`);
   return { success: true };
@@ -163,6 +192,7 @@ export async function reopenTicket(ticketId: string): Promise<Result> {
     status: "In Progress",
     verified_by_user: false,
     resolution_source: null,
+    resolver_type: found.ticket.assigned_agent_id ? "employee" : "unassigned",
   });
   if (result.error) return { error: "Unable to reopen ticket." };
   await writeEvent(found.session, ticketId, "ticket.reopened");
@@ -268,6 +298,21 @@ const resolutionSchema = z.object({
   userExplanation: z.string().trim().min(3).max(1000),
   preventiveRecommendation: z.string().trim().min(3).max(1000),
 });
+
+const actionSchema = z
+  .object({
+    ticketId: id,
+    toolName: z.string().trim().min(1).max(120),
+    actionSummary: z.string().trim().min(3).max(1000),
+    resultSummary: z.string().trim().min(1).max(1000),
+    consentRequired: z.boolean(),
+    consentReceived: z.boolean(),
+  })
+  .strict();
+
+const credentialPattern =
+  /password\s*[:=]|passwd|\botp\b|\btoken\s*[:=]|bearer\s+[a-z0-9]|begin (rsa |ec )?private key|mfa code/i;
+
 export async function submitResolution(
   ticketId: string,
   report: unknown
@@ -311,28 +356,32 @@ export async function recordAction(input: {
   consentRequired: boolean;
   consentReceived: boolean;
 }): Promise<Result> {
-  const found = await sessionFor("action", input.ticketId);
+  const parsed = actionSchema.safeParse(input);
+  if (!parsed.success) return { error: "Invalid action details." };
+  const found = await sessionFor("action", parsed.data.ticketId);
   if (!found) return { error: "Ticket not found." };
   if (
-    [input.actionSummary, input.resultSummary].some((value) =>
-      /password=|token|otp|bearer|begin private key/i.test(value)
-    )
+    [
+      parsed.data.toolName,
+      parsed.data.actionSummary,
+      parsed.data.resultSummary,
+    ].some((value) => credentialPattern.test(value))
   )
     return { error: "Remove credentials from the record." };
   const admin = createAdminClient();
   const result = await admin.from("ticket_actions").insert({
-    ticket_id: input.ticketId,
+    ticket_id: parsed.data.ticketId,
     organization_id: found.session.organizationId,
     agent_id: found.session.userId,
-    tool_name: input.toolName.trim().slice(0, 120),
-    action_summary: input.actionSummary.trim().slice(0, 1000),
-    result_summary: input.resultSummary.trim().slice(0, 1000),
-    consent_required: input.consentRequired,
-    consent_received: input.consentReceived,
+    tool_name: parsed.data.toolName,
+    action_summary: parsed.data.actionSummary,
+    result_summary: parsed.data.resultSummary,
+    consent_required: parsed.data.consentRequired,
+    consent_received: parsed.data.consentReceived,
   });
   if (result.error) return { error: "Unable to record action." };
-  await writeEvent(found.session, input.ticketId, "tool.used");
-  await recordAudit(found.session, "ticket.action", input.ticketId);
-  revalidatePath(`/admin/tickets/${input.ticketId}`);
+  await writeEvent(found.session, parsed.data.ticketId, "tool.used");
+  await recordAudit(found.session, "ticket.action", parsed.data.ticketId);
+  revalidatePath(`/admin/tickets/${parsed.data.ticketId}`);
   return { success: true };
 }

@@ -202,6 +202,20 @@ export async function requestHuman(
     handoff: "user_requested_human",
   });
   if (error) return { error: "Unable to request human support." };
+  const admin = createAdminClient();
+  const { data: ticket } = await admin
+    .from("tickets")
+    .select("organization_id,issue_title,priority,human_response_due_at")
+    .eq("id", ticketId)
+    .maybeSingle();
+  if (ticket) {
+    await notifyEmployeesOfHandoff(ticket.organization_id, {
+      id: ticketId,
+      issue_title: ticket.issue_title,
+      priority: ticket.priority,
+      human_response_due_at: ticket.human_response_due_at,
+    });
+  }
   revalidatePath(`/tickets/${ticketId}`);
   return { success: true };
 }

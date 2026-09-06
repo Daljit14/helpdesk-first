@@ -20,10 +20,12 @@ export function CategoryGrid({ selected, onSelect }: CategoryGridProps) {
               type="button"
               variant={isSelected ? "default" : "outline"}
               onClick={() => onSelect(isSelected ? null : category.id)}
-              className="h-auto w-full flex-col gap-3 py-6 text-base"
+              className="glass-interactive h-auto w-full flex-col gap-3 py-6 text-base"
               aria-pressed={isSelected}
             >
-              <Icon className="h-8 w-8" aria-hidden="true" />
+              <span className="rounded-full bg-primary/10 p-3 text-primary">
+                <Icon className="h-7 w-7" aria-hidden="true" />
+              </span>
               {category.label}
             </Button>
           </li>

@@ -67,7 +67,7 @@ export function GuideActions({
   }
 
   return (
-    <div className="mt-8 space-y-4 rounded-xl border border-border bg-card p-5">
+    <div className="glass mt-8 space-y-4 p-5">
       <div className="flex flex-wrap gap-3">
         {user ? (
           <Button

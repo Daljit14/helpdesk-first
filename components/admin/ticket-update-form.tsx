@@ -7,8 +7,7 @@ import {
 } from "@/app/actions/admin-tickets";
 import { Button } from "@/components/ui/button";
 
-const ADMIN_OUTLINE_BUTTON =
-  "border-slate-300 bg-white text-slate-900 hover:bg-slate-100 hover:text-slate-900";
+const ADMIN_OUTLINE_BUTTON = "glass-pill text-foreground hover:bg-muted";
 
 const statuses = [
   "New",
@@ -55,20 +54,20 @@ export function TicketUpdateForm({
     useState(resolutionSummary);
 
   return (
-    <form
-      action={action}
-      className="mt-6 rounded-xl border border-slate-200 p-5"
-    >
+    <form action={action} className="glass mt-6 p-5">
       <h2 className="font-semibold">Update ticket</h2>
       {state?.error && (
-        <p role="alert" className="mt-4 rounded-md bg-red-50 p-3 text-red-800">
+        <p
+          role="alert"
+          className="mt-4 rounded-2xl bg-destructive/10 p-3 text-destructive"
+        >
           {state.error}
         </p>
       )}
       {state?.success && (
         <p
           role="status"
-          className="mt-4 rounded-md bg-emerald-50 p-3 text-emerald-800"
+          className="mt-4 rounded-2xl bg-emerald-500/10 p-3 text-emerald-700 dark:text-emerald-300"
         >
           {state.success}
         </p>
@@ -87,7 +86,7 @@ export function TicketUpdateForm({
             onChange={(event) =>
               setCurrentStatus(event.target.value as (typeof statuses)[number])
             }
-            className="h-10 rounded-md border border-slate-300 bg-white px-3 text-slate-900 outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+            className="h-10 rounded-2xl border border-border/70 bg-background/60 px-3 text-foreground outline-none backdrop-blur focus-visible:ring-2 focus-visible:ring-ring"
           >
             {(workflowEnabled
               ? [...statuses, ...workflowStatuses]
@@ -119,7 +118,7 @@ export function TicketUpdateForm({
                 event.target.value as (typeof priorities)[number]
               )
             }
-            className="h-10 rounded-md border border-slate-300 bg-white px-3 text-slate-900 outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+            className="h-10 rounded-2xl border border-border/70 bg-background/60 px-3 text-foreground outline-none backdrop-blur focus-visible:ring-2 focus-visible:ring-ring"
           >
             {priorities.map((value) => (
               <option key={value} value={value}>
@@ -139,7 +138,7 @@ export function TicketUpdateForm({
             value={currentAssignedAgent}
             onChange={(event) => setCurrentAssignedAgent(event.target.value)}
             maxLength={80}
-            className="h-10 rounded-md border border-slate-300 bg-white px-3 text-slate-900 outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+            className="h-10 rounded-2xl border border-border/70 bg-background/60 px-3 text-foreground outline-none backdrop-blur focus-visible:ring-2 focus-visible:ring-ring"
           />
         </label>
       </div>
@@ -158,7 +157,7 @@ export function TicketUpdateForm({
             }
             maxLength={500}
             rows={3}
-            className="rounded-md border border-slate-300 bg-white p-3 text-slate-900 outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+            className="rounded-2xl border border-border/70 bg-background/60 p-3 text-foreground outline-none backdrop-blur focus-visible:ring-2 focus-visible:ring-ring"
           />
         </label>
       )}

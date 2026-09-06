@@ -43,9 +43,24 @@ export function TicketsTable({
   userId: string;
 }) {
   const [tickets, setTickets] = useState(initialTickets);
+  const [live, setLive] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
+    const refreshTickets = async () => {
+      const { data, error } = await supabase
+        .from("tickets")
+        .select(
+          "id, issue_id, issue_title, message, status, created_at, attachment_path"
+        )
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false });
+      if (error) {
+        console.warn("Unable to refresh tickets.", error);
+        return;
+      }
+      setTickets((data ?? []) as Ticket[]);
+    };
     const channel = supabase
       .channel("tickets-live")
       .on(
@@ -71,9 +86,28 @@ export function TicketsTable({
           });
         }
       )
-      .subscribe();
+      .subscribe((status, error) => {
+        const connected = status === "SUBSCRIBED";
+        setLive(connected);
+        if (!connected) {
+          console.warn(
+            `Tickets realtime channel ${status}.`,
+            error ?? "No error details."
+          );
+        }
+      });
+    const poll = () => {
+      if (document.visibilityState === "visible") void refreshTickets();
+    };
+    const interval = window.setInterval(poll, 30_000);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") void refreshTickets();
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       supabase.removeChannel(channel);
     };
   }, [userId]);
@@ -95,7 +129,10 @@ export function TicketsTable({
   }
 
   return (
-    <div className="mt-8 overflow-x-auto rounded-xl border border-border">
+    <div
+      className="mt-8 overflow-x-auto rounded-xl border border-border"
+      data-live={live ? "connected" : "fallback"}
+    >
       <table className="w-full text-left text-sm">
         <thead className="border-b border-border bg-muted/50">
           <tr>

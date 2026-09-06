@@ -597,7 +597,7 @@ export function AdminDashboard({
               <Input
                 aria-label="Created to"
                 type="date"
-                value={filters.to.slice(0, 10)}
+                value={filters.to?.slice(0, 10) ?? ""}
                 onChange={(event) =>
                   updateFilter(
                     "to",

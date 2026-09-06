@@ -11,7 +11,6 @@ vi.mock("@/lib/admin/auth", () => ({
 vi.mock("@/lib/admin/operations-data", () => ({
   defaultAdminFilters: vi.fn(() => ({
     from: "2025-01-01T00:00:00.000Z",
-    to: "2025-01-31T00:00:00.000Z",
     page: 1,
     pageSize: 25,
   })),
@@ -175,6 +174,20 @@ describe("admin operations route", () => {
     );
     expect(vi.mocked(getOperationsData).mock.calls.at(-1)?.[1]).toEqual(
       expect.objectContaining({ resolutionSource: "unresolved" })
+    );
+  });
+
+  test("leaves the upper date bound unset by default", async () => {
+    vi.mocked(requireAdminApi).mockResolvedValue(session);
+    vi.mocked(getOperationsData).mockResolvedValue({} as never);
+
+    expect((await GET(request("?from=2025-01-01T00:00:00.000Z"))).status).toBe(
+      200
+    );
+    expect(vi.mocked(getOperationsData).mock.calls.at(-1)?.[1]).toEqual(
+      expect.objectContaining({
+        to: undefined,
+      })
     );
   });
 });

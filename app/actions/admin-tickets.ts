@@ -17,6 +17,7 @@ const updateTicketSchema = z
     status: z.enum(["New", "In Progress", "Waiting", "Resolved", "Closed"]),
     priority: z.enum(["Low", "Normal", "High", "Urgent"]),
     assignedAgent: z.string().trim().max(80),
+    resolutionSummary: z.string().trim().max(500),
   })
   .strict();
 
@@ -34,10 +35,12 @@ export async function updateTicket(
     status: formData.get("status"),
     priority: formData.get("priority"),
     assignedAgent: formData.get("assignedAgent"),
+    resolutionSummary: formData.get("resolutionSummary"),
   });
   if (!parsed.success) return { error: "Invalid ticket update." };
 
-  const { ticketId, status, priority, assignedAgent } = parsed.data;
+  const { ticketId, status, priority, assignedAgent, resolutionSummary } =
+    parsed.data;
   const admin = createAdminClient();
   const { data, error } = await admin
     .from("tickets")
@@ -45,6 +48,7 @@ export async function updateTicket(
       status,
       priority,
       assigned_agent: assignedAgent || null,
+      resolution_summary: resolutionSummary || null,
     })
     .eq("id", ticketId)
     .eq("organization_id", session.organizationId)

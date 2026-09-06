@@ -24,11 +24,15 @@ export function TicketUpdateForm({
   status,
   priority,
   assignedAgent,
+  resolutionTrackingEnabled = false,
+  resolutionSummary = "",
 }: {
   ticketId: string;
   status: (typeof statuses)[number];
   priority: (typeof priorities)[number];
   assignedAgent: string;
+  resolutionTrackingEnabled?: boolean;
+  resolutionSummary?: string;
 }) {
   const [state, action, pending] = useActionState<UpdateTicketState, FormData>(
     updateTicket,
@@ -106,6 +110,25 @@ export function TicketUpdateForm({
           />
         </label>
       </div>
+      {resolutionTrackingEnabled && (
+        <label
+          className="mt-4 grid gap-2 text-sm font-medium"
+          htmlFor="ticket-resolution-summary"
+        >
+          Resolution summary (private)
+          <textarea
+            id="ticket-resolution-summary"
+            name="resolutionSummary"
+            defaultValue={resolutionSummary}
+            maxLength={500}
+            rows={3}
+            className="rounded-md border border-slate-300 bg-white p-3 text-slate-900 outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+          />
+        </label>
+      )}
+      {!resolutionTrackingEnabled && (
+        <input type="hidden" name="resolutionSummary" value="" />
+      )}
       <Button
         type="submit"
         disabled={pending}

@@ -57,6 +57,8 @@ describe("admin operations route", () => {
       generatedAt: "2025-01-31T00:00:00.000Z",
       organizationId: "org-1",
       role: "support_agent",
+      organizationName: "HelpDesk First",
+      resolution: null,
       metrics: {
         activeUsers: 0,
         uniqueVisitorsToday: 0,
@@ -96,6 +98,9 @@ describe("admin operations route", () => {
             platform: "Other",
             hasAttachment: false,
             slaState: "On track",
+            resolvedBy: null,
+            aiAttempted: false,
+            escalated: false,
           },
         ],
         page: 2,
@@ -126,6 +131,50 @@ describe("admin operations route", () => {
     expect(vi.mocked(recordAudit)).toHaveBeenCalledWith(
       session,
       "operations.view"
+    );
+  });
+
+  test("accepts a resolution source filter", async () => {
+    vi.mocked(requireAdminApi).mockResolvedValue(session);
+    vi.mocked(getOperationsData).mockResolvedValue({
+      generatedAt: "2025-01-31T00:00:00.000Z",
+      organizationId: "org-1",
+      organizationName: "HelpDesk First",
+      role: "support_agent",
+      resolution: null,
+      metrics: {
+        activeUsers: 0,
+        uniqueVisitorsToday: 0,
+        pageViewsToday: 0,
+        totalTickets: 0,
+        openTickets: 0,
+        newTickets: 0,
+        inProgressTickets: 0,
+        waitingTickets: 0,
+        urgentOpenTickets: 0,
+        completedToday: 0,
+        totalCompleted: 0,
+        slaBreached: 0,
+        avgFirstResponseMinutes: 0,
+        avgResolutionMinutes: 0,
+        ticketsByCategory: [],
+        ticketsByPlatform: [],
+        agentWorkload: [],
+      },
+      tickets: { rows: [], page: 1, pageSize: 25, total: 0 },
+      filters: {
+        from: "2025-01-01T00:00:00.000Z",
+        to: "2025-01-31T00:00:00.000Z",
+        page: 1,
+        pageSize: 25,
+        resolutionSource: "unresolved",
+      },
+    });
+    expect((await GET(request("?resolutionSource=unresolved"))).status).toBe(
+      200
+    );
+    expect(vi.mocked(getOperationsData).mock.calls.at(-1)?.[1]).toEqual(
+      expect.objectContaining({ resolutionSource: "unresolved" })
     );
   });
 });

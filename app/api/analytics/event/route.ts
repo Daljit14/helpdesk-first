@@ -12,6 +12,7 @@ const eventSchema = z
     type: z.enum([
       "page_view",
       "guide_opened",
+      "assistant_start",
       "assistant_started",
       "ai_recommendation_accepted",
       "ai_recommendation_rejected",
@@ -105,7 +106,8 @@ export async function POST(request: Request) {
       ? "guide_view"
       : parsed.data.type === "guide_opened"
         ? "guide_view"
-        : parsed.data.type === "assistant_started"
+        : parsed.data.type === "assistant_start" ||
+            parsed.data.type === "assistant_started"
           ? "assistant_start"
           : parsed.data.type;
   await touchActiveSession(visitorKey);

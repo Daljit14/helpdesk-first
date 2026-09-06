@@ -79,6 +79,16 @@ describe("analytics event route", () => {
     );
   });
 
+  test("records the current assistant_start event name", async () => {
+    const response = await POST(
+      request({ type: "assistant_start", path: "/assistant", platform: null })
+    );
+    expect(response.status).toBe(200);
+    expect(mockedRecord).toHaveBeenCalledWith(
+      expect.objectContaining({ eventType: "assistant_start", platform: null })
+    );
+  });
+
   test("rejects unknown payload keys", async () => {
     const response = await POST(
       request({ type: "page_view", path: "/", extra: true })

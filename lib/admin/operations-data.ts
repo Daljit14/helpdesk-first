@@ -9,6 +9,7 @@ import {
   toTicketId,
 } from "@/lib/operations/transform";
 import type { AdminSession } from "./auth";
+import { isResolutionTrackingEnabled } from "./flags";
 
 export type AdminMetric = {
   activeUsers: number;
@@ -46,8 +47,32 @@ export type AdminFilters = {
   from: string;
   to: string;
   sla?: string;
+  resolutionSource?: "ai" | "agent" | "self_service" | "unresolved";
   page: number;
   pageSize: number;
+};
+
+export type ResolutionDailyPoint = {
+  day: string;
+  aiSolved: number;
+  agentSolved: number;
+  escalated: number;
+  created: number;
+};
+
+export type ResolutionMetrics = {
+  totalTickets: number;
+  openTickets: number;
+  aiAttempted: number;
+  aiSolved: number;
+  agentSolved: number;
+  selfServiceSolved: number;
+  escalated: number;
+  aiResolutionRate: number;
+  avgResolutionMinutes: number;
+  avgAiResolutionMinutes: number;
+  avgAgentResolutionMinutes: number;
+  daily: ResolutionDailyPoint[];
 };
 
 export type AdminOperationsTicket = {
@@ -68,13 +93,18 @@ export type AdminOperationsTicket = {
   platform: "Windows" | "macOS" | "Linux" | "Android" | "iOS" | "Other";
   hasAttachment: boolean;
   slaState: "Breached" | "Due <1h" | "On track" | "Closed";
+  resolvedBy: "AI assistant" | "Support agent" | "Self-service" | null;
+  aiAttempted: boolean;
+  escalated: boolean;
 };
 
 export type OperationsData = {
   generatedAt: string;
   organizationId: string;
   role: AdminSession["role"];
+  organizationName: string;
   metrics: AdminMetric;
+  resolution: ResolutionMetrics | null;
   tickets: {
     rows: AdminOperationsTicket[];
     page: number;
@@ -102,6 +132,21 @@ const EMPTY_METRICS: AdminMetric = {
   ticketsByCategory: [],
   ticketsByPlatform: [],
   agentWorkload: [],
+};
+
+const EMPTY_RESOLUTION: ResolutionMetrics = {
+  totalTickets: 0,
+  openTickets: 0,
+  aiAttempted: 0,
+  aiSolved: 0,
+  agentSolved: 0,
+  selfServiceSolved: 0,
+  escalated: 0,
+  aiResolutionRate: 0,
+  avgResolutionMinutes: 0,
+  avgAiResolutionMinutes: 0,
+  avgAgentResolutionMinutes: 0,
+  daily: [],
 };
 
 function slaState(
@@ -164,6 +209,36 @@ function mapMetrics(value: unknown): AdminMetric {
   };
 }
 
+function mapResolutionMetrics(value: unknown): ResolutionMetrics {
+  if (!value || typeof value !== "object") return EMPTY_RESOLUTION;
+  const raw = value as Record<string, unknown>;
+  return {
+    totalTickets: Number(raw.totalTickets ?? 0),
+    openTickets: Number(raw.openTickets ?? 0),
+    aiAttempted: Number(raw.aiAttempted ?? 0),
+    aiSolved: Number(raw.aiSolved ?? 0),
+    agentSolved: Number(raw.agentSolved ?? 0),
+    selfServiceSolved: Number(raw.selfServiceSolved ?? 0),
+    escalated: Number(raw.escalated ?? 0),
+    aiResolutionRate: Number(raw.aiResolutionRate ?? 0),
+    avgResolutionMinutes: Number(raw.avgResolutionMinutes ?? 0),
+    avgAiResolutionMinutes: Number(raw.avgAiResolutionMinutes ?? 0),
+    avgAgentResolutionMinutes: Number(raw.avgAgentResolutionMinutes ?? 0),
+    daily: Array.isArray(raw.daily)
+      ? raw.daily.map((row) => {
+          const point = row as Record<string, unknown>;
+          return {
+            day: String(point.day),
+            aiSolved: Number(point.aiSolved ?? 0),
+            agentSolved: Number(point.agentSolved ?? 0),
+            escalated: Number(point.escalated ?? 0),
+            created: Number(point.created ?? 0),
+          };
+        })
+      : [],
+  };
+}
+
 export function defaultAdminFilters(now = new Date()): AdminFilters {
   const to = now.toISOString();
   const from = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
@@ -180,11 +255,24 @@ export async function getOperationsData(
     { org: session.organizationId }
   );
   if (metricError) console.error("admin metrics query failed", metricError);
+  const resolutionEnabled = isResolutionTrackingEnabled();
+  const { data: resolutionData, error: resolutionError } = resolutionEnabled
+    ? await admin.rpc("admin_resolution_metrics", {
+        org: session.organizationId,
+      })
+    : { data: null, error: null };
+  if (resolutionError)
+    console.error("admin resolution metrics query failed", resolutionError);
+  const { data: organization } = await admin
+    .from("organizations")
+    .select("name")
+    .eq("id", session.organizationId)
+    .maybeSingle();
 
   let query = admin
     .from("tickets")
     .select(
-      "id, user_id, issue_id, issue_title, category, status, priority, assigned_agent, platform, created_at, updated_at, first_response_at, resolved_at, attachment_path",
+      "id, user_id, issue_id, issue_title, category, status, priority, assigned_agent, platform, created_at, updated_at, first_response_at, resolved_at, attachment_path, resolution_source, ai_attempted, escalated",
       { count: "exact" }
     )
     .eq("organization_id", session.organizationId)
@@ -218,6 +306,11 @@ export async function getOperationsData(
     ]);
   } else if (filters.status) {
     query = query.in("status", [filters.status, filters.status.toLowerCase()]);
+  }
+  if (filters.resolutionSource === "unresolved") {
+    query = query.is("resolution_source", null);
+  } else if (filters.resolutionSource) {
+    query = query.eq("resolution_source", filters.resolutionSource);
   }
   if (filters.priority) query = query.eq("priority", filters.priority);
   if (filters.category) query = query.eq("category", filters.category);
@@ -256,6 +349,16 @@ export async function getOperationsData(
       platform: normalizePlatform(row.platform),
       hasAttachment: Boolean(row.attachment_path),
       slaState: slaState(status, due),
+      resolvedBy:
+        row.resolution_source === "ai"
+          ? "AI assistant"
+          : row.resolution_source === "agent"
+            ? "Support agent"
+            : row.resolution_source === "self_service"
+              ? "Self-service"
+              : null,
+      aiAttempted: Boolean(row.ai_attempted),
+      escalated: Boolean(row.escalated),
     } satisfies AdminOperationsTicket;
   });
   const filteredRows = filters.sla
@@ -272,7 +375,14 @@ export async function getOperationsData(
     generatedAt: new Date().toISOString(),
     organizationId: session.organizationId,
     role: session.role,
+    organizationName: organization?.name ?? "Organization",
     metrics: metricError ? EMPTY_METRICS : mapMetrics(metricData),
+    resolution:
+      resolutionEnabled && !resolutionError
+        ? mapResolutionMetrics(resolutionData)
+        : resolutionEnabled
+          ? EMPTY_RESOLUTION
+          : null,
     tickets: {
       rows: pagedRows,
       page: filters.page,

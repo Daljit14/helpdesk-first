@@ -2,6 +2,7 @@
 
 import { FormEvent, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -19,10 +20,18 @@ import {
   type AiIntakeOutput,
   type DiagnosticAnswer,
 } from "@/lib/ai/types";
+import { startAiTicket } from "@/app/actions/resolution";
 
 const MAX_QUESTIONS = 3;
 
-export function AiAssistant() {
+export function AiAssistant({
+  resolutionTrackingEnabled = false,
+  signedIn = false,
+}: {
+  resolutionTrackingEnabled?: boolean;
+  signedIn?: boolean;
+}) {
+  const router = useRouter();
   const [problem, setProblem] = useState("");
   const [platform, setPlatform] = useState<Platform | null>(null);
   const [previousAnswers, setPreviousAnswers] = useState<DiagnosticAnswer[]>(
@@ -49,7 +58,7 @@ export function AiAssistant() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          type: "assistant_started",
+          type: "assistant_start",
           path: "/assistant",
           platform: nextPlatform,
         }),
@@ -233,6 +242,9 @@ export function AiAssistant() {
             platform={platform}
             onReject={handleRejectMatch}
             searchHref={searchHref()}
+            resolutionTrackingEnabled={resolutionTrackingEnabled}
+            signedIn={signedIn}
+            onStartTicket={(href) => router.push(href)}
           />
         ) : currentOutput?.decision === "escalate" ? (
           <EscalateView
@@ -382,14 +394,22 @@ function MatchView({
   platform,
   onReject,
   searchHref,
+  resolutionTrackingEnabled,
+  signedIn,
+  onStartTicket,
 }: {
   output: AiIntakeOutput;
   platform: Platform | null;
   onReject: () => void;
   searchHref: string;
+  resolutionTrackingEnabled: boolean;
+  signedIn: boolean;
+  onStartTicket: (href: string) => void;
 }) {
   const effectivePlatform = output.detectedPlatform ?? platform ?? "Other";
-  const guideHref = `/issues/${output.matchedIssueSlug}/guide?platform=${encodeURIComponent(effectivePlatform)}`;
+  const guideHref = output.matchedIssueSlug
+    ? `/issues/${output.matchedIssueSlug}/guide?platform=${encodeURIComponent(effectivePlatform)}`
+    : searchHref;
 
   return (
     <div className="mt-8 space-y-6 rounded-xl border border-border bg-background p-6 shadow-sm">
@@ -398,7 +418,7 @@ function MatchView({
       <div className="flex flex-wrap gap-3">
         <Link
           href={guideHref}
-          onClick={() => {
+          onClick={async (event) => {
             void fetch("/api/analytics/event", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -409,6 +429,18 @@ function MatchView({
               }),
               keepalive: true,
             }).catch(() => {});
+            if (!resolutionTrackingEnabled || !signedIn) return;
+            if (!output.matchedIssueSlug) return;
+            event.preventDefault();
+            const result = await startAiTicket({
+              issueId: output.matchedIssueSlug,
+              platform: effectivePlatform,
+            });
+            if ("ticketId" in result) {
+              onStartTicket(`${guideHref}&ticket=${result.ticketId}`);
+            } else {
+              onStartTicket(guideHref);
+            }
           }}
           className={cn(buttonVariants({ variant: "default" }))}
         >

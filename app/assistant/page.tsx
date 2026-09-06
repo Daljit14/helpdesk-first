@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { AiAssistant } from "@/components/ai-assistant";
+import { getCurrentUser } from "@/lib/supabase/user";
+import { isResolutionTrackingEnabled } from "@/lib/admin/flags";
 
 export const metadata: Metadata = {
   title: "Ask the Support Assistant · HelpDesk First",
@@ -8,7 +10,8 @@ export const metadata: Metadata = {
     "Describe your IT problem conversationally and the HelpDesk First support assistant will match you to an approved Level-1 troubleshooting guide.",
 };
 
-export default function AssistantPage() {
+export default async function AssistantPage() {
+  const user = await getCurrentUser();
   return (
     <section className="flex flex-1 flex-col px-4 py-12 sm:px-6 lg:px-8">
       <Suspense
@@ -18,7 +21,10 @@ export default function AssistantPage() {
           </div>
         }
       >
-        <AiAssistant />
+        <AiAssistant
+          resolutionTrackingEnabled={isResolutionTrackingEnabled()}
+          signedIn={Boolean(user)}
+        />
       </Suspense>
     </section>
   );

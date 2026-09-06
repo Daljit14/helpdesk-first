@@ -66,6 +66,17 @@ Retention may be scheduled with pg_cron using the commented schedule in
 Rollback statements in that migration are destructive and require explicit
 approval.
 
+## Resolution tracking (Phase 5I.3)
+
+Apply `supabase/resolution-tracking.sql` after `supabase/admin-dashboard.sql`,
+then set `HELP_DESK_RESOLUTION_TRACKING_ENABLED=true`. A ticket is AI-solved
+only when the signed-in user clicks **Problem solved** on the recommended guide;
+escalated tickets are never AI-solved. The migration tracks AI attempts,
+recommended guides, resolution source, escalation, user confirmation, private
+escalation reasons, and private agent summaries. Anonymous assistant users are
+not tracked as tickets. Rollback statements are commented out and require
+explicit approval.
+
 ## Requirements
 
 - [Node.js](https://nodejs.org/) 20 or later

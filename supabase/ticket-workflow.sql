@@ -420,7 +420,8 @@ as $$
     select
       count(*)::int as total_tickets,
       count(*) filter (
-        where lower(status) in ('open', 'new', 'in progress', 'in_progress', 'in-progress', 'waiting')
+        where lower(status) in ('open', 'new', 'in progress', 'in_progress', 'in-progress', 'waiting',
+          'ai reviewing', 'ai resolving', 'needs human', 'waiting for user', 'pending verification')
       )::int as open_tickets,
       count(*) filter (where ai_attempted)::int as ai_attempted,
       count(*) filter (where resolution_source = 'ai')::int as ai_solved,

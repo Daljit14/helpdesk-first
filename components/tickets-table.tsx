@@ -38,9 +38,11 @@ function AttachmentLink({ path }: { path: string }) {
 export function TicketsTable({
   initialTickets,
   userId,
+  workflowEnabled = false,
 }: {
   initialTickets: Ticket[];
   userId: string;
+  workflowEnabled?: boolean;
 }) {
   const [tickets, setTickets] = useState(initialTickets);
   const [live, setLive] = useState(false);
@@ -150,7 +152,11 @@ export function TicketsTable({
             >
               <td className="px-4 py-4 align-top">
                 <Link
-                  href={`/issues/${ticket.issue_id}`}
+                  href={
+                    workflowEnabled
+                      ? `/tickets/${ticket.id}`
+                      : `/issues/${ticket.issue_id}`
+                  }
                   className="font-medium underline underline-offset-4"
                 >
                   {ticket.issue_title}

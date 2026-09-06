@@ -26,19 +26,21 @@ export function TicketUpdateForm({
   assignedAgent,
   resolutionTrackingEnabled = false,
   resolutionSummary = "",
+  workflowEnabled = false,
 }: {
   ticketId: string;
-  status: (typeof statuses)[number];
+  status: string;
   priority: (typeof priorities)[number];
   assignedAgent: string;
   resolutionTrackingEnabled?: boolean;
   resolutionSummary?: string;
+  workflowEnabled?: boolean;
 }) {
   const [state, action, pending] = useActionState<UpdateTicketState, FormData>(
     updateTicket,
     null
   );
-  const [currentStatus, setCurrentStatus] = useState(status);
+  const [currentStatus, setCurrentStatus] = useState<string>(status);
   const [currentPriority, setCurrentPriority] = useState(priority);
   const [currentAssignedAgent, setCurrentAssignedAgent] =
     useState(assignedAgent);
@@ -80,7 +82,10 @@ export function TicketUpdateForm({
             }
             className="h-10 rounded-md border border-slate-300 bg-white px-3 text-slate-900 outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
           >
-            {statuses.map((value) => (
+            {(workflowEnabled
+              ? ["New", "In Progress", "Waiting for User", "Needs Human"]
+              : statuses
+            ).map((value) => (
               <option key={value} value={value}>
                 {value}
               </option>

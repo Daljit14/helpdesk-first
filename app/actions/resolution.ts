@@ -20,6 +20,18 @@ export async function startAiTicket(input: {
   issueId: string;
   platform: string;
 }): Promise<{ ticketId: string } | ResolutionActionResult> {
+  if (process.env.HELP_DESK_TICKET_WORKFLOW_ENABLED === "true") {
+    const { createWorkflowTicket } = await import("@/app/actions/tickets");
+    const issue = getIssueBySlug(input.issueId);
+    const result = await createWorkflowTicket({
+      issueId: input.issueId,
+      platform: input.platform,
+      message: `I need help with the "${issue?.title ?? "IT issue"}" problem.`,
+    });
+    return "ticketId" in result && result.ticketId
+      ? { ticketId: result.ticketId }
+      : { error: "error" in result ? result.error : "Unable to start ticket." };
+  }
   if (!isResolutionTrackingEnabled()) return { error: "Not available." };
   const user = await getCurrentUser();
   if (!user) return { error: "Not authorized." };

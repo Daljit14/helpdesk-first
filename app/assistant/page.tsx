@@ -2,7 +2,10 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { AiAssistant } from "@/components/ai-assistant";
 import { getCurrentUser } from "@/lib/supabase/user";
-import { isResolutionTrackingEnabled } from "@/lib/admin/flags";
+import {
+  isResolutionTrackingEnabled,
+  isTicketWorkflowEnabled,
+} from "@/lib/admin/flags";
 
 export const metadata: Metadata = {
   title: "Ask the Support Assistant · HelpDesk First",
@@ -22,7 +25,9 @@ export default async function AssistantPage() {
         }
       >
         <AiAssistant
-          resolutionTrackingEnabled={isResolutionTrackingEnabled()}
+          resolutionTrackingEnabled={
+            isResolutionTrackingEnabled() || isTicketWorkflowEnabled()
+          }
           signedIn={Boolean(user)}
         />
       </Suspense>

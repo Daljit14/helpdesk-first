@@ -259,7 +259,10 @@ export default async function AdminTicketPage({
                 {(comments ?? [])
                   .filter((comment) => comment.visibility === "internal")
                   .map((comment) => (
-                    <p key={comment.id} className="rounded-2xl bg-amber-500/10 p-3">
+                    <p
+                      key={comment.id}
+                      className="rounded-2xl bg-amber-500/10 p-3"
+                    >
                       {comment.message}
                     </p>
                   ))}

@@ -171,10 +171,7 @@ export function HomePage({
         </div>
 
         {activeSessions.length > 0 && (
-          <div
-            className="glass mt-6 p-4"
-            aria-live="polite"
-          >
+          <div className="glass mt-6 p-4" aria-live="polite">
             <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
               <div>
                 <p className="font-medium">

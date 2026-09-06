@@ -26,19 +26,27 @@ export default async function AdminLayout({
             <AdminThemeToggle />
             {session && (
               <>
-              <span className="glass-pill px-3 py-1">
-                {session.role}
-              </span>
-              <nav className="flex gap-1">
-                <Link className="rounded-full px-3 py-2 hover:bg-muted" href="/admin/operations">Operations</Link>
-                <Link className="rounded-full px-3 py-2 hover:bg-muted" href="/admin/operations#tickets">Tickets</Link>
-              </nav>
-              <AdminThemeToggle />
-              <form action={adminLogout}>
-                <Button type="submit" variant="outline" size="sm">
-                  Logout
-                </Button>
-              </form>
+                <span className="glass-pill px-3 py-1">{session.role}</span>
+                <nav className="flex gap-1">
+                  <Link
+                    className="rounded-full px-3 py-2 hover:bg-muted"
+                    href="/admin/operations"
+                  >
+                    Operations
+                  </Link>
+                  <Link
+                    className="rounded-full px-3 py-2 hover:bg-muted"
+                    href="/admin/operations#tickets"
+                  >
+                    Tickets
+                  </Link>
+                </nav>
+                <AdminThemeToggle />
+                <form action={adminLogout}>
+                  <Button type="submit" variant="outline" size="sm">
+                    Logout
+                  </Button>
+                </form>
               </>
             )}
           </div>

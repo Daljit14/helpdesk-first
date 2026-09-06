@@ -46,14 +46,12 @@ export function AdminLoginForm({ next }: { next: string }) {
           required
         />
         {state?.fieldErrors?.password && (
-          <p className="text-sm text-destructive">{state.fieldErrors.password}</p>
+          <p className="text-sm text-destructive">
+            {state.fieldErrors.password}
+          </p>
         )}
       </div>
-      <Button
-        type="submit"
-        disabled={pending}
-        className="w-full"
-      >
+      <Button type="submit" disabled={pending} className="w-full">
         {pending ? "Signing in…" : "Sign in"}
       </Button>
       <Link

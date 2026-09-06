@@ -16,8 +16,7 @@ import { formatSlaCountdown } from "@/lib/tickets/sla";
 
 type RefreshStatus = "idle" | "refreshing" | "error";
 
-const ADMIN_OUTLINE_BUTTON =
-  "glass-pill text-foreground hover:bg-muted";
+const ADMIN_OUTLINE_BUTTON = "glass-pill text-foreground hover:bg-muted";
 
 const metricLabels: [keyof AdminMetric, string][] = [
   ["activeUsers", "Active users"],
@@ -102,7 +101,10 @@ function TicketTable({
         </thead>
         <tbody>
           {tickets.map((ticket) => (
-            <tr key={ticket.ticketUuid} className="border-t border-border transition-colors hover:bg-muted/40">
+            <tr
+              key={ticket.ticketUuid}
+              className="border-t border-border transition-colors hover:bg-muted/40"
+            >
               <td className="px-4 py-3 font-mono">
                 <Link
                   href={`/admin/tickets/${ticket.ticketUuid}`}
@@ -335,10 +337,7 @@ export function AdminDashboard({
                   snapshot.workflow.resolvedByEmployees,
                 ],
               ].map(([label, value]) => (
-                <div
-                  key={label}
-                  className="glass p-4"
-                >
+                <div key={label} className="glass p-4">
                   <p className="text-sm text-muted-foreground">{label}</p>
                   <p className="mt-1 text-2xl font-bold">{value}</p>
                 </div>
@@ -349,10 +348,7 @@ export function AdminDashboard({
 
         <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
           {metricLabels.map(([key, label]) => (
-            <div
-              key={key}
-              className={`glass p-4 ${metricTone(key)}`}
-            >
+            <div key={key} className={`glass p-4 ${metricTone(key)}`}>
               <p className="text-sm text-muted-foreground">{label}</p>
               <p className="mt-2 text-3xl font-bold">
                 {snapshot.metrics[key] as number}
@@ -374,10 +370,7 @@ export function AdminDashboard({
               maxPlatform,
             ],
           ].map(([title, items, max]) => (
-            <section
-              key={title as string}
-              className="glass p-5"
-            >
+            <section key={title as string} className="glass p-5">
               <h2 className="font-semibold">{title as string}</h2>
               <div className="mt-4 space-y-3">
                 {(items as { key: string; count: number }[]).map((item) => (
@@ -428,7 +421,10 @@ export function AdminDashboard({
             </thead>
             <tbody>
               {snapshot.metrics.agentWorkload.map((row) => (
-                <tr key={row.agent} className="border-t border-border transition-colors hover:bg-muted/40">
+                <tr
+                  key={row.agent}
+                  className="border-t border-border transition-colors hover:bg-muted/40"
+                >
                   <td className="px-4 py-3">{row.agent}</td>
                   <td className="px-4 py-3">{row.open}</td>
                   <td className="px-4 py-3">{row.urgent}</td>
@@ -449,22 +445,22 @@ export function AdminDashboard({
                 [
                   "Total tickets",
                   snapshot.resolution.totalTickets,
-                    "border-border bg-card/40",
+                  "border-border bg-card/40",
                 ],
                 [
                   "Solved by AI",
                   snapshot.resolution.aiSolved,
-                    "border-emerald-500/30 bg-emerald-500/10",
+                  "border-emerald-500/30 bg-emerald-500/10",
                 ],
                 [
                   "Solved by agents",
                   snapshot.resolution.agentSolved,
-                    "border-primary/30 bg-primary/10",
+                  "border-primary/30 bg-primary/10",
                 ],
                 [
                   "Escalated",
                   snapshot.resolution.escalated,
-                    "border-amber-500/30 bg-amber-500/10",
+                  "border-amber-500/30 bg-amber-500/10",
                 ],
                 [
                   "Open",
@@ -482,10 +478,7 @@ export function AdminDashboard({
                   "border-border bg-card/40",
                 ],
               ].map(([label, value, tone]) => (
-                <div
-                  key={String(label)}
-                  className={`glass p-4 ${tone}`}
-                >
+                <div key={String(label)} className={`glass p-4 ${tone}`}>
                   <p className="text-sm text-muted-foreground">{label}</p>
                   <p className="mt-2 text-2xl font-bold">{value}</p>
                   {label === "AI resolution rate" && (

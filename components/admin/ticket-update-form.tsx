@@ -7,8 +7,7 @@ import {
 } from "@/app/actions/admin-tickets";
 import { Button } from "@/components/ui/button";
 
-const ADMIN_OUTLINE_BUTTON =
-  "glass-pill text-foreground hover:bg-muted";
+const ADMIN_OUTLINE_BUTTON = "glass-pill text-foreground hover:bg-muted";
 
 const statuses = [
   "New",
@@ -55,13 +54,13 @@ export function TicketUpdateForm({
     useState(resolutionSummary);
 
   return (
-    <form
-      action={action}
-      className="glass mt-6 p-5"
-    >
+    <form action={action} className="glass mt-6 p-5">
       <h2 className="font-semibold">Update ticket</h2>
       {state?.error && (
-        <p role="alert" className="mt-4 rounded-2xl bg-destructive/10 p-3 text-destructive">
+        <p
+          role="alert"
+          className="mt-4 rounded-2xl bg-destructive/10 p-3 text-destructive"
+        >
           {state.error}
         </p>
       )}

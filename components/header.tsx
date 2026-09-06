@@ -30,7 +30,7 @@ export function Header({ user }: { user?: User | null }) {
         </Link>
 
         <nav aria-label="Primary" className="hidden md:block">
-            <ul className="flex items-center gap-2 text-sm font-medium">
+          <ul className="flex items-center gap-2 text-sm font-medium">
             <li>
               <Link
                 href="/"
@@ -135,27 +135,43 @@ export function Header({ user }: { user?: User | null }) {
           <nav aria-label="Mobile" className="mx-auto max-w-6xl px-5 py-3">
             <ul className="flex flex-col gap-1 text-sm font-medium">
               <li>
-                <Link href="/" className="block rounded-2xl px-3 py-3" onClick={() => setOpen(false)}>
+                <Link
+                  href="/"
+                  className="block rounded-2xl px-3 py-3"
+                  onClick={() => setOpen(false)}
+                >
                   Guides
                 </Link>
               </li>
               {process.env.NEXT_PUBLIC_AI_ENABLED === "true" && (
                 <li>
-                  <Link href="/assistant" className="block rounded-2xl px-3 py-3" onClick={() => setOpen(false)}>
+                  <Link
+                    href="/assistant"
+                    className="block rounded-2xl px-3 py-3"
+                    onClick={() => setOpen(false)}
+                  >
                     Assistant
                   </Link>
                 </li>
               )}
               {user && (
                 <li>
-                  <Link href="/bookmarks" className="block rounded-2xl px-3 py-3" onClick={() => setOpen(false)}>
+                  <Link
+                    href="/bookmarks"
+                    className="block rounded-2xl px-3 py-3"
+                    onClick={() => setOpen(false)}
+                  >
                     Bookmarks
                   </Link>
                 </li>
               )}
               {user && (
                 <li>
-                  <Link href="/tickets" className="block rounded-2xl px-3 py-3" onClick={() => setOpen(false)}>
+                  <Link
+                    href="/tickets"
+                    className="block rounded-2xl px-3 py-3"
+                    onClick={() => setOpen(false)}
+                  >
                     Tickets
                   </Link>
                 </li>

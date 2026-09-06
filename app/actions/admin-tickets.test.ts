@@ -33,6 +33,7 @@ function form(overrides: Record<string, string> = {}) {
   value.set("status", "In Progress");
   value.set("priority", "High");
   value.set("assignedAgent", "Agent One");
+  value.set("resolutionSummary", "");
   for (const [key, entry] of Object.entries(overrides)) value.set(key, entry);
   return value;
 }
@@ -101,6 +102,20 @@ describe("updateTicket", () => {
     );
     expect(vi.mocked(revalidatePath)).toHaveBeenCalledWith(
       "/admin/tickets/00000000-0000-4000-8000-000000000001"
+    );
+  });
+
+  test("writes a private resolution summary", async () => {
+    vi.mocked(isAdminDashboardEnabled).mockReturnValue(true);
+    vi.mocked(getAdminSession).mockResolvedValue(session);
+    const { builder } = configureUpdate();
+    await expect(
+      updateTicket(null, form({ resolutionSummary: "Restarted the adapter." }))
+    ).resolves.toEqual({ success: "Ticket updated." });
+    expect(builder.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        resolution_summary: "Restarted the adapter.",
+      })
     );
   });
 

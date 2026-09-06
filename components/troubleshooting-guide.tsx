@@ -25,11 +25,17 @@ import {
   getIssueEscalationWarning,
 } from "@/lib/steps";
 import { saveProgress } from "@/app/actions/guides";
+import {
+  confirmTicketResolved,
+  escalateTicket,
+} from "@/app/actions/resolution";
 
 type TroubleshootingGuideProps = {
   issue: Issue;
   initialCompletedSteps?: number[];
   canPersist?: boolean;
+  linkedTicket?: { id: string; alreadyResolved: boolean } | null;
+  resolutionTrackingEnabled?: boolean;
 };
 
 type GuideState = {
@@ -64,6 +70,8 @@ export function TroubleshootingGuide({
   issue,
   initialCompletedSteps = [],
   canPersist = false,
+  linkedTicket = null,
+  resolutionTrackingEnabled = false,
 }: TroubleshootingGuideProps) {
   const searchParams = useSearchParams();
   const platform: string = useMemo(() => {
@@ -101,6 +109,11 @@ export function TroubleshootingGuide({
           : firstIncomplete,
     };
   });
+  const [resolutionNotice, setResolutionNotice] = useState<string | null>(
+    linkedTicket?.alreadyResolved
+      ? "Recorded: your ticket is marked as resolved."
+      : null
+  );
 
   const statusRef = useRef<HTMLDivElement>(null);
   const completedEventSent = useRef(false);
@@ -163,6 +176,21 @@ export function TroubleshootingGuide({
         status: "resolved",
         solvingStep: step,
       }));
+      if (
+        resolutionTrackingEnabled &&
+        linkedTicket &&
+        !linkedTicket.alreadyResolved
+      ) {
+        startTransition(() => {
+          void confirmTicketResolved(linkedTicket.id).then((result) => {
+            setResolutionNotice(
+              "success" in result
+                ? "Recorded: your ticket is marked as resolved."
+                : result.error
+            );
+          });
+        });
+      }
       statusRef.current?.focus();
     } else {
       setState((prev) => ({
@@ -214,6 +242,21 @@ export function TroubleshootingGuide({
         { step: currentStep, outcome: "completed" },
       ],
     }));
+    if (
+      resolutionTrackingEnabled &&
+      linkedTicket &&
+      !linkedTicket.alreadyResolved
+    ) {
+      startTransition(() => {
+        void confirmTicketResolved(linkedTicket.id).then((result) => {
+          setResolutionNotice(
+            "success" in result
+              ? "Recorded: your ticket is marked as resolved."
+              : result.error
+          );
+        });
+      });
+    }
     statusRef.current?.focus();
   }
 
@@ -266,6 +309,7 @@ export function TroubleshootingGuide({
             state={state}
             onChange={setState}
             onRestart={handleRestart}
+            resolutionNotice={resolutionNotice}
           />
         ) : state.status === "escalated" ? (
           <EscalationView
@@ -274,6 +318,8 @@ export function TroubleshootingGuide({
             state={state}
             onChange={setState}
             onRestart={handleRestart}
+            linkedTicket={linkedTicket}
+            resolutionTrackingEnabled={resolutionTrackingEnabled}
           />
         ) : (
           <StepView
@@ -378,10 +424,12 @@ function SuccessView({
   state,
   onChange,
   onRestart,
+  resolutionNotice,
 }: {
   state: GuideState;
   onChange: (state: GuideState) => void;
   onRestart: () => void;
+  resolutionNotice: string | null;
 }) {
   function handleRate(rating: "helpful" | "not-helpful") {
     onChange({ ...state, rating });
@@ -398,6 +446,11 @@ function SuccessView({
         <p className="mt-2 text-muted-foreground">
           The step that resolved it:{" "}
           <span className="text-foreground">{state.solvingStep}</span>
+        </p>
+      )}
+      {resolutionNotice && (
+        <p role="status" className="mt-3 text-sm text-muted-foreground">
+          {resolutionNotice}
         </p>
       )}
 
@@ -446,16 +499,22 @@ function EscalationView({
   state,
   onChange,
   onRestart,
+  linkedTicket,
+  resolutionTrackingEnabled,
 }: {
   issue: Issue;
   platform: string;
   state: GuideState;
   onChange: (state: GuideState) => void;
   onRestart: () => void;
+  linkedTicket: { id: string; alreadyResolved: boolean } | null;
+  resolutionTrackingEnabled: boolean;
 }) {
   const [reason, setReason] = useState(state.escalationReason ?? "");
   const [showReport, setShowReport] = useState(Boolean(state.escalationReason));
   const [copied, setCopied] = useState(false);
+  const [escalationSent, setEscalationSent] = useState(false);
+  const [escalationError, setEscalationError] = useState<string | null>(null);
 
   const report = useMemo(() => {
     const lines = [
@@ -547,6 +606,39 @@ function EscalationView({
             </Button>
           </div>
         </div>
+      )}
+
+      {resolutionTrackingEnabled && linkedTicket && !escalationSent && (
+        <div className="mt-6">
+          <Button
+            type="button"
+            onClick={() => {
+              setEscalationError(null);
+              void escalateTicket(linkedTicket.id, reason).then((result) => {
+                if ("success" in result) {
+                  setEscalationSent(true);
+                } else {
+                  setEscalationError(result.error);
+                }
+              });
+            }}
+          >
+            Send to your IT team
+          </Button>
+          {escalationError && (
+            <p role="alert" className="mt-2 text-sm text-destructive">
+              {escalationError}
+            </p>
+          )}
+        </div>
+      )}
+      {escalationSent && (
+        <p role="status" className="mt-6 text-sm text-muted-foreground">
+          Sent to IT.{" "}
+          <Link href="/tickets" className="underline">
+            Track it under My tickets.
+          </Link>
+        </p>
       )}
 
       <div className="mt-8 flex flex-wrap gap-3">

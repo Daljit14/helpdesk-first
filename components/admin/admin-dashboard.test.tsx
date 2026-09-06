@@ -13,11 +13,12 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: vi.fn() }),
 }));
 
-function snapshot(): OperationsData {
+function snapshot(withResolution = false): OperationsData {
   return {
     generatedAt: new Date().toISOString(),
     organizationId: "org-1",
     role: "admin",
+    organizationName: "HelpDesk First",
     metrics: {
       activeUsers: 1,
       uniqueVisitorsToday: 2,
@@ -37,6 +38,22 @@ function snapshot(): OperationsData {
       ticketsByPlatform: [],
       agentWorkload: [],
     },
+    resolution: withResolution
+      ? {
+          totalTickets: 4,
+          openTickets: 1,
+          aiAttempted: 2,
+          aiSolved: 1,
+          agentSolved: 1,
+          selfServiceSolved: 0,
+          escalated: 1,
+          aiResolutionRate: 50,
+          avgResolutionMinutes: 60,
+          avgAiResolutionMinutes: 30,
+          avgAgentResolutionMinutes: 90,
+          daily: [],
+        }
+      : null,
     tickets: { rows: [], page: 1, pageSize: 25, total: 0 },
     filters: {
       from: "2025-01-01T00:00:00.000Z",
@@ -70,5 +87,17 @@ describe("AdminDashboard", () => {
       vi.advanceTimersByTime(10 * 60_000 + 15_000);
     });
     expect(screen.getAllByText("STALE").length).toBeGreaterThan(0);
+  });
+
+  test("renders resolution metrics and empty activity state", () => {
+    render(
+      <AdminDashboard
+        initialSnapshot={snapshot(true)}
+        resolutionTrackingEnabled
+      />
+    );
+    expect(screen.getByText("Resolution tracking")).toBeInTheDocument();
+    expect(screen.getAllByText("Solved by AI").length).toBeGreaterThan(0);
+    expect(screen.getByText("No resolution activity.")).toBeInTheDocument();
   });
 });

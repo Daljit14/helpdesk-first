@@ -5,6 +5,7 @@ import {
   defaultAdminFilters,
   getOperationsData,
 } from "@/lib/admin/operations-data";
+import { isResolutionTrackingEnabled } from "@/lib/admin/flags";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -15,5 +16,10 @@ export const metadata: Metadata = {
 export default async function OperationsPage() {
   const session = await requireAdminPage("/admin/operations");
   const snapshot = await getOperationsData(session, defaultAdminFilters());
-  return <AdminDashboard initialSnapshot={snapshot} />;
+  return (
+    <AdminDashboard
+      initialSnapshot={snapshot}
+      resolutionTrackingEnabled={isResolutionTrackingEnabled()}
+    />
+  );
 }

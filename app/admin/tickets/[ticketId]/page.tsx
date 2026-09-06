@@ -11,6 +11,8 @@ import {
   slaDue,
   toTicketId,
 } from "@/lib/operations/transform";
+import { isResolutionTrackingEnabled } from "@/lib/admin/flags";
+import { getIssueBySlug } from "@/lib/search";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -37,7 +39,7 @@ export default async function AdminTicketPage({
   const { data: ticket, error } = await admin
     .from("tickets")
     .select(
-      "id, issue_id, issue_title, category, status, priority, assigned_agent, platform, created_at, updated_at, first_response_at, resolved_at, attachment_path, message"
+      "id, issue_id, issue_title, category, status, priority, assigned_agent, platform, created_at, updated_at, first_response_at, resolved_at, attachment_path, message, resolution_source, ai_attempted, ai_attempted_at, ai_recommended_issue_id, escalated, escalated_at, escalation_reason, resolution_summary, user_confirmed, user_confirmed_at"
     )
     .eq("organization_id", session.organizationId)
     .eq("id", uuid)
@@ -61,6 +63,10 @@ export default async function AdminTicketPage({
   const status = normalizeStatus(ticket.status);
   const priority = normalizePriority(ticket.priority);
   const due = slaDue(ticket.created_at, priority);
+  const resolutionTrackingEnabled = isResolutionTrackingEnabled();
+  const recommendedIssue = ticket.ai_recommended_issue_id
+    ? getIssueBySlug(ticket.ai_recommended_issue_id)
+    : null;
 
   return (
     <section className="flex flex-1 flex-col bg-white px-4 py-10 text-slate-900 sm:px-6 lg:px-8">
@@ -87,7 +93,66 @@ export default async function AdminTicketPage({
           status={status}
           priority={priority}
           assignedAgent={ticket.assigned_agent ?? ""}
+          resolutionTrackingEnabled={resolutionTrackingEnabled}
+          resolutionSummary={ticket.resolution_summary ?? ""}
         />
+        {resolutionTrackingEnabled && (
+          <div className="mt-6 rounded-xl border border-slate-200 p-5">
+            <h2 className="font-semibold">Resolution</h2>
+            <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+              <div>
+                <dt className="font-medium">Resolved by</dt>
+                <dd>
+                  {ticket.resolution_source === "ai"
+                    ? "AI assistant"
+                    : ticket.resolution_source === "agent"
+                      ? "Support agent"
+                      : ticket.resolution_source === "self_service"
+                        ? "Self-service"
+                        : "—"}
+                </dd>
+              </div>
+              <div>
+                <dt className="font-medium">AI attempted</dt>
+                <dd>
+                  {ticket.ai_attempted ? "Yes" : "No"}
+                  {ticket.ai_attempted_at
+                    ? ` · ${new Date(ticket.ai_attempted_at).toLocaleString()}`
+                    : ""}
+                </dd>
+              </div>
+              <div>
+                <dt className="font-medium">Recommended guide</dt>
+                <dd>{recommendedIssue?.title ?? "—"}</dd>
+              </div>
+              <div>
+                <dt className="font-medium">Escalated</dt>
+                <dd>
+                  {ticket.escalated ? "Yes" : "No"}
+                  {ticket.escalated_at
+                    ? ` · ${new Date(ticket.escalated_at).toLocaleString()}`
+                    : ""}
+                </dd>
+              </div>
+              <div>
+                <dt className="font-medium">Escalation reason</dt>
+                <dd>{ticket.escalation_reason ?? "—"}</dd>
+              </div>
+              <div>
+                <dt className="font-medium">User confirmed</dt>
+                <dd>
+                  {ticket.user_confirmed && ticket.user_confirmed_at
+                    ? new Date(ticket.user_confirmed_at).toLocaleString()
+                    : "Not confirmed"}
+                </dd>
+              </div>
+              <div className="sm:col-span-2">
+                <dt className="font-medium">Resolution summary</dt>
+                <dd>{ticket.resolution_summary ?? "—"}</dd>
+              </div>
+            </dl>
+          </div>
+        )}
         <div className="mt-6 rounded-xl border border-slate-200 p-5">
           <h2 className="font-semibold">Description</h2>
           <p className="mt-3 whitespace-pre-wrap text-slate-700">

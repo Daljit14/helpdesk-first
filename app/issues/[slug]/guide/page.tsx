@@ -5,6 +5,8 @@ import { getAllIssueSlugs, getIssueBySlug } from "@/lib/search";
 import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/supabase/user";
 import { getProgress } from "@/lib/guides-data";
+import { createClient } from "@/lib/supabase/server";
+import { isResolutionTrackingEnabled } from "@/lib/admin/flags";
 
 export async function generateStaticParams() {
   return getAllIssueSlugs().map((slug) => ({ slug }));
@@ -54,6 +56,33 @@ export default async function GuidePage({
   const initialCompletedSteps = user
     ? await getProgress(user.id, issue.id)
     : [];
+  const resolutionTrackingEnabled = isResolutionTrackingEnabled();
+  let linkedTicket: { id: string; alreadyResolved: boolean } | null = null;
+  const ticketParam = typeof query.ticket === "string" ? query.ticket : null;
+  if (
+    resolutionTrackingEnabled &&
+    user &&
+    ticketParam &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      ticketParam
+    )
+  ) {
+    const supabase = await createClient();
+    const { data: ticket } = await supabase
+      .from("tickets")
+      .select("id,status,ai_attempted")
+      .eq("id", ticketParam)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (ticket) {
+      linkedTicket = {
+        id: ticket.id,
+        alreadyResolved: ["resolved", "closed"].includes(
+          String(ticket.status).toLowerCase()
+        ),
+      };
+    }
+  }
 
   return (
     <section className="flex flex-1 flex-col px-4 py-12 sm:px-6 lg:px-8">
@@ -68,6 +97,8 @@ export default async function GuidePage({
           issue={issue}
           initialCompletedSteps={initialCompletedSteps}
           canPersist={Boolean(user)}
+          linkedTicket={linkedTicket}
+          resolutionTrackingEnabled={resolutionTrackingEnabled}
         />
       </Suspense>
     </section>

@@ -43,6 +43,13 @@ function formatTime(value: number) {
   });
 }
 
+function formatDuration(minutes: number) {
+  const rounded = Math.max(0, Math.round(minutes));
+  const hours = Math.floor(rounded / 60);
+  const remaining = rounded % 60;
+  return `${hours}h ${remaining}m`;
+}
+
 function metricTone(key: keyof AdminMetric) {
   if (["urgentOpenTickets", "slaBreached"].includes(key))
     return "border-red-200 bg-red-50";
@@ -75,6 +82,7 @@ function TicketTable({ tickets }: { tickets: AdminOperationsTicket[] }) {
               "Platform",
               "Priority",
               "Status",
+              "Resolved by",
               "Agent",
               "SLA status",
               "Last updated",
@@ -104,6 +112,7 @@ function TicketTable({ tickets }: { tickets: AdminOperationsTicket[] }) {
               <td className="px-4 py-3">{ticket.platform}</td>
               <td className="px-4 py-3">{ticket.priority}</td>
               <td className="px-4 py-3">{ticket.status}</td>
+              <td className="px-4 py-3">{ticket.resolvedBy ?? "—"}</td>
               <td className="px-4 py-3">
                 {ticket.assignedAgent || "Unassigned"}
               </td>
@@ -125,8 +134,10 @@ function TicketTable({ tickets }: { tickets: AdminOperationsTicket[] }) {
 
 export function AdminDashboard({
   initialSnapshot,
+  resolutionTrackingEnabled = false,
 }: {
   initialSnapshot: OperationsData;
+  resolutionTrackingEnabled?: boolean;
 }) {
   const router = useRouter();
   const initialTime = Date.parse(initialSnapshot.generatedAt);
@@ -235,6 +246,9 @@ export function AdminDashboard({
             <h1 className="text-3xl font-bold">Operations</h1>
             <p className="mt-2 text-slate-600">
               Live support operations dashboard.
+            </p>
+            <p className="mt-1 text-sm text-slate-500">
+              Organization: {snapshot.organizationName}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
@@ -373,6 +387,123 @@ export function AdminDashboard({
           </table>
         </section>
 
+        {resolutionTrackingEnabled && snapshot.resolution && (
+          <section className="space-y-5 rounded-xl border border-slate-200 p-5">
+            <h2 className="font-semibold">Resolution tracking</h2>
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-7">
+              {[
+                [
+                  "Total tickets",
+                  snapshot.resolution.totalTickets,
+                  "border-slate-200 bg-white",
+                ],
+                [
+                  "Solved by AI",
+                  snapshot.resolution.aiSolved,
+                  "border-emerald-200 bg-emerald-50",
+                ],
+                [
+                  "Solved by agents",
+                  snapshot.resolution.agentSolved,
+                  "border-blue-200 bg-blue-50",
+                ],
+                [
+                  "Escalated",
+                  snapshot.resolution.escalated,
+                  "border-orange-200 bg-orange-50",
+                ],
+                [
+                  "Open",
+                  snapshot.resolution.openTickets,
+                  "border-blue-200 bg-blue-50",
+                ],
+                [
+                  "AI resolution rate",
+                  `${snapshot.resolution.aiResolutionRate}%`,
+                  "border-emerald-200 bg-emerald-50",
+                ],
+                [
+                  "Avg resolution time",
+                  formatDuration(snapshot.resolution.avgResolutionMinutes),
+                  "border-slate-200 bg-white",
+                ],
+              ].map(([label, value, tone]) => (
+                <div
+                  key={String(label)}
+                  className={`rounded-xl border p-4 ${tone}`}
+                >
+                  <p className="text-sm text-slate-600">{label}</p>
+                  <p className="mt-2 text-2xl font-bold">{value}</p>
+                  {label === "AI resolution rate" && (
+                    <p className="mt-1 text-xs text-slate-500">
+                      of {snapshot.resolution?.aiAttempted ?? 0} AI-attempted
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div
+              role="img"
+              aria-label="Fourteen day resolution tracking chart"
+              className="space-y-2"
+            >
+              <div className="flex items-center gap-4 text-xs text-slate-600">
+                <span>
+                  <i className="mr-1 inline-block h-2 w-2 bg-emerald-500" />
+                  AI solved
+                </span>
+                <span>
+                  <i className="mr-1 inline-block h-2 w-2 bg-blue-500" />
+                  Agent solved
+                </span>
+                <span>
+                  <i className="mr-1 inline-block h-2 w-2 bg-orange-500" />
+                  Escalated
+                </span>
+              </div>
+              {snapshot.resolution.daily.length === 0 ? (
+                <p className="text-sm text-slate-600">
+                  No resolution activity.
+                </p>
+              ) : (
+                snapshot.resolution.daily.map((point) => {
+                  const total =
+                    point.aiSolved + point.agentSolved + point.escalated;
+                  const width = Math.max(total, 1);
+                  return (
+                    <div key={point.day} className="flex items-center gap-3">
+                      <span className="w-24 text-xs text-slate-600">
+                        {point.day}
+                      </span>
+                      <div className="flex h-5 flex-1 overflow-hidden rounded bg-slate-100">
+                        <div
+                          className="bg-emerald-500"
+                          style={{
+                            width: `${(point.aiSolved / width) * 100}%`,
+                          }}
+                        />
+                        <div
+                          className="bg-blue-500"
+                          style={{
+                            width: `${(point.agentSolved / width) * 100}%`,
+                          }}
+                        />
+                        <div
+                          className="bg-orange-500"
+                          style={{
+                            width: `${(point.escalated / width) * 100}%`,
+                          }}
+                        />
+                      </div>
+                      <span className="w-8 text-right text-xs">{total}</span>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </section>
+        )}
+
         <section id="tickets" className="rounded-xl border border-slate-200">
           <div className="border-b border-slate-200 p-5">
             <h2 className="font-semibold">Tickets</h2>
@@ -390,6 +521,22 @@ export function AdminDashboard({
                 <option>Resolved</option>
                 <option>Closed</option>
               </select>
+              {snapshot.resolution && (
+                <select
+                  aria-label="Resolution"
+                  value={filters.resolutionSource ?? ""}
+                  onChange={(event) =>
+                    updateFilter("resolutionSource", event.target.value)
+                  }
+                  className="h-9 rounded-md border border-slate-300 px-3"
+                >
+                  <option value="">All resolutions</option>
+                  <option value="ai">Solved by AI</option>
+                  <option value="agent">Solved by agent</option>
+                  <option value="self_service">Self-service</option>
+                  <option value="unresolved">Unresolved</option>
+                </select>
+              )}
               <select
                 aria-label="Priority"
                 value={filters.priority ?? ""}

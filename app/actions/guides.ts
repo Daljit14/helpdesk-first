@@ -156,6 +156,8 @@ export async function submitTicket(
     category: result.issue.category,
     message: parsed.data.message,
     attachment_path: attachmentPath,
+    escalated: true,
+    escalated_at: new Date().toISOString(),
   });
   if (error) return { error: "Unable to submit ticket." };
   await recordAnalyticsEvent({

@@ -41,7 +41,6 @@ export default async function AdminLayout({
                     Tickets
                   </Link>
                 </nav>
-                <AdminThemeToggle />
                 <form action={adminLogout}>
                   <Button type="submit" variant="outline" size="sm">
                     Logout

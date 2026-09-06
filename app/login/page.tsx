@@ -21,7 +21,7 @@ export default async function LoginPage({
 
   return (
     <section className="flex flex-1 flex-col items-center justify-center px-6 py-12">
-      <div className="w-full max-w-sm space-y-6">
+      <div className="glass-strong w-full max-w-md space-y-6 p-8">
         <h1 className="text-2xl font-semibold tracking-tight">Log in</h1>
         <LoginForm next={safeNext} />
         <p className="text-center text-sm text-muted-foreground">

@@ -158,13 +158,13 @@ export function HomePage({
   }
 
   return (
-    <section className="flex flex-1 flex-col px-4 py-12 sm:px-6 lg:px-8">
+    <section className="flex flex-1 flex-col px-4 py-14 sm:px-6 lg:px-8">
       <div className="mx-auto w-full max-w-4xl">
         <div className="text-center">
-          <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
-            What can we help you with?
+          <h1 className="text-4xl font-bold tracking-tight sm:text-6xl">
+            What&apos;s not working today?
           </h1>
-          <p className="mt-4 text-lg text-muted-foreground">
+          <p className="mx-auto mt-4 max-w-2xl text-lg text-muted-foreground">
             Search issues, pick a category, or choose a platform to find Level-1
             support guidance.
           </p>
@@ -172,7 +172,7 @@ export function HomePage({
 
         {activeSessions.length > 0 && (
           <div
-            className="mt-6 rounded-lg border border-primary/20 bg-primary/5 p-4"
+            className="glass mt-6 p-4"
             aria-live="polite"
           >
             <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
@@ -234,7 +234,7 @@ export function HomePage({
         {process.env.NEXT_PUBLIC_AI_ENABLED === "true" && (
           <Link
             href="/assistant"
-            className="group mt-4 flex items-center gap-3 rounded-xl border bg-card p-4 text-left transition-colors hover:ring-2 hover:ring-primary/20"
+            className="glass glass-interactive group mt-4 flex items-center gap-3 p-4 text-left"
           >
             <Bot className="h-5 w-5 shrink-0 text-primary" aria-hidden />
             <span className="min-w-0 flex-1">

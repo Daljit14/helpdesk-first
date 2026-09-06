@@ -57,7 +57,7 @@ export function NetworkCheckWidget() {
   };
 
   return (
-    <div className="mt-6 rounded-xl border border-border bg-card p-6">
+    <div className="glass mt-6 p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2 font-semibold">
           <Wifi className="h-4 w-4 text-indigo-500" aria-hidden />

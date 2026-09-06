@@ -116,7 +116,7 @@ export function TicketsTable({
 
   if (tickets.length === 0) {
     return (
-      <div className="mt-8 rounded-xl border border-border bg-card p-8 text-center">
+      <div className="glass-strong mt-8 p-8 text-center">
         <p className="text-lg font-medium">
           You have not submitted any tickets.
         </p>
@@ -132,11 +132,11 @@ export function TicketsTable({
 
   return (
     <div
-      className="mt-8 overflow-x-auto rounded-xl border border-border"
+      className="glass-strong mt-8 overflow-x-auto"
       data-live={live ? "connected" : "fallback"}
     >
       <table className="w-full text-left text-sm">
-        <thead className="border-b border-border bg-muted/50">
+        <thead className="sticky top-0 border-b border-border bg-muted/60 backdrop-blur">
           <tr>
             <th className="px-4 py-3 font-medium">Issue</th>
             <th className="px-4 py-3 font-medium">Status</th>
@@ -148,7 +148,7 @@ export function TicketsTable({
           {tickets.map((ticket) => (
             <tr
               key={ticket.id}
-              className="border-b border-border last:border-0"
+              className="border-b border-border transition-colors hover:bg-muted/40 last:border-0"
             >
               <td className="px-4 py-4 align-top">
                 <Link
@@ -163,7 +163,7 @@ export function TicketsTable({
                 </Link>
               </td>
               <td className="px-4 py-4 align-top">
-                <span className="rounded-full bg-muted px-2 py-1 text-xs">
+                <span className="glass-pill px-3 py-1 text-xs">
                   {ticket.status}
                 </span>
               </td>

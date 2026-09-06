@@ -25,11 +25,11 @@ export function IssueCard({
     <li className="relative">
       <Link
         href={href}
-        className="group block rounded-xl border border-border bg-card p-5 shadow-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="glass glass-interactive group block p-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-start gap-3">
-            <div className="mt-1 rounded-lg bg-muted p-2 text-indigo-500">
+            <div className="mt-1 rounded-full bg-primary/10 p-2 text-primary">
               {createElement(Icon, { className: "h-5 w-5" })}
             </div>
             <div>
@@ -47,15 +47,15 @@ export function IssueCard({
         </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
-          <span className="inline-flex items-center gap-1">
+          <span className="glass-pill inline-flex items-center gap-1 px-3 py-1">
             <DifficultyMeter level={issue.difficulty} />
             <span className="sr-only">Difficulty:</span> {issue.difficulty}/3
           </span>
-          <span className="inline-flex items-center gap-1">
+          <span className="glass-pill inline-flex items-center gap-1 px-3 py-1">
             <Clock className="h-4 w-4" />
             {issue.time}
           </span>
-          <span className="inline-flex items-center gap-1">
+          <span className="glass-pill inline-flex items-center gap-1 px-3 py-1">
             <Monitor className="h-4 w-4" />
             {issue.devices.join(", ")}
           </span>

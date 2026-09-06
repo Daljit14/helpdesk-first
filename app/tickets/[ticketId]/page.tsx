@@ -66,7 +66,7 @@ export default async function TicketPage({
       <div className="mx-auto w-full max-w-3xl">
         <p className="text-sm text-muted-foreground">Ticket</p>
         <h1 className="mt-2 text-3xl font-bold">{ticket.issue_title}</h1>
-        <p className="mt-3 rounded-full bg-muted px-3 py-1 text-sm inline-block">
+        <p className="glass-pill mt-3 inline-block px-3 py-1 text-sm">
           {ticket.status}
         </p>
         {handoffReasonLabel(ticket.handoff_reason, ticket.status) && (
@@ -75,7 +75,7 @@ export default async function TicketPage({
             {handoffReasonLabel(ticket.handoff_reason, ticket.status)}
           </p>
         )}
-        <div className="mt-6 rounded-xl border border-border p-5">
+        <div className="glass-strong mt-6 p-5">
           <h2 className="font-semibold">Original problem</h2>
           <p className="mt-3 whitespace-pre-wrap">{ticket.message}</p>
           <p className="mt-3 text-sm text-muted-foreground">

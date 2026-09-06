@@ -18,7 +18,7 @@ export default async function TicketsPage() {
   return (
     <section className="flex flex-1 flex-col px-4 py-12 sm:px-6 lg:px-8">
       <div className="mx-auto w-full max-w-4xl">
-        <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="glass mb-6 flex flex-wrap items-center justify-between gap-4 p-5">
           <h1 className="text-3xl font-bold tracking-tight">Tickets</h1>
           <PushSubscribeButton />
         </div>

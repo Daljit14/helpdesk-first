@@ -67,9 +67,9 @@ body::before {
 
 .dark body::before {
   background:
-    radial-gradient(circle at 12% 18%, rgb(99 102 241 / 0.18), transparent 34%),
-    radial-gradient(circle at 82% 12%, rgb(34 211 238 / 0.16), transparent 32%),
-    radial-gradient(circle at 55% 88%, rgb(236 72 153 / 0.15), transparent 35%);
+    radial-gradient(circle at 12% 18%, rgb(99 102 241 / 0.3), transparent 34%),
+    radial-gradient(circle at 82% 12%, rgb(34 211 238 / 0.27), transparent 32%),
+    radial-gradient(circle at 55% 88%, rgb(236 72 153 / 0.22), transparent 35%);
 }
 
 @layer components {
@@ -128,6 +128,7 @@ body::before {
 .dark .glass,
 .dark .glass-strong,
 .dark .glass-pill {
+  border-color: rgb(255 255 255 / 0.12);
   box-shadow:
     0 1px 0 0 rgb(255 255 255 / 0.08) inset,
     0 12px 40px -12px rgb(0 0 0 / 0.28);

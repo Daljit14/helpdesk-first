@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { Download, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -10,6 +11,7 @@ type BeforeInstallPromptEvent = Event & {
 };
 
 export function InstallPrompt() {
+  const pathname = usePathname();
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(
     null
   );
@@ -24,7 +26,7 @@ export function InstallPrompt() {
     return () => window.removeEventListener("beforeinstallprompt", handler);
   }, []);
 
-  if (!deferred || dismissed) return null;
+  if (pathname?.startsWith("/admin") || !deferred || dismissed) return null;
 
   return (
     <div className="glass fixed bottom-4 left-1/2 z-50 flex w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 items-center gap-3 p-4">

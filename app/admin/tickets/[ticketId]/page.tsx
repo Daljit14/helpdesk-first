@@ -70,6 +70,44 @@ type WorkflowMember = {
   role: "admin" | "support_agent";
 };
 
+function statusTone(status: string) {
+  switch (status) {
+    case "New":
+    case "AI Reviewing":
+    case "AI Resolving":
+      return "bg-indigo-500/15 text-indigo-700 dark:text-indigo-200";
+    case "Needs Human":
+      return "bg-amber-500/15 text-amber-800 dark:text-amber-200";
+    case "In Progress":
+      return "bg-sky-500/15 text-sky-800 dark:text-sky-200";
+    case "Waiting":
+    case "Waiting for User":
+      return "bg-violet-500/15 text-violet-800 dark:text-violet-200";
+    case "Pending Verification":
+      return "bg-teal-500/15 text-teal-800 dark:text-teal-200";
+    case "Resolved":
+      return "bg-emerald-500/15 text-emerald-800 dark:text-emerald-200";
+    case "Closed":
+      return "bg-muted text-muted-foreground";
+    default:
+      return "bg-muted text-muted-foreground";
+  }
+}
+
+function priorityTone(priority: string) {
+  switch (priority) {
+    case "Urgent":
+      return "bg-red-500/15 text-red-800 dark:text-red-200";
+    case "High":
+      return "bg-orange-500/15 text-orange-800 dark:text-orange-200";
+    case "Low":
+      return "bg-slate-500/15 text-slate-700 dark:text-slate-200";
+    case "Normal":
+    default:
+      return "bg-muted text-muted-foreground";
+  }
+}
+
 export default async function AdminTicketPage({
   params,
 }: {
@@ -201,8 +239,22 @@ export default async function AdminTicketPage({
         </p>
         <h1 className="mt-2 text-3xl font-bold">{ticket.issue_title}</h1>
         <div className="glass mt-6 grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-3">
-          <p>Status: {status}</p>
-          <p>Priority: {priority}</p>
+          <p className="flex items-center gap-2">
+            <span>Status:</span>
+            <span
+              className={`glass-pill px-2 py-1 text-xs ${statusTone(status)}`}
+            >
+              {status}
+            </span>
+          </p>
+          <p className="flex items-center gap-2">
+            <span>Priority:</span>
+            <span
+              className={`glass-pill px-2 py-1 text-xs ${priorityTone(priority)}`}
+            >
+              {priority}
+            </span>
+          </p>
           <p>Category: {ticket.category ?? categoryLabel(ticket.issue_id)}</p>
           <p>Platform: {normalizePlatform(ticket.platform)}</p>
           <p>Agent: {ticket.assigned_agent ?? "Unassigned"}</p>

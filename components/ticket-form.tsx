@@ -14,9 +14,11 @@ const initialState: TicketActionState = null;
 export function TicketForm({
   issueId,
   userId,
+  workflowEnabled = false,
 }: {
   issueId: string;
   userId: string;
+  workflowEnabled?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(
     submitTicket,
@@ -55,6 +57,12 @@ export function TicketForm({
   return (
     <form action={formAction} className="space-y-4">
       <input type="hidden" name="issueId" value={issueId} />
+      {workflowEnabled && (
+        <>
+          <input type="hidden" name="workflowEnabled" value="true" />
+          <input type="hidden" name="platform" value="Other" />
+        </>
+      )}
       {attachmentPath && (
         <input type="hidden" name="attachmentPath" value={attachmentPath} />
       )}

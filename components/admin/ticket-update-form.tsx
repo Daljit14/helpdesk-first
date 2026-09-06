@@ -17,6 +17,13 @@ const statuses = [
   "Resolved",
   "Closed",
 ] as const;
+const workflowStatuses = [
+  "AI Reviewing",
+  "AI Resolving",
+  "Needs Human",
+  "Waiting for User",
+  "Pending Verification",
+] as const;
 const priorities = ["Low", "Normal", "High", "Urgent"] as const;
 
 export function TicketUpdateForm({
@@ -26,19 +33,21 @@ export function TicketUpdateForm({
   assignedAgent,
   resolutionTrackingEnabled = false,
   resolutionSummary = "",
+  workflowEnabled = false,
 }: {
   ticketId: string;
-  status: (typeof statuses)[number];
+  status: string;
   priority: (typeof priorities)[number];
   assignedAgent: string;
   resolutionTrackingEnabled?: boolean;
   resolutionSummary?: string;
+  workflowEnabled?: boolean;
 }) {
   const [state, action, pending] = useActionState<UpdateTicketState, FormData>(
     updateTicket,
     null
   );
-  const [currentStatus, setCurrentStatus] = useState(status);
+  const [currentStatus, setCurrentStatus] = useState<string>(status);
   const [currentPriority, setCurrentPriority] = useState(priority);
   const [currentAssignedAgent, setCurrentAssignedAgent] =
     useState(assignedAgent);
@@ -80,8 +89,17 @@ export function TicketUpdateForm({
             }
             className="h-10 rounded-md border border-slate-300 bg-white px-3 text-slate-900 outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
           >
-            {statuses.map((value) => (
-              <option key={value} value={value}>
+            {(workflowEnabled
+              ? [...statuses, ...workflowStatuses]
+              : statuses
+            ).map((value) => (
+              <option
+                key={value}
+                value={value}
+                disabled={
+                  workflowEnabled && workflowStatuses.includes(value as never)
+                }
+              >
                 {value}
               </option>
             ))}

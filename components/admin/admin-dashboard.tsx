@@ -12,6 +12,7 @@ import type {
   AdminOperationsTicket,
   OperationsData,
 } from "@/lib/admin/operations-data";
+import { formatSlaCountdown } from "@/lib/tickets/sla";
 
 type RefreshStatus = "idle" | "refreshing" | "error";
 
@@ -68,7 +69,13 @@ function makeQuery(filters: AdminFilters) {
   return params.toString();
 }
 
-function TicketTable({ tickets }: { tickets: AdminOperationsTicket[] }) {
+function TicketTable({
+  tickets,
+  now,
+}: {
+  tickets: AdminOperationsTicket[];
+  now: number;
+}) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[1100px] text-left text-sm">
@@ -120,6 +127,18 @@ function TicketTable({ tickets }: { tickets: AdminOperationsTicket[] }) {
                 <span className="rounded bg-slate-100 px-2 py-1">
                   {ticket.slaState}
                 </span>
+                {!["Resolved", "Closed"].includes(ticket.status) &&
+                  formatSlaCountdown(
+                    ticket.humanResponseDueAt ?? null,
+                    new Date(now)
+                  ) && (
+                    <span className="ml-2 whitespace-nowrap text-xs text-slate-600">
+                      {formatSlaCountdown(
+                        ticket.humanResponseDueAt ?? null,
+                        new Date(now)
+                      )}
+                    </span>
+                  )}
               </td>
               <td className="whitespace-nowrap px-4 py-3">
                 {new Date(ticket.lastUpdatedAt).toLocaleString()}
@@ -135,9 +154,11 @@ function TicketTable({ tickets }: { tickets: AdminOperationsTicket[] }) {
 export function AdminDashboard({
   initialSnapshot,
   resolutionTrackingEnabled = false,
+  workflowEnabled = false,
 }: {
   initialSnapshot: OperationsData;
   resolutionTrackingEnabled?: boolean;
+  workflowEnabled?: boolean;
 }) {
   const router = useRouter();
   const initialTime = Date.parse(initialSnapshot.generatedAt);
@@ -297,6 +318,34 @@ export function AdminDashboard({
             {staleMessage}
           </p>
         )}
+        {workflowEnabled && snapshot.workflow && (
+          <section className="rounded-xl border border-slate-200 p-5">
+            <h2 className="text-xl font-semibold">Ticket workflow</h2>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+              {[
+                ["Needs human", snapshot.workflow.needsHuman],
+                ["AI resolving", snapshot.workflow.aiResolving],
+                ["In progress", snapshot.workflow.inProgress],
+                ["Waiting for user", snapshot.workflow.waitingForUser],
+                ["Pending verification", snapshot.workflow.pendingVerification],
+                ["SLA at risk", snapshot.workflow.slaAtRisk],
+                ["Resolved by AI", snapshot.workflow.resolvedByAi],
+                [
+                  "Resolved by employees",
+                  snapshot.workflow.resolvedByEmployees,
+                ],
+              ].map(([label, value]) => (
+                <div
+                  key={label}
+                  className="rounded-lg border border-slate-200 bg-white p-4"
+                >
+                  <p className="text-sm text-slate-600">{label}</p>
+                  <p className="mt-1 text-2xl font-bold">{value}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
           {metricLabels.map(([key, label]) => (
@@ -338,6 +387,7 @@ export function AdminDashboard({
                       <span>{item.count}</span>
                     </div>
                     <div
+                      role="img"
                       className="mt-1 h-2 rounded bg-blue-600"
                       style={{
                         width: `${(item.count / (max as number)) * 100}%`,
@@ -351,7 +401,11 @@ export function AdminDashboard({
           ))}
         </div>
 
-        <section className="overflow-x-auto rounded-xl border border-slate-200">
+        <section
+          tabIndex={0}
+          aria-label="Agent workload"
+          className="overflow-x-auto rounded-xl border border-slate-200"
+        >
           <h2 className="border-b border-slate-200 p-5 font-semibold">
             Agent workload
           </h2>
@@ -520,7 +574,35 @@ export function AdminDashboard({
                 <option>Waiting</option>
                 <option>Resolved</option>
                 <option>Closed</option>
+                {workflowEnabled && (
+                  <>
+                    <option>AI Reviewing</option>
+                    <option>AI Resolving</option>
+                    <option>Needs Human</option>
+                    <option>Waiting for User</option>
+                    <option>Pending Verification</option>
+                  </>
+                )}
               </select>
+              {workflowEnabled && (
+                <select
+                  aria-label="Queue"
+                  value={filters.queue ?? ""}
+                  onChange={(event) =>
+                    updateFilter("queue", event.target.value)
+                  }
+                  className="h-9 rounded-md border border-slate-300 px-3"
+                >
+                  <option value="">All queues</option>
+                  <option value="needs_human">Needs human</option>
+                  <option value="assigned_to_me">Assigned to me</option>
+                  <option value="unassigned">Unassigned</option>
+                  <option value="ai_working">AI working</option>
+                  <option value="waiting">Waiting</option>
+                  <option value="sla_breached">SLA breached</option>
+                  <option value="resolved">Resolved</option>
+                </select>
+              )}
               {snapshot.resolution && (
                 <select
                   aria-label="Resolution"
@@ -631,7 +713,7 @@ export function AdminDashboard({
               No tickets match these filters
             </p>
           ) : (
-            <TicketTable tickets={snapshot.tickets.rows} />
+            <TicketTable tickets={snapshot.tickets.rows} now={now} />
           )}
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 p-4">
             <span className="text-sm text-slate-600">

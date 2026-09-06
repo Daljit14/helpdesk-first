@@ -15,6 +15,7 @@ export type AiIntakeInput = {
 
 export type AiIntakeOutput = {
   decision: Decision;
+  confidence?: number;
   matchedIssueSlug?: string;
   detectedPlatform?: Platform | null;
   diagnosticQuestionIds?: string[];

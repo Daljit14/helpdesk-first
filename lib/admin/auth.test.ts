@@ -15,7 +15,12 @@ const { notFound, redirect, cookieStore } = vi.hoisted(() => {
     }),
   };
 });
-import { getAdminSession, requireAdminApi, requireAdminPage } from "./auth";
+import {
+  canAccessTicket,
+  getAdminSession,
+  requireAdminApi,
+  requireAdminPage,
+} from "./auth";
 import { getCurrentUser } from "@/lib/supabase/user";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -80,6 +85,63 @@ afterEach(() => {
 });
 
 describe("admin authorization", () => {
+  const adminSession = {
+    userId: "admin-1",
+    email: "admin@example.com",
+    role: "admin" as const,
+    organizationId: "org-1",
+    displayName: "Admin",
+  };
+  const agentSession = {
+    ...adminSession,
+    userId: "agent-1",
+    role: "support_agent" as const,
+  };
+
+  test("allows admins to access any ticket in their organization", () => {
+    expect(
+      canAccessTicket(adminSession, {
+        organization_id: "org-1",
+        assigned_agent_id: "agent-2",
+        status: "In Progress",
+      })
+    ).toBe(true);
+    expect(canAccessTicket(adminSession, { organization_id: "org-2" })).toBe(
+      false
+    );
+  });
+
+  test("limits support agents to assigned or unassigned human tickets", () => {
+    expect(
+      canAccessTicket(agentSession, {
+        organization_id: "org-1",
+        assigned_agent_id: "agent-1",
+        status: "In Progress",
+      })
+    ).toBe(true);
+    expect(
+      canAccessTicket(agentSession, {
+        organization_id: "org-1",
+        assigned_agent_id: null,
+        status: "Needs Human",
+      })
+    ).toBe(true);
+    expect(
+      canAccessTicket(agentSession, {
+        organization_id: "org-1",
+        assigned_agent_id: "agent-2",
+        status: "In Progress",
+      })
+    ).toBe(false);
+    expect(
+      canAccessTicket(agentSession, {
+        organization_id: "org-2",
+        assigned_agent_id: "agent-1",
+        status: "Needs Human",
+      })
+    ).toBe(false);
+  });
+
   test("feature off returns not found for pages", async () => {
     vi.stubEnv("HELP_DESK_ADMIN_DASHBOARD_ENABLED", "false");
     await expect(requireAdminPage("/admin/operations")).rejects.toThrow(

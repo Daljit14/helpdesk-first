@@ -47,6 +47,7 @@ const ALLOWED_OUTPUT_KEYS = new Set([
   "matchedIssueSlug",
   "detectedPlatform",
   "diagnosticQuestionIds",
+  "confidence",
   "explanation",
   "escalationReason",
 ]);
@@ -455,6 +456,13 @@ export function validateAiOutput(
   const decision = o.decision as "match" | "clarify" | "escalate";
 
   if (
+    o.confidence !== undefined &&
+    (typeof o.confidence !== "number" || o.confidence < 0 || o.confidence > 1)
+  ) {
+    errors.push("confidence must be a number between 0 and 1.");
+  }
+
+  if (
     o.matchedIssueSlug !== undefined &&
     typeof o.matchedIssueSlug !== "string"
   ) {
@@ -646,6 +654,8 @@ export function validateAndCoerceOutput(
   const coerced: AiIntakeOutput = {
     decision: o.decision as AiIntakeOutput["decision"],
   };
+
+  if (typeof o.confidence === "number") coerced.confidence = o.confidence;
 
   if (typeof o.matchedIssueSlug === "string") {
     coerced.matchedIssueSlug = o.matchedIssueSlug;

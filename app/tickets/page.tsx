@@ -4,6 +4,7 @@ import { getTickets } from "@/lib/guides-data";
 import { getCurrentUser } from "@/lib/supabase/user";
 import { TicketsTable } from "@/components/tickets-table";
 import { PushSubscribeButton } from "@/components/push-subscribe-button";
+import { isTicketWorkflowEnabled } from "@/lib/admin/flags";
 
 export const metadata: Metadata = {
   title: "Tickets",
@@ -21,7 +22,11 @@ export default async function TicketsPage() {
           <h1 className="text-3xl font-bold tracking-tight">Tickets</h1>
           <PushSubscribeButton />
         </div>
-        <TicketsTable initialTickets={tickets} userId={user.id} />
+        <TicketsTable
+          initialTickets={tickets}
+          userId={user.id}
+          workflowEnabled={isTicketWorkflowEnabled()}
+        />
       </div>
     </section>
   );

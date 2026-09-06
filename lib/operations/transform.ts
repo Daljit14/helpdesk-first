@@ -2,7 +2,16 @@ import { createHmac } from "node:crypto";
 import { CATEGORIES, ISSUES } from "@/lib/issues";
 
 export type OperationsStatus =
-  "New" | "In Progress" | "Waiting" | "Resolved" | "Closed";
+  | "New"
+  | "AI Reviewing"
+  | "AI Resolving"
+  | "Needs Human"
+  | "In Progress"
+  | "Waiting"
+  | "Waiting for User"
+  | "Pending Verification"
+  | "Resolved"
+  | "Closed";
 export type OperationsPriority = "Low" | "Normal" | "High" | "Urgent";
 export type OperationsPlatform =
   "Windows" | "macOS" | "Linux" | "Android" | "iOS" | "Other";
@@ -31,6 +40,15 @@ export function normalizeStatus(raw: unknown): OperationsStatus {
     return "In Progress";
   }
   if (value === "waiting") return "Waiting";
+  if (value === "ai reviewing" || value === "ai_reviewing")
+    return "AI Reviewing";
+  if (value === "ai resolving" || value === "ai_resolving")
+    return "AI Resolving";
+  if (value === "needs human" || value === "needs_human") return "Needs Human";
+  if (value === "waiting for user" || value === "waiting_for_user")
+    return "Waiting for User";
+  if (value === "pending verification" || value === "pending_verification")
+    return "Pending Verification";
   if (value === "resolved") return "Resolved";
   if (value === "closed") return "Closed";
   return "New";
@@ -89,7 +107,16 @@ export function buildAgentQueue(
   );
   return [...groups.entries()].map(([agent, assigned]) => {
     const open = assigned.filter((ticket) =>
-      ["New", "In Progress", "Waiting"].includes(ticket.status)
+      [
+        "New",
+        "AI Reviewing",
+        "AI Resolving",
+        "Needs Human",
+        "In Progress",
+        "Waiting",
+        "Waiting for User",
+        "Pending Verification",
+      ].includes(ticket.status)
     );
     const urgentOpen = open.filter(
       (ticket) => ticket.priority === "Urgent"
@@ -130,7 +157,11 @@ export function buildAgentQueue(
       assignedOpen: open.length,
       urgentOpen,
       slaBreached,
-      waiting: open.filter((ticket) => ticket.status === "Waiting").length,
+      waiting: open.filter((ticket) =>
+        ["Waiting", "Waiting for User", "Pending Verification"].includes(
+          ticket.status
+        )
+      ).length,
       resolvedToday,
       averageOpenAgeMinutes,
       workload,

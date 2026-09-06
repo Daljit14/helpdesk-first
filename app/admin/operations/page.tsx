@@ -5,7 +5,11 @@ import {
   defaultAdminFilters,
   getOperationsData,
 } from "@/lib/admin/operations-data";
-import { isResolutionTrackingEnabled } from "@/lib/admin/flags";
+import {
+  isResolutionTrackingEnabled,
+  isTicketWorkflowEnabled,
+} from "@/lib/admin/flags";
+import { notifyOverdueTickets } from "@/lib/tickets/notify";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -15,11 +19,14 @@ export const metadata: Metadata = {
 
 export default async function OperationsPage() {
   const session = await requireAdminPage("/admin/operations");
+  if (isTicketWorkflowEnabled())
+    void notifyOverdueTickets(session.organizationId);
   const snapshot = await getOperationsData(session, defaultAdminFilters());
   return (
     <AdminDashboard
       initialSnapshot={snapshot}
       resolutionTrackingEnabled={isResolutionTrackingEnabled()}
+      workflowEnabled={isTicketWorkflowEnabled()}
     />
   );
 }

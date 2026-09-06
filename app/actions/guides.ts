@@ -9,6 +9,8 @@ import { submitTicketSchema } from "@/lib/validation";
 import type { User } from "@supabase/supabase-js";
 import type { Issue } from "@/lib/issues";
 import { recordAnalyticsEvent } from "@/lib/analytics/events";
+import { isTicketWorkflowEnabled } from "@/lib/admin/flags";
+import { createWorkflowTicket } from "@/app/actions/tickets";
 
 type GuideActionError = { error: string };
 type AuthenticatedIssueResult = GuideActionError | { user: User; issue: Issue };
@@ -111,6 +113,7 @@ export async function rateGuide(
 
 export type TicketActionState = {
   success?: boolean;
+  ticketId?: string;
   fieldErrors?: Record<string, string>;
   error?: string;
 } | null;
@@ -119,6 +122,16 @@ export async function submitTicket(
   _prevState: TicketActionState,
   formData: FormData
 ): Promise<TicketActionState> {
+  if (isTicketWorkflowEnabled() && formData.get("workflowEnabled") === "true") {
+    const workflow = await createWorkflowTicket({
+      message: String(formData.get("message") ?? ""),
+      platform: String(formData.get("platform") ?? "Other"),
+      issueId: String(formData.get("issueId") ?? ""),
+    });
+    if ("error" in workflow) return { error: workflow.error };
+    revalidatePath("/tickets");
+    return { success: true, ticketId: workflow.ticketId };
+  }
   const result = await authenticatedIssue(
     String(formData.get("issueId") ?? "")
   );

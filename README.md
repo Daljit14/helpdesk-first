@@ -66,6 +66,12 @@ Retention may be scheduled with pg_cron using the commented schedule in
 Rollback statements in that migration are destructive and require explicit
 approval.
 
+When `HELP_DESK_TICKET_WORKFLOW_ENABLED=true` after applying
+`supabase/ticket-workflow.sql`, the detail page also supports AI/employee
+routing, public replies, internal notes, verification, and SLA tracking.
+Overdue notifications are checked when the operations dashboard loads or
+refreshes; they are dashboard-triggered rather than cron-driven.
+
 ## Resolution tracking (Phase 5I.3)
 
 Apply `supabase/resolution-tracking.sql` after `supabase/admin-dashboard.sql`,

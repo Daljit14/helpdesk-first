@@ -16,6 +16,7 @@ type GuideActionsProps = {
   initialBookmarked: boolean;
   initialVote: "up" | "down" | null;
   initialTotals: { up: number; down: number };
+  workflowEnabled?: boolean;
 };
 
 export function GuideActions({
@@ -24,6 +25,7 @@ export function GuideActions({
   initialBookmarked,
   initialVote,
   initialTotals,
+  workflowEnabled = false,
 }: GuideActionsProps) {
   const [bookmarked, setBookmarked] = useState(initialBookmarked);
   const [vote, setVote] = useState(initialVote);
@@ -141,7 +143,13 @@ export function GuideActions({
           </Link>
         )}
       </div>
-      {showTicket && user && <TicketForm issueId={issueId} userId={user.id} />}
+      {showTicket && user && (
+        <TicketForm
+          issueId={issueId}
+          userId={user.id}
+          workflowEnabled={workflowEnabled}
+        />
+      )}
     </div>
   );
 }

@@ -21,14 +21,17 @@ import {
   type DiagnosticAnswer,
 } from "@/lib/ai/types";
 import { startAiTicket } from "@/app/actions/resolution";
+import { createWorkflowTicket } from "@/app/actions/tickets";
 
 const MAX_QUESTIONS = 3;
 
 export function AiAssistant({
   resolutionTrackingEnabled = false,
+  workflowEnabled = false,
   signedIn = false,
 }: {
   resolutionTrackingEnabled?: boolean;
+  workflowEnabled?: boolean;
   signedIn?: boolean;
 }) {
   const router = useRouter();
@@ -167,6 +170,21 @@ export function AiAssistant({
     setDiagnosticAnswer("");
   }
 
+  async function handleSendToSupport() {
+    const result = await createWorkflowTicket({
+      message: problem,
+      platform: platform ?? "Other",
+      diagnosticAnswers: previousAnswers,
+    });
+    if ("ticketId" in result && result.ticketId) {
+      router.push(`/tickets/${result.ticketId}`);
+      return {};
+    }
+    return {
+      error: "error" in result ? result.error : "Unable to submit ticket.",
+    };
+  }
+
   function searchHref() {
     const params = new URLSearchParams();
     if (problem) params.set("q", problem);
@@ -251,6 +269,9 @@ export function AiAssistant({
             reason={currentOutput.escalationReason ?? ""}
             searchHref={searchHref()}
             onRestart={handleRestart}
+            workflowEnabled={workflowEnabled}
+            signedIn={signedIn}
+            onSendToSupport={handleSendToSupport}
           />
         ) : currentOutput?.decision === "clarify" ? (
           <ClarifyView
@@ -264,6 +285,9 @@ export function AiAssistant({
             previousAnswers={previousAnswers}
             loading={loading}
             problem={problem}
+            workflowEnabled={workflowEnabled}
+            signedIn={signedIn}
+            onSendToSupport={handleSendToSupport}
           />
         ) : (
           <div className="mt-8">
@@ -301,6 +325,9 @@ function ClarifyView({
   previousAnswers,
   loading,
   problem,
+  workflowEnabled,
+  signedIn,
+  onSendToSupport,
 }: {
   output: AiIntakeOutput;
   platform: Platform | null;
@@ -312,6 +339,9 @@ function ClarifyView({
   previousAnswers: DiagnosticAnswer[];
   loading: boolean;
   problem: string;
+  workflowEnabled: boolean;
+  signedIn: boolean;
+  onSendToSupport: () => Promise<{ error?: string }>;
 }) {
   const firstQuestionId = output.diagnosticQuestionIds?.[0];
   const question = diagnosticQuestions.find((q) => q.id === firstQuestionId);
@@ -358,6 +388,9 @@ function ClarifyView({
         reason="The assistant could not find a suitable follow-up question. Use the search page or contact your IT team."
         searchHref={`/?q=${encodeURIComponent(problem)}`}
         onRestart={() => window.location.reload()}
+        workflowEnabled={workflowEnabled}
+        signedIn={signedIn}
+        onSendToSupport={onSendToSupport}
       />
     );
   }
@@ -470,11 +503,34 @@ function EscalateView({
   reason,
   searchHref,
   onRestart,
+  workflowEnabled = false,
+  signedIn = false,
+  onSendToSupport,
 }: {
   reason: string;
   searchHref: string;
   onRestart: () => void;
+  workflowEnabled?: boolean;
+  signedIn?: boolean;
+  onSendToSupport?: () => Promise<{ error?: string }>;
 }) {
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function sendToSupport() {
+    if (!onSendToSupport) return;
+    setPending(true);
+    setError(null);
+    try {
+      const result = await onSendToSupport();
+      if (result.error) setError(result.error);
+    } catch {
+      setError("Unable to submit ticket.");
+    } finally {
+      setPending(false);
+    }
+  }
+
   return (
     <div className="mt-8 space-y-6 rounded-xl border border-destructive/20 bg-destructive/5 p-6">
       <div className="flex items-center gap-2 text-destructive">
@@ -482,7 +538,30 @@ function EscalateView({
         <h2 className="text-xl font-semibold">Contact your IT team</h2>
       </div>
       <p className="text-destructive">{reason}</p>
+      {error && (
+        <p role="alert" className="text-sm text-destructive">
+          {error}
+        </p>
+      )}
       <div className="flex flex-wrap gap-3">
+        {workflowEnabled && signedIn ? (
+          <Button
+            type="button"
+            onClick={() => void sendToSupport()}
+            disabled={pending}
+            aria-busy={pending}
+          >
+            {pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            Send to a support person
+          </Button>
+        ) : workflowEnabled ? (
+          <Link
+            href="/login?next=/assistant"
+            className={cn(buttonVariants({ variant: "default" }))}
+          >
+            Log in to send this to a support person
+          </Link>
+        ) : null}
         <Link
           href={searchHref}
           onClick={() => {

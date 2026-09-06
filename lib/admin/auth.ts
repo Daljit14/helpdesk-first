@@ -74,11 +74,15 @@ async function membershipFor(user: User): Promise<{
     .select("display_name, mfa_enrolled")
     .eq("user_id", user.id)
     .maybeSingle();
-  if (profile?.mfa_enrolled) {
+  if (
+    profile?.mfa_enrolled ||
+    process.env.HELP_DESK_ADMIN_REQUIRE_MFA === "true"
+  ) {
     const supabase = await createClient();
     const { data: assurance } =
       await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-    if (assurance?.currentLevel !== "aal2") return null;
+    if (!profile?.mfa_enrolled || assurance?.currentLevel !== "aal2")
+      return null;
   }
   if (membership.role !== "admin" && membership.role !== "support_agent") {
     return null;
@@ -166,3 +170,20 @@ export async function recordAudit(
 }
 
 export { membershipFor };
+
+export function canAccessTicket(
+  session: AdminSession,
+  ticket: {
+    organization_id?: string | null;
+    assigned_agent_id?: string | null;
+    status?: string | null;
+  }
+): boolean {
+  if (ticket.organization_id !== session.organizationId) return false;
+  if (session.role === "admin") return true;
+  return (
+    ticket.assigned_agent_id === session.userId ||
+    (!ticket.assigned_agent_id &&
+      String(ticket.status).toLowerCase() === "needs human")
+  );
+}

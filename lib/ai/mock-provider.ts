@@ -365,6 +365,23 @@ export class MockAiProvider implements AiProvider {
     input: AiIntakeInput,
     options?: { signal?: AbortSignal }
   ): Promise<AiIntakeOutput> {
+    const output = await this.classifyInternal(input, options);
+    if (output.confidence !== undefined) return output;
+    return {
+      ...output,
+      confidence:
+        output.decision === "match"
+          ? 0.9
+          : output.decision === "clarify"
+            ? 0.5
+            : 0.2,
+    };
+  }
+
+  private async classifyInternal(
+    input: AiIntakeInput,
+    options?: { signal?: AbortSignal }
+  ): Promise<AiIntakeOutput> {
     if (options?.signal?.aborted) {
       return {
         decision: "escalate",

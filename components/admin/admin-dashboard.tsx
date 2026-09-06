@@ -135,9 +135,11 @@ function TicketTable({ tickets }: { tickets: AdminOperationsTicket[] }) {
 export function AdminDashboard({
   initialSnapshot,
   resolutionTrackingEnabled = false,
+  workflowEnabled = false,
 }: {
   initialSnapshot: OperationsData;
   resolutionTrackingEnabled?: boolean;
+  workflowEnabled?: boolean;
 }) {
   const router = useRouter();
   const initialTime = Date.parse(initialSnapshot.generatedAt);
@@ -296,6 +298,38 @@ export function AdminDashboard({
           <p className="rounded-md bg-orange-50 p-3 text-orange-800">
             {staleMessage}
           </p>
+        )}
+        {workflowEnabled && snapshot.workflow && (
+          <section className="rounded-xl border border-slate-200 p-5">
+            <h2 className="text-xl font-semibold">Ticket workflow</h2>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+              {[
+                ["Needs human", snapshot.workflow.needsHuman],
+                ["AI resolving", snapshot.workflow.aiResolving],
+                ["In progress", snapshot.workflow.inProgress],
+                ["Waiting for user", snapshot.workflow.waitingForUser],
+                ["Pending verification", snapshot.workflow.pendingVerification],
+                ["SLA at risk", snapshot.workflow.slaAtRisk],
+                ["Resolved by AI", snapshot.workflow.resolvedByAi],
+                [
+                  "Resolved by employees",
+                  snapshot.workflow.resolvedByEmployees,
+                ],
+                [
+                  "Unassigned needs human",
+                  snapshot.workflow.unassignedNeedsHuman,
+                ],
+              ].map(([label, value]) => (
+                <div
+                  key={label}
+                  className="rounded-lg border border-slate-200 bg-white p-4"
+                >
+                  <p className="text-sm text-slate-600">{label}</p>
+                  <p className="mt-1 text-2xl font-bold">{value}</p>
+                </div>
+              ))}
+            </div>
+          </section>
         )}
 
         <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
@@ -520,7 +554,35 @@ export function AdminDashboard({
                 <option>Waiting</option>
                 <option>Resolved</option>
                 <option>Closed</option>
+                {workflowEnabled && (
+                  <>
+                    <option>AI Reviewing</option>
+                    <option>AI Resolving</option>
+                    <option>Needs Human</option>
+                    <option>Waiting for User</option>
+                    <option>Pending Verification</option>
+                  </>
+                )}
               </select>
+              {workflowEnabled && (
+                <select
+                  aria-label="Queue"
+                  value={filters.queue ?? ""}
+                  onChange={(event) =>
+                    updateFilter("queue", event.target.value)
+                  }
+                  className="h-9 rounded-md border border-slate-300 px-3"
+                >
+                  <option value="">All queues</option>
+                  <option value="needs_human">Needs human</option>
+                  <option value="assigned_to_me">Assigned to me</option>
+                  <option value="unassigned">Unassigned</option>
+                  <option value="ai_working">AI working</option>
+                  <option value="waiting">Waiting</option>
+                  <option value="sla_breached">SLA breached</option>
+                  <option value="resolved">Resolved</option>
+                </select>
+              )}
               {snapshot.resolution && (
                 <select
                   aria-label="Resolution"

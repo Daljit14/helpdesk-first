@@ -6,6 +6,7 @@ import {
   type AdminFilters,
 } from "@/lib/admin/operations-data";
 import { createRateLimiter } from "@/lib/ai/rate-limit";
+import { isTicketWorkflowEnabled } from "@/lib/admin/flags";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -34,6 +35,17 @@ const querySchema = z
     sla: z.enum(["on_track", "due_soon", "breached", "closed"]).optional(),
     resolutionSource: z
       .enum(["ai", "agent", "self_service", "unresolved"])
+      .optional(),
+    queue: z
+      .enum([
+        "needs_human",
+        "assigned_to_me",
+        "unassigned",
+        "ai_working",
+        "waiting",
+        "sla_breached",
+        "resolved",
+      ])
       .optional(),
     page: z.coerce.number().int().min(1).default(1),
     pageSize: z.coerce.number().int().min(10).max(100).default(25),
@@ -76,6 +88,7 @@ function parseFilters(request: Request): AdminFilters {
     to,
     sla: parsed.sla,
     resolutionSource: parsed.resolutionSource,
+    queue: isTicketWorkflowEnabled() ? parsed.queue : undefined,
     page: parsed.page,
     pageSize: parsed.pageSize,
   };

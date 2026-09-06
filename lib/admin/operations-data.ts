@@ -48,6 +48,14 @@ export type AdminFilters = {
   to?: string;
   sla?: string;
   resolutionSource?: "ai" | "agent" | "self_service" | "unresolved";
+  queue?:
+    | "needs_human"
+    | "assigned_to_me"
+    | "unassigned"
+    | "ai_working"
+    | "waiting"
+    | "sla_breached"
+    | "resolved";
   page: number;
   pageSize: number;
 };
@@ -81,7 +89,17 @@ export type AdminOperationsTicket = {
   createdAt: string;
   updatedAt: string;
   lastUpdatedAt: string;
-  status: "New" | "In Progress" | "Waiting" | "Resolved" | "Closed";
+  status:
+    | "New"
+    | "AI Reviewing"
+    | "AI Resolving"
+    | "Needs Human"
+    | "In Progress"
+    | "Waiting"
+    | "Waiting for User"
+    | "Pending Verification"
+    | "Resolved"
+    | "Closed";
   priority: "Low" | "Normal" | "High" | "Urgent";
   category: string;
   issueTitle: string;
@@ -96,6 +114,12 @@ export type AdminOperationsTicket = {
   resolvedBy: "AI assistant" | "Support agent" | "Self-service" | null;
   aiAttempted: boolean;
   escalated: boolean;
+  assignedAgentId?: string | null;
+  resolverType?: string;
+  aiConfidence?: number | null;
+  handoffReason?: string | null;
+  waitingMinutes?: number;
+  humanResponseDueAt?: string | null;
 };
 
 export type OperationsData = {
@@ -105,6 +129,7 @@ export type OperationsData = {
   organizationName: string;
   metrics: AdminMetric;
   resolution: ResolutionMetrics | null;
+  workflow?: WorkflowMetrics | null;
   tickets: {
     rows: AdminOperationsTicket[];
     page: number;
@@ -112,6 +137,19 @@ export type OperationsData = {
     total: number;
   };
   filters: AdminFilters;
+};
+
+export type WorkflowMetrics = {
+  needsHuman: number;
+  aiResolving: number;
+  inProgress: number;
+  waitingForUser: number;
+  pendingVerification: number;
+  slaAtRisk: number;
+  slaBreached: number;
+  resolvedByAi: number;
+  resolvedByEmployees: number;
+  unassignedNeedsHuman: number;
 };
 
 const EMPTY_METRICS: AdminMetric = {
@@ -147,6 +185,68 @@ const EMPTY_RESOLUTION: ResolutionMetrics = {
   avgAiResolutionMinutes: 0,
   avgAgentResolutionMinutes: 0,
   daily: [],
+};
+const EMPTY_WORKFLOW: WorkflowMetrics = {
+  needsHuman: 0,
+  aiResolving: 0,
+  inProgress: 0,
+  waitingForUser: 0,
+  pendingVerification: 0,
+  slaAtRisk: 0,
+  slaBreached: 0,
+  resolvedByAi: 0,
+  resolvedByEmployees: 0,
+  unassignedNeedsHuman: 0,
+};
+
+type WorkflowTicketRow = {
+  id: string;
+  user_id: string;
+  issue_id: string;
+  issue_title: string;
+  category: string | null;
+  status: string;
+  priority: string;
+  assigned_agent: string | null;
+  assigned_agent_id?: string | null;
+  platform: string | null;
+  created_at: string;
+  updated_at: string | null;
+  first_response_at: string | null;
+  first_human_response_at?: string | null;
+  human_response_due_at?: string | null;
+  needs_human_at?: string | null;
+  resolved_at: string | null;
+  attachment_path: string | null;
+  resolution_source: string | null;
+  resolver_type?: string | null;
+  ai_confidence?: number | null;
+  handoff_reason?: string | null;
+  ai_attempted: boolean;
+  escalated: boolean;
+};
+
+type TicketQuery = {
+  eq(column: string, value: unknown): TicketQuery;
+  gte(column: string, value: unknown): TicketQuery;
+  lte(column: string, value: unknown): TicketQuery;
+  order(column: string, options: { ascending: boolean }): TicketQuery;
+  in(column: string, values: string[]): TicketQuery;
+  is(column: string, value: null): TicketQuery;
+  ilike(column: string, value: string): TicketQuery;
+  limit(value: number): Promise<{
+    data: WorkflowTicketRow[] | null;
+    error: Error | null;
+    count: number | null;
+  }>;
+  range(
+    start: number,
+    end: number
+  ): Promise<{
+    data: WorkflowTicketRow[] | null;
+    error: Error | null;
+    count: number | null;
+  }>;
 };
 
 function slaState(
@@ -239,6 +339,14 @@ function mapResolutionMetrics(value: unknown): ResolutionMetrics {
   };
 }
 
+function mapWorkflowMetrics(value: unknown): WorkflowMetrics {
+  if (!value || typeof value !== "object") return EMPTY_WORKFLOW;
+  const raw = value as Record<string, unknown>;
+  return Object.fromEntries(
+    Object.keys(EMPTY_WORKFLOW).map((key) => [key, Number(raw[key] ?? 0)])
+  ) as WorkflowMetrics;
+}
+
 export function defaultAdminFilters(now = new Date()): AdminFilters {
   const from = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
   return { from, page: 1, pageSize: 25 };
@@ -255,6 +363,8 @@ export async function getOperationsData(
   );
   if (metricError) console.error("admin metrics query failed", metricError);
   const resolutionEnabled = isResolutionTrackingEnabled();
+  const workflowEnabled =
+    process.env.HELP_DESK_TICKET_WORKFLOW_ENABLED === "true";
   const { data: resolutionData, error: resolutionError } = resolutionEnabled
     ? await admin.rpc("admin_resolution_metrics", {
         org: session.organizationId,
@@ -262,25 +372,39 @@ export async function getOperationsData(
     : { data: null, error: null };
   if (resolutionError)
     console.error("admin resolution metrics query failed", resolutionError);
+  const { data: workflowData, error: workflowError } = workflowEnabled
+    ? await admin.rpc("admin_workflow_metrics", { org: session.organizationId })
+    : { data: null, error: null };
+  if (workflowError)
+    console.error("admin workflow metrics query failed", workflowError);
   const { data: organization } = await admin
     .from("organizations")
     .select("name")
     .eq("id", session.organizationId)
     .maybeSingle();
 
-  let query = admin
-    .from("tickets")
-    .select(
-      "id, user_id, issue_id, issue_title, category, status, priority, assigned_agent, platform, created_at, updated_at, first_response_at, resolved_at, attachment_path, resolution_source, ai_attempted, escalated",
-      { count: "exact" }
-    )
+  const query = (workflowEnabled
+    ? admin
+        .from("tickets")
+        .select(
+          "id, user_id, issue_id, issue_title, category, status, priority, assigned_agent, assigned_agent_id, platform, created_at, updated_at, first_response_at, first_human_response_at, human_response_due_at, needs_human_at, resolved_at, attachment_path, resolution_source, resolver_type, ai_confidence, handoff_reason, ai_attempted, escalated",
+          { count: "exact" }
+        )
+    : admin
+        .from("tickets")
+        .select(
+          "id, user_id, issue_id, issue_title, category, status, priority, assigned_agent, platform, created_at, updated_at, first_response_at, resolved_at, attachment_path, resolution_source, ai_attempted, escalated",
+          { count: "exact" }
+        )) as unknown as TicketQuery;
+  const filteredQuery = query
     .eq("organization_id", session.organizationId)
     .gte("created_at", filters.from)
     .order("created_at", { ascending: false });
-  if (filters.to) query = query.lte("created_at", filters.to);
+  let activeQuery = filteredQuery;
+  if (filters.to) activeQuery = activeQuery.lte("created_at", filters.to);
 
   if (filters.status === "open") {
-    query = query.in("status", [
+    activeQuery = activeQuery.in("status", [
       "Open",
       "open",
       "New",
@@ -293,34 +417,59 @@ export async function getOperationsData(
       "waiting",
     ]);
   } else if (filters.status === "completed") {
-    query = query.in("status", ["Resolved", "resolved", "Closed", "closed"]);
+    activeQuery = activeQuery.in("status", [
+      "Resolved",
+      "resolved",
+      "Closed",
+      "closed",
+    ]);
   } else if (filters.status === "New") {
-    query = query.in("status", ["New", "new", "Open", "open"]);
+    activeQuery = activeQuery.in("status", ["New", "new", "Open", "open"]);
   } else if (filters.status === "In Progress") {
-    query = query.in("status", [
+    activeQuery = activeQuery.in("status", [
       "In Progress",
       "in progress",
       "in_progress",
       "in-progress",
     ]);
   } else if (filters.status) {
-    query = query.in("status", [filters.status, filters.status.toLowerCase()]);
+    activeQuery = activeQuery.in("status", [
+      filters.status,
+      filters.status.toLowerCase(),
+    ]);
   }
   if (filters.resolutionSource === "unresolved") {
-    query = query.is("resolution_source", null);
+    activeQuery = activeQuery.is("resolution_source", null);
   } else if (filters.resolutionSource) {
-    query = query.eq("resolution_source", filters.resolutionSource);
+    activeQuery = activeQuery.eq("resolution_source", filters.resolutionSource);
   }
-  if (filters.priority) query = query.eq("priority", filters.priority);
-  if (filters.category) query = query.eq("category", filters.category);
-  if (filters.platform) query = query.eq("platform", filters.platform);
+  if (filters.priority)
+    activeQuery = activeQuery.eq("priority", filters.priority);
+  if (filters.category)
+    activeQuery = activeQuery.eq("category", filters.category);
+  if (filters.platform)
+    activeQuery = activeQuery.eq("platform", filters.platform);
   if (filters.agent)
-    query = query.ilike("assigned_agent", `%${filters.agent}%`);
+    activeQuery = activeQuery.ilike("assigned_agent", `%${filters.agent}%`);
+  if (filters.queue === "assigned_to_me")
+    activeQuery = activeQuery.eq("assigned_agent_id", session.userId);
+  if (filters.queue === "unassigned")
+    activeQuery = activeQuery.is("assigned_agent_id", null);
+  if (filters.queue === "needs_human")
+    activeQuery = activeQuery.eq("status", "Needs Human");
+  if (filters.queue === "ai_working")
+    activeQuery = activeQuery.in("status", ["AI Reviewing", "AI Resolving"]);
+  if (filters.queue === "waiting")
+    activeQuery = activeQuery.eq("status", "Waiting for User");
+  if (filters.queue === "resolved")
+    activeQuery = activeQuery.in("status", ["Resolved", "Closed"]);
 
-  const needsSlaFilter = Boolean(filters.sla);
+  const needsSlaFilter = Boolean(
+    filters.sla || filters.queue === "sla_breached"
+  );
   const result = needsSlaFilter
-    ? await query.limit(500)
-    : await query.range(
+    ? await activeQuery.limit(500)
+    : await activeQuery.range(
         (filters.page - 1) * filters.pageSize,
         filters.page * filters.pageSize - 1
       );
@@ -329,7 +478,7 @@ export async function getOperationsData(
   const rows = (result.data ?? []).map((row) => {
     const status = normalizeStatus(row.status);
     const priority = normalizePriority(row.priority);
-    const due = slaDue(row.created_at, priority);
+    const due = row.human_response_due_at ?? slaDue(row.created_at, priority);
     return {
       ticketUuid: row.id,
       ticketId: toTicketId(row.id),
@@ -342,6 +491,24 @@ export async function getOperationsData(
       issueTitle: row.issue_title,
       userKey: pseudonymizeUser(row.user_id),
       assignedAgent: row.assigned_agent ?? "",
+      assignedAgentId: row.assigned_agent_id ?? null,
+      resolverType: row.resolver_type ?? "unassigned",
+      aiConfidence: row.ai_confidence ?? null,
+      handoffReason: row.handoff_reason ?? null,
+      waitingMinutes: row.needs_human_at
+        ? Math.max(
+            0,
+            Math.round(
+              (Date.now() -
+                Math.max(
+                  new Date(row.needs_human_at).getTime(),
+                  new Date(row.updated_at ?? row.created_at).getTime()
+                )) /
+                60000
+            )
+          )
+        : 0,
+      humanResponseDueAt: row.human_response_due_at ?? null,
       slaDue: due,
       firstResponseAt: row.first_response_at ?? null,
       resolvedAt: row.resolved_at ?? null,
@@ -363,12 +530,16 @@ export async function getOperationsData(
   const filteredRows = filters.sla
     ? rows.filter((row) => slaFilterValue(row.slaState) === filters.sla)
     : rows;
+  const queueRows =
+    filters.queue === "sla_breached"
+      ? filteredRows.filter((row) => row.slaState === "Breached")
+      : filteredRows;
   const pagedRows = needsSlaFilter
     ? filteredRows.slice(
         (filters.page - 1) * filters.pageSize,
         filters.page * filters.pageSize
       )
-    : filteredRows;
+    : queueRows;
 
   return {
     generatedAt: new Date().toISOString(),
@@ -382,11 +553,20 @@ export async function getOperationsData(
         : resolutionEnabled
           ? EMPTY_RESOLUTION
           : null,
+    workflow:
+      workflowEnabled && !workflowError
+        ? mapWorkflowMetrics(workflowData)
+        : workflowEnabled
+          ? EMPTY_WORKFLOW
+          : null,
     tickets: {
       rows: pagedRows,
       page: filters.page,
       pageSize: filters.pageSize,
-      total: needsSlaFilter ? filteredRows.length : (result.count ?? 0),
+      total:
+        needsSlaFilter || filters.queue === "sla_breached"
+          ? queueRows.length
+          : (result.count ?? 0),
     },
     filters,
   };

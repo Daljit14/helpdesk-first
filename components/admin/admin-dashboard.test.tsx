@@ -162,6 +162,8 @@ describe("AdminDashboard", () => {
             resolvedByAi: 8,
             resolvedByEmployees: 9,
             unassignedNeedsHuman: 10,
+            avgSatisfaction: null,
+            reopenedCount: 0,
           },
         }}
         workflowEnabled

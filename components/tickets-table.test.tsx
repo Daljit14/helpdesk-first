@@ -28,6 +28,7 @@ const initialTicket = {
   status: "Open",
   created_at: "2025-01-01T00:00:00.000Z",
   attachment_path: null,
+  resolver_type: "unassigned",
 };
 
 function setupClient() {
@@ -92,5 +93,34 @@ describe("TicketsTable", () => {
     });
 
     expect(builder.order).toHaveBeenCalled();
+  });
+
+  test("renders open and previous portal sections with action-needed status", () => {
+    render(
+      <TicketsTable
+        initialTickets={[
+          initialTicket,
+          {
+            ...initialTicket,
+            id: "ticket-2",
+            status: "AI Resolving",
+            issue_title: "VPN issue",
+          },
+          {
+            ...initialTicket,
+            id: "ticket-3",
+            status: "Resolved",
+            issue_title: "Printer issue",
+          },
+        ]}
+        userId="user-1"
+        workflowEnabled
+        portalEnabled
+      />
+    );
+    expect(screen.getByTestId("tickets-open")).toBeInTheDocument();
+    expect(screen.getByTestId("tickets-previous")).toBeInTheDocument();
+    expect(screen.getByText("Action needed")).toBeInTheDocument();
+    expect(screen.getByText("Suggested fix ready")).toBeInTheDocument();
   });
 });

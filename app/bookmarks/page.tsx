@@ -23,7 +23,7 @@ export default async function BookmarksPage() {
       <div className="mx-auto w-full max-w-4xl">
         <h1 className="text-3xl font-bold tracking-tight">Bookmarks</h1>
         {issues.length === 0 ? (
-          <div className="mt-8 rounded-xl border border-border bg-card p-8 text-center">
+          <div className="glass-strong mt-8 p-8 text-center">
             <p className="text-lg font-medium">You have no saved guides yet.</p>
             <Link
               href="/"

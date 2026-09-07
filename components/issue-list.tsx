@@ -19,7 +19,7 @@ export function IssueList({
 
   if (issues.length === 0) {
     return (
-      <div className="rounded-xl border border-border bg-background p-8 text-center">
+      <div className="glass-strong p-8 text-center">
         <p className="text-lg font-medium">No matching problems found.</p>
         <p className="mt-2 text-muted-foreground">
           Try a different search term, category, or platform filter.

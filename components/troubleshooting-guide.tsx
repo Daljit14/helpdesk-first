@@ -371,20 +371,44 @@ function StepView({
         Step {index + 1} of {total}
       </p>
 
-      <div className="rounded-xl border border-border bg-background p-6 shadow-sm">
+      <ol aria-label="Troubleshooting steps" className="space-y-2">
+        {steps.map((stepLabel, stepIndex) => (
+          <li
+            key={stepLabel}
+            className={`flex items-center gap-3 text-sm ${
+              stepIndex === index
+                ? "font-semibold text-foreground"
+                : "text-muted-foreground"
+            }`}
+          >
+            <span
+              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border ${
+                stepIndex <= index
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-border bg-background/40"
+              }`}
+            >
+              {stepIndex + 1}
+            </span>
+            <span>{stepLabel}</span>
+          </li>
+        ))}
+      </ol>
+
+      <div className="glass-strong p-6">
         <h2 data-testid="step-title" className="text-xl font-semibold">
           {step}
         </h2>
       </div>
 
       {safetyWarning && index === 0 && (
-        <div className="rounded-lg border-l-4 border-amber-500 bg-amber-50 p-4 text-amber-900 dark:bg-amber-950 dark:text-amber-100">
+        <div className="glass border-l-4 border-amber-500 bg-amber-50/60 p-4 text-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
           <p className="font-semibold">Safety note</p>
           <p className="mt-1">{safetyWarning}</p>
         </div>
       )}
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="glass sticky bottom-3 z-10 grid gap-3 p-3 sm:static sm:grid-cols-2 sm:bg-transparent sm:p-0 sm:shadow-none">
         <Button type="button" variant="default" onClick={onSolved}>
           <CheckCircle className="mr-2 h-4 w-4" />
           Problem solved
@@ -404,7 +428,7 @@ function StepView({
       </div>
 
       {escalationWarning && (
-        <div className="rounded-lg border-l-4 border-destructive bg-destructive/5 p-4 text-destructive">
+        <div className="glass border-l-4 border-destructive bg-destructive/5 p-4 text-destructive">
           <p className="font-semibold">Escalate if needed</p>
           <p className="mt-1">{escalationWarning}</p>
         </div>
@@ -436,7 +460,7 @@ function SuccessView({
   }
 
   return (
-    <div className="mt-6 rounded-xl border border-border bg-background p-6 text-center shadow-sm">
+    <div className="glass-strong mt-6 p-6 text-center">
       <CheckCircle className="mx-auto h-12 w-12 text-emerald-600" />
       <h2 data-testid="guide-status" className="mt-4 text-2xl font-semibold">
         Problem solved
@@ -564,7 +588,7 @@ function EscalationView({
   }
 
   return (
-    <div className="mt-6 rounded-xl border border-border bg-background p-6 shadow-sm">
+    <div className="glass-strong mt-6 p-6 shadow-sm">
       <h2 data-testid="guide-status" className="text-2xl font-semibold">
         This problem is unresolved
       </h2>
@@ -582,7 +606,7 @@ function EscalationView({
             value={reason}
             onChange={(event) => setReason(event.target.value)}
             rows={4}
-            className="w-full rounded-lg border border-border bg-background p-3 text-foreground outline-none focus:ring-2 focus:ring-ring"
+            className="w-full rounded-2xl border border-border/70 bg-background/60 p-3 text-foreground backdrop-blur outline-none focus:ring-2 focus:ring-ring"
             placeholder="e.g. I do not have permission to restart the router."
           />
           <Button type="button" onClick={handleGenerateReport}>

@@ -122,7 +122,7 @@ export default async function IssuePage({
         </p>
 
         <div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-          <span className="rounded-full border border-border bg-card px-3 py-1">
+          <span className="glass-pill px-3 py-1">
             {category?.label ?? issue.category}
           </span>
           <span className="inline-flex items-center gap-1">
@@ -176,7 +176,7 @@ export default async function IssuePage({
           <h2 className="text-xl font-semibold">
             Initial troubleshooting steps
           </h2>
-          <ol className="mt-4 list-decimal space-y-3 rounded-xl border border-border bg-card p-6 pl-10">
+          <ol className="glass-strong mt-4 list-decimal space-y-3 p-6 pl-10">
             {steps.map((step, index) => (
               <li key={index} className="pl-2 text-muted-foreground">
                 {step}

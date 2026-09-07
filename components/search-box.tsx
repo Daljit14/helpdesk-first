@@ -38,7 +38,7 @@ export function SearchBox({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
-        className="w-full rounded-2xl border border-border bg-background py-4 pl-14 pr-24 text-lg shadow-sm outline-none ring-ring placeholder:text-muted-foreground focus:ring-2"
+        className="h-14 w-full rounded-full border border-border/70 bg-background/60 py-4 pl-12 pr-28 text-base shadow-sm backdrop-blur outline-none ring-ring placeholder:text-muted-foreground focus:ring-2 focus:ring-ring"
       />
       <Button
         type="submit"

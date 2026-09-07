@@ -85,11 +85,18 @@ export function TicketConversation({
 
   return (
     <div className="mt-6 space-y-6">
-      <div className="rounded-xl border border-border p-5">
+      <div className="glass p-5">
         <h2 className="font-semibold">Conversation</h2>
         <ol className="mt-4 space-y-3">
           {comments.map((comment) => (
-            <li key={comment.id} className="rounded-lg bg-muted/50 p-3">
+            <li
+              key={comment.id}
+              className={`max-w-[85%] rounded-2xl p-3 ${
+                comment.author_type === "user"
+                  ? "ml-auto bg-primary/10"
+                  : "bg-muted/60"
+              }`}
+            >
               <p className="text-xs font-medium uppercase">
                 {comment.author_type}
               </p>
@@ -105,10 +112,10 @@ export function TicketConversation({
             id="ticket-comment"
             value={message}
             onChange={(event) => setMessage(event.target.value)}
-            className="w-full rounded-lg border border-border p-3"
+            className="w-full rounded-2xl border border-border/70 bg-background/60 p-3 backdrop-blur"
             rows={3}
           />
-          <button className="rounded-lg bg-primary px-4 py-2 text-primary-foreground">
+          <button className="rounded-full bg-gradient-to-b from-primary to-primary/85 px-5 py-2 text-primary-foreground shadow-md shadow-primary/25">
             Add reply
           </button>
         </form>
@@ -128,7 +135,7 @@ export function TicketConversation({
               );
             })
           }
-          className="rounded-lg border border-border px-4 py-2"
+          className="glass-pill px-5 py-2"
         >
           I still need help from a person
         </button>
@@ -145,7 +152,7 @@ export function TicketConversation({
                 );
               })
             }
-            className="rounded-lg bg-primary px-4 py-2 text-primary-foreground"
+            className="rounded-full bg-gradient-to-b from-primary to-primary/85 px-5 py-2 text-primary-foreground shadow-md shadow-primary/25"
           >
             Yes, it&apos;s fixed
           </button>
@@ -159,7 +166,7 @@ export function TicketConversation({
                 );
               })
             }
-            className="rounded-lg border border-border px-4 py-2"
+            className="glass-pill px-5 py-2"
           >
             No, still broken
           </button>

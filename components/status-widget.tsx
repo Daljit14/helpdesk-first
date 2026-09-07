@@ -34,7 +34,7 @@ export function StatusWidget() {
   }, []);
 
   return (
-    <div className="rounded-xl border border-border bg-card p-6">
+    <div className="glass mt-8 p-6">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 font-semibold">
           {loading ? (

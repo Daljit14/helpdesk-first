@@ -217,7 +217,7 @@ export function AiAssistant({
         or take remote control of your device.
       </p>
 
-      <div className="mt-4 rounded-lg border-l-4 border-amber-500 bg-amber-50 p-4 text-amber-900">
+      <div className="glass mt-4 border-l-4 border-amber-500 bg-amber-50/60 p-4 text-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
         <div className="flex items-start gap-2">
           <Shield className="mt-0.5 h-5 w-5 flex-shrink-0" aria-hidden="true" />
           <p className="text-sm">
@@ -243,7 +243,7 @@ export function AiAssistant({
               value={problem}
               onChange={(event) => setProblem(event.target.value)}
               rows={4}
-              className="w-full rounded-lg border border-border bg-background p-3 text-foreground outline-none focus:ring-2 focus:ring-ring"
+              className="w-full rounded-2xl border border-border/70 bg-background/60 p-3 text-foreground backdrop-blur outline-none focus:ring-2 focus:ring-ring"
               placeholder="e.g. My computer is very slow after I open email."
               disabled={loading}
             />
@@ -358,7 +358,7 @@ function ClarifyView({
               <label
                 key={p}
                 className={cn(
-                  "flex cursor-pointer items-center gap-3 rounded-lg border border-border bg-background p-4",
+                  "glass flex cursor-pointer items-center gap-3 p-4",
                   platform === p && "border-primary ring-1 ring-primary"
                 )}
               >
@@ -411,7 +411,7 @@ function ClarifyView({
         value={answer}
         onChange={(event) => onAnswerChange(event.target.value)}
         rows={3}
-        className="w-full rounded-lg border border-border bg-background p-3 text-foreground outline-none focus:ring-2 focus:ring-ring"
+        className="w-full rounded-2xl border border-border/70 bg-background/60 p-3 text-foreground backdrop-blur outline-none focus:ring-2 focus:ring-ring"
         placeholder="Your answer..."
         disabled={loading}
       />
@@ -445,7 +445,7 @@ function MatchView({
     : searchHref;
 
   return (
-    <div className="mt-8 space-y-6 rounded-xl border border-border bg-background p-6 shadow-sm">
+    <div className="glass-strong mt-8 space-y-6 p-6">
       <h2 className="text-xl font-semibold">Suggested approved guide</h2>
       <p className="text-muted-foreground">{output.explanation}</p>
       <div className="flex flex-wrap gap-3">
@@ -532,7 +532,7 @@ function EscalateView({
   }
 
   return (
-    <div className="mt-8 space-y-6 rounded-xl border border-destructive/20 bg-destructive/5 p-6">
+    <div className="glass-strong mt-8 space-y-6 border-destructive/20 bg-destructive/5 p-6">
       <div className="flex items-center gap-2 text-destructive">
         <AlertTriangle className="h-6 w-6" aria-hidden="true" />
         <h2 className="text-xl font-semibold">Contact your IT team</h2>
@@ -605,7 +605,7 @@ function UnavailableView({
       <h1 className="text-3xl font-bold tracking-tight">
         Ask the Support Assistant
       </h1>
-      <div className="mt-8 rounded-xl border border-amber-500/20 bg-amber-50 p-6 text-amber-900">
+      <div className="glass-strong mt-8 border-amber-500/20 bg-amber-50/60 p-6 text-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
         <p className="font-medium">{error}</p>
         <p className="mt-2 text-sm">
           The support assistant is not enabled right now. You can still search

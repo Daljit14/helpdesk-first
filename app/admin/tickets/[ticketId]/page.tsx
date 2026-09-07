@@ -70,6 +70,44 @@ type WorkflowMember = {
   role: "admin" | "support_agent";
 };
 
+function statusTone(status: string) {
+  switch (status) {
+    case "New":
+    case "AI Reviewing":
+    case "AI Resolving":
+      return "bg-indigo-500/15 text-indigo-700 dark:text-indigo-200";
+    case "Needs Human":
+      return "bg-amber-500/15 text-amber-800 dark:text-amber-200";
+    case "In Progress":
+      return "bg-sky-500/15 text-sky-800 dark:text-sky-200";
+    case "Waiting":
+    case "Waiting for User":
+      return "bg-violet-500/15 text-violet-800 dark:text-violet-200";
+    case "Pending Verification":
+      return "bg-teal-500/15 text-teal-800 dark:text-teal-200";
+    case "Resolved":
+      return "bg-emerald-500/15 text-emerald-800 dark:text-emerald-200";
+    case "Closed":
+      return "bg-muted text-muted-foreground";
+    default:
+      return "bg-muted text-muted-foreground";
+  }
+}
+
+function priorityTone(priority: string) {
+  switch (priority) {
+    case "Urgent":
+      return "bg-red-500/15 text-red-800 dark:text-red-200";
+    case "High":
+      return "bg-orange-500/15 text-orange-800 dark:text-orange-200";
+    case "Low":
+      return "bg-slate-500/15 text-slate-700 dark:text-slate-200";
+    case "Normal":
+    default:
+      return "bg-muted text-muted-foreground";
+  }
+}
+
 export default async function AdminTicketPage({
   params,
 }: {
@@ -194,15 +232,29 @@ export default async function AdminTicketPage({
     : null;
 
   return (
-    <section className="flex flex-1 flex-col bg-white px-4 py-10 text-slate-900 sm:px-6 lg:px-8">
+    <section className="flex flex-1 flex-col px-4 py-10 sm:px-6 lg:px-8">
       <div className="mx-auto w-full max-w-4xl">
-        <p className="font-mono text-sm text-slate-500">
+        <p className="font-mono text-sm text-muted-foreground">
           {toTicketId(ticket.id)}
         </p>
         <h1 className="mt-2 text-3xl font-bold">{ticket.issue_title}</h1>
-        <div className="mt-6 grid gap-4 rounded-xl border border-slate-200 p-5 sm:grid-cols-2 lg:grid-cols-3">
-          <p>Status: {status}</p>
-          <p>Priority: {priority}</p>
+        <div className="glass mt-6 grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-3">
+          <p className="flex items-center gap-2">
+            <span>Status:</span>
+            <span
+              className={`glass-pill px-2 py-1 text-xs ${statusTone(status)}`}
+            >
+              {status}
+            </span>
+          </p>
+          <p className="flex items-center gap-2">
+            <span>Priority:</span>
+            <span
+              className={`glass-pill px-2 py-1 text-xs ${priorityTone(priority)}`}
+            >
+              {priority}
+            </span>
+          </p>
           <p>Category: {ticket.category ?? categoryLabel(ticket.issue_id)}</p>
           <p>Platform: {normalizePlatform(ticket.platform)}</p>
           <p>Agent: {ticket.assigned_agent ?? "Unassigned"}</p>
@@ -213,179 +265,209 @@ export default async function AdminTicketPage({
             {new Date(ticket.updated_at ?? ticket.created_at).toLocaleString()}
           </p>
         </div>
-        <TicketUpdateForm
-          ticketId={uuid}
-          status={status}
-          priority={priority}
-          assignedAgent={ticket.assigned_agent ?? ""}
-          resolutionTrackingEnabled={resolutionTrackingEnabled}
-          resolutionSummary={ticket.resolution_summary ?? ""}
-          workflowEnabled={workflowEnabled}
-        />
-        {workflowEnabled && (
-          <>
-            <div className="mt-6 grid gap-4 rounded-xl border border-slate-200 p-5 sm:grid-cols-2">
-              <h2 className="font-semibold sm:col-span-2">AI classification</h2>
-              <p>Recommended guide: {ticket.ai_recommended_issue_id ?? "—"}</p>
-              <p>Confidence: {ticket.ai_confidence ?? "—"}</p>
-              <p>Risk: {ticket.ai_risk_level ?? "—"}</p>
-              <p>Handoff reason: {ticket.handoff_reason ?? "—"}</p>
-              <p>AI attempts: {ticket.ai_failed_attempts ?? 0} failed of 2</p>
-              <p>Diagnostic questions asked: {ticket.ai_question_count ?? 0}</p>
-              <p className="sm:col-span-2">
-                Diagnostic answers:{" "}
-                {Array.isArray(ticket.diagnostic_answers) &&
-                ticket.diagnostic_answers.length === 0
-                  ? "None recorded"
-                  : JSON.stringify(ticket.diagnostic_answers ?? [])}
+        <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,24rem)] lg:items-start">
+          <div className="min-w-0 space-y-6">
+            <div className="glass p-5">
+              <h2 className="font-semibold">Description</h2>
+              <p className="mt-3 whitespace-pre-wrap text-muted-foreground">
+                {ticket.message}
               </p>
+              {attachmentUrl && (
+                <a
+                  href={attachmentUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-4 inline-block underline underline-offset-4"
+                >
+                  Open attachment (link valid 60 s)
+                </a>
+              )}
             </div>
-            <div className="mt-6 rounded-xl border border-slate-200 p-5">
-              <h2 className="font-semibold">Conversation</h2>
-              <div className="mt-3 space-y-3">
-                {(comments ?? [])
-                  .filter((comment) => comment.visibility === "public")
-                  .map((comment) => (
-                    <p key={comment.id} className="rounded bg-slate-50 p-3">
-                      <strong>{comment.author_type}:</strong> {comment.message}
-                    </p>
-                  ))}
+            {workflowEnabled && (
+              <>
+                <div className="glass grid gap-4 p-5 sm:grid-cols-2">
+                  <h2 className="font-semibold sm:col-span-2">
+                    AI classification
+                  </h2>
+                  <p>
+                    Recommended guide: {ticket.ai_recommended_issue_id ?? "—"}
+                  </p>
+                  <p>Confidence: {ticket.ai_confidence ?? "—"}</p>
+                  <p>Risk: {ticket.ai_risk_level ?? "—"}</p>
+                  <p>Handoff reason: {ticket.handoff_reason ?? "—"}</p>
+                  <p>
+                    AI attempts: {ticket.ai_failed_attempts ?? 0} failed of 2
+                  </p>
+                  <p>
+                    Diagnostic questions asked: {ticket.ai_question_count ?? 0}
+                  </p>
+                  <p className="sm:col-span-2">
+                    Diagnostic answers:{" "}
+                    {Array.isArray(ticket.diagnostic_answers) &&
+                    ticket.diagnostic_answers.length === 0
+                      ? "None recorded"
+                      : JSON.stringify(ticket.diagnostic_answers ?? [])}
+                  </p>
+                </div>
+                <div className="glass p-5">
+                  <h2 className="font-semibold">Conversation</h2>
+                  <div className="mt-3 space-y-3">
+                    {(comments ?? [])
+                      .filter((comment) => comment.visibility === "public")
+                      .map((comment) => (
+                        <p
+                          key={comment.id}
+                          className="rounded-2xl bg-muted/60 p-3"
+                        >
+                          <strong>{comment.author_type}:</strong>{" "}
+                          {comment.message}
+                        </p>
+                      ))}
+                  </div>
+                </div>
+                <div className="glass border-amber-500/30 bg-amber-500/10 p-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <h2 className="font-semibold">Internal notes</h2>
+                    <span className="glass-pill bg-amber-500/15 px-3 py-1 text-xs text-amber-800 dark:text-amber-200">
+                      Private — staff only
+                    </span>
+                  </div>
+                  <p className="mt-1 text-sm text-amber-800 dark:text-amber-200">
+                    Internal — not visible to user
+                  </p>
+                  <div className="mt-3 space-y-3">
+                    {(comments ?? [])
+                      .filter((comment) => comment.visibility === "internal")
+                      .map((comment) => (
+                        <p
+                          key={comment.id}
+                          className="rounded-2xl bg-amber-500/10 p-3"
+                        >
+                          {comment.message}
+                        </p>
+                      ))}
+                  </div>
+                </div>
+                <div className="glass p-5">
+                  <h2 className="font-semibold">System activity</h2>
+                  <ul className="mt-3 space-y-2 text-sm">
+                    {(workflowEvents ?? []).map((event) => (
+                      <li key={event.id}>
+                        {event.event_type} ·{" "}
+                        {new Date(event.created_at).toLocaleString()}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="glass p-5">
+                  <h2 className="font-semibold">Tools &amp; actions</h2>
+                  <ul className="mt-3 space-y-2 text-sm">
+                    {(actions ?? []).map((action) => (
+                      <li key={action.id}>
+                        {action.tool_name}: {action.action_summary} —{" "}
+                        {action.result_summary}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </>
+            )}
+            {resolutionTrackingEnabled && (
+              <div className="glass p-5">
+                <h2 className="font-semibold">Resolution</h2>
+                <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+                  <div>
+                    <dt className="font-medium">Resolved by</dt>
+                    <dd>
+                      {ticket.resolution_source === "ai"
+                        ? "AI assistant"
+                        : ticket.resolution_source === "agent" ||
+                            ticket.resolution_source === "employee"
+                          ? "Support agent"
+                          : ticket.resolution_source === "self_service"
+                            ? "Self-service"
+                            : "—"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="font-medium">AI attempted</dt>
+                    <dd>
+                      {ticket.ai_attempted ? "Yes" : "No"}
+                      {ticket.ai_attempted_at
+                        ? ` · ${new Date(ticket.ai_attempted_at).toLocaleString()}`
+                        : ""}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="font-medium">Recommended guide</dt>
+                    <dd>{recommendedIssue?.title ?? "—"}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-medium">Escalated</dt>
+                    <dd>
+                      {ticket.escalated ? "Yes" : "No"}
+                      {ticket.escalated_at
+                        ? ` · ${new Date(ticket.escalated_at).toLocaleString()}`
+                        : ""}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="font-medium">Escalation reason</dt>
+                    <dd>{ticket.escalation_reason ?? "—"}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-medium">User confirmed</dt>
+                    <dd>
+                      {ticket.user_confirmed && ticket.user_confirmed_at
+                        ? new Date(ticket.user_confirmed_at).toLocaleString()
+                        : "Not confirmed"}
+                    </dd>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <dt className="font-medium">Resolution summary</dt>
+                    <dd>{ticket.resolution_summary ?? "—"}</dd>
+                  </div>
+                </dl>
               </div>
-            </div>
-            <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-5">
-              <h2 className="font-semibold">Internal notes</h2>
-              <p className="mt-1 text-sm">Internal — not visible to user</p>
-              <div className="mt-3 space-y-3">
-                {(comments ?? [])
-                  .filter((comment) => comment.visibility === "internal")
-                  .map((comment) => (
-                    <p key={comment.id} className="rounded bg-white p-3">
-                      {comment.message}
-                    </p>
-                  ))}
-              </div>
-            </div>
-            <div className="mt-6 rounded-xl border border-slate-200 p-5">
-              <h2 className="font-semibold">System activity</h2>
-              <ul className="mt-3 space-y-2 text-sm">
-                {(workflowEvents ?? []).map((event) => (
-                  <li key={event.id}>
-                    {event.event_type} ·{" "}
-                    {new Date(event.created_at).toLocaleString()}
+            )}
+            <div className="glass p-5">
+              <h2 className="font-semibold">Timeline</h2>
+              <ol className="mt-4 space-y-3">
+                {(events ?? []).map((event, index) => (
+                  <li key={`${event.created_at}-${index}`} className="text-sm">
+                    <span className="font-medium">{event.event_type}</span>
+                    <span className="ml-2 text-muted-foreground">
+                      {event.from_value ? `${event.from_value} → ` : ""}
+                      {event.to_value ?? ""}
+                      {" · "}
+                      {new Date(event.created_at).toLocaleString()}
+                    </span>
                   </li>
                 ))}
-              </ul>
+              </ol>
             </div>
-            <div className="mt-6 rounded-xl border border-slate-200 p-5">
-              <h2 className="font-semibold">Tools &amp; actions</h2>
-              <ul className="mt-3 space-y-2 text-sm">
-                {(actions ?? []).map((action) => (
-                  <li key={action.id}>
-                    {action.tool_name}: {action.action_summary} —{" "}
-                    {action.result_summary}
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <TicketWorkflowActions
-              ticketId={uuid}
-              canClaim={!ticket.assigned_agent_id}
-              isAdmin={session.role === "admin"}
-              members={workflowMembers}
-              status={ticket.status}
-              assignedAgentId={ticket.assigned_agent_id}
-            />
-          </>
-        )}
-        {resolutionTrackingEnabled && (
-          <div className="mt-6 rounded-xl border border-slate-200 p-5">
-            <h2 className="font-semibold">Resolution</h2>
-            <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
-              <div>
-                <dt className="font-medium">Resolved by</dt>
-                <dd>
-                  {ticket.resolution_source === "ai"
-                    ? "AI assistant"
-                    : ticket.resolution_source === "agent" ||
-                        ticket.resolution_source === "employee"
-                      ? "Support agent"
-                      : ticket.resolution_source === "self_service"
-                        ? "Self-service"
-                        : "—"}
-                </dd>
-              </div>
-              <div>
-                <dt className="font-medium">AI attempted</dt>
-                <dd>
-                  {ticket.ai_attempted ? "Yes" : "No"}
-                  {ticket.ai_attempted_at
-                    ? ` · ${new Date(ticket.ai_attempted_at).toLocaleString()}`
-                    : ""}
-                </dd>
-              </div>
-              <div>
-                <dt className="font-medium">Recommended guide</dt>
-                <dd>{recommendedIssue?.title ?? "—"}</dd>
-              </div>
-              <div>
-                <dt className="font-medium">Escalated</dt>
-                <dd>
-                  {ticket.escalated ? "Yes" : "No"}
-                  {ticket.escalated_at
-                    ? ` · ${new Date(ticket.escalated_at).toLocaleString()}`
-                    : ""}
-                </dd>
-              </div>
-              <div>
-                <dt className="font-medium">Escalation reason</dt>
-                <dd>{ticket.escalation_reason ?? "—"}</dd>
-              </div>
-              <div>
-                <dt className="font-medium">User confirmed</dt>
-                <dd>
-                  {ticket.user_confirmed && ticket.user_confirmed_at
-                    ? new Date(ticket.user_confirmed_at).toLocaleString()
-                    : "Not confirmed"}
-                </dd>
-              </div>
-              <div className="sm:col-span-2">
-                <dt className="font-medium">Resolution summary</dt>
-                <dd>{ticket.resolution_summary ?? "—"}</dd>
-              </div>
-            </dl>
           </div>
-        )}
-        <div className="mt-6 rounded-xl border border-slate-200 p-5">
-          <h2 className="font-semibold">Description</h2>
-          <p className="mt-3 whitespace-pre-wrap text-slate-700">
-            {ticket.message}
-          </p>
-          {attachmentUrl && (
-            <a
-              href={attachmentUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-4 inline-block underline underline-offset-4"
-            >
-              Open attachment (link valid 60 s)
-            </a>
-          )}
-        </div>
-        <div className="mt-6 rounded-xl border border-slate-200 p-5">
-          <h2 className="font-semibold">Timeline</h2>
-          <ol className="mt-4 space-y-3">
-            {(events ?? []).map((event, index) => (
-              <li key={`${event.created_at}-${index}`} className="text-sm">
-                <span className="font-medium">{event.event_type}</span>
-                <span className="ml-2 text-slate-500">
-                  {event.from_value ? `${event.from_value} → ` : ""}
-                  {event.to_value ?? ""}
-                  {" · "}
-                  {new Date(event.created_at).toLocaleString()}
-                </span>
-              </li>
-            ))}
-          </ol>
+          <aside className="space-y-6 lg:sticky lg:top-24">
+            <TicketUpdateForm
+              ticketId={uuid}
+              status={status}
+              priority={priority}
+              assignedAgent={ticket.assigned_agent ?? ""}
+              resolutionTrackingEnabled={resolutionTrackingEnabled}
+              resolutionSummary={ticket.resolution_summary ?? ""}
+              workflowEnabled={workflowEnabled}
+            />
+            {workflowEnabled && (
+              <TicketWorkflowActions
+                ticketId={uuid}
+                canClaim={!ticket.assigned_agent_id}
+                isAdmin={session.role === "admin"}
+                members={workflowMembers}
+                status={ticket.status}
+                assignedAgentId={ticket.assigned_agent_id}
+              />
+            )}
+          </aside>
         </div>
       </div>
     </section>

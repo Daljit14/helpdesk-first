@@ -19,8 +19,8 @@ export function Header({ user }: { user?: User | null }) {
   if (pathname?.startsWith("/admin")) return null;
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+    <header className="sticky top-3 z-40 px-4">
+      <div className="glass-pill mx-auto flex max-w-6xl items-center justify-between px-5 py-2.5">
         <Link
           href="/"
           className="flex items-center gap-2 text-lg font-semibold tracking-tight"
@@ -30,29 +30,57 @@ export function Header({ user }: { user?: User | null }) {
         </Link>
 
         <nav aria-label="Primary" className="hidden md:block">
-          <ul className="flex items-center gap-6 text-sm font-medium">
+          <ul className="flex items-center gap-2 text-sm font-medium">
             <li>
-              <Link href="/" className="hover:text-indigo-500">
+              <Link
+                href="/"
+                aria-current={pathname === "/" ? "page" : undefined}
+                className={cn(
+                  "rounded-full px-3 py-2 transition-colors hover:text-primary",
+                  pathname === "/" && "bg-primary/10 text-primary"
+                )}
+              >
                 Guides
               </Link>
             </li>
             {process.env.NEXT_PUBLIC_AI_ENABLED === "true" && (
               <li>
-                <Link href="/assistant" className="hover:text-indigo-500">
+                <Link
+                  href="/assistant"
+                  aria-current={pathname === "/assistant" ? "page" : undefined}
+                  className={cn(
+                    "rounded-full px-3 py-2 transition-colors hover:text-primary",
+                    pathname === "/assistant" && "bg-primary/10 text-primary"
+                  )}
+                >
                   Assistant
                 </Link>
               </li>
             )}
             {user && (
               <li>
-                <Link href="/bookmarks" className="hover:text-indigo-500">
+                <Link
+                  href="/bookmarks"
+                  aria-current={pathname === "/bookmarks" ? "page" : undefined}
+                  className={cn(
+                    "rounded-full px-3 py-2 transition-colors hover:text-primary",
+                    pathname === "/bookmarks" && "bg-primary/10 text-primary"
+                  )}
+                >
                   Bookmarks
                 </Link>
               </li>
             )}
             {user && (
               <li>
-                <Link href="/tickets" className="hover:text-indigo-500">
+                <Link
+                  href="/tickets"
+                  aria-current={pathname === "/tickets" ? "page" : undefined}
+                  className={cn(
+                    "rounded-full px-3 py-2 transition-colors hover:text-primary",
+                    pathname === "/tickets" && "bg-primary/10 text-primary"
+                  )}
+                >
                   Tickets
                 </Link>
               </li>
@@ -103,31 +131,47 @@ export function Header({ user }: { user?: User | null }) {
       </div>
 
       {open && (
-        <div className="border-t border-border/40 md:hidden">
-          <nav aria-label="Mobile" className="mx-auto max-w-6xl px-6 py-4">
-            <ul className="flex flex-col gap-3 text-sm font-medium">
+        <div className="glass mx-4 mt-2 md:hidden">
+          <nav aria-label="Mobile" className="mx-auto max-w-6xl px-5 py-3">
+            <ul className="flex flex-col gap-1 text-sm font-medium">
               <li>
-                <Link href="/" onClick={() => setOpen(false)}>
+                <Link
+                  href="/"
+                  className="block rounded-2xl px-3 py-3"
+                  onClick={() => setOpen(false)}
+                >
                   Guides
                 </Link>
               </li>
               {process.env.NEXT_PUBLIC_AI_ENABLED === "true" && (
                 <li>
-                  <Link href="/assistant" onClick={() => setOpen(false)}>
+                  <Link
+                    href="/assistant"
+                    className="block rounded-2xl px-3 py-3"
+                    onClick={() => setOpen(false)}
+                  >
                     Assistant
                   </Link>
                 </li>
               )}
               {user && (
                 <li>
-                  <Link href="/bookmarks" onClick={() => setOpen(false)}>
+                  <Link
+                    href="/bookmarks"
+                    className="block rounded-2xl px-3 py-3"
+                    onClick={() => setOpen(false)}
+                  >
                     Bookmarks
                   </Link>
                 </li>
               )}
               {user && (
                 <li>
-                  <Link href="/tickets" onClick={() => setOpen(false)}>
+                  <Link
+                    href="/tickets"
+                    className="block rounded-2xl px-3 py-3"
+                    onClick={() => setOpen(false)}
+                  >
                     Tickets
                   </Link>
                 </li>

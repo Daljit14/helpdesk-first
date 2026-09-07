@@ -9,3 +9,7 @@ export function isResolutionTrackingEnabled(): boolean {
 export function isTicketWorkflowEnabled(): boolean {
   return process.env.HELP_DESK_TICKET_WORKFLOW_ENABLED === "true";
 }
+
+export function isKnowledgeGovernanceEnabled(): boolean {
+  return process.env.HELP_DESK_KNOWLEDGE_GOVERNANCE_ENABLED === "true";
+}

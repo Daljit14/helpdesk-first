@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/supabase/user";
 import { isTicketWorkflowEnabled } from "@/lib/admin/flags";
 import { createClient } from "@/lib/supabase/server";
 import { TicketConversation } from "@/components/ticket-conversation";
+import { getCitation } from "@/lib/knowledge/governance";
 
 export const dynamic = "force-dynamic";
 
@@ -50,11 +51,16 @@ export default async function TicketPage({
   const supabase = await createClient();
   const { data: ticket } = await supabase
     .from("tickets")
-    .select("id,issue_title,message,status,platform,created_at,handoff_reason")
+    .select(
+      "id,issue_title,message,status,platform,created_at,handoff_reason,ai_recommended_issue_id"
+    )
     .eq("id", ticketId)
     .eq("user_id", user.id)
     .maybeSingle();
   if (!ticket) notFound();
+  const citation = ticket.ai_recommended_issue_id
+    ? await getCitation(ticket.ai_recommended_issue_id, null)
+    : null;
   const { data: comments } = await supabase
     .from("ticket_comments")
     .select("id,message,author_type,created_at")
@@ -73,6 +79,15 @@ export default async function TicketPage({
           <p className="mt-3 text-sm text-muted-foreground">
             Why a person is helping:{" "}
             {handoffReasonLabel(ticket.handoff_reason, ticket.status)}
+          </p>
+        )}
+        {citation && (
+          <p className="mt-3 text-sm text-muted-foreground">
+            Source: {citation.title} · v{citation.version} · updated{" "}
+            {citation.retrievedAt
+              ? new Date(citation.retrievedAt).toLocaleDateString()
+              : "unknown"}{" "}
+            · {citation.supportedPlatforms.join(", ")}
           </p>
         )}
         <div className="glass-strong mt-6 p-5">

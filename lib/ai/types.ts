@@ -21,6 +21,7 @@ export type AiIntakeOutput = {
   diagnosticQuestionIds?: string[];
   explanation?: string;
   escalationReason?: string;
+  citation?: import("@/lib/knowledge/governance").Citation;
 };
 
 export interface AiProvider {

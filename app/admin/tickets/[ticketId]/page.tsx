@@ -16,6 +16,7 @@ import { getIssueBySlug } from "@/lib/search";
 import { TicketWorkflowActions } from "@/components/admin/ticket-workflow-actions";
 import { canAccessTicket } from "@/lib/admin/auth";
 import { isTicketWorkflowEnabled } from "@/lib/admin/flags";
+import { getCitation } from "@/lib/knowledge/governance";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -230,6 +231,9 @@ export default async function AdminTicketPage({
   const recommendedIssue = ticket.ai_recommended_issue_id
     ? getIssueBySlug(ticket.ai_recommended_issue_id)
     : null;
+  const citation = ticket.ai_recommended_issue_id
+    ? await getCitation(ticket.ai_recommended_issue_id, session.organizationId)
+    : null;
 
   return (
     <section className="flex flex-1 flex-col px-4 py-10 sm:px-6 lg:px-8">
@@ -292,6 +296,7 @@ export default async function AdminTicketPage({
                   <p>
                     Recommended guide: {ticket.ai_recommended_issue_id ?? "—"}
                   </p>
+                  {citation && <p>Guide version: v{citation.version}</p>}
                   <p>Confidence: {ticket.ai_confidence ?? "—"}</p>
                   <p>Risk: {ticket.ai_risk_level ?? "—"}</p>
                   <p>Handoff reason: {ticket.handoff_reason ?? "—"}</p>

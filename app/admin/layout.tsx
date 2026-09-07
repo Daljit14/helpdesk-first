@@ -4,6 +4,7 @@ import { adminLogout } from "@/app/actions/admin-auth";
 import { getAdminSession } from "@/lib/admin/auth";
 import { Button } from "@/components/ui/button";
 import { AdminThemeToggle } from "@/components/admin/admin-theme-toggle";
+import { isSecureAttachmentsEnabled } from "@/lib/admin/flags";
 
 export const metadata: Metadata = {
   robots: { index: false, follow: false },
@@ -40,6 +41,14 @@ export default async function AdminLayout({
                   >
                     Tickets
                   </Link>
+                  {isSecureAttachmentsEnabled() && (
+                    <Link
+                      className="rounded-full px-3 py-2 hover:bg-muted"
+                      href="/admin/attachments"
+                    >
+                      Attachments
+                    </Link>
+                  )}
                 </nav>
                 <form action={adminLogout}>
                   <Button type="submit" variant="outline" size="sm">

@@ -25,7 +25,10 @@ import {
 import { GuideActions } from "@/components/guide-actions";
 import { RecentTracker } from "@/components/recent-tracker";
 import { NetworkCheckWidget } from "@/components/network-check-widget";
-import { isTicketWorkflowEnabled } from "@/lib/admin/flags";
+import {
+  isSecureAttachmentsEnabled,
+  isTicketWorkflowEnabled,
+} from "@/lib/admin/flags";
 
 export async function generateStaticParams() {
   return getAllIssueSlugs().map((slug) => ({ slug }));
@@ -163,6 +166,7 @@ export default async function IssuePage({
           initialVote={userRating}
           initialTotals={ratingTotals}
           workflowEnabled={isTicketWorkflowEnabled()}
+          secureAttachmentsEnabled={isSecureAttachmentsEnabled()}
         />
 
         {safetyWarning && (

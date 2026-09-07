@@ -41,6 +41,14 @@ describe("submitTicket attachment paths", () => {
   ])("does not persist unsafe path %s", async (attachmentPath) => {
     getCurrentUser.mockResolvedValue({ id: "user-1" });
     insert.mockResolvedValue({ error: null });
+    insert.mockReturnValue({
+      select: vi.fn(() => ({
+        single: vi.fn(async () => ({
+          data: { id: "00000000-0000-4000-8000-000000000001" },
+          error: null,
+        })),
+      })),
+    });
     createClient.mockResolvedValue({
       from: vi.fn(() => ({ insert })),
     });
@@ -55,6 +63,14 @@ describe("submitTicket attachment paths", () => {
   test("persists a path under the authenticated user's folder", async () => {
     getCurrentUser.mockResolvedValue({ id: "user-1" });
     insert.mockResolvedValue({ error: null });
+    insert.mockReturnValue({
+      select: vi.fn(() => ({
+        single: vi.fn(async () => ({
+          data: { id: "00000000-0000-4000-8000-000000000001" },
+          error: null,
+        })),
+      })),
+    });
     createClient.mockResolvedValue({
       from: vi.fn(() => ({ insert })),
     });

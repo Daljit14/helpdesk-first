@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/lib/admin/flags", () => ({
   isTicketWorkflowEnabled: mocks.isTicketWorkflowEnabled,
   isUserPortalEnabled: mocks.isUserPortalEnabled,
+  isSecureAttachmentsEnabled: vi.fn(() => false),
 }));
 vi.mock("@/lib/supabase/user", () => ({
   getCurrentUser: mocks.getCurrentUser,

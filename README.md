@@ -80,6 +80,15 @@ routing, public replies, internal notes, verification, and SLA tracking.
 Overdue notifications are checked when the operations dashboard loads or
 refreshes; they are dashboard-triggered rather than cron-driven.
 
+## Secure attachments (Phase 5N)
+
+Apply `supabase/secure-attachments.sql`, then set
+`HELP_DESK_SECURE_ATTACHMENTS_ENABLED=true` to enable direct-to-quarantine
+uploads, structural validation, image sanitization, scanning, private storage,
+and retention. `HELP_DESK_ATTACHMENT_SCANNER=none` is the safe default for
+development; `virustotal` requires the server-only `VIRUSTOTAL_API_KEY`.
+Scheduled retention purging requires `CRON_SECRET`.
+
 When `HELP_DESK_USER_PORTAL_ENABLED=true` alongside the ticket workflow flag
 after applying `supabase/user-ticket-portal.sql`, requesters can group and
 track their tickets, reply to support, reopen recently resolved tickets, and

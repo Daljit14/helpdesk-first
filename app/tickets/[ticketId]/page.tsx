@@ -7,6 +7,8 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { TicketConversation } from "@/components/ticket-conversation";
 import { getCitation } from "@/lib/knowledge/governance";
+import { AttachmentList } from "@/components/attachment-list";
+import { listOwnAttachments } from "@/lib/attachments/server";
 import { AttachmentLink } from "@/components/attachment-link";
 import { TicketPortalActions } from "@/components/ticket-portal-actions";
 import {
@@ -99,6 +101,7 @@ export default async function TicketPage({
     .eq("ticket_id", ticketId)
     .eq("visibility", "public")
     .order("created_at", { ascending: true });
+  const attachments = await listOwnAttachments(ticketId);
   const { data: events } = portalEnabled
     ? await supabase
         .from("ticket_system_events")
@@ -208,6 +211,7 @@ export default async function TicketPage({
             <AttachmentLink path={ticket.attachment_path} />
           )}
         </div>
+        <AttachmentList attachments={attachments} />
         {portalEnabled && (
           <>
             <TicketPortalActions

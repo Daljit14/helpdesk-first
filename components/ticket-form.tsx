@@ -4,6 +4,7 @@ import { useActionState, useState, type ChangeEvent } from "react";
 import { Paperclip, X } from "lucide-react";
 import { submitTicket, type TicketActionState } from "@/app/actions/guides";
 import { Button } from "@/components/ui/button";
+import { AttachmentUploader } from "@/components/attachment-uploader";
 import {
   uploadTicketAttachment,
   ALLOWED_ATTACHMENT_TYPES,
@@ -15,10 +16,12 @@ export function TicketForm({
   issueId,
   userId,
   workflowEnabled = false,
+  secureAttachmentsEnabled = false,
 }: {
   issueId: string;
   userId: string;
   workflowEnabled?: boolean;
+  secureAttachmentsEnabled?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(
     submitTicket,
@@ -84,41 +87,45 @@ export function TicketForm({
           </p>
         )}
       </div>
-      <div>
-        <label className="glass-pill flex w-fit cursor-pointer items-center gap-2 border-dashed px-3 py-2 text-sm text-muted-foreground hover:border-foreground/40">
-          <Paperclip className="h-4 w-4" />
-          {fileName ? "Change screenshot" : "Attach a screenshot (optional)"}
-          <input
-            type="file"
-            accept={ALLOWED_ATTACHMENT_TYPES.join(",")}
-            className="hidden"
-            onChange={handleFileChange}
-            disabled={uploading}
-          />
-        </label>
-        {uploading && (
-          <p className="mt-1 text-sm text-muted-foreground">Uploading…</p>
-        )}
-        {fileName && !uploading && (
-          <p className="mt-1 flex items-center gap-2 text-sm">
-            {fileName}
-            <button
-              type="button"
-              onClick={() => {
-                setAttachmentPath(null);
-                setFileName(null);
-              }}
-              aria-label="Remove attachment"
-              className="text-muted-foreground hover:text-foreground"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          </p>
-        )}
-        {uploadError && (
-          <p className="mt-1 text-sm text-destructive">{uploadError}</p>
-        )}
-      </div>
+      {secureAttachmentsEnabled ? (
+        <AttachmentUploader />
+      ) : (
+        <div>
+          <label className="glass-pill flex w-fit cursor-pointer items-center gap-2 border-dashed px-3 py-2 text-sm text-muted-foreground hover:border-foreground/40">
+            <Paperclip className="h-4 w-4" />
+            {fileName ? "Change screenshot" : "Attach a screenshot (optional)"}
+            <input
+              type="file"
+              accept={ALLOWED_ATTACHMENT_TYPES.join(",")}
+              className="hidden"
+              onChange={handleFileChange}
+              disabled={uploading}
+            />
+          </label>
+          {uploading && (
+            <p className="mt-1 text-sm text-muted-foreground">Uploading…</p>
+          )}
+          {fileName && !uploading && (
+            <p className="mt-1 flex items-center gap-2 text-sm">
+              {fileName}
+              <button
+                type="button"
+                onClick={() => {
+                  setAttachmentPath(null);
+                  setFileName(null);
+                }}
+                aria-label="Remove attachment"
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </p>
+          )}
+          {uploadError && (
+            <p className="mt-1 text-sm text-destructive">{uploadError}</p>
+          )}
+        </div>
+      )}
       <p className="text-sm text-amber-700 dark:text-amber-300">
         Do not include passwords, security codes or personal information
       </p>

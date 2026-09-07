@@ -5,6 +5,7 @@ import { z } from "zod";
 import { createConfiguredAiProvider } from "@/lib/ai/provider-factory";
 import { processAiIntake } from "@/lib/ai/intake";
 import {
+  isSecureAttachmentsEnabled,
   isTicketWorkflowEnabled,
   isUserPortalEnabled,
 } from "@/lib/admin/flags";
@@ -18,6 +19,7 @@ import { getCurrentUser } from "@/lib/supabase/user";
 import { platforms } from "@/lib/helpdesk-data";
 import { MemoryRateLimiter } from "@/lib/ai/rate-limit";
 import { getApprovedSlugs } from "@/lib/knowledge/governance";
+import { attachTicketAttachments } from "@/lib/attachments/server";
 
 type Result = { error: string } | { success: true; ticketId?: string };
 const limiter = new MemoryRateLimiter({
@@ -32,6 +34,8 @@ const inputSchema = z.object({
     .array(z.object({ questionId: z.string(), answer: z.string().max(500) }))
     .max(8)
     .default([]),
+  attachmentIds: z.array(z.string().uuid()).max(50).default([]),
+  attachmentPath: z.string().trim().min(1).optional(),
 });
 const ticketIdSchema = z.string().uuid();
 
@@ -93,6 +97,12 @@ export async function createWorkflowTicket(input: unknown): Promise<Result> {
       platform: parsed.data.platform,
       message: parsed.data.message,
       diagnostic_answers: parsed.data.diagnosticAnswers,
+      attachment_path:
+        !isSecureAttachmentsEnabled() &&
+        parsed.data.attachmentPath?.startsWith(`${user.id}/`) &&
+        !parsed.data.attachmentPath.includes("..")
+          ? parsed.data.attachmentPath
+          : null,
       status: "AI Reviewing",
       resolver_type: "unassigned",
       human_response_due_at: due,
@@ -102,6 +112,13 @@ export async function createWorkflowTicket(input: unknown): Promise<Result> {
   if (inserted.error || !inserted.data)
     return { error: "Unable to submit ticket." };
   const ticketId = inserted.data.id;
+  if (isSecureAttachmentsEnabled()) {
+    const attached = await attachTicketAttachments(
+      ticketId,
+      parsed.data.attachmentIds
+    );
+    if ("error" in attached) return { error: attached.error };
+  }
   await event(ticketId, organizationId, "ticket.created", "user", user.id);
 
   const allowedSlugs = await getApprovedSlugs(organizationId);

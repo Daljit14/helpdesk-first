@@ -13,3 +13,7 @@ export function isTicketWorkflowEnabled(): boolean {
 export function isKnowledgeGovernanceEnabled(): boolean {
   return process.env.HELP_DESK_KNOWLEDGE_GOVERNANCE_ENABLED === "true";
 }
+
+export function isUserPortalEnabled(): boolean {
+  return process.env.HELP_DESK_USER_PORTAL_ENABLED === "true";
+}

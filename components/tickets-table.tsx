@@ -2,47 +2,24 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Paperclip } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { getTicketAttachmentUrl } from "@/lib/supabase/storage";
 import type { Ticket } from "@/lib/guides-data";
-
-function AttachmentLink({ path }: { path: string }) {
-  const [url, setUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    getTicketAttachmentUrl(path).then((signedUrl) => {
-      if (active) setUrl(signedUrl);
-    });
-    return () => {
-      active = false;
-    };
-  }, [path]);
-
-  if (!url) return null;
-
-  return (
-    <a
-      href={url}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="mt-1 inline-flex items-center gap-1 text-sm underline underline-offset-4"
-    >
-      <Paperclip className="h-3.5 w-3.5" />
-      View attachment
-    </a>
-  );
-}
+import { AttachmentLink } from "@/components/attachment-link";
+import {
+  describeTicketStatus,
+  ticketReference,
+} from "@/lib/tickets/user-status";
 
 export function TicketsTable({
   initialTickets,
   userId,
   workflowEnabled = false,
+  portalEnabled = false,
 }: {
   initialTickets: Ticket[];
   userId: string;
   workflowEnabled?: boolean;
+  portalEnabled?: boolean;
 }) {
   const [tickets, setTickets] = useState(initialTickets);
   const [live, setLive] = useState(false);
@@ -53,7 +30,9 @@ export function TicketsTable({
       const { data, error } = await supabase
         .from("tickets")
         .select(
-          "id, issue_id, issue_title, message, status, created_at, attachment_path"
+          portalEnabled
+            ? "id, issue_id, issue_title, message, status, created_at, attachment_path, resolver_type"
+            : "id, issue_id, issue_title, message, status, created_at, attachment_path"
         )
         .eq("user_id", userId)
         .order("created_at", { ascending: false });
@@ -61,7 +40,7 @@ export function TicketsTable({
         console.warn("Unable to refresh tickets.", error);
         return;
       }
-      setTickets((data ?? []) as Ticket[]);
+      setTickets((data ?? []) as unknown as Ticket[]);
     };
     const channel = supabase
       .channel("tickets-live")
@@ -112,9 +91,30 @@ export function TicketsTable({
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       supabase.removeChannel(channel);
     };
-  }, [userId]);
+  }, [portalEnabled, userId]);
 
   if (tickets.length === 0) {
+    if (portalEnabled) {
+      return (
+        <div
+          data-live={live ? "connected" : "fallback"}
+          className="mt-8 space-y-6"
+        >
+          <PortalTicketSection
+            heading="Open tickets"
+            tickets={[]}
+            workflowEnabled={workflowEnabled}
+            testId="tickets-open"
+          />
+          <PortalTicketSection
+            heading="Previous tickets"
+            tickets={[]}
+            workflowEnabled={workflowEnabled}
+            testId="tickets-previous"
+          />
+        </div>
+      );
+    }
     return (
       <div className="glass-strong mt-8 p-8 text-center">
         <p className="text-lg font-medium">
@@ -126,6 +126,36 @@ export function TicketsTable({
         >
           Browse troubleshooting guides
         </Link>
+      </div>
+    );
+  }
+
+  if (portalEnabled) {
+    const groups = tickets.reduce(
+      (result, ticket) => {
+        const group = describeTicketStatus(ticket.status).group;
+        result[group].push(ticket);
+        return result;
+      },
+      { open: [] as Ticket[], previous: [] as Ticket[] }
+    );
+    return (
+      <div
+        data-live={live ? "connected" : "fallback"}
+        className="mt-8 space-y-6"
+      >
+        <PortalTicketSection
+          heading="Open tickets"
+          tickets={groups.open}
+          workflowEnabled={workflowEnabled}
+          testId="tickets-open"
+        />
+        <PortalTicketSection
+          heading="Previous tickets"
+          tickets={groups.previous}
+          workflowEnabled={workflowEnabled}
+          testId="tickets-previous"
+        />
       </div>
     );
   }
@@ -181,5 +211,79 @@ export function TicketsTable({
         </tbody>
       </table>
     </div>
+  );
+}
+
+function PortalTicketSection({
+  heading,
+  tickets,
+  workflowEnabled,
+  testId,
+}: {
+  heading: string;
+  tickets: Ticket[];
+  workflowEnabled: boolean;
+  testId: string;
+}) {
+  return (
+    <section data-testid={testId} className="glass-strong p-5">
+      <h2 className="text-xl font-semibold">{heading}</h2>
+      {tickets.length === 0 ? (
+        <p className="mt-4 text-sm text-muted-foreground">
+          No {heading.toLowerCase()}
+        </p>
+      ) : (
+        <ul className="mt-4 space-y-3">
+          {tickets.map((ticket) => {
+            const status = describeTicketStatus(ticket.status, {
+              resolverType: ticket.resolver_type,
+            });
+            return (
+              <li key={ticket.id} className="glass p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <Link
+                      href={
+                        workflowEnabled
+                          ? `/tickets/${ticket.id}`
+                          : `/issues/${ticket.issue_id}`
+                      }
+                      className="font-medium underline underline-offset-4"
+                    >
+                      {ticket.issue_title}
+                    </Link>
+                    <p className="font-mono text-xs text-muted-foreground">
+                      {ticketReference(ticket.id)}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span
+                      title={ticket.status}
+                      className="glass-pill px-3 py-1 text-xs"
+                    >
+                      {status.label}
+                    </span>
+                    {status.attention && (
+                      <span className="glass-pill bg-amber-500/15 px-3 py-1 text-xs text-amber-800 dark:text-amber-200">
+                        Action needed
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <p className="mt-3 line-clamp-2 whitespace-pre-wrap text-sm text-muted-foreground">
+                  {ticket.message}
+                </p>
+                {ticket.attachment_path && (
+                  <AttachmentLink path={ticket.attachment_path} />
+                )}
+                <p className="mt-3 text-xs text-muted-foreground">
+                  {new Date(ticket.created_at).toLocaleDateString()}
+                </p>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
   );
 }

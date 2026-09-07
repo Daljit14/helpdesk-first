@@ -80,6 +80,11 @@ routing, public replies, internal notes, verification, and SLA tracking.
 Overdue notifications are checked when the operations dashboard loads or
 refreshes; they are dashboard-triggered rather than cron-driven.
 
+When `HELP_DESK_USER_PORTAL_ENABLED=true` alongside the ticket workflow flag
+after applying `supabase/user-ticket-portal.sql`, requesters can group and
+track their tickets, reply to support, reopen recently resolved tickets, and
+rate completed support. Guest ticket links are deferred to Phase 5P.
+
 ## Resolution tracking (Phase 5I.3)
 
 Apply `supabase/resolution-tracking.sql` after `supabase/admin-dashboard.sql`,

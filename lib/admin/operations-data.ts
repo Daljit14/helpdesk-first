@@ -150,6 +150,8 @@ export type WorkflowMetrics = {
   resolvedByAi: number;
   resolvedByEmployees: number;
   unassignedNeedsHuman: number;
+  avgSatisfaction: number | null;
+  reopenedCount: number;
 };
 
 const EMPTY_METRICS: AdminMetric = {
@@ -197,6 +199,8 @@ const EMPTY_WORKFLOW: WorkflowMetrics = {
   resolvedByAi: 0,
   resolvedByEmployees: 0,
   unassignedNeedsHuman: 0,
+  avgSatisfaction: null,
+  reopenedCount: 0,
 };
 
 type WorkflowTicketRow = {
@@ -343,7 +347,14 @@ function mapWorkflowMetrics(value: unknown): WorkflowMetrics {
   if (!value || typeof value !== "object") return EMPTY_WORKFLOW;
   const raw = value as Record<string, unknown>;
   return Object.fromEntries(
-    Object.keys(EMPTY_WORKFLOW).map((key) => [key, Number(raw[key] ?? 0)])
+    Object.keys(EMPTY_WORKFLOW).map((key) => [
+      key,
+      key === "avgSatisfaction"
+        ? raw[key] === null || raw[key] === undefined
+          ? null
+          : Number(raw[key])
+        : Number(raw[key] ?? 0),
+    ])
   ) as WorkflowMetrics;
 }
 

@@ -96,7 +96,7 @@ export async function assignTicket(
   agentUserId: string
 ): Promise<Result> {
   const found = await sessionFor("assign", ticketId);
-  if (!found || found.session.role !== "admin")
+  if (!found || found.session.role !== "org_admin")
     return { error: "Ticket not found." };
   if (!id.safeParse(agentUserId).success) return { error: "Invalid agent." };
   const member = await createAdminClient()
@@ -485,7 +485,8 @@ export async function updateOrganizationPolicy(
 ): Promise<Result> {
   if (!isTicketWorkflowEnabled()) return { error: "Not available." };
   const session = await getAdminSession();
-  if (!session || session.role !== "admin") return { error: "Not authorized." };
+  if (!session || session.role !== "org_admin")
+    return { error: "Not authorized." };
   if (typeof allowVerificationException !== "boolean")
     return { error: "Invalid policy." };
   const result = await createAdminClient()

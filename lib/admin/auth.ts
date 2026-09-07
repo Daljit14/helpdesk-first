@@ -7,13 +7,14 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isAdminDashboardEnabled } from "./flags";
 
-export type AdminRole = "admin" | "support_agent";
+export type AdminRole = "org_admin" | "support_agent";
 export type AdminSession = {
   userId: string;
   email: string;
   role: AdminRole;
   organizationId: string;
   displayName: string | null;
+  isPlatformAdmin: boolean;
 };
 
 const ADMIN_COOKIE = "hd_admin";
@@ -60,6 +61,7 @@ async function membershipFor(user: User): Promise<{
   organizationId: string;
   role: AdminRole;
   displayName: string | null;
+  isPlatformAdmin: boolean;
 } | null> {
   const admin = createAdminClient();
   const { data: membership, error } = await admin
@@ -68,6 +70,12 @@ async function membershipFor(user: User): Promise<{
     .eq("user_id", user.id)
     .limit(1)
     .maybeSingle();
+  const { data: platformGrant } = await admin
+    .from("platform_admins")
+    .select("user_id")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  const isPlatformAdmin = Boolean(platformGrant);
   if (error || !membership) return null;
   const { data: profile } = await admin
     .from("admin_profiles")
@@ -84,13 +92,21 @@ async function membershipFor(user: User): Promise<{
     if (!profile?.mfa_enrolled || assurance?.currentLevel !== "aal2")
       return null;
   }
-  if (membership.role !== "admin" && membership.role !== "support_agent") {
+  if (
+    membership.role !== "admin" &&
+    membership.role !== "org_admin" &&
+    membership.role !== "support_agent"
+  ) {
     return null;
   }
   return {
     organizationId: membership.organization_id,
-    role: membership.role,
+    role:
+      membership.role === "admin" || membership.role === "org_admin"
+        ? "org_admin"
+        : "support_agent",
     displayName: profile?.display_name ?? null,
+    isPlatformAdmin,
   };
 }
 
@@ -106,6 +122,27 @@ export async function getAdminSession(): Promise<AdminSession | null> {
   const membership = await membershipFor(user);
   if (!membership) return null;
   return { userId: user.id, email: user.email, ...membership };
+}
+
+export async function establishAdminSession(
+  user: User,
+  method = "password"
+): Promise<AdminSession | null> {
+  const membership = await membershipFor(user);
+  if (!membership) return null;
+  const admin = createAdminClient();
+  await admin.from("admin_profiles").upsert({
+    user_id: user.id,
+    last_login_at: new Date().toISOString(),
+  });
+  if (!(await setAdminSessionCookie(user.id))) return null;
+  const session: AdminSession = {
+    userId: user.id,
+    email: user.email ?? "",
+    ...membership,
+  };
+  await recordAudit(session, "auth.login", `method:${method}`);
+  return session;
 }
 
 export async function requireAdminPage(next: string): Promise<AdminSession> {
@@ -180,7 +217,7 @@ export function canAccessTicket(
   }
 ): boolean {
   if (ticket.organization_id !== session.organizationId) return false;
-  if (session.role === "admin") return true;
+  if (session.role === "org_admin") return true;
   return (
     ticket.assigned_agent_id === session.userId ||
     (!ticket.assigned_agent_id &&

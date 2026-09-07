@@ -41,6 +41,22 @@ export default async function AdminLayout({
                   >
                     Tickets
                   </Link>
+                  {session.role === "org_admin" && (
+                    <Link
+                      className="rounded-full px-3 py-2 hover:bg-muted"
+                      href="/admin/organization"
+                    >
+                      Organization
+                    </Link>
+                  )}
+                  {session.isPlatformAdmin && (
+                    <Link
+                      className="rounded-full px-3 py-2 hover:bg-muted"
+                      href="/admin/organizations"
+                    >
+                      Organizations
+                    </Link>
+                  )}
                   {isSecureAttachmentsEnabled() && (
                     <Link
                       className="rounded-full px-3 py-2 hover:bg-muted"

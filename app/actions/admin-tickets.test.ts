@@ -22,7 +22,8 @@ vi.mock("next/cache", () => ({
 const session = {
   userId: "user-1",
   email: "agent@example.com",
-  role: "admin" as const,
+  role: "org_admin" as const,
+  isPlatformAdmin: false,
   organizationId: "org-1",
   displayName: "Agent",
 };

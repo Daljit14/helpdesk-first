@@ -72,7 +72,7 @@ type TicketPageRow = {
 type WorkflowMember = {
   userId: string;
   displayName: string;
-  role: "admin" | "support_agent";
+  role: "org_admin" | "support_agent";
 };
 
 function verificationExceptionDetails(report: unknown) {
@@ -205,7 +205,7 @@ export default async function AdminTicketPage({
         .order("created_at", { ascending: true })
     : { data: [] };
   const workflowMembers: WorkflowMember[] = [];
-  if (workflowEnabled && session.role === "admin") {
+  if (workflowEnabled && session.role === "org_admin") {
     const { data: memberRows } = await admin
       .from("organization_members")
       .select("user_id,role")
@@ -213,7 +213,7 @@ export default async function AdminTicketPage({
       .in("role", ["admin", "support_agent"]);
     const rows = (memberRows ?? []) as unknown as {
       user_id: string;
-      role: "admin" | "support_agent";
+      role: "org_admin" | "support_agent";
     }[];
     const profiles = await admin
       .from("admin_profiles")
@@ -547,7 +547,7 @@ export default async function AdminTicketPage({
               <TicketWorkflowActions
                 ticketId={uuid}
                 canClaim={!ticket.assigned_agent_id}
-                isAdmin={session.role === "admin"}
+                isAdmin={session.role === "org_admin"}
                 members={workflowMembers}
                 status={ticket.status}
                 assignedAgentId={ticket.assigned_agent_id}

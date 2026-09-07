@@ -53,7 +53,8 @@ const agentId = "00000000-0000-4000-8000-000000000002";
 const session = {
   userId: "00000000-0000-4000-8000-000000000010",
   email: "admin@example.com",
-  role: "admin" as const,
+  role: "org_admin" as const,
+  isPlatformAdmin: false,
   organizationId: "org-1",
   displayName: "Admin",
 };

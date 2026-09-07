@@ -5,10 +5,19 @@ import { signUpAction, type AuthState } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { startSso } from "@/app/actions/auth";
 
 const initialState: AuthState = null;
 
-export function SignupForm() {
+export function SignupForm({
+  next = "/",
+  googleSsoEnabled = false,
+  microsoftSsoEnabled = false,
+}: {
+  next?: string;
+  googleSsoEnabled?: boolean;
+  microsoftSsoEnabled?: boolean;
+}) {
   const [state, formAction, pending] = useActionState(
     signUpAction,
     initialState
@@ -16,6 +25,7 @@ export function SignupForm() {
 
   return (
     <form action={formAction} className="flex flex-col gap-4" noValidate>
+      <input type="hidden" name="next" value={next} />
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="email">Email</Label>
         <Input
@@ -73,6 +83,30 @@ export function SignupForm() {
       <Button type="submit" disabled={pending}>
         {pending ? "Creating account…" : "Create account"}
       </Button>
+      {(googleSsoEnabled || microsoftSsoEnabled) && (
+        <div className="grid gap-2">
+          {googleSsoEnabled && (
+            <Button
+              type="submit"
+              formAction={() => startSso({ provider: "google", next: "/" })}
+              variant="outline"
+              className="w-full"
+            >
+              Continue with Google
+            </Button>
+          )}
+          {microsoftSsoEnabled && (
+            <Button
+              type="submit"
+              formAction={() => startSso({ provider: "azure", next: "/" })}
+              variant="outline"
+              className="w-full"
+            >
+              Continue with Microsoft
+            </Button>
+          )}
+        </div>
+      )}
     </form>
   );
 }

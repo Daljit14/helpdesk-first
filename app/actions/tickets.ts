@@ -19,6 +19,7 @@ import { platforms } from "@/lib/helpdesk-data";
 import { MemoryRateLimiter } from "@/lib/ai/rate-limit";
 import { isSecureAttachmentsEnabled } from "@/lib/admin/flags";
 import { attachTicketAttachments } from "@/lib/attachments/server";
+import { resolveOrganizationForUser } from "@/lib/org/membership";
 
 type Result = { error: string } | { success: true; ticketId?: string };
 const limiter = new MemoryRateLimiter({
@@ -75,15 +76,7 @@ export async function createWorkflowTicket(input: unknown): Promise<Result> {
     ? getIssueBySlug(parsed.data.issueId)
     : null;
   const admin = createAdminClient();
-  const organizationId =
-    (
-      await admin
-        .from("organization_members")
-        .select("organization_id")
-        .eq("user_id", user.id)
-        .limit(1)
-        .maybeSingle()
-    ).data?.organization_id ?? "00000000-0000-0000-0000-000000000001";
+  const { organizationId } = await resolveOrganizationForUser(user.id);
   const due = humanResponseDue("Normal", new Date()).toISOString();
   const inserted = await admin
     .from("tickets")

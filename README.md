@@ -59,6 +59,15 @@ values ('00000000-0000-0000-0000-000000000001', '<auth-user-uuid>', 'support_age
 Set `admin_profiles.mfa_enrolled` to `true` only after the operator has MFA
 enrolled; that operator must then authenticate at assurance level AAL2.
 
+Organization onboarding, invitations, verified domains, and Google/Microsoft
+SSO are enabled with `HELP_DESK_SSO_GOOGLE_ENABLED` and
+`HELP_DESK_SSO_MICROSOFT_ENABLED` after applying
+`supabase/wave-3-organizations.sql`. Configure Google and Azure (Microsoft
+Entra) provider client IDs and secrets in Supabase Authentication → Providers;
+never put provider secrets in this repository. A `platform_admin` grant is
+additive: the user must also hold a staff membership in a home organization
+(`admin`, `org_admin`, or `support_agent`) to sign in to `/admin`.
+
 Agents can change ticket status, priority, and assignee from the protected
 ticket detail page; each change is audited as `ticket.update`.
 Retention may be scheduled with pg_cron using the commented schedule in

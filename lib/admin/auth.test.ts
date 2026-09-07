@@ -47,20 +47,30 @@ function sessionCookie(userId: string, expiresAt: number, secret: string) {
   return `${signature}.${expiresAt}`;
 }
 
-function configureMembership(role = "admin", mfaEnrolled = false) {
+function configureMembership(
+  role = "admin",
+  mfaEnrolled = false,
+  platformAdmin = false
+) {
   const admin = {
     from: vi.fn((table: string) => {
       const builder = {
         select: vi.fn(() => builder),
         eq: vi.fn(() => builder),
+        in: vi.fn(() => builder),
         limit: vi.fn(() => builder),
         maybeSingle: vi.fn(async () =>
           table === "organization_members"
             ? { data: { organization_id: "org-1", role }, error: null }
-            : {
-                data: { display_name: "Agent", mfa_enrolled: mfaEnrolled },
-                error: null,
-              }
+            : table === "platform_admins"
+              ? {
+                  data: platformAdmin ? { user_id: "user-1" } : null,
+                  error: null,
+                }
+              : {
+                  data: { display_name: "Agent", mfa_enrolled: mfaEnrolled },
+                  error: null,
+                }
         ),
       };
       return builder;
@@ -88,9 +98,10 @@ describe("admin authorization", () => {
   const adminSession = {
     userId: "admin-1",
     email: "admin@example.com",
-    role: "admin" as const,
+    role: "org_admin" as const,
     organizationId: "org-1",
     displayName: "Admin",
+    isPlatformAdmin: false,
   };
   const agentSession = {
     ...adminSession,
@@ -159,7 +170,7 @@ describe("admin authorization", () => {
     );
   });
 
-  test.each(["admin", "support_agent"] as const)(
+  test.each(["org_admin", "support_agent"] as const)(
     "allows %s members",
     async (role) => {
       const userId = "user-1";
@@ -170,11 +181,12 @@ describe("admin authorization", () => {
         id: userId,
         email: "agent@example.com",
       } as never);
-      configureMembership(role);
+      configureMembership(role === "org_admin" ? "admin" : role);
       cookieStore.value = sessionCookie(userId, Date.now() + 60_000, secret);
       await expect(getAdminSession()).resolves.toMatchObject({
         role,
         organizationId: "org-1",
+        isPlatformAdmin: false,
       });
     }
   );
@@ -210,6 +222,23 @@ describe("admin authorization", () => {
     };
     mockedAdmin.mockReturnValue(admin as never);
     expect(((await requireAdminApi()) as Response).status).toBe(403);
+  });
+
+  test("platform grants do not replace staff membership", async () => {
+    vi.stubEnv("HELP_DESK_ADMIN_DASHBOARD_ENABLED", "true");
+    vi.stubEnv("HELP_DESK_ADMIN_SESSION_SECRET", "test-secret");
+    mockedUser.mockResolvedValue({
+      id: "user-1",
+      email: "platform@example.com",
+    } as never);
+    configureMembership("requester", false, true);
+    cookieStore.value = sessionCookie(
+      "user-1",
+      Date.now() + 60_000,
+      "test-secret"
+    );
+
+    await expect(getAdminSession()).resolves.toBeNull();
   });
 
   test("enrolled MFA requires AAL2", async () => {

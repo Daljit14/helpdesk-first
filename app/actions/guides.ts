@@ -15,6 +15,7 @@ import {
 } from "@/lib/admin/flags";
 import { createWorkflowTicket } from "@/app/actions/tickets";
 import { attachTicketAttachments } from "@/lib/attachments/server";
+import { resolveOrganizationForUser } from "@/lib/org/membership";
 
 type GuideActionError = { error: string };
 type AuthenticatedIssueResult = GuideActionError | { user: User; issue: Issue };
@@ -176,10 +177,12 @@ export async function submitTicket(
   const attachmentIds = parsed.data.attachmentIds ?? [];
 
   const supabase = await createClient();
+  const { organizationId } = await resolveOrganizationForUser(result.user.id);
   const inserted = await supabase
     .from("tickets")
     .insert({
       user_id: result.user.id,
+      organization_id: organizationId,
       issue_id: result.issue.id,
       issue_title: result.issue.title,
       category: result.issue.category,

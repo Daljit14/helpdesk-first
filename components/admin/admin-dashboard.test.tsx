@@ -17,7 +17,7 @@ function snapshot(withResolution = false): OperationsData {
   return {
     generatedAt: new Date().toISOString(),
     organizationId: "org-1",
-    role: "admin",
+    role: "org_admin",
     organizationName: "HelpDesk First",
     metrics: {
       activeUsers: 1,

@@ -48,3 +48,21 @@ test("forgot password reports when accounts are disabled", async ({ page }) => {
     page.getByText("Accounts are not enabled on this deployment.")
   ).toBeVisible();
 });
+
+test("invalid invitations preserve the sign-in destination", async ({
+  page,
+}) => {
+  await page.goto("/invite/bad-token");
+  await expect(page).toHaveURL("/login?next=%2Finvite%2Fbad-token");
+  await expect(page.getByRole("heading", { name: "Log in" })).toBeVisible();
+});
+
+test("SSO buttons appear only for enabled providers", async ({ page }) => {
+  await page.goto("/login");
+  await expect(
+    page.getByRole("button", { name: "Continue with Google" })
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Continue with Microsoft" })
+  ).toBeVisible();
+});

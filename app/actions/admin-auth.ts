@@ -8,9 +8,7 @@ import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import {
   clearAdminSessionCookie,
-  membershipFor,
-  recordAudit,
-  setAdminSessionCookie,
+  establishAdminSession,
 } from "@/lib/admin/auth";
 import { isAdminDashboardEnabled } from "@/lib/admin/flags";
 import { createRateLimiter } from "@/lib/ai/rate-limit";
@@ -80,31 +78,11 @@ export async function adminLogin(
   const { data, error } = await supabase.auth.signInWithPassword(parsed.data);
   if (error || !data.user) return { error: GENERIC_ERROR };
 
-  const membership = await membershipFor(data.user);
-  if (!membership) {
+  const session = await establishAdminSession(data.user, "password");
+  if (!session) {
     await supabase.auth.signOut();
     return { error: GENERIC_ERROR };
   }
-
-  const admin = await import("@/lib/supabase/admin").then((module) =>
-    module.createAdminClient()
-  );
-  await admin.from("admin_profiles").upsert({
-    user_id: data.user.id,
-    last_login_at: new Date().toISOString(),
-  });
-  if (!(await setAdminSessionCookie(data.user.id))) {
-    await supabase.auth.signOut();
-    return { error: GENERIC_ERROR };
-  }
-  await recordAudit(
-    {
-      userId: data.user.id,
-      email: data.user.email ?? parsed.data.email,
-      ...membership,
-    },
-    "auth.login"
-  );
   redirect(safeNext(formData.get("next")));
 }
 

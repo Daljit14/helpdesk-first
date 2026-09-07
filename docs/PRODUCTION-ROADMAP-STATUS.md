@@ -361,14 +361,14 @@ in Production; the grounded provider (PR #29) is not deployed anywhere.
 
 ### 5.8 Multi-organisation identity and student privacy
 
-| Requirement                                                                  | Status   | Evidence / gap                                                                                                 |
-| ---------------------------------------------------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------- |
-| Roles `requester`, `support_agent`, `org_admin`, restricted `platform_admin` | PARTIAL  | Roles on `main`: `admin`, `support_agent` (+ implicit requester = authenticated user). No `platform_admin`.    |
-| `org_id` on every tenant row + RLS                                           | COMPLETE | `organization_id` on tickets; org-scoped RLS on comments, actions, events, attachments; 4 DB isolation suites. |
-| Tenant enforcement in caches, search, retrieval, exports, jobs               | PARTIAL  | Exports/metrics org-scoped; no retrieval layer yet; purge job is cross-org by design (service role).           |
-| Organisation creation, verified domain, invitations, role management, SSO    | MISSING  | Organisations/members are seeded by SQL; no onboarding UI.                                                     |
-| Minimal school directory fields                                              | COMPLETE | Only auth id, email, display name, membership role stored; no grades/health/etc.                               |
-| Jurisdiction / age / DPA / privacy review                                    | BLOCKED  | Owner decisions (Roadmap §14).                                                                                 |
+| Requirement                                                                  | Status                           | Evidence / gap                                                                                                                            |
+| ---------------------------------------------------------------------------- | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Roles `requester`, `support_agent`, `org_admin`, restricted `platform_admin` | COMPLETE (PR #34, pending merge) | `supabase/wave-3-organizations.sql` adds role constraints, `platform_admins`, and `lib/admin/auth.ts` maps legacy `admin` to `org_admin`. |
+| `org_id` on every tenant row + RLS                                           | COMPLETE                         | `organization_id` on tickets; org-scoped RLS on comments, actions, events, attachments; 4 DB isolation suites.                            |
+| Tenant enforcement in caches, search, retrieval, exports, jobs               | PARTIAL                          | Exports/metrics org-scoped; no retrieval layer yet; purge job is cross-org by design (service role).                                      |
+| Organisation creation, verified domain, invitations, role management, SSO    | COMPLETE (PR #34, pending merge) | `app/actions/organizations.ts`, `/admin/organization`, `/admin/organizations`, `/invite/[token]`, and Supabase OAuth routes/actions.      |
+| Minimal school directory fields                                              | COMPLETE                         | Only auth id, email, display name, membership role stored; no grades/health/etc.                                                          |
+| Jurisdiction / age / DPA / privacy review                                    | BLOCKED                          | Owner decisions (Roadmap §14).                                                                                                            |
 
 ### 5.9 Comments, actions and resolution records
 
@@ -489,7 +489,7 @@ project.
 | 0    | This audit                                      | This document.                                                                                                                                                                                      |
 | 1    | Unified ticket lifecycle + AI/human workflow    | COMPLETE (PR #32, merged `3320968`) — `Reopened` status, per-step outcomes, policy-gated verification exception, confidence/risk/handoff filters, richer `ticket_actions`.                          |
 | 2    | Requester portal + conversation                 | COMPLETE (PR #32, merged `3320968`) for the remediation scope — assignment/SLA visibility and last-updated requester copy; continued AI turn and self-service export/deletion remain separate gaps. |
-| 3    | Organisation onboarding, RBAC, tenant hardening | MISSING/BLOCKED — needs identity/SSO/region decisions. First substantive new wave.                                                                                                                  |
+| 3    | Organisation onboarding, RBAC, tenant hardening | COMPLETE (PR #34, pending merge) — `supabase/wave-3-organizations.sql`, organization actions/UI, invitation acceptance, and Google/Microsoft SSO.                                                   |
 | 4    | AI gateway + real grounded provider             | BLOCKED on Anthropic credits; PR #29 ready. Remediation after unblock: secondary provider/failover, per-org kill switch, retry/circuit breaker.                                                     |
 | 5    | Knowledge governance + citations                | Implemented on PR #29 (ships with wave 4). YouTube sources MISSING.                                                                                                                                 |
 | 6    | Secure images/PDFs                              | Largely COMPLETE via #30. BLOCKED: scanner choice. MISSING: OCR/extraction + sensitive-data check.                                                                                                  |
@@ -502,12 +502,14 @@ project.
 | 13   | Staging + closed pilot                          | MISSING.                                                                                                                                                                                            |
 | 14   | GA                                              | MISSING.                                                                                                                                                                                            |
 
-Recommended next PR after owner review: **Wave 3** once identity/region
-decisions are recorded, while PR #29 (waves 4–5) waits for Anthropic credits.
+Recommended next PR after owner review: **Wave 4** while PR #29 (waves 4–5)
+waits for Anthropic credits.
 
 ---
 
-## Part D — Owner decisions still open (Roadmap §14)
+## Part D — Owner decisions (Roadmap §14)
+
+Recorded decisions require legal review before school rollout.
 
 | Decision                                                | Blocks                 | Status                                                                                                                |
 | ------------------------------------------------------- | ---------------------- | --------------------------------------------------------------------------------------------------------------------- |
@@ -531,9 +533,8 @@ decisions are recorded, while PR #29 (waves 4–5) waits for Anthropic credits.
   secure attachments are enabled. Removal needs a data migration.
 - Legacy statuses `Open` and `Waiting` are still valid in the DB check
   constraint; new tickets use the 5K vocabulary.
-- Roles are `admin`/`support_agent`; roadmap names are `org_admin`/
-  `support_agent`/`platform_admin`. Renaming requires a migration and
-  should be done in Wave 3 with evidence, not by reinterpretation.
+- Legacy `admin` remains legal for rollback safety; Wave 3 maps it to
+  `org_admin` and adds requester/platform-admin membership paths.
 - Every `supabase/*.sql` file ends with a commented rollback block; all are
   additive and have been applied to the production Supabase project.
 - Guest single-ticket access links (#28) were deferred because guest

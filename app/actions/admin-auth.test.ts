@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { adminLogin } from "./admin-auth";
 import { createClient } from "@/lib/supabase/server";
-import { membershipFor, setAdminSessionCookie } from "@/lib/admin/auth";
+import { establishAdminSession, setAdminSessionCookie } from "@/lib/admin/auth";
 
 const { redirect } = vi.hoisted(() => ({
   redirect: vi.fn(() => {
@@ -23,14 +23,14 @@ vi.mock("@/lib/admin/flags", () => ({
 }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 vi.mock("@/lib/admin/auth", () => ({
-  membershipFor: vi.fn(),
+  establishAdminSession: vi.fn(),
   recordAudit: vi.fn(),
   setAdminSessionCookie: vi.fn(async () => true),
   clearAdminSessionCookie: vi.fn(),
 }));
 
 const mockedClient = vi.mocked(createClient);
-const mockedMembership = vi.mocked(membershipFor);
+const mockedEstablish = vi.mocked(establishAdminSession);
 const mockedCookie = vi.mocked(setAdminSessionCookie);
 
 function form(email: string, password = "correct horse battery staple") {
@@ -57,7 +57,7 @@ describe("adminLogin", () => {
         signOut,
       },
     } as never);
-    mockedMembership.mockResolvedValue(null);
+    mockedEstablish.mockResolvedValue(null);
     await expect(adminLogin(null, form("user@example.com"))).resolves.toEqual({
       error: "Invalid credentials or not authorized.",
     });

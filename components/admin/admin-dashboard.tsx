@@ -389,7 +389,7 @@ export function AdminDashboard({
             {staleMessage}
           </p>
         )}
-        {organizationPolicy && snapshot.role === "admin" && (
+        {organizationPolicy && snapshot.role === "org_admin" && (
           <section className="glass p-5">
             <h2 className="font-semibold">Organization policy</h2>
             <label className="mt-3 flex items-center gap-3 text-sm">

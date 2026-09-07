@@ -17,7 +17,8 @@ vi.mock("./flags", () => ({
 const session: AdminSession = {
   userId: "admin-1",
   email: "admin@example.com",
-  role: "admin",
+  role: "org_admin",
+  isPlatformAdmin: false,
   organizationId: "org-a",
   displayName: "Admin",
 };

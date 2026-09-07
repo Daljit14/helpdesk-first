@@ -26,20 +26,18 @@ export function hashInvitationToken(rawToken: string): string {
 export async function resolveOrganizationForUser(
   userId: string
 ): Promise<OrganizationMembership> {
-  try {
-    const { data } = await createAdminClient()
-      .from("organization_members")
-      .select("organization_id, role")
-      .eq("user_id", userId)
-      .limit(1)
-      .maybeSingle();
-    if (data) {
-      return {
-        organizationId: data.organization_id,
-        role: data.role === "admin" ? "org_admin" : data.role,
-      };
-    }
-  } catch {}
+  const { data } = await createAdminClient()
+    .from("organization_members")
+    .select("organization_id, role")
+    .eq("user_id", userId)
+    .limit(1)
+    .maybeSingle();
+  if (data) {
+    return {
+      organizationId: data.organization_id,
+      role: data.role === "admin" ? "org_admin" : data.role,
+    };
+  }
   return { organizationId: DEFAULT_ORGANIZATION_ID, role: "requester" };
 }
 

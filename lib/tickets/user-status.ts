@@ -107,7 +107,7 @@ export function describeTicketStatus(
   if (normalized === "resolved") {
     return {
       label: "Resolved",
-      description: "This ticket is resolved.",
+      description: "Marked resolved by support — tell us if it isn't fixed",
       nextAction: "Rate your experience or reopen within 14 days",
       attention: false,
       group: "previous",

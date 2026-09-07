@@ -6,6 +6,18 @@ alter table public.tickets add constraint tickets_workflow_status_check
   check (status in ('Open', 'New', 'AI Reviewing', 'AI Resolving', 'Needs Human',
     'In Progress', 'Waiting', 'Waiting for User', 'Pending Verification',
     'Reopened', 'Resolved', 'Closed')) not valid;
+alter table public.tickets
+  add column if not exists verification_exception boolean not null default false;
+alter table public.tickets drop constraint if exists tickets_employee_resolution_confirmation;
+alter table public.tickets add constraint tickets_employee_resolution_confirmation
+  check (
+    not (
+      lower(status) = 'resolved'
+      and resolution_source = 'employee'
+      and not verified_by_user
+      and not verification_exception
+    )
+  ) not valid;
 
 do $$
 declare constraint_name text;
@@ -20,6 +32,17 @@ begin
       raise notice 'Could not validate constraint %: %', constraint_name, sqlerrm;
     end;
   end loop;
+end $$;
+
+do $$
+begin
+  begin
+    alter table public.tickets
+      validate constraint tickets_employee_resolution_confirmation;
+  exception when others then
+    raise notice 'Could not validate constraint tickets_employee_resolution_confirmation: %',
+      sqlerrm;
+  end;
 end $$;
 
 do $$
@@ -172,6 +195,7 @@ begin
       handoff_reason = 'reopened_by_user',
       escalation_reason = left(reason, 1000),
       verified_by_user = false,
+      verification_exception = false,
       user_confirmed = false,
       user_confirmed_at = null,
       resolution_source = 'unresolved',
@@ -331,4 +355,6 @@ grant execute on function public.admin_resolution_metrics(uuid) to service_role;
 -- alter table public.ticket_actions drop column if exists ended_at;
 -- alter table public.ticket_actions drop column if exists verification_result;
 -- alter table public.ticket_actions drop column if exists rollback_result;
+-- alter table public.tickets drop column if exists verification_exception;
 -- alter table public.tickets drop constraint if exists tickets_workflow_status_check;
+-- alter table public.tickets drop constraint if exists tickets_employee_resolution_confirmation;

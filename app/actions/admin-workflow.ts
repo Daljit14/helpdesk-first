@@ -192,6 +192,7 @@ export async function reopenTicket(ticketId: string): Promise<Result> {
   const result = await updateTicket(ticketId, found.session.organizationId, {
     status: "Reopened",
     verified_by_user: false,
+    verification_exception: false,
     resolution_source: null,
     resolver_type: found.ticket.assigned_agent_id ? "employee" : "unassigned",
   });
@@ -385,9 +386,10 @@ export async function submitResolution(
     resolution_summary: parsed.data.userExplanation,
     verification_method: parsed.data.verificationMethod,
     resolver_type: "employee",
-    resolution_source: isUserConfirmed ? null : "unresolved",
+    resolution_source: isUserConfirmed ? null : "employee",
     status: isUserConfirmed ? "Pending Verification" : "Resolved",
-    verified_by_user: isUserConfirmed ? false : false,
+    verified_by_user: false,
+    verification_exception: isUserConfirmed ? false : true,
     resolved_at: isUserConfirmed ? null : now,
     verification_requested_at: isUserConfirmed ? now : null,
   });

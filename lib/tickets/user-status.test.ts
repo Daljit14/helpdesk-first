@@ -57,3 +57,9 @@ test("describes requester assignment and response timing without agent identity"
     lastUpdated: expect.stringContaining("Last updated"),
   });
 });
+
+test("explains that support marked the ticket resolved", () => {
+  expect(describeTicketStatus("Resolved").description).toBe(
+    "Marked resolved by support — tell us if it isn't fixed"
+  );
+});

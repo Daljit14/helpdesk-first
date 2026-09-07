@@ -75,6 +75,17 @@ type WorkflowMember = {
   role: "admin" | "support_agent";
 };
 
+function verificationExceptionDetails(report: unknown) {
+  if (!report || typeof report !== "object") return null;
+  const value = (report as { verificationException?: unknown })
+    .verificationException;
+  if (!value || typeof value !== "object") return null;
+  const method = (value as { method?: unknown }).method;
+  const reason = (value as { reason?: unknown }).reason;
+  if (typeof method !== "string" || typeof reason !== "string") return null;
+  return { method, reason };
+}
+
 function statusTone(status: string) {
   switch (status) {
     case "New":
@@ -157,6 +168,9 @@ export default async function AdminTicketPage({
   const ticket = rawTicket;
   if (error || !ticket) notFound();
   if (workflowEnabled && !canAccessTicket(session, ticket)) notFound();
+  const exceptionDetails = verificationExceptionDetails(
+    ticket.resolution_report
+  );
 
   const { data: events } = await admin
     .from("ticket_events")
@@ -440,6 +454,13 @@ export default async function AdminTicketPage({
             {resolutionTrackingEnabled && (
               <div className="glass p-5">
                 <h2 className="font-semibold">Resolution</h2>
+                {exceptionDetails && (
+                  <div className="glass-pill mt-3 inline-flex flex-col items-start gap-1 px-3 py-2 text-sm">
+                    <strong>Verified by employee exception</strong>
+                    <span>Method: {exceptionDetails.method}</span>
+                    <span>Reason: {exceptionDetails.reason}</span>
+                  </div>
+                )}
                 <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
                   <div>
                     <dt className="font-medium">Resolved by</dt>

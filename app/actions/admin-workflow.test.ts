@@ -44,6 +44,7 @@ import {
   changeStatus,
   claimTicket,
   recordAction,
+  reopenTicket,
   submitResolution,
 } from "./admin-workflow";
 
@@ -203,10 +204,33 @@ describe("admin workflow actions", () => {
       })
     ).resolves.toEqual({ success: true });
     expect(updates[0]).toEqual(
-      expect.objectContaining({ status: "Pending Verification" })
+      expect.objectContaining({
+        status: "Pending Verification",
+        verified_by_user: false,
+        verification_exception: false,
+      })
     );
     expect(updates).not.toContainEqual(
       expect.objectContaining({ status: "Resolved" })
+    );
+  });
+
+  test("clears verification exception when an admin reopens a resolved ticket", async () => {
+    mocks.getAdminSession.mockResolvedValue(session);
+    const { updates } = setup({
+      ticket: {
+        status: "Resolved",
+        assigned_agent_id: agentId,
+        verification_exception: true,
+      },
+    });
+    await expect(reopenTicket(ticketId)).resolves.toEqual({ success: true });
+    expect(updates[0]).toEqual(
+      expect.objectContaining({
+        status: "Reopened",
+        verified_by_user: false,
+        verification_exception: false,
+      })
     );
   });
 
@@ -279,6 +303,7 @@ describe("admin workflow actions", () => {
       expect.objectContaining({
         status: "Resolved",
         verified_by_user: false,
+        verification_exception: true,
         resolution_report: expect.objectContaining({
           verificationException: expect.objectContaining({
             method: "remote_test",

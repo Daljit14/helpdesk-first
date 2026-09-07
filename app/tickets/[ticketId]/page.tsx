@@ -3,6 +3,8 @@ import { getCurrentUser } from "@/lib/supabase/user";
 import { isTicketWorkflowEnabled } from "@/lib/admin/flags";
 import { createClient } from "@/lib/supabase/server";
 import { TicketConversation } from "@/components/ticket-conversation";
+import { AttachmentList } from "@/components/attachment-list";
+import { listOwnAttachments } from "@/app/actions/attachments";
 
 export const dynamic = "force-dynamic";
 
@@ -61,6 +63,7 @@ export default async function TicketPage({
     .eq("ticket_id", ticketId)
     .eq("visibility", "public")
     .order("created_at", { ascending: true });
+  const attachments = await listOwnAttachments(ticketId);
   return (
     <section className="flex flex-1 flex-col px-4 py-12 sm:px-6 lg:px-8">
       <div className="mx-auto w-full max-w-3xl">
@@ -83,6 +86,7 @@ export default async function TicketPage({
             {new Date(ticket.created_at).toLocaleString()}
           </p>
         </div>
+        <AttachmentList attachments={attachments} />
         <TicketConversation
           ticketId={ticket.id}
           userId={user.id}

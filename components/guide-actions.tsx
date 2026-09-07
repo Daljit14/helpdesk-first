@@ -17,6 +17,7 @@ type GuideActionsProps = {
   initialVote: "up" | "down" | null;
   initialTotals: { up: number; down: number };
   workflowEnabled?: boolean;
+  secureAttachmentsEnabled?: boolean;
 };
 
 export function GuideActions({
@@ -26,6 +27,7 @@ export function GuideActions({
   initialVote,
   initialTotals,
   workflowEnabled = false,
+  secureAttachmentsEnabled = false,
 }: GuideActionsProps) {
   const [bookmarked, setBookmarked] = useState(initialBookmarked);
   const [vote, setVote] = useState(initialVote);
@@ -148,6 +150,7 @@ export function GuideActions({
           issueId={issueId}
           userId={user.id}
           workflowEnabled={workflowEnabled}
+          secureAttachmentsEnabled={secureAttachmentsEnabled}
         />
       )}
     </div>

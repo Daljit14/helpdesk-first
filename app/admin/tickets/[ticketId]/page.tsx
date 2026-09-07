@@ -16,6 +16,10 @@ import { getIssueBySlug } from "@/lib/search";
 import { TicketWorkflowActions } from "@/components/admin/ticket-workflow-actions";
 import { canAccessTicket } from "@/lib/admin/auth";
 import { isTicketWorkflowEnabled } from "@/lib/admin/flags";
+import { isSecureAttachmentsEnabled } from "@/lib/admin/flags";
+import { listAdminAttachments } from "@/app/actions/admin-attachments";
+import { AttachmentList } from "@/components/attachment-list";
+import { AdminAttachmentControls } from "@/components/admin/admin-attachment-controls";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -125,6 +129,7 @@ export default async function AdminTicketPage({
 
   const admin = createAdminClient();
   const workflowEnabled = isTicketWorkflowEnabled();
+  const secureAttachmentsEnabled = isSecureAttachmentsEnabled();
   const ticketResult = await (
     workflowEnabled
       ? admin
@@ -230,6 +235,9 @@ export default async function AdminTicketPage({
   const recommendedIssue = ticket.ai_recommended_issue_id
     ? getIssueBySlug(ticket.ai_recommended_issue_id)
     : null;
+  const secureAttachments = secureAttachmentsEnabled
+    ? await listAdminAttachments(uuid, session.organizationId)
+    : [];
 
   return (
     <section className="flex flex-1 flex-col px-4 py-10 sm:px-6 lg:px-8">
@@ -272,7 +280,7 @@ export default async function AdminTicketPage({
               <p className="mt-3 whitespace-pre-wrap text-muted-foreground">
                 {ticket.message}
               </p>
-              {attachmentUrl && (
+              {!secureAttachmentsEnabled && attachmentUrl && (
                 <a
                   href={attachmentUrl}
                   target="_blank"
@@ -283,6 +291,17 @@ export default async function AdminTicketPage({
                 </a>
               )}
             </div>
+            {secureAttachmentsEnabled && (
+              <AttachmentList
+                attachments={secureAttachments}
+                adminControls={(attachment) => (
+                  <AdminAttachmentControls
+                    key={`controls-${attachment.id}`}
+                    attachment={attachment}
+                  />
+                )}
+              />
+            )}
             {workflowEnabled && (
               <>
                 <div className="glass grid gap-4 p-5 sm:grid-cols-2">

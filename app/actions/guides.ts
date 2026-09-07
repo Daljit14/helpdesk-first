@@ -9,8 +9,12 @@ import { submitTicketSchema } from "@/lib/validation";
 import type { User } from "@supabase/supabase-js";
 import type { Issue } from "@/lib/issues";
 import { recordAnalyticsEvent } from "@/lib/analytics/events";
-import { isTicketWorkflowEnabled } from "@/lib/admin/flags";
+import {
+  isSecureAttachmentsEnabled,
+  isTicketWorkflowEnabled,
+} from "@/lib/admin/flags";
 import { createWorkflowTicket } from "@/app/actions/tickets";
+import { attachTicketAttachments } from "@/app/actions/attachments";
 
 type GuideActionError = { error: string };
 type AuthenticatedIssueResult = GuideActionError | { user: User; issue: Issue };
@@ -123,10 +127,18 @@ export async function submitTicket(
   formData: FormData
 ): Promise<TicketActionState> {
   if (isTicketWorkflowEnabled() && formData.get("workflowEnabled") === "true") {
+    const attachmentIds = formData
+      .getAll("attachmentIds[]")
+      .map(String)
+      .filter(Boolean);
     const workflow = await createWorkflowTicket({
       message: String(formData.get("message") ?? ""),
       platform: String(formData.get("platform") ?? "Other"),
       issueId: String(formData.get("issueId") ?? ""),
+      attachmentIds,
+      attachmentPath: isSecureAttachmentsEnabled()
+        ? undefined
+        : String(formData.get("attachmentPath") ?? "") || undefined,
     });
     if ("error" in workflow) return { error: workflow.error };
     revalidatePath("/tickets");
@@ -145,6 +157,7 @@ export async function submitTicket(
     issueId: formData.get("issueId"),
     message: formData.get("message"),
     attachmentPath: formData.get("attachmentPath") ?? undefined,
+    attachmentIds: formData.getAll("attachmentIds[]"),
   });
   if (!parsed.success) {
     const fieldErrors: Record<string, string> = {};
@@ -160,19 +173,32 @@ export async function submitTicket(
     !parsed.data.attachmentPath.includes("..")
       ? parsed.data.attachmentPath
       : null;
+  const attachmentIds = parsed.data.attachmentIds ?? [];
 
   const supabase = await createClient();
-  const { error } = await supabase.from("tickets").insert({
-    user_id: result.user.id,
-    issue_id: result.issue.id,
-    issue_title: result.issue.title,
-    category: result.issue.category,
-    message: parsed.data.message,
-    attachment_path: attachmentPath,
-    escalated: true,
-    escalated_at: new Date().toISOString(),
-  });
-  if (error) return { error: "Unable to submit ticket." };
+  const inserted = await supabase
+    .from("tickets")
+    .insert({
+      user_id: result.user.id,
+      issue_id: result.issue.id,
+      issue_title: result.issue.title,
+      category: result.issue.category,
+      message: parsed.data.message,
+      attachment_path: isSecureAttachmentsEnabled() ? null : attachmentPath,
+      escalated: true,
+      escalated_at: new Date().toISOString(),
+    })
+    .select("id")
+    .single();
+  if (inserted.error || !inserted.data)
+    return { error: "Unable to submit ticket." };
+  if (isSecureAttachmentsEnabled()) {
+    const attached = await attachTicketAttachments(
+      inserted.data.id,
+      attachmentIds
+    );
+    if ("error" in attached) return { error: attached.error };
+  }
   await recordAnalyticsEvent({
     eventType: "ticket_created",
     path: `/issues/${result.issue.id}`,

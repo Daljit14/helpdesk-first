@@ -39,10 +39,12 @@ export function TicketsTable({
   initialTickets,
   userId,
   workflowEnabled = false,
+  secureAttachmentsEnabled = false,
 }: {
-  initialTickets: Ticket[];
+  initialTickets: (Ticket & { attachmentCount?: number })[];
   userId: string;
   workflowEnabled?: boolean;
+  secureAttachmentsEnabled?: boolean;
 }) {
   const [tickets, setTickets] = useState(initialTickets);
   const [live, setLive] = useState(false);
@@ -61,7 +63,30 @@ export function TicketsTable({
         console.warn("Unable to refresh tickets.", error);
         return;
       }
-      setTickets((data ?? []) as Ticket[]);
+      let attachmentCounts = new Map<string, number>();
+      if (secureAttachmentsEnabled) {
+        const { data: attachments } = await supabase
+          .from("ticket_attachments")
+          .select("ticket_id")
+          .eq("uploader_id", userId)
+          .not("ticket_id", "is", null)
+          .neq("status", "deleted");
+        attachmentCounts = new Map();
+        for (const attachment of attachments ?? []) {
+          if (attachment.ticket_id) {
+            attachmentCounts.set(
+              attachment.ticket_id,
+              (attachmentCounts.get(attachment.ticket_id) ?? 0) + 1
+            );
+          }
+        }
+      }
+      setTickets(
+        (data ?? []).map((ticket) => ({
+          ...ticket,
+          attachmentCount: attachmentCounts.get(ticket.id) ?? 0,
+        })) as (Ticket & { attachmentCount?: number })[]
+      );
     };
     const channel = supabase
       .channel("tickets-live")
@@ -82,7 +107,11 @@ export function TicketsTable({
             const updated = payload.new as Ticket;
             const exists = current.some((t) => t.id === updated.id);
             if (exists) {
-              return current.map((t) => (t.id === updated.id ? updated : t));
+              return current.map((t) =>
+                t.id === updated.id
+                  ? { ...updated, attachmentCount: t.attachmentCount }
+                  : t
+              );
             }
             return [updated, ...current];
           });
@@ -112,7 +141,7 @@ export function TicketsTable({
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       supabase.removeChannel(channel);
     };
-  }, [userId]);
+  }, [secureAttachmentsEnabled, userId]);
 
   if (tickets.length === 0) {
     return (
@@ -169,9 +198,19 @@ export function TicketsTable({
               </td>
               <td className="max-w-md whitespace-pre-wrap px-4 py-4 align-top">
                 {ticket.message}
-                {ticket.attachment_path && (
+                {secureAttachmentsEnabled ? (
+                  ticket.attachmentCount ? (
+                    <Link
+                      href={`/tickets/${ticket.id}`}
+                      className="mt-1 inline-flex text-sm underline underline-offset-4"
+                    >
+                      {ticket.attachmentCount} attachment
+                      {ticket.attachmentCount === 1 ? "" : "s"}
+                    </Link>
+                  ) : null
+                ) : ticket.attachment_path ? (
                   <AttachmentLink path={ticket.attachment_path} />
-                )}
+                ) : null}
               </td>
               <td className="whitespace-nowrap px-4 py-4 align-top text-muted-foreground">
                 {new Date(ticket.created_at).toLocaleDateString()}

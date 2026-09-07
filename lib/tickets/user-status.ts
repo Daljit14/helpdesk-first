@@ -8,6 +8,32 @@ export type TicketStatusDescription = {
   group: "open" | "previous";
 };
 
+export function describeTicketAssignment({
+  assignedAgentId,
+  humanResponseDueAt,
+  status,
+  updatedAt,
+}: {
+  assignedAgentId?: string | null;
+  humanResponseDueAt?: string | null;
+  status: string;
+  updatedAt?: string | null;
+}) {
+  const closed = ["resolved", "closed"].includes(status.trim().toLowerCase());
+  return {
+    label: assignedAgentId
+      ? "Assigned to a support person"
+      : "Waiting for a support person",
+    expectedResponseBy:
+      !closed && humanResponseDueAt
+        ? `Expected next response by ${new Date(humanResponseDueAt).toLocaleString()}`
+        : null,
+    lastUpdated: updatedAt
+      ? `Last updated ${new Date(updatedAt).toLocaleString()}`
+      : null,
+  };
+}
+
 export function describeTicketStatus(
   status: string,
   opts: { resolverType?: string | null } = {}
@@ -66,6 +92,15 @@ export function describeTicketStatus(
       description: "Support believes this is fixed.",
       nextAction: "Choose Yes, it's fixed or No, still broken",
       attention: true,
+      group: "open",
+    };
+  }
+  if (normalized === "reopened") {
+    return {
+      label: "Reopened",
+      description: "A support person will pick this back up.",
+      nextAction: null,
+      attention: false,
       group: "open",
     };
   }

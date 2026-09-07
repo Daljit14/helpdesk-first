@@ -17,6 +17,7 @@ import { TicketWorkflowActions } from "@/components/admin/ticket-workflow-action
 import { canAccessTicket } from "@/lib/admin/auth";
 import { isTicketWorkflowEnabled } from "@/lib/admin/flags";
 import { isSecureAttachmentsEnabled } from "@/lib/admin/flags";
+import { getOrganizationPolicy } from "@/lib/admin/policies";
 import { listAdminAttachments } from "@/app/actions/admin-attachments";
 import { AttachmentList } from "@/components/attachment-list";
 import { AdminAttachmentControls } from "@/components/admin/admin-attachment-controls";
@@ -130,6 +131,9 @@ export default async function AdminTicketPage({
   const admin = createAdminClient();
   const workflowEnabled = isTicketWorkflowEnabled();
   const secureAttachmentsEnabled = isSecureAttachmentsEnabled();
+  const organizationPolicy = await getOrganizationPolicy(
+    session.organizationId
+  );
   const ticketResult = await (
     workflowEnabled
       ? admin
@@ -179,7 +183,9 @@ export default async function AdminTicketPage({
   const { data: actions } = workflowEnabled
     ? await admin
         .from("ticket_actions")
-        .select("id,tool_name,action_summary,result_summary,created_at")
+        .select(
+          "id,tool_name,tool_version,reason,parameters,approval_type,started_at,ended_at,verification_result,rollback_result,action_summary,result_summary,created_at"
+        )
         .eq("organization_id", session.organizationId)
         .eq("ticket_id", uuid)
         .order("created_at", { ascending: true })
@@ -238,6 +244,14 @@ export default async function AdminTicketPage({
   const secureAttachments = secureAttachmentsEnabled
     ? await listAdminAttachments(uuid, session.organizationId)
     : [];
+  const { data: stepOutcomes } = workflowEnabled
+    ? await admin
+        .from("ticket_step_outcomes")
+        .select("guide_slug,step_index,outcome,created_at")
+        .eq("organization_id", session.organizationId)
+        .eq("ticket_id", uuid)
+        .order("step_index", { ascending: true })
+    : { data: [] };
 
   return (
     <section className="flex flex-1 flex-col px-4 py-10 sm:px-6 lg:px-8">
@@ -329,6 +343,23 @@ export default async function AdminTicketPage({
                   </p>
                 </div>
                 <div className="glass p-5">
+                  <h2 className="font-semibold">Step outcomes</h2>
+                  <ul className="mt-3 space-y-2 text-sm">
+                    {(stepOutcomes ?? []).length === 0 ? (
+                      <li className="text-muted-foreground">
+                        No outcomes recorded.
+                      </li>
+                    ) : (
+                      (stepOutcomes ?? []).map((outcome) => (
+                        <li key={`${outcome.guide_slug}-${outcome.step_index}`}>
+                          Step {outcome.step_index + 1} → {outcome.outcome} ·{" "}
+                          {new Date(outcome.created_at).toLocaleString()}
+                        </li>
+                      ))
+                    )}
+                  </ul>
+                </div>
+                <div className="glass p-5">
                   <h2 className="font-semibold">Conversation</h2>
                   <div className="mt-3 space-y-3">
                     {(comments ?? [])
@@ -383,8 +414,23 @@ export default async function AdminTicketPage({
                   <ul className="mt-3 space-y-2 text-sm">
                     {(actions ?? []).map((action) => (
                       <li key={action.id}>
-                        {action.tool_name}: {action.action_summary} —{" "}
-                        {action.result_summary}
+                        <strong>{action.tool_name}</strong>
+                        {action.tool_version ? ` v${action.tool_version}` : ""}
+                        {action.approval_type
+                          ? ` · approval: ${action.approval_type}`
+                          : ""}
+                        {action.verification_result
+                          ? ` · verification: ${action.verification_result}`
+                          : ""}
+                        {action.rollback_result
+                          ? ` · rollback: ${action.rollback_result}`
+                          : ""}
+                        {`: ${action.action_summary} — ${action.result_summary}`}
+                        {action.reason ? ` · reason: ${action.reason}` : ""}
+                        {action.parameters &&
+                        Object.keys(action.parameters).length > 0
+                          ? ` · parameters: ${JSON.stringify(action.parameters)}`
+                          : ""}
                       </li>
                     ))}
                   </ul>
@@ -484,6 +530,9 @@ export default async function AdminTicketPage({
                 members={workflowMembers}
                 status={ticket.status}
                 assignedAgentId={ticket.assigned_agent_id}
+                allowVerificationException={
+                  organizationPolicy.allowVerificationException
+                }
               />
             )}
           </aside>

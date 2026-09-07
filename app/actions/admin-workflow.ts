@@ -8,6 +8,7 @@ import {
   recordAudit,
 } from "@/lib/admin/auth";
 import { isTicketWorkflowEnabled } from "@/lib/admin/flags";
+import { getOrganizationPolicy } from "@/lib/admin/policies";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendPushToUser } from "@/lib/push/send";
 import { humanResponseDue } from "@/lib/tickets/sla";
@@ -189,7 +190,7 @@ export async function reopenTicket(ticketId: string): Promise<Result> {
   if (!found || !["Resolved", "Closed"].includes(found.ticket.status))
     return { error: "Ticket not found." };
   const result = await updateTicket(ticketId, found.session.organizationId, {
-    status: "In Progress",
+    status: "Reopened",
     verified_by_user: false,
     resolution_source: null,
     resolver_type: found.ticket.assigned_agent_id ? "employee" : "unassigned",
@@ -297,6 +298,8 @@ const resolutionSchema = z.object({
   ]),
   userExplanation: z.string().trim().min(3).max(1000),
   preventiveRecommendation: z.string().trim().min(3).max(1000),
+  verificationReason: z.string().trim().min(10).max(1000).optional(),
+  verificationEvidence: z.string().trim().min(10).max(2000).optional(),
 });
 
 const actionSchema = z
@@ -307,11 +310,37 @@ const actionSchema = z
     resultSummary: z.string().trim().min(1).max(1000),
     consentRequired: z.boolean(),
     consentReceived: z.boolean(),
+    toolVersion: z.string().trim().max(40).optional(),
+    reason: z.string().trim().max(1000).optional(),
+    parameters: z.record(z.string(), z.string().max(500)).default({}),
+    approvalType: z
+      .enum(["none", "user_consent", "employee_approval"])
+      .default("none"),
+    startedAt: z.string().datetime({ offset: true }).optional(),
+    endedAt: z.string().datetime({ offset: true }).optional(),
+    verificationResult: z
+      .enum(["not_verified", "passed", "failed"])
+      .default("not_verified"),
+    rollbackResult: z
+      .enum(["not_applicable", "succeeded", "failed"])
+      .default("not_applicable"),
   })
   .strict();
 
 const credentialPattern =
   /password\s*[:=]|passwd|\botp\b|\btoken\s*[:=]|bearer\s+[a-z0-9]|begin (rsa |ec )?private key|mfa code/i;
+
+function scrubParameters(parameters: Record<string, string>) {
+  return Object.fromEntries(
+    Object.entries(parameters).map(([key, value]) => [
+      key,
+      /password|passwd|token|secret|otp|key/i.test(key) ||
+      credentialPattern.test(value)
+        ? "[redacted]"
+        : value,
+    ])
+  );
+}
 
 export async function submitResolution(
   ticketId: string,
@@ -321,29 +350,75 @@ export async function submitResolution(
   if (!found) return { error: "Ticket not found." };
   const parsed = resolutionSchema.safeParse(report);
   if (!parsed.success) return { error: "Complete every resolution field." };
+  const isUserConfirmed = parsed.data.verificationMethod === "user_confirmed";
+  const policy = isUserConfirmed
+    ? null
+    : await getOrganizationPolicy(found.session.organizationId);
+  if (!isUserConfirmed && !policy?.allowVerificationException) {
+    return {
+      error: "This organization requires user confirmation before resolution.",
+    };
+  }
+  if (
+    !isUserConfirmed &&
+    (!parsed.data.verificationReason || !parsed.data.verificationEvidence)
+  ) {
+    return {
+      error: "Verification reason and evidence are required for an exception.",
+    };
+  }
+  const now = new Date().toISOString();
+  const resolutionReport = isUserConfirmed
+    ? parsed.data
+    : {
+        ...parsed.data,
+        verificationException: {
+          method: parsed.data.verificationMethod,
+          reason: parsed.data.verificationReason,
+          evidence: parsed.data.verificationEvidence,
+          actorId: found.session.userId,
+          at: now,
+        },
+      };
   const result = await updateTicket(ticketId, found.session.organizationId, {
-    resolution_report: parsed.data,
+    resolution_report: resolutionReport,
     resolution_summary: parsed.data.userExplanation,
     verification_method: parsed.data.verificationMethod,
     resolver_type: "employee",
-    status: "Pending Verification",
-    verification_requested_at: new Date().toISOString(),
+    resolution_source: isUserConfirmed ? null : "unresolved",
+    status: isUserConfirmed ? "Pending Verification" : "Resolved",
+    verified_by_user: isUserConfirmed ? false : false,
+    resolved_at: isUserConfirmed ? null : now,
+    verification_requested_at: isUserConfirmed ? now : null,
   });
   if (result.error) return { error: "Unable to save resolution." };
   await addPublicComment(ticketId, parsed.data.userExplanation);
-  await writeEvent(found.session, ticketId, "verification.requested");
+  await writeEvent(
+    found.session,
+    ticketId,
+    isUserConfirmed ? "verification.requested" : "verification.exception",
+    isUserConfirmed ? {} : { method: parsed.data.verificationMethod }
+  );
   if (found.ticket.user_id) {
     try {
       await sendPushToUser(found.ticket.user_id, {
-        title: "Please confirm your issue is fixed",
-        body: "Your IT support team completed a resolution.",
+        title: isUserConfirmed
+          ? "Please confirm your issue is fixed"
+          : "Your ticket was marked resolved",
+        body: isUserConfirmed
+          ? "Your IT support team completed a resolution."
+          : "Your ticket was marked resolved by support — reopen if it isn't fixed",
         url: `/tickets/${ticketId}`,
       });
     } catch (error) {
       console.warn("Unable to notify ticket owner.", error);
     }
   }
-  await recordAudit(found.session, "ticket.resolve", ticketId);
+  await recordAudit(
+    found.session,
+    isUserConfirmed ? "ticket.resolve" : "ticket.verification_exception",
+    ticketId
+  );
   revalidatePath(`/admin/tickets/${ticketId}`);
   return { success: true };
 }
@@ -355,6 +430,14 @@ export async function recordAction(input: {
   resultSummary: string;
   consentRequired: boolean;
   consentReceived: boolean;
+  toolVersion?: string;
+  reason?: string;
+  parameters?: Record<string, string>;
+  approvalType?: "none" | "user_consent" | "employee_approval";
+  startedAt?: string;
+  endedAt?: string;
+  verificationResult?: "not_verified" | "passed" | "failed";
+  rollbackResult?: "not_applicable" | "succeeded" | "failed";
 }): Promise<Result> {
   const parsed = actionSchema.safeParse(input);
   if (!parsed.success) return { error: "Invalid action details." };
@@ -368,6 +451,7 @@ export async function recordAction(input: {
     ].some((value) => credentialPattern.test(value))
   )
     return { error: "Remove credentials from the record." };
+  const parameters = scrubParameters(parsed.data.parameters);
   const admin = createAdminClient();
   const result = await admin.from("ticket_actions").insert({
     ticket_id: parsed.data.ticketId,
@@ -378,10 +462,40 @@ export async function recordAction(input: {
     result_summary: parsed.data.resultSummary,
     consent_required: parsed.data.consentRequired,
     consent_received: parsed.data.consentReceived,
+    tool_version: parsed.data.toolVersion ?? null,
+    reason: parsed.data.reason ?? null,
+    parameters,
+    approval_type: parsed.data.approvalType,
+    started_at: parsed.data.startedAt ?? null,
+    ended_at: parsed.data.endedAt ?? null,
+    verification_result: parsed.data.verificationResult,
+    rollback_result: parsed.data.rollbackResult,
   });
   if (result.error) return { error: "Unable to record action." };
   await writeEvent(found.session, parsed.data.ticketId, "tool.used");
   await recordAudit(found.session, "ticket.action", parsed.data.ticketId);
   revalidatePath(`/admin/tickets/${parsed.data.ticketId}`);
+  return { success: true };
+}
+
+export async function updateOrganizationPolicy(
+  allowVerificationException: boolean
+): Promise<Result> {
+  if (!isTicketWorkflowEnabled()) return { error: "Not available." };
+  const session = await getAdminSession();
+  if (!session || session.role !== "admin") return { error: "Not authorized." };
+  if (typeof allowVerificationException !== "boolean")
+    return { error: "Invalid policy." };
+  const result = await createAdminClient()
+    .from("organization_policies")
+    .upsert({
+      organization_id: session.organizationId,
+      allow_verification_exception: allowVerificationException,
+      updated_at: new Date().toISOString(),
+      updated_by: session.userId,
+    });
+  if (result.error) return { error: "Unable to update organization policy." };
+  await recordAudit(session, "policy.update", session.organizationId);
+  revalidatePath("/admin/operations");
   return { success: true };
 }

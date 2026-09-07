@@ -55,7 +55,11 @@ export type AdminFilters = {
     | "ai_working"
     | "waiting"
     | "sla_breached"
-    | "resolved";
+    | "resolved"
+    | "reopened";
+  minConfidence?: number;
+  risk?: "low" | "medium" | "high";
+  handoffReason?: string;
   page: number;
   pageSize: number;
 };
@@ -98,6 +102,7 @@ export type AdminOperationsTicket = {
     | "Waiting"
     | "Waiting for User"
     | "Pending Verification"
+    | "Reopened"
     | "Resolved"
     | "Closed";
   priority: "Low" | "Normal" | "High" | "Urgent";
@@ -426,6 +431,8 @@ export async function getOperationsData(
       "in-progress",
       "Waiting",
       "waiting",
+      "Reopened",
+      "reopened",
     ]);
   } else if (filters.status === "completed") {
     activeQuery = activeQuery.in("status", [
@@ -457,6 +464,11 @@ export async function getOperationsData(
         ? activeQuery.in("resolution_source", ["agent", "employee"])
         : activeQuery.eq("resolution_source", filters.resolutionSource);
   }
+  if (filters.minConfidence !== undefined)
+    activeQuery = activeQuery.gte("ai_confidence", filters.minConfidence);
+  if (filters.risk) activeQuery = activeQuery.eq("ai_risk_level", filters.risk);
+  if (filters.handoffReason)
+    activeQuery = activeQuery.eq("handoff_reason", filters.handoffReason);
   if (filters.priority)
     activeQuery = activeQuery.eq("priority", filters.priority);
   if (filters.category)
@@ -477,6 +489,8 @@ export async function getOperationsData(
     activeQuery = activeQuery.eq("status", "Waiting for User");
   if (filters.queue === "resolved")
     activeQuery = activeQuery.in("status", ["Resolved", "Closed"]);
+  if (filters.queue === "reopened")
+    activeQuery = activeQuery.eq("status", "Reopened");
 
   const needsSlaFilter = Boolean(
     filters.sla || filters.queue === "sla_breached"

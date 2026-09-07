@@ -29,6 +29,8 @@ type ResolutionValues = {
     "user_confirmed" | "screen_shared" | "remote_test" | "other";
   userExplanation: string;
   preventiveRecommendation: string;
+  verificationReason: string;
+  verificationEvidence: string;
 };
 
 const initialResolution: ResolutionValues = {
@@ -39,6 +41,8 @@ const initialResolution: ResolutionValues = {
   verificationMethod: "user_confirmed",
   userExplanation: "",
   preventiveRecommendation: "",
+  verificationReason: "",
+  verificationEvidence: "",
 };
 
 const fieldClass =
@@ -53,6 +57,7 @@ export function TicketWorkflowActions({
   members,
   status,
   assignedAgentId,
+  allowVerificationException = false,
 }: {
   ticketId: string;
   canClaim: boolean;
@@ -60,6 +65,7 @@ export function TicketWorkflowActions({
   members: Member[];
   status: string;
   assignedAgentId?: string | null;
+  allowVerificationException?: boolean;
 }) {
   const [publicMessage, setPublicMessage] = useState("");
   const [internalMessage, setInternalMessage] = useState("");
@@ -77,6 +83,14 @@ export function TicketWorkflowActions({
     resultSummary: "",
     consentRequired: false,
     consentReceived: false,
+    toolVersion: "",
+    reason: "",
+    parametersText: "",
+    approvalType: "none" as const,
+    startedAt: "",
+    endedAt: "",
+    verificationResult: "not_verified" as const,
+    rollbackResult: "not_applicable" as const,
   });
   const [resolution, setResolution] = useState(initialResolution);
   const [resolutionError, setResolutionError] = useState<string | null>(null);
@@ -119,13 +133,26 @@ export function TicketWorkflowActions({
     event.preventDefault();
     setResolutionError(null);
     const missing = Object.entries(resolution).some(
-      ([key, value]) => key !== "verificationMethod" && !value.trim()
+      ([key, value]) =>
+        ![
+          "verificationMethod",
+          "verificationReason",
+          "verificationEvidence",
+        ].includes(key) && !value.trim()
     );
     if (missing) {
       setResolutionError("Complete every resolution field.");
       return;
     }
-    run(() => submitResolution(ticketId, resolution));
+    const report =
+      resolution.verificationMethod === "user_confirmed"
+        ? {
+            ...resolution,
+            verificationReason: undefined,
+            verificationEvidence: undefined,
+          }
+        : resolution;
+    run(() => submitResolution(ticketId, report));
   };
 
   return (
@@ -362,7 +389,33 @@ export function TicketWorkflowActions({
         onSubmit={(event) => {
           event.preventDefault();
           run(async () => {
-            const result = await recordAction({ ticketId, ...action });
+            const parameters = Object.fromEntries(
+              action.parametersText
+                .split("\n")
+                .map((line) => line.split("="))
+                .filter(([key, value]) => key?.trim() && value !== undefined)
+                .map(([key, ...value]) => [key.trim(), value.join("=").trim()])
+            );
+            const result = await recordAction({
+              ticketId,
+              toolName: action.toolName,
+              actionSummary: action.actionSummary,
+              resultSummary: action.resultSummary,
+              consentRequired: action.consentRequired,
+              consentReceived: action.consentReceived,
+              toolVersion: action.toolVersion || undefined,
+              reason: action.reason || undefined,
+              parameters,
+              approvalType: action.approvalType,
+              startedAt: action.startedAt
+                ? new Date(action.startedAt).toISOString()
+                : undefined,
+              endedAt: action.endedAt
+                ? new Date(action.endedAt).toISOString()
+                : undefined,
+              verificationResult: action.verificationResult,
+              rollbackResult: action.rollbackResult,
+            });
             if (!("error" in result)) {
               setAction({
                 toolName: "",
@@ -370,6 +423,14 @@ export function TicketWorkflowActions({
                 resultSummary: "",
                 consentRequired: false,
                 consentReceived: false,
+                toolVersion: "",
+                reason: "",
+                parametersText: "",
+                approvalType: "none",
+                startedAt: "",
+                endedAt: "",
+                verificationResult: "not_verified",
+                rollbackResult: "not_applicable",
               });
             }
             return result;
@@ -432,6 +493,111 @@ export function TicketWorkflowActions({
           />
           Consent received
         </label>
+        <details className="rounded-2xl border border-border/70 p-3">
+          <summary className="cursor-pointer font-medium">Details</summary>
+          <div className="mt-3 grid gap-3">
+            <label htmlFor="tool-version">Tool version</label>
+            <input
+              id="tool-version"
+              value={action.toolVersion}
+              onChange={(event) =>
+                setAction({ ...action, toolVersion: event.target.value })
+              }
+              className={fieldClass}
+            />
+            <label htmlFor="action-reason">Reason</label>
+            <textarea
+              id="action-reason"
+              value={action.reason}
+              onChange={(event) =>
+                setAction({ ...action, reason: event.target.value })
+              }
+              className={fieldClass}
+            />
+            <label htmlFor="approval-type">Approval type</label>
+            <select
+              id="approval-type"
+              value={action.approvalType}
+              onChange={(event) =>
+                setAction({
+                  ...action,
+                  approvalType: event.target
+                    .value as typeof action.approvalType,
+                })
+              }
+              className={fieldClass}
+            >
+              <option value="none">None</option>
+              <option value="user_consent">User consent</option>
+              <option value="employee_approval">Employee approval</option>
+            </select>
+            <label htmlFor="action-parameters">
+              Parameters (one key=value per line)
+            </label>
+            <textarea
+              id="action-parameters"
+              value={action.parametersText}
+              onChange={(event) =>
+                setAction({ ...action, parametersText: event.target.value })
+              }
+              className={fieldClass}
+            />
+            <label htmlFor="started-at">Started at</label>
+            <input
+              id="started-at"
+              type="datetime-local"
+              value={action.startedAt}
+              onChange={(event) =>
+                setAction({ ...action, startedAt: event.target.value })
+              }
+              className={fieldClass}
+            />
+            <label htmlFor="ended-at">Ended at</label>
+            <input
+              id="ended-at"
+              type="datetime-local"
+              value={action.endedAt}
+              onChange={(event) =>
+                setAction({ ...action, endedAt: event.target.value })
+              }
+              className={fieldClass}
+            />
+            <label htmlFor="verification-result">Verification result</label>
+            <select
+              id="verification-result"
+              value={action.verificationResult}
+              onChange={(event) =>
+                setAction({
+                  ...action,
+                  verificationResult: event.target
+                    .value as typeof action.verificationResult,
+                })
+              }
+              className={fieldClass}
+            >
+              <option value="not_verified">Not verified</option>
+              <option value="passed">Passed</option>
+              <option value="failed">Failed</option>
+            </select>
+            <label htmlFor="rollback-result">Rollback result</label>
+            <select
+              id="rollback-result"
+              value={action.rollbackResult}
+              onChange={(event) =>
+                setAction({
+                  ...action,
+                  rollbackResult: event.target
+                    .value as typeof action.rollbackResult,
+                })
+              }
+              className={fieldClass}
+            >
+              <option value="not_applicable">Not applicable</option>
+              <option value="succeeded">Succeeded</option>
+              <option value="failed">Failed</option>
+            </select>
+          </div>
+        </details>
         <button
           type="submit"
           disabled={pending}
@@ -504,6 +670,34 @@ export function TicketWorkflowActions({
           <option value="remote_test">Remote test</option>
           <option value="other">Other</option>
         </select>
+        {resolution.verificationMethod !== "user_confirmed" && (
+          <>
+            <p className="rounded-2xl bg-amber-500/10 p-3 text-sm">
+              Allowed only when your organization permits verification
+              exceptions
+            </p>
+            <label htmlFor="verification-reason">Verification reason</label>
+            <textarea
+              id="verification-reason"
+              value={resolution.verificationReason}
+              onChange={(event) =>
+                updateResolution("verificationReason", event.target.value)
+              }
+              className={fieldClass}
+              required={allowVerificationException}
+            />
+            <label htmlFor="verification-evidence">Verification evidence</label>
+            <textarea
+              id="verification-evidence"
+              value={resolution.verificationEvidence}
+              onChange={(event) =>
+                updateResolution("verificationEvidence", event.target.value)
+              }
+              className={fieldClass}
+              required={allowVerificationException}
+            />
+          </>
+        )}
         <label htmlFor="user-explanation">User explanation</label>
         <textarea
           id="user-explanation"

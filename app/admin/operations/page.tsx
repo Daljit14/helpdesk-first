@@ -10,6 +10,7 @@ import {
   isTicketWorkflowEnabled,
 } from "@/lib/admin/flags";
 import { notifyOverdueTickets } from "@/lib/tickets/notify";
+import { getOrganizationPolicy } from "@/lib/admin/policies";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -22,11 +23,15 @@ export default async function OperationsPage() {
   if (isTicketWorkflowEnabled())
     void notifyOverdueTickets(session.organizationId);
   const snapshot = await getOperationsData(session, defaultAdminFilters());
+  const organizationPolicy = await getOrganizationPolicy(
+    session.organizationId
+  );
   return (
     <AdminDashboard
       initialSnapshot={snapshot}
       resolutionTrackingEnabled={isResolutionTrackingEnabled()}
       workflowEnabled={isTicketWorkflowEnabled()}
+      organizationPolicy={organizationPolicy}
     />
   );
 }

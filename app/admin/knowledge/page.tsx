@@ -2,7 +2,11 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { requireAdminPage } from "@/lib/admin/auth";
 import { isKnowledgeGovernanceEnabled } from "@/lib/admin/flags";
-import { listGuides } from "@/lib/knowledge/governance";
+import {
+  listGuideRevisions,
+  listGuides,
+  type GuideRevision,
+} from "@/lib/knowledge/governance";
 import { KnowledgeTable } from "@/components/admin/knowledge-table";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
@@ -36,6 +40,14 @@ export default async function KnowledgePage({
   const { data: calls } = await createAdminClient()
     .from("ai_provider_calls")
     .select("outcome");
+  const revisions = Object.fromEntries(
+    await Promise.all(
+      guides.map(async (guide) => [
+        guide.id,
+        await listGuideRevisions(guide.id, session.organizationId),
+      ])
+    )
+  ) as Record<string, GuideRevision[]>;
   return (
     <section className="flex flex-1 flex-col px-4 py-10 sm:px-6 lg:px-8">
       <div className="mx-auto w-full max-w-7xl">
@@ -60,7 +72,11 @@ export default async function KnowledgePage({
               "No provider calls"}
           </p>
         </div>
-        <KnowledgeTable guides={guides} canWrite={session.role === "admin"} />
+        <KnowledgeTable
+          guides={guides}
+          canWrite={session.role === "admin"}
+          revisions={revisions}
+        />
       </div>
     </section>
   );

@@ -5,7 +5,11 @@ import {
   transitionKnowledgeGuide,
   updateKnowledgeGuideMetadata,
 } from "@/app/actions/knowledge";
-import type { KnowledgeGuide, GuideStatus } from "@/lib/knowledge/governance";
+import type {
+  GuideRevision,
+  KnowledgeGuide,
+  GuideStatus,
+} from "@/lib/knowledge/governance";
 import { Button } from "@/components/ui/button";
 
 const nextActions: Record<GuideStatus, { label: string; to: GuideStatus }[]> = {
@@ -21,9 +25,11 @@ const nextActions: Record<GuideStatus, { label: string; to: GuideStatus }[]> = {
 export function KnowledgeTable({
   guides,
   canWrite,
+  revisions,
 }: {
   guides: KnowledgeGuide[];
   canWrite: boolean;
+  revisions: Record<string, GuideRevision[]>;
 }) {
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
@@ -147,6 +153,40 @@ export function KnowledgeTable({
                     Metadata
                   </summary>
                   <MetadataForm guide={guide} onMessage={setMessage} />
+                </details>
+                <details className="mt-2">
+                  <summary className="cursor-pointer text-xs underline">
+                    History
+                  </summary>
+                  <ul className="mt-2 space-y-2 text-xs">
+                    {(revisions[guide.id] ?? []).length === 0 ? (
+                      <li className="text-muted-foreground">
+                        No revisions recorded.
+                      </li>
+                    ) : (
+                      revisions[guide.id].map((revision) => (
+                        <li
+                          key={revision.id}
+                          className="rounded-lg border border-border p-2"
+                        >
+                          <p>
+                            {revision.fromStatus ?? "—"} →{" "}
+                            {revision.toStatus ?? "—"} · v{revision.version}
+                          </p>
+                          <p className="text-muted-foreground">
+                            Reviewer: {revision.reviewer ?? "—"} · Note:{" "}
+                            {revision.note ?? "—"}
+                          </p>
+                          <time
+                            dateTime={revision.createdAt}
+                            className="text-muted-foreground"
+                          >
+                            {new Date(revision.createdAt).toLocaleString()}
+                          </time>
+                        </li>
+                      ))
+                    )}
+                  </ul>
                 </details>
                 {!canWrite && (
                   <span className="text-muted-foreground">Read only</span>

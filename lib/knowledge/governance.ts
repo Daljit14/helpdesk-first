@@ -31,6 +31,16 @@ export type Citation = {
   riskTier: string;
 };
 
+export type GuideRevision = {
+  id: string;
+  fromStatus: GuideStatus | null;
+  toStatus: GuideStatus | null;
+  version: number;
+  note: string | null;
+  reviewer: string | null;
+  createdAt: string;
+};
+
 type GuideRow = {
   id: string;
   organization_id: string | null;
@@ -48,6 +58,16 @@ type GuideRow = {
   risk_tier: string;
   created_at: string;
   updated_at: string;
+};
+
+type RevisionRow = {
+  id: string;
+  from_status: GuideStatus | null;
+  to_status: GuideStatus | null;
+  version: number;
+  note: string | null;
+  prior_snapshot: { reviewer?: string | null } | null;
+  created_at: string;
 };
 
 function isGovernanceEnabled(): boolean {
@@ -109,6 +129,34 @@ export async function listGuides(
   const { data, error } = await query;
   if (error) throw error;
   return ((data ?? []) as GuideRow[]).map(mapGuide);
+}
+
+export async function listGuideRevisions(
+  guideId: string,
+  orgId: string | null
+): Promise<GuideRevision[]> {
+  if (!isGovernanceEnabled()) return [];
+  let query = createAdminClient()
+    .from("knowledge_guide_revisions")
+    .select(
+      "id, from_status, to_status, version, note, prior_snapshot, created_at"
+    )
+    .eq("guide_id", guideId)
+    .order("created_at", { ascending: false });
+  query = orgId
+    ? query.or(`organization_id.is.null,organization_id.eq.${orgId}`)
+    : query.is("organization_id", null);
+  const { data, error } = await query;
+  if (error) throw error;
+  return ((data ?? []) as RevisionRow[]).map((row) => ({
+    id: row.id,
+    fromStatus: row.from_status,
+    toStatus: row.to_status,
+    version: row.version,
+    note: row.note,
+    reviewer: row.prior_snapshot?.reviewer ?? null,
+    createdAt: row.created_at,
+  }));
 }
 
 const transitions: Record<GuideStatus, GuideStatus[]> = {

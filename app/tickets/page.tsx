@@ -1,11 +1,15 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { getTickets } from "@/lib/guides-data";
 import { getCurrentUser } from "@/lib/supabase/user";
 import { TicketsTable } from "@/components/tickets-table";
 import { PushSubscribeButton } from "@/components/push-subscribe-button";
-import { isTicketWorkflowEnabled } from "@/lib/admin/flags";
-import { isSecureAttachmentsEnabled } from "@/lib/admin/flags";
+import {
+  isSecureAttachmentsEnabled,
+  isTicketWorkflowEnabled,
+  isUserPortalEnabled,
+} from "@/lib/admin/flags";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
@@ -15,7 +19,8 @@ export const metadata: Metadata = {
 export default async function TicketsPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login?next=/tickets");
-  const tickets = await getTickets(user.id);
+  const portalEnabled = isTicketWorkflowEnabled() && isUserPortalEnabled();
+  const tickets = await getTickets(user.id, portalEnabled);
   const secureAttachmentsEnabled = isSecureAttachmentsEnabled();
   const attachmentCounts = new Map<string, number>();
   if (secureAttachmentsEnabled) {
@@ -44,14 +49,31 @@ export default async function TicketsPage() {
     <section className="flex flex-1 flex-col px-4 py-12 sm:px-6 lg:px-8">
       <div className="mx-auto w-full max-w-4xl">
         <div className="glass mb-6 flex flex-wrap items-center justify-between gap-4 p-5">
-          <h1 className="text-3xl font-bold tracking-tight">Tickets</h1>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Tickets</h1>
+            {portalEnabled && (
+              <p className="mt-2 text-sm text-muted-foreground">
+                Describe a problem once — track replies and confirm the fix
+                here.
+              </p>
+            )}
+          </div>
           <PushSubscribeButton />
         </div>
+        {portalEnabled && (
+          <Link
+            href="/assistant"
+            className="glass-pill mb-2 inline-block bg-primary px-5 py-2 text-primary-foreground"
+          >
+            New ticket
+          </Link>
+        )}
         <TicketsTable
           initialTickets={ticketsWithCounts}
           userId={user.id}
           workflowEnabled={isTicketWorkflowEnabled()}
           secureAttachmentsEnabled={secureAttachmentsEnabled}
+          portalEnabled={portalEnabled}
         />
       </div>
     </section>

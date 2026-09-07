@@ -81,6 +81,11 @@ and retention. `HELP_DESK_ATTACHMENT_SCANNER=none` is the safe default for
 development; `virustotal` requires the server-only `VIRUSTOTAL_API_KEY`.
 Scheduled retention purging requires `CRON_SECRET`.
 
+When `HELP_DESK_USER_PORTAL_ENABLED=true` alongside the ticket workflow flag
+after applying `supabase/user-ticket-portal.sql`, requesters can group and
+track their tickets, reply to support, reopen recently resolved tickets, and
+rate completed support. Guest ticket links are deferred to Phase 5P.
+
 ## Resolution tracking (Phase 5I.3)
 
 Apply `supabase/resolution-tracking.sql` after `supabase/admin-dashboard.sql`,

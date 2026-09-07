@@ -4,7 +4,10 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createAiProvider } from "@/lib/ai/mock-provider";
 import { processAiIntake } from "@/lib/ai/intake";
-import { isTicketWorkflowEnabled } from "@/lib/admin/flags";
+import {
+  isTicketWorkflowEnabled,
+  isUserPortalEnabled,
+} from "@/lib/admin/flags";
 import { getIssueBySlug } from "@/lib/search";
 import { humanResponseDue } from "@/lib/tickets/sla";
 import { detectSafetyFlags, routeTicket } from "@/lib/tickets/routing";
@@ -303,5 +306,156 @@ export async function verifyTicket(
   });
   if (error) return { error: "Unable to update ticket." };
   revalidatePath(`/tickets/${ticketId}`);
+  return { success: true };
+}
+
+function portalAvailable() {
+  return isTicketWorkflowEnabled() && isUserPortalEnabled();
+}
+
+export async function reopenTicketByUser(
+  ticketId: string,
+  reason: string
+): Promise<Result> {
+  if (!portalAvailable()) return { error: "Not available." };
+  const user = await authorized("reopen");
+  if (!user || !ticketIdSchema.safeParse(ticketId).success) {
+    return { error: "Not authorized." };
+  }
+  const parsedReason = z.string().trim().min(1).max(1000).safeParse(reason);
+  if (!parsedReason.success) return { error: "Please provide a reason." };
+  const { error } = await (
+    await createClient()
+  ).rpc("user_reopen_ticket", {
+    ticket: ticketId,
+    reason: parsedReason.data,
+  });
+  if (error) {
+    return {
+      error: error.message.includes("reopen window")
+        ? "This ticket can no longer be reopened. Please submit a new ticket."
+        : "Unable to reopen ticket.",
+    };
+  }
+  const admin = createAdminClient();
+  const { data: ticket } = await admin
+    .from("tickets")
+    .select("organization_id,issue_title,priority,human_response_due_at")
+    .eq("id", ticketId)
+    .maybeSingle();
+  if (ticket) {
+    await event(
+      ticketId,
+      ticket.organization_id,
+      "ticket.reopened",
+      "user",
+      user.id,
+      {
+        reason: parsedReason.data,
+      }
+    );
+    await notifyEmployeesOfHandoff(ticket.organization_id, {
+      id: ticketId,
+      issue_title: ticket.issue_title,
+      priority: ticket.priority,
+      human_response_due_at: ticket.human_response_due_at,
+    });
+  }
+  revalidatePath("/tickets");
+  revalidatePath(`/tickets/${ticketId}`);
+  return { success: true };
+}
+
+export async function rateTicket(
+  ticketId: string,
+  rating: number,
+  comment: string
+): Promise<Result> {
+  if (!portalAvailable()) return { error: "Not available." };
+  const user = await authorized("rate");
+  if (!user || !ticketIdSchema.safeParse(ticketId).success) {
+    return { error: "Not authorized." };
+  }
+  const parsedRating = z.number().int().min(1).max(5).safeParse(rating);
+  const parsedComment = z.string().max(500).safeParse(comment);
+  if (!parsedRating.success || !parsedComment.success) {
+    return { error: "Invalid rating." };
+  }
+  const { error } = await (
+    await createClient()
+  ).rpc("user_rate_ticket", {
+    ticket: ticketId,
+    rating: parsedRating.data,
+    comment: parsedComment.data,
+  });
+  if (error) return { error: "Unable to save rating." };
+  const admin = createAdminClient();
+  const { data: ticket } = await admin
+    .from("tickets")
+    .select("organization_id")
+    .eq("id", ticketId)
+    .maybeSingle();
+  if (ticket) {
+    await event(
+      ticketId,
+      ticket.organization_id,
+      "ticket.rated",
+      "user",
+      user.id,
+      {
+        rating: parsedRating.data,
+      }
+    );
+  }
+  revalidatePath(`/tickets/${ticketId}`);
+  return { success: true };
+}
+
+export async function rejectAiSolution(
+  ticketId: string,
+  note: string
+): Promise<Result> {
+  if (!portalAvailable()) return { error: "Not available." };
+  const user = await authorized("reject-solution");
+  if (!user || !ticketIdSchema.safeParse(ticketId).success) {
+    return { error: "Not authorized." };
+  }
+  const parsedNote = z.string().trim().max(1000).safeParse(note);
+  if (!parsedNote.success) return { error: "Invalid note." };
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("record_ai_attempt_failed", {
+    ticket: ticketId,
+  });
+  if (error) return { error: "Unable to update ticket." };
+  const admin = createAdminClient();
+  const { data: ticket } = await admin
+    .from("tickets")
+    .select("organization_id")
+    .eq("id", ticketId)
+    .maybeSingle();
+  if (parsedNote.data) {
+    const { error: commentError } = await supabase
+      .from("ticket_comments")
+      .insert({
+        ticket_id: ticketId,
+        organization_id: ticket?.organization_id,
+        author_id: user.id,
+        author_type: "user",
+        visibility: "public",
+        message: `Didn't work: ${parsedNote.data}`,
+      });
+    if (commentError) return { error: "Unable to add comment." };
+  }
+  if (ticket) {
+    await event(
+      ticketId,
+      ticket.organization_id,
+      "solution.rejected",
+      "user",
+      user.id
+    );
+  }
+  revalidatePath(`/tickets/${ticketId}`);
+  revalidatePath("/tickets");
   return { success: true };
 }

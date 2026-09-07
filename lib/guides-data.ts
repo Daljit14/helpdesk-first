@@ -17,6 +17,7 @@ export type Ticket = {
   status: string;
   created_at: string;
   attachment_path: string | null;
+  resolver_type?: string | null;
 };
 
 export async function getBookmarkedIssueIds(userId: string): Promise<string[]> {
@@ -76,15 +77,20 @@ export async function getRatingTotals(
   };
 }
 
-export async function getTickets(userId: string): Promise<Ticket[]> {
+export async function getTickets(
+  userId: string,
+  portalEnabled = false
+): Promise<Ticket[]> {
   if (!isSupabaseConfigured() || !userId) return [];
   const supabase = await createClient();
   const { data } = await supabase
     .from("tickets")
     .select(
-      "id, issue_id, issue_title, message, status, created_at, attachment_path"
+      portalEnabled
+        ? "id, issue_id, issue_title, message, status, created_at, attachment_path, resolver_type"
+        : "id, issue_id, issue_title, message, status, created_at, attachment_path"
     )
     .eq("user_id", userId)
     .order("created_at", { ascending: false });
-  return (data ?? []) as Ticket[];
+  return (data ?? []) as unknown as Ticket[];
 }

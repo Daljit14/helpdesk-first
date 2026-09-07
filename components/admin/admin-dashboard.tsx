@@ -13,6 +13,8 @@ import type {
   OperationsData,
 } from "@/lib/admin/operations-data";
 import { formatSlaCountdown } from "@/lib/tickets/sla";
+import { updateOrganizationPolicy } from "@/app/actions/admin-workflow";
+import type { OrganizationPolicy } from "@/lib/admin/policies";
 
 type RefreshStatus = "idle" | "refreshing" | "error";
 
@@ -75,6 +77,8 @@ function statusTone(status: string) {
       return "bg-violet-500/15 text-violet-800 dark:text-violet-200";
     case "Pending Verification":
       return "bg-teal-500/15 text-teal-800 dark:text-teal-200";
+    case "Reopened":
+      return "bg-orange-500/15 text-orange-800 dark:text-orange-200";
     case "Resolved":
       return "bg-emerald-500/15 text-emerald-800 dark:text-emerald-200";
     case "Closed":
@@ -207,10 +211,12 @@ export function AdminDashboard({
   initialSnapshot,
   resolutionTrackingEnabled = false,
   workflowEnabled = false,
+  organizationPolicy,
 }: {
   initialSnapshot: OperationsData;
   resolutionTrackingEnabled?: boolean;
   workflowEnabled?: boolean;
+  organizationPolicy?: OrganizationPolicy;
 }) {
   const router = useRouter();
   const initialTime = Date.parse(initialSnapshot.generatedAt);
@@ -220,6 +226,9 @@ export function AdminDashboard({
   const [now, setNow] = useState(initialTime);
   const [status, setStatus] = useState<RefreshStatus>("idle");
   const [error, setError] = useState<string | null>(null);
+  const [policyEnabled, setPolicyEnabled] = useState(
+    organizationPolicy?.allowVerificationException ?? false
+  );
   const refresh = useCallback(
     async (nextFilters = filters) => {
       setStatus("refreshing");
@@ -310,6 +319,16 @@ export function AdminDashboard({
     () => (freshness === "STALE" ? "Data may be out of date." : null),
     [freshness]
   );
+  const savePolicy = () => {
+    const next = !policyEnabled;
+    setPolicyEnabled(next);
+    void updateOrganizationPolicy(next).then((result) => {
+      if ("error" in result) {
+        setPolicyEnabled(!next);
+        setError(result.error);
+      }
+    });
+  };
 
   return (
     <div>
@@ -369,6 +388,19 @@ export function AdminDashboard({
           <p className="rounded-2xl bg-amber-500/10 p-3 text-amber-700 dark:text-amber-300">
             {staleMessage}
           </p>
+        )}
+        {organizationPolicy && snapshot.role === "admin" && (
+          <section className="glass p-5">
+            <h2 className="font-semibold">Organization policy</h2>
+            <label className="mt-3 flex items-center gap-3 text-sm">
+              <input
+                type="checkbox"
+                checked={policyEnabled}
+                onChange={savePolicy}
+              />
+              Allow verification exceptions
+            </label>
+          </section>
         )}
         {workflowEnabled && snapshot.workflow && (
           <section className="glass p-5">
@@ -635,6 +667,7 @@ export function AdminDashboard({
                     <option>Needs Human</option>
                     <option>Waiting for User</option>
                     <option>Pending Verification</option>
+                    <option>Reopened</option>
                   </>
                 )}
               </select>
@@ -655,7 +688,86 @@ export function AdminDashboard({
                   <option value="waiting">Waiting</option>
                   <option value="sla_breached">SLA breached</option>
                   <option value="resolved">Resolved</option>
+                  <option value="reopened">Reopened</option>
                 </select>
+              )}
+              {workflowEnabled && (
+                <>
+                  <select
+                    aria-label="Risk"
+                    value={filters.risk ?? ""}
+                    onChange={(event) =>
+                      updateFilter("risk", event.target.value)
+                    }
+                    className="h-10 rounded-2xl border border-border/70 bg-background/60 px-3 backdrop-blur"
+                  >
+                    <option value="">All risks</option>
+                    <option value="low">Low risk</option>
+                    <option value="medium">Medium risk</option>
+                    <option value="high">High risk</option>
+                  </select>
+                  <select
+                    aria-label="Handoff reason"
+                    value={filters.handoffReason ?? ""}
+                    onChange={(event) =>
+                      updateFilter("handoffReason", event.target.value)
+                    }
+                    className="h-10 rounded-2xl border border-border/70 bg-background/60 px-3 backdrop-blur"
+                  >
+                    <option value="">All handoff reasons</option>
+                    <option value="admin_access_required">
+                      Admin access required
+                    </option>
+                    <option value="credentials">Credentials</option>
+                    <option value="credentials_involved">
+                      Credentials involved
+                    </option>
+                    <option value="malware">Security concern</option>
+                    <option value="unauthorized_access">
+                      Unauthorized access
+                    </option>
+                    <option value="security_concern">Security concern</option>
+                    <option value="hardware">Hardware</option>
+                    <option value="hardware_repair">Hardware repair</option>
+                    <option value="remote_assistance">Remote assistance</option>
+                    <option value="remote_assistance_required">
+                      Remote assistance
+                    </option>
+                    <option value="low_confidence">Low confidence</option>
+                    <option value="no_guide">No guide</option>
+                    <option value="no_approved_guide">No approved guide</option>
+                    <option value="repeated_failure">Repeated failure</option>
+                    <option value="user_requested_human">
+                      User requested human
+                    </option>
+                    <option value="too_many_questions">
+                      Too many questions
+                    </option>
+                    <option value="insufficient_diagnostics">
+                      Insufficient diagnostics
+                    </option>
+                    <option value="employee_requested_human">
+                      Employee requested human
+                    </option>
+                    <option value="reopened_by_user">Reopened by user</option>
+                  </select>
+                  <Input
+                    aria-label="Minimum AI confidence"
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={filters.minConfidence ?? ""}
+                    onChange={(event) =>
+                      updateFilter(
+                        "minConfidence",
+                        event.target.value === ""
+                          ? ""
+                          : Number(event.target.value)
+                      )
+                    }
+                    placeholder="Min AI confidence"
+                  />
+                </>
               )}
               {snapshot.resolution && (
                 <select

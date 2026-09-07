@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   createAdminClient: vi.fn(),
   sendPushToUser: vi.fn(),
   notifyEmployeesOfHandoff: vi.fn(),
+  getOrganizationPolicy: vi.fn(),
 }));
 
 vi.mock("@/lib/admin/auth", async () => {
@@ -31,6 +32,9 @@ vi.mock("@/lib/push/send", () => ({
 vi.mock("@/lib/tickets/notify", () => ({
   notifyEmployeesOfHandoff: mocks.notifyEmployeesOfHandoff,
 }));
+vi.mock("@/lib/admin/policies", () => ({
+  getOrganizationPolicy: mocks.getOrganizationPolicy,
+}));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
 import {
@@ -40,6 +44,7 @@ import {
   changeStatus,
   claimTicket,
   recordAction,
+  reopenTicket,
   submitResolution,
 } from "./admin-workflow";
 
@@ -184,8 +189,80 @@ describe("admin workflow actions", () => {
     expect(updates).toHaveLength(0);
   });
 
-  test("submits resolution as pending verification", async () => {
+  test("submits user-confirmed resolution as pending verification", async () => {
     mocks.getAdminSession.mockResolvedValue(session);
+    const { updates } = setup();
+    await expect(
+      submitResolution(ticketId, {
+        rootCause: "DNS cache",
+        actionsPerformed: "Flushed DNS cache",
+        toolsUsed: "Terminal",
+        result: "Internet restored",
+        verificationMethod: "user_confirmed",
+        userExplanation: "The connection is restored.",
+        preventiveRecommendation: "Restart the router monthly.",
+      })
+    ).resolves.toEqual({ success: true });
+    expect(updates[0]).toEqual(
+      expect.objectContaining({
+        status: "Pending Verification",
+        verified_by_user: false,
+        verification_exception: false,
+      })
+    );
+    expect(updates).not.toContainEqual(
+      expect.objectContaining({ status: "Resolved" })
+    );
+  });
+
+  test("clears verification exception when an admin reopens a resolved ticket", async () => {
+    mocks.getAdminSession.mockResolvedValue(session);
+    const { updates } = setup({
+      ticket: {
+        status: "Resolved",
+        assigned_agent_id: agentId,
+        verification_exception: true,
+      },
+    });
+    await expect(reopenTicket(ticketId)).resolves.toEqual({ success: true });
+    expect(updates[0]).toEqual(
+      expect.objectContaining({
+        status: "Reopened",
+        verified_by_user: false,
+        verification_exception: false,
+      })
+    );
+  });
+
+  test("denies a verification exception when organization policy is disabled", async () => {
+    mocks.getAdminSession.mockResolvedValue(session);
+    mocks.getOrganizationPolicy.mockResolvedValue({
+      allowVerificationException: false,
+    });
+    const { updates } = setup();
+    await expect(
+      submitResolution(ticketId, {
+        rootCause: "DNS cache",
+        actionsPerformed: "Flushed DNS cache",
+        toolsUsed: "Terminal",
+        result: "Internet restored",
+        verificationMethod: "remote_test",
+        verificationReason: "The user was unavailable for confirmation.",
+        verificationEvidence: "A remote connectivity test passed twice.",
+        userExplanation: "The connection is restored.",
+        preventiveRecommendation: "Restart the router monthly.",
+      })
+    ).resolves.toEqual({
+      error: "This organization requires user confirmation before resolution.",
+    });
+    expect(updates).toHaveLength(0);
+  });
+
+  test("requires reason and evidence for an allowed verification exception", async () => {
+    mocks.getAdminSession.mockResolvedValue(session);
+    mocks.getOrganizationPolicy.mockResolvedValue({
+      allowVerificationException: true,
+    });
     const { updates } = setup();
     await expect(
       submitResolution(ticketId, {
@@ -197,13 +274,49 @@ describe("admin workflow actions", () => {
         userExplanation: "The connection is restored.",
         preventiveRecommendation: "Restart the router monthly.",
       })
+    ).resolves.toEqual({
+      error: "Verification reason and evidence are required for an exception.",
+    });
+    expect(updates).toHaveLength(0);
+  });
+
+  test("resolves with an allowed verification exception and records its evidence", async () => {
+    mocks.getAdminSession.mockResolvedValue(session);
+    mocks.getOrganizationPolicy.mockResolvedValue({
+      allowVerificationException: true,
+    });
+    const { updates, events } = setup();
+    await expect(
+      submitResolution(ticketId, {
+        rootCause: "DNS cache",
+        actionsPerformed: "Flushed DNS cache",
+        toolsUsed: "Terminal",
+        result: "Internet restored",
+        verificationMethod: "remote_test",
+        verificationReason: "The user was unavailable for confirmation.",
+        verificationEvidence: "A remote connectivity test passed twice.",
+        userExplanation: "The connection is restored.",
+        preventiveRecommendation: "Restart the router monthly.",
+      })
     ).resolves.toEqual({ success: true });
     expect(updates[0]).toEqual(
-      expect.objectContaining({ status: "Pending Verification" })
+      expect.objectContaining({
+        status: "Resolved",
+        verified_by_user: false,
+        verification_exception: true,
+        resolution_report: expect.objectContaining({
+          verificationException: expect.objectContaining({
+            method: "remote_test",
+            reason: "The user was unavailable for confirmation.",
+            evidence: "A remote connectivity test passed twice.",
+            actorId: session.userId,
+          }),
+        }),
+      })
     );
-    expect(updates).not.toContainEqual(
-      expect.objectContaining({ status: "Resolved" })
-    );
+    expect(events).toEqual([
+      expect.objectContaining({ event_type: "verification.exception" }),
+    ]);
   });
 
   test("rejects manual resolved status", async () => {
@@ -259,6 +372,35 @@ describe("admin workflow actions", () => {
       })
     ).resolves.toEqual({ error: "Remove credentials from the record." });
     expect(inserts).toHaveLength(0);
+  });
+
+  test("scrubs credential-like action parameters", async () => {
+    mocks.getAdminSession.mockResolvedValue(session);
+    const { inserts } = setup();
+    await expect(
+      recordAction({
+        ticketId,
+        toolName: "Terminal",
+        actionSummary: "Checked connectivity",
+        resultSummary: "Completed",
+        consentRequired: false,
+        consentReceived: false,
+        parameters: {
+          password: "secret",
+          authorization: "Bearer abc123",
+          hostname: "example.test",
+        },
+      })
+    ).resolves.toEqual({ success: true });
+    expect(inserts).toContainEqual(
+      expect.objectContaining({
+        parameters: {
+          password: "[redacted]",
+          authorization: "[redacted]",
+          hostname: "example.test",
+        },
+      })
+    );
   });
 
   test("records a safe action and emits tool.used", async () => {

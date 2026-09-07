@@ -10,6 +10,7 @@ export type OperationsStatus =
   | "Waiting"
   | "Waiting for User"
   | "Pending Verification"
+  | "Reopened"
   | "Resolved"
   | "Closed";
 export type OperationsPriority = "Low" | "Normal" | "High" | "Urgent";
@@ -49,6 +50,7 @@ export function normalizeStatus(raw: unknown): OperationsStatus {
     return "Waiting for User";
   if (value === "pending verification" || value === "pending_verification")
     return "Pending Verification";
+  if (value === "reopened") return "Reopened";
   if (value === "resolved") return "Resolved";
   if (value === "closed") return "Closed";
   return "New";
@@ -116,6 +118,7 @@ export function buildAgentQueue(
         "Waiting",
         "Waiting for User",
         "Pending Verification",
+        "Reopened",
       ].includes(ticket.status)
     );
     const urgentOpen = open.filter(
@@ -158,9 +161,12 @@ export function buildAgentQueue(
       urgentOpen,
       slaBreached,
       waiting: open.filter((ticket) =>
-        ["Waiting", "Waiting for User", "Pending Verification"].includes(
-          ticket.status
-        )
+        [
+          "Waiting",
+          "Waiting for User",
+          "Pending Verification",
+          "Reopened",
+        ].includes(ticket.status)
       ).length,
       resolvedToday,
       averageOpenAgeMinutes,

@@ -257,15 +257,37 @@ export async function requestHuman(
   return { success: true };
 }
 
-export async function reportAiStepFailed(ticketId: string): Promise<Result> {
+const stepOutcomeSchema = z.object({
+  ticketId: ticketIdSchema,
+  guideSlug: z.string().trim().min(1).max(120),
+  stepIndex: z.number().int().min(0).max(99),
+  outcome: z.enum(["worked", "failed", "could_not_perform"]),
+});
+
+export async function recordStepOutcome(
+  ticketId: string,
+  guideSlug: string,
+  stepIndex: number,
+  outcome: "worked" | "failed" | "could_not_perform"
+): Promise<Result> {
   if (!isTicketWorkflowEnabled()) return { error: "Not available." };
-  const user = await authorized("step-failed");
-  if (!user || !ticketIdSchema.safeParse(ticketId).success)
-    return { error: "Not authorized." };
+  const user = await authorized("step-outcome");
+  const parsed = stepOutcomeSchema.safeParse({
+    ticketId,
+    guideSlug,
+    stepIndex,
+    outcome,
+  });
+  if (!user || !parsed.success) return { error: "Invalid step outcome." };
   const { error } = await (
     await createClient()
-  ).rpc("record_ai_attempt_failed", { ticket: ticketId });
-  if (error) return { error: "Unable to update ticket." };
+  ).rpc("record_step_outcome", {
+    ticket: parsed.data.ticketId,
+    guide: parsed.data.guideSlug,
+    step: parsed.data.stepIndex,
+    result: parsed.data.outcome,
+  });
+  if (error) return { error: "Unable to record step outcome." };
   revalidatePath(`/tickets/${ticketId}`);
   return { success: true };
 }

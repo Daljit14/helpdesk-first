@@ -33,6 +33,7 @@ describe("operations transforms", () => {
   test("normalizes status, priority, and platform", () => {
     expect(normalizeStatus(" open ")).toBe("New");
     expect(normalizeStatus("CLOSED")).toBe("Closed");
+    expect(normalizeStatus("Reopened")).toBe("Reopened");
     expect(normalizeStatus("in_progress")).toBe("In Progress");
     expect(normalizeStatus("In-Progress")).toBe("In Progress");
     expect(normalizeStatus("Waiting")).toBe("Waiting");

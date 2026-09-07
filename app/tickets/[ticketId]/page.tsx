@@ -11,11 +11,14 @@ import { AttachmentList } from "@/components/attachment-list";
 import { listOwnAttachments } from "@/lib/attachments/server";
 import { AttachmentLink } from "@/components/attachment-link";
 import { TicketPortalActions } from "@/components/ticket-portal-actions";
+import { TicketStepOutcomes } from "@/components/ticket-step-outcomes";
 import {
+  describeTicketAssignment,
   describeTicketStatus,
   ticketReference,
 } from "@/lib/tickets/user-status";
 import { getIssueBySlug } from "@/lib/search";
+import { getIssueSteps } from "@/lib/steps";
 
 type TicketDetail = {
   id: string;
@@ -34,6 +37,9 @@ type TicketDetail = {
   resolved_at?: string | null;
   closed_at?: string | null;
   updated_at?: string | null;
+  assigned_agent_id?: string | null;
+  human_response_due_at?: string | null;
+  first_human_response_at?: string | null;
 };
 
 export const dynamic = "force-dynamic";
@@ -82,8 +88,8 @@ export default async function TicketPage({
   const { ticketId } = await params;
   const supabase = await createClient();
   const ticketSelect = portalEnabled
-    ? "id,issue_title,message,status,platform,created_at,handoff_reason,resolver_type,ai_recommended_issue_id,diagnostic_answers,attachment_path,satisfaction_rating,satisfaction_comment,resolved_at,closed_at,updated_at"
-    : "id,issue_title,message,status,platform,created_at,handoff_reason,ai_recommended_issue_id";
+    ? "id,issue_title,message,status,platform,created_at,handoff_reason,resolver_type,ai_recommended_issue_id,diagnostic_answers,attachment_path,satisfaction_rating,satisfaction_comment,resolved_at,closed_at,updated_at,assigned_agent_id,human_response_due_at,first_human_response_at"
+    : "id,issue_title,message,status,platform,created_at,handoff_reason";
   const { data: rawTicket } = await supabase
     .from("tickets")
     .select(ticketSelect)
@@ -116,6 +122,28 @@ export default async function TicketPage({
     portalEnabled && ticket.ai_recommended_issue_id
       ? getIssueBySlug(ticket.ai_recommended_issue_id)
       : null;
+  const stepOutcomes = recommendedIssue
+    ? await supabase
+        .from("ticket_step_outcomes")
+        .select("step_index,outcome")
+        .eq("ticket_id", ticketId)
+        .eq("guide_slug", recommendedIssue.id)
+    : { data: [] };
+  const outcomes = Object.fromEntries(
+    (stepOutcomes.data ?? []).map((row) => [row.step_index, row.outcome])
+  ) as Record<number, "worked" | "failed" | "could_not_perform">;
+  const assignment = describeTicketAssignment({
+    assignedAgentId: ticket.assigned_agent_id,
+    humanResponseDueAt: ticket.human_response_due_at,
+    status: ticket.status,
+    updatedAt: ticket.updated_at,
+  });
+  const showStepOutcomes =
+    portalEnabled &&
+    recommendedIssue &&
+    ["ai resolving", "waiting for user", "needs human", "in progress"].includes(
+      ticket.status.toLowerCase()
+    );
   const diagnosticAnswers = Array.isArray(ticket.diagnostic_answers)
     ? (ticket.diagnostic_answers as { questionId?: string; answer?: string }[])
     : [];
@@ -187,6 +215,15 @@ export default async function TicketPage({
             · {citation.supportedPlatforms.join(", ")}
           </p>
         )}
+        {portalEnabled && (
+          <div className="mt-4 space-y-1 text-sm text-muted-foreground">
+            <p>{assignment.label}</p>
+            {assignment.expectedResponseBy && (
+              <p>{assignment.expectedResponseBy}</p>
+            )}
+            {assignment.lastUpdated && <p>{assignment.lastUpdated}</p>}
+          </div>
+        )}
         <div className="glass-strong mt-6 p-5">
           <h2 className="font-semibold">Original problem</h2>
           <p className="mt-3 whitespace-pre-wrap">{ticket.message}</p>
@@ -226,6 +263,16 @@ export default async function TicketPage({
                   : null
               }
             />
+            {showStepOutcomes && recommendedIssue && (
+              <TicketStepOutcomes
+                ticketId={ticket.id}
+                guideSlug={recommendedIssue.id}
+                guideTitle={recommendedIssue.title}
+                guideUrl={`/issues/${recommendedIssue.id}/guide`}
+                steps={getIssueSteps(recommendedIssue)}
+                outcomes={outcomes}
+              />
+            )}
             <section className="glass mt-6 p-5">
               <h2 className="font-semibold">Activity</h2>
               <ol className="mt-4 space-y-3">

@@ -238,3 +238,49 @@ test("does not apply an upper date bound when one is absent", async () => {
 
   expect(ticketBuilder.lte).not.toHaveBeenCalled();
 });
+
+test("maps workflow confidence, risk, handoff, and reopened filters", async () => {
+  vi.stubEnv("OPERATIONS_PSEUDONYM_SALT", "test-salt");
+  mocks.isResolutionTrackingEnabled.mockReturnValue(false);
+  const ticketBuilder = {
+    select: vi.fn(() => ticketBuilder),
+    eq: vi.fn(() => ticketBuilder),
+    is: vi.fn(() => ticketBuilder),
+    in: vi.fn(() => ticketBuilder),
+    gte: vi.fn(() => ticketBuilder),
+    lte: vi.fn(() => ticketBuilder),
+    order: vi.fn(() => ticketBuilder),
+    range: vi.fn().mockResolvedValue({ data: [], count: 0, error: null }),
+  };
+  const organizationBuilder = {
+    select: vi.fn(() => organizationBuilder),
+    eq: vi.fn(() => organizationBuilder),
+    maybeSingle: vi
+      .fn()
+      .mockResolvedValue({ data: { name: "Org A" }, error: null }),
+  };
+  mocks.createAdminClient.mockReturnValue({
+    rpc: vi.fn().mockResolvedValue({ data: {}, error: null }),
+    from: vi.fn((table: string) =>
+      table === "tickets" ? ticketBuilder : organizationBuilder
+    ),
+  });
+
+  await getOperationsData(session, {
+    from: "2025-01-01T00:00:00.000Z",
+    page: 1,
+    pageSize: 25,
+    minConfidence: 80,
+    risk: "high",
+    handoffReason: "repeated_failure",
+    queue: "reopened",
+  });
+
+  expect(ticketBuilder.gte).toHaveBeenCalledWith("ai_confidence", 80);
+  expect(ticketBuilder.eq).toHaveBeenCalledWith("ai_risk_level", "high");
+  expect(ticketBuilder.eq).toHaveBeenCalledWith(
+    "handoff_reason",
+    "repeated_failure"
+  );
+  expect(ticketBuilder.eq).toHaveBeenCalledWith("status", "Reopened");
+});

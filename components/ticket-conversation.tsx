@@ -15,6 +15,13 @@ type Comment = {
   created_at: string;
 };
 
+const authorLabels: Record<string, string> = {
+  user: "You",
+  ai: "AI assistant",
+  employee: "Support",
+  system: "System",
+};
+
 export function TicketConversation({
   ticketId,
   userId,
@@ -98,7 +105,7 @@ export function TicketConversation({
               }`}
             >
               <p className="text-xs font-medium uppercase">
-                {comment.author_type}
+                {authorLabels[comment.author_type] ?? comment.author_type}
               </p>
               <p className="mt-1 whitespace-pre-wrap">{comment.message}</p>
             </li>

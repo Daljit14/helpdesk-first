@@ -9,3 +9,7 @@ export function isResolutionTrackingEnabled(): boolean {
 export function isTicketWorkflowEnabled(): boolean {
   return process.env.HELP_DESK_TICKET_WORKFLOW_ENABLED === "true";
 }
+
+export function isUserPortalEnabled(): boolean {
+  return process.env.HELP_DESK_USER_PORTAL_ENABLED === "true";
+}

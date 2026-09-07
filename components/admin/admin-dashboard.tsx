@@ -386,6 +386,13 @@ export function AdminDashboard({
                   "Resolved by employees",
                   snapshot.workflow.resolvedByEmployees,
                 ],
+                [
+                  "Avg satisfaction",
+                  snapshot.workflow.avgSatisfaction === null
+                    ? "—"
+                    : `${snapshot.workflow.avgSatisfaction.toFixed(1)} / 5`,
+                ],
+                ["Reopened", snapshot.workflow.reopenedCount],
               ].map(([label, value]) => (
                 <div key={label} className="glass p-4">
                   <p className="text-sm text-muted-foreground">{label}</p>

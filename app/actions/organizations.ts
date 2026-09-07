@@ -4,6 +4,7 @@ import { randomBytes } from "node:crypto";
 import { promises as dns } from "node:dns";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { getSiteUrl } from "@/lib/site-url";
 import { getAdminSession, recordAudit } from "@/lib/admin/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -12,27 +13,18 @@ import {
   normalizeDomain,
   resolveOrganizationForUser,
 } from "@/lib/org/membership";
+import {
+  domainSchema,
+  invitationSchema,
+  organizationSchema,
+  roleSchema,
+} from "@/lib/org/schemas";
 
 type Result = { error: string } | { success: true; [key: string]: unknown };
 
-export const organizationSchema = z.object({
-  name: z.string().trim().min(2).max(120),
-  ownerEmail: z.string().trim().toLowerCase().email().optional(),
-});
-export const domainSchema = z.object({
-  domain: z.string().trim().min(3).max(255),
-});
-export const invitationSchema = z.object({
-  email: z.string().trim().toLowerCase().email(),
-  role: z.enum(["requester", "support_agent", "org_admin"]),
-});
-export const roleSchema = z.enum(["requester", "support_agent", "org_admin"]);
-
 async function orgAdmin() {
   const session = await getAdminSession();
-  return session?.role === "org_admin" && session.isOrganizationMember
-    ? session
-    : null;
+  return session?.role === "org_admin" ? session : null;
 }
 
 export async function createOrganization(input: unknown): Promise<Result> {
@@ -61,7 +53,7 @@ export async function createOrganization(input: unknown): Promise<Result> {
       token_hash: hashInvitationToken(rawToken),
       invited_by: session.userId,
     });
-    inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/invite/${rawToken}`;
+    inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL || getSiteUrl()}/invite/${rawToken}`;
   }
   await recordAudit(session, "organization.create", organization.id);
   revalidatePath("/admin/organizations");
@@ -148,7 +140,7 @@ export async function inviteMember(input: unknown): Promise<Result> {
   revalidatePath("/admin/organization");
   return {
     success: true,
-    inviteUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/invite/${rawToken}`,
+    inviteUrl: `${process.env.NEXT_PUBLIC_APP_URL || getSiteUrl()}/invite/${rawToken}`,
   };
 }
 

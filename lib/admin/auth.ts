@@ -14,8 +14,7 @@ export type AdminSession = {
   role: AdminRole;
   organizationId: string;
   displayName: string | null;
-  isPlatformAdmin?: boolean;
-  isOrganizationMember?: boolean;
+  isPlatformAdmin: boolean;
 };
 
 const ADMIN_COOKIE = "hd_admin";
@@ -63,7 +62,6 @@ async function membershipFor(user: User): Promise<{
   role: AdminRole;
   displayName: string | null;
   isPlatformAdmin: boolean;
-  isOrganizationMember?: boolean;
 } | null> {
   const admin = createAdminClient();
   const { data: membership, error } = await admin
@@ -78,7 +76,7 @@ async function membershipFor(user: User): Promise<{
     .eq("user_id", user.id)
     .maybeSingle();
   const isPlatformAdmin = Boolean(platformGrant);
-  if (error || (!membership && !isPlatformAdmin)) return null;
+  if (error || !membership) return null;
   const { data: profile } = await admin
     .from("admin_profiles")
     .select("display_name, mfa_enrolled")
@@ -95,8 +93,6 @@ async function membershipFor(user: User): Promise<{
       return null;
   }
   if (
-    membership &&
-    !isPlatformAdmin &&
     membership.role !== "admin" &&
     membership.role !== "org_admin" &&
     membership.role !== "support_agent"
@@ -104,20 +100,13 @@ async function membershipFor(user: User): Promise<{
     return null;
   }
   return {
-    organizationId:
-      membership?.organization_id ?? "00000000-0000-0000-0000-000000000001",
+    organizationId: membership.organization_id,
     role:
-      isPlatformAdmin ||
-      membership?.role === "admin" ||
-      membership?.role === "org_admin"
+      membership.role === "admin" || membership.role === "org_admin"
         ? "org_admin"
         : "support_agent",
     displayName: profile?.display_name ?? null,
     isPlatformAdmin,
-    isOrganizationMember:
-      membership?.role === "admin" ||
-      membership?.role === "org_admin" ||
-      membership?.role === "support_agent",
   };
 }
 

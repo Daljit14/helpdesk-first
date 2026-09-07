@@ -45,19 +45,23 @@ export async function ensureRequesterMembership(
   user: User,
   client?: SupabaseClient
 ): Promise<void> {
-  const supabase = client ?? (await createClient());
-  await supabase.rpc("claim_domain_membership");
-  const existing = await createAdminClient()
-    .from("organization_members")
-    .select("organization_id")
-    .eq("user_id", user.id)
-    .limit(1)
-    .maybeSingle();
-  if (existing.data) return;
-  await createAdminClient().from("organization_members").insert({
-    organization_id: DEFAULT_ORGANIZATION_ID,
-    user_id: user.id,
-    role: "requester",
-    joined_via: "default",
-  });
+  try {
+    const supabase = client ?? (await createClient());
+    await supabase.rpc("claim_domain_membership");
+    const existing = await createAdminClient()
+      .from("organization_members")
+      .select("organization_id")
+      .eq("user_id", user.id)
+      .limit(1)
+      .maybeSingle();
+    if (existing.data) return;
+    await createAdminClient().from("organization_members").insert({
+      organization_id: DEFAULT_ORGANIZATION_ID,
+      user_id: user.id,
+      role: "requester",
+      joined_via: "default",
+    });
+  } catch (error) {
+    console.error("requester membership provisioning failed", error);
+  }
 }

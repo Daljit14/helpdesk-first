@@ -23,6 +23,7 @@ const session = {
   role: "support_agent" as const,
   organizationId: "org-1",
   displayName: "Agent",
+  isPlatformAdmin: false,
 };
 
 afterEach(() => {

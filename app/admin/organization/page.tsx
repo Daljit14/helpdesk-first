@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 
 export default async function OrganizationPage() {
   const session = await requireAdminPage("/admin/organization");
-  if (session.role !== "org_admin" || !session.isOrganizationMember) notFound();
+  if (session.role !== "org_admin") notFound();
   const admin = createAdminClient();
   const [
     { data: organization },

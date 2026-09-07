@@ -47,7 +47,11 @@ function sessionCookie(userId: string, expiresAt: number, secret: string) {
   return `${signature}.${expiresAt}`;
 }
 
-function configureMembership(role = "admin", mfaEnrolled = false) {
+function configureMembership(
+  role = "admin",
+  mfaEnrolled = false,
+  platformAdmin = false
+) {
   const admin = {
     from: vi.fn((table: string) => {
       const builder = {
@@ -59,7 +63,10 @@ function configureMembership(role = "admin", mfaEnrolled = false) {
           table === "organization_members"
             ? { data: { organization_id: "org-1", role }, error: null }
             : table === "platform_admins"
-              ? { data: null, error: null }
+              ? {
+                  data: platformAdmin ? { user_id: "user-1" } : null,
+                  error: null,
+                }
               : {
                   data: { display_name: "Agent", mfa_enrolled: mfaEnrolled },
                   error: null,
@@ -94,6 +101,7 @@ describe("admin authorization", () => {
     role: "org_admin" as const,
     organizationId: "org-1",
     displayName: "Admin",
+    isPlatformAdmin: false,
   };
   const agentSession = {
     ...adminSession,
@@ -214,6 +222,23 @@ describe("admin authorization", () => {
     };
     mockedAdmin.mockReturnValue(admin as never);
     expect(((await requireAdminApi()) as Response).status).toBe(403);
+  });
+
+  test("platform grants do not replace staff membership", async () => {
+    vi.stubEnv("HELP_DESK_ADMIN_DASHBOARD_ENABLED", "true");
+    vi.stubEnv("HELP_DESK_ADMIN_SESSION_SECRET", "test-secret");
+    mockedUser.mockResolvedValue({
+      id: "user-1",
+      email: "platform@example.com",
+    } as never);
+    configureMembership("requester", false, true);
+    cookieStore.value = sessionCookie(
+      "user-1",
+      Date.now() + 60_000,
+      "test-secret"
+    );
+
+    await expect(getAdminSession()).resolves.toBeNull();
   });
 
   test("enrolled MFA requires AAL2", async () => {

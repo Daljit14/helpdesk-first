@@ -4,7 +4,7 @@ import {
   invitationSchema,
   organizationSchema,
   roleSchema,
-} from "./organizations";
+} from "@/lib/org/schemas";
 
 describe("organization action schemas", () => {
   test("accepts organization and invitation inputs", () => {

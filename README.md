@@ -64,7 +64,9 @@ SSO are enabled with `HELP_DESK_SSO_GOOGLE_ENABLED` and
 `HELP_DESK_SSO_MICROSOFT_ENABLED` after applying
 `supabase/wave-3-organizations.sql`. Configure Google and Azure (Microsoft
 Entra) provider client IDs and secrets in Supabase Authentication → Providers;
-never put provider secrets in this repository.
+never put provider secrets in this repository. A `platform_admin` grant is
+additive: the user must also hold a staff membership in a home organization
+(`admin`, `org_admin`, or `support_agent`) to sign in to `/admin`.
 
 Agents can change ticket status, priority, and assignee from the protected
 ticket detail page; each change is audited as `ticket.update`.

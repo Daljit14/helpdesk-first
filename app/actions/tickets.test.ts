@@ -36,6 +36,7 @@ import {
   rateTicket,
   reopenTicketByUser,
   rejectAiSolution,
+  recordStepOutcome,
   requestHuman,
   verifyTicket,
 } from "./tickets";
@@ -264,5 +265,33 @@ describe("workflow ticket actions", () => {
     expect(comments).toEqual([
       expect.objectContaining({ message: "Didn't work: Still broken" }),
     ]);
+  });
+
+  test("rejects invalid step outcomes before calling the RPC", async () => {
+    mocks.getCurrentUser.mockResolvedValue(user);
+    const rpc = vi.fn();
+    mocks.createClient.mockResolvedValue({ rpc });
+    await expect(
+      recordStepOutcome(ticketId, "wifi-disconnecting", 100, "failed")
+    ).resolves.toEqual({ error: "Invalid step outcome." });
+    await expect(
+      recordStepOutcome(ticketId, "wifi-disconnecting", 1, "unknown" as never)
+    ).resolves.toEqual({ error: "Invalid step outcome." });
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  test("records a valid step outcome through the RPC", async () => {
+    mocks.getCurrentUser.mockResolvedValue(user);
+    const rpc = vi.fn().mockResolvedValue({ error: null });
+    mocks.createClient.mockResolvedValue({ rpc });
+    await expect(
+      recordStepOutcome(ticketId, "wifi-disconnecting", 1, "worked")
+    ).resolves.toEqual({ success: true });
+    expect(rpc).toHaveBeenCalledWith("record_step_outcome", {
+      ticket: ticketId,
+      guide: "wifi-disconnecting",
+      step: 1,
+      result: "worked",
+    });
   });
 });

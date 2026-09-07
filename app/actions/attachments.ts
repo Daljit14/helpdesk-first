@@ -15,10 +15,7 @@ import {
   sniffMime,
 } from "@/lib/attachments/inspect";
 import { createScanner } from "@/lib/attachments/scanner";
-import {
-  PRIVATE_BUCKET,
-  QUARANTINE_BUCKET,
-} from "@/lib/attachments/constants";
+import { PRIVATE_BUCKET, QUARANTINE_BUCKET } from "@/lib/attachments/constants";
 
 const attachmentLimiter = new MemoryRateLimiter({
   windowMs: 10 * 60_000,

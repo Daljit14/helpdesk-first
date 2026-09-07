@@ -4,7 +4,7 @@ import { isTicketWorkflowEnabled } from "@/lib/admin/flags";
 import { createClient } from "@/lib/supabase/server";
 import { TicketConversation } from "@/components/ticket-conversation";
 import { AttachmentList } from "@/components/attachment-list";
-import { listOwnAttachments } from "@/app/actions/attachments";
+import { listOwnAttachments } from "@/lib/attachments/server";
 
 export const dynamic = "force-dynamic";
 

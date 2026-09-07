@@ -1,5 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
-import { purgeExpiredAttachments } from "@/app/actions/attachments";
+import { purgeExpiredAttachments } from "@/lib/attachments/purge";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

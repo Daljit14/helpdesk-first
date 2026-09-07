@@ -14,7 +14,7 @@ import {
   isTicketWorkflowEnabled,
 } from "@/lib/admin/flags";
 import { createWorkflowTicket } from "@/app/actions/tickets";
-import { attachTicketAttachments } from "@/app/actions/attachments";
+import { attachTicketAttachments } from "@/lib/attachments/server";
 
 type GuideActionError = { error: string };
 type AuthenticatedIssueResult = GuideActionError | { user: User; issue: Issue };

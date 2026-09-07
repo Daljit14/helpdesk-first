@@ -15,9 +15,11 @@ import {
   sniffMime,
 } from "@/lib/attachments/inspect";
 import { createScanner } from "@/lib/attachments/scanner";
+import {
+  PRIVATE_BUCKET,
+  QUARANTINE_BUCKET,
+} from "@/lib/attachments/constants";
 
-const QUARANTINE_BUCKET = "ticket-attachments-quarantine";
-const PRIVATE_BUCKET = "ticket-attachments-private";
 const attachmentLimiter = new MemoryRateLimiter({
   windowMs: 10 * 60_000,
   maxRequests: 30,
@@ -421,50 +423,6 @@ export async function finalizeAttachmentUpload(
   return { status: "ready" };
 }
 
-export async function attachTicketAttachments(
-  ticketId: string,
-  attachmentIds: string[]
-): Promise<{ error: string } | { success: true }> {
-  if (!isSecureAttachmentsEnabled()) return { success: true };
-  const user = await getCurrentUser();
-  if (!user) return resultError("Not authorized.");
-  const ids = [...new Set(attachmentIds)].filter(
-    (id) => attachmentIdSchema.safeParse(id).success
-  );
-  if (ids.length === 0) return { success: true };
-  const admin = createAdminClient();
-  const { data: ticket } = await admin
-    .from("tickets")
-    .select("id,organization_id,user_id")
-    .eq("id", ticketId)
-    .eq("user_id", user.id)
-    .maybeSingle();
-  if (!ticket) return resultError("Ticket not found.");
-  const policy = await getAttachmentPolicy(ticket.organization_id);
-  const { data: existing } = await admin
-    .from("ticket_attachments")
-    .select("id")
-    .eq("ticket_id", ticketId)
-    .in("status", ["uploading", "scanning", "ready"]);
-  if ((existing?.length ?? 0) + ids.length > policy.maxFilesPerTicket)
-    return resultError("Too many attachments.");
-  const { data: attached, error } = await admin
-    .from("ticket_attachments")
-    .update({
-      ticket_id: ticketId,
-      organization_id: ticket.organization_id,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("uploader_id", user.id)
-    .is("ticket_id", null)
-    .eq("status", "ready")
-    .in("id", ids)
-    .select("id");
-  if (error || attached?.length !== ids.length)
-    return resultError("Only ready attachments can be attached.");
-  return { success: true };
-}
-
 export async function deleteOwnAttachment(
   attachmentId: string
 ): Promise<{ error: string } | { success: true }> {
@@ -540,32 +498,4 @@ export async function getAttachmentAccessUrl(
     user.id
   );
   return { url: signed.data.signedUrl };
-}
-
-export async function listOwnAttachments(ticketId: string) {
-  const user = await getCurrentUser();
-  if (!user || !isSecureAttachmentsEnabled()) return [];
-  const { data } = await createAdminClient()
-    .from("ticket_attachments")
-    .select(
-      "id,original_name,byte_size,status,detected_mime,scan_verdict,created_at,width,height,page_count,rejection_reason"
-    )
-    .eq("ticket_id", ticketId)
-    .eq("uploader_id", user.id)
-    .order("created_at", { ascending: true });
-  return data ?? [];
-}
-
-export async function purgeExpiredAttachments(): Promise<{
-  deleted: number;
-}> {
-  const admin = createAdminClient();
-  const { data, error } = await admin.rpc("purge_expired_attachments");
-  if (error) throw error;
-  const rows = (data ?? []) as { storage_path: string | null }[];
-  const paths = rows
-    .map((row) => row.storage_path)
-    .filter((path): path is string => Boolean(path));
-  if (paths.length) await admin.storage.from(PRIVATE_BUCKET).remove(paths);
-  return { deleted: rows.length };
 }

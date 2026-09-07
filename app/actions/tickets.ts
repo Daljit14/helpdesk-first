@@ -15,7 +15,7 @@ import { getCurrentUser } from "@/lib/supabase/user";
 import { platforms } from "@/lib/helpdesk-data";
 import { MemoryRateLimiter } from "@/lib/ai/rate-limit";
 import { isSecureAttachmentsEnabled } from "@/lib/admin/flags";
-import { attachTicketAttachments } from "@/app/actions/attachments";
+import { attachTicketAttachments } from "@/lib/attachments/server";
 
 type Result = { error: string } | { success: true; ticketId?: string };
 const limiter = new MemoryRateLimiter({

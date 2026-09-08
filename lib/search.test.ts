@@ -30,6 +30,23 @@ test("search normalizes punctuation and hyphens", () => {
   ).toContain("Computer will not start");
 });
 
+test("search expands computer freezing language", () => {
+  const results = filterIssues({ query: "pc hang" });
+  expect(results.slice(0, 3).map((issue) => issue.title)).toEqual(
+    expect.arrayContaining(["Computer freezing", "Slow computer"])
+  );
+});
+
+test("search expands wifi language", () => {
+  expect(
+    filterIssues({ query: "wifi not working" }).map((issue) => issue.title)
+  ).toContain("Wi-Fi keeps disconnecting");
+});
+
+test("unknown search terms return no results", () => {
+  expect(filterIssues({ query: "xyzzy" })).toEqual([]);
+});
+
 test("category filter returns only matching issues", () => {
   const printerIssues = filterIssues({ categoryId: "printer" });
   expect(printerIssues).toHaveLength(5);

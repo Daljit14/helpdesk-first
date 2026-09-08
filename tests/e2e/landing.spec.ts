@@ -165,7 +165,7 @@ test("legacy issue URLs redirect to the canonical issue id", async ({
 test("empty search shows a helpful no-results message", async ({ page }) => {
   await page.goto("/");
 
-  await searchInput(page).fill("this does not exist");
+  await searchInput(page).fill("qzxv");
 
   await expect(page.getByText(/No matching problems found/)).toBeVisible();
   await expect(page.getByText(/0 matching problems/)).toBeVisible();

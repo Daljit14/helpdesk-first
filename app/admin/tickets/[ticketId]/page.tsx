@@ -22,6 +22,7 @@ import { getOrganizationPolicy } from "@/lib/admin/policies";
 import { listAdminAttachments } from "@/app/actions/admin-attachments";
 import { AttachmentList } from "@/components/attachment-list";
 import { AdminAttachmentControls } from "@/components/admin/admin-attachment-controls";
+import { ASSIGNABLE_ROLES, type AssignableRole } from "@/lib/org/roles";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -72,8 +73,8 @@ type TicketPageRow = {
 
 type WorkflowMember = {
   userId: string;
-  displayName: string;
-  role: "org_admin" | "support_agent";
+  email: string;
+  role: AssignableRole;
 };
 
 function verificationExceptionDetails(report: unknown) {
@@ -211,10 +212,10 @@ export default async function AdminTicketPage({
       .from("organization_members")
       .select("user_id,role")
       .eq("organization_id", session.organizationId)
-      .in("role", ["admin", "support_agent"]);
+      .in("role", ASSIGNABLE_ROLES);
     const rows = (memberRows ?? []) as unknown as {
       user_id: string;
-      role: "org_admin" | "support_agent";
+      role: AssignableRole;
     }[];
     const profiles = await admin
       .from("admin_profiles")
@@ -232,9 +233,11 @@ export default async function AdminTicketPage({
       ).map((profile) => [profile.user_id, profile.display_name])
     );
     for (const row of rows) {
+      const userResult = await admin.auth.admin.getUserById(row.user_id);
       workflowMembers.push({
         userId: row.user_id,
-        displayName: names.get(row.user_id) ?? row.user_id,
+        email:
+          userResult.data.user?.email ?? names.get(row.user_id) ?? row.user_id,
         role: row.role,
       });
     }

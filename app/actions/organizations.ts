@@ -3,11 +3,16 @@
 import { randomBytes } from "node:crypto";
 import { promises as dns } from "node:dns";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { z } from "zod";
 import { getSiteUrl } from "@/lib/site-url";
 import { getAdminSession, recordAudit } from "@/lib/admin/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { sendEmail } from "@/lib/notifications/email";
+import { enqueueNotification } from "@/lib/notifications/enqueue";
+import { buildNotification } from "@/lib/notifications/templates";
+import { adminRoleLabel } from "@/lib/admin/auth";
 import {
   hashInvitationToken,
   normalizeDomain,
@@ -125,22 +130,47 @@ export async function inviteMember(input: unknown): Promise<Result> {
   if (!session) return { error: "Not authorized." };
   const parsed = invitationSchema.safeParse(input);
   if (!parsed.success) return { error: "Invalid invitation." };
-  const rawToken = randomBytes(32).toString("hex");
-  const { error } = await createAdminClient()
+  const admin = createAdminClient();
+  const pending = await admin
     .from("organization_invitations")
-    .insert({
-      organization_id: session.organizationId,
-      email: parsed.data.email,
-      role: parsed.data.role,
-      token_hash: hashInvitationToken(rawToken),
-      invited_by: session.userId,
-    });
+    .select("id", { count: "exact", head: true })
+    .eq("organization_id", session.organizationId)
+    .eq("email", parsed.data.email)
+    .is("accepted_at", null)
+    .is("revoked_at", null)
+    .gt("expires_at", new Date().toISOString());
+  if ((pending.count ?? 0) > 0) {
+    return { error: "An invite for this email is already pending." };
+  }
+  const { data: organization } = await admin
+    .from("organizations")
+    .select("name")
+    .eq("id", session.organizationId)
+    .maybeSingle();
+  const rawToken = randomBytes(32).toString("hex");
+  const { error } = await admin.from("organization_invitations").insert({
+    organization_id: session.organizationId,
+    email: parsed.data.email,
+    role: parsed.data.role,
+    token_hash: hashInvitationToken(rawToken),
+    invited_by: session.userId,
+  });
   if (error) return { error: "Unable to create invitation." };
+  const inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL || getSiteUrl()}/invite/${rawToken}`;
+  after(() =>
+    sendEmail({
+      to: parsed.data.email,
+      subject: `You're invited to ${organization?.name ?? "your organization"} on HelpDesk First`,
+      text: `You're invited to ${organization?.name ?? "your organization"} on HelpDesk First.\n\nAccept your invitation: ${inviteUrl}`,
+    }).then((result) => {
+      if (!result.ok) console.error("Invitation email failed.", result.error);
+    })
+  );
   await recordAudit(session, "organization.invite", parsed.data.email);
   revalidatePath("/admin/organization");
   return {
     success: true,
-    inviteUrl: `${process.env.NEXT_PUBLIC_APP_URL || getSiteUrl()}/invite/${rawToken}`,
+    inviteUrl,
   };
 }
 
@@ -195,6 +225,30 @@ export async function updateMemberRole(
     .eq("organization_id", session.organizationId)
     .eq("user_id", userId);
   if (error) return { error: "Unable to update member role." };
+  const { data: organization } = await admin
+    .from("organizations")
+    .select("name")
+    .eq("id", session.organizationId)
+    .maybeSingle();
+  const roleLabel = adminRoleLabel(
+    parsed.data === "org_admin" ? "org_admin" : "support_agent",
+    false
+  );
+  const notification = buildNotification("org.role_changed", {
+    ticketTitle: organization?.name ?? "your organization",
+    ticketId: userId,
+    status: roleLabel,
+  });
+  await enqueueNotification({
+    organizationId: session.organizationId,
+    ticketId: null,
+    eventType: "org.role_changed",
+    recipientUserIds: [userId],
+    subject: notification.subject,
+    body: notification.body,
+    url: `${getSiteUrl()}/admin/organization`,
+    dedupeKey: `org.role_changed:${session.organizationId}:${userId}:${parsed.data}`,
+  });
   await recordAudit(session, "organization.member_role", userId);
   revalidatePath("/admin/organization");
   return { success: true };

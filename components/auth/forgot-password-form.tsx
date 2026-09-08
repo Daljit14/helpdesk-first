@@ -5,10 +5,15 @@ import { forgotPasswordAction, type AuthState } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { TurnstileWidget } from "@/components/turnstile-widget";
 
 const initialState: AuthState = null;
 
-export function ForgotPasswordForm() {
+export function ForgotPasswordForm({
+  turnstileSiteKey = null,
+}: {
+  turnstileSiteKey?: string | null;
+}) {
   const [state, formAction, pending] = useActionState(
     forgotPasswordAction,
     initialState
@@ -34,6 +39,7 @@ export function ForgotPasswordForm() {
         <p className="text-sm text-destructive">{state.error}</p>
       )}
 
+      <TurnstileWidget siteKey={turnstileSiteKey} resetKey={state} />
       <Button type="submit" disabled={pending}>
         {pending ? "Sending…" : "Send reset link"}
       </Button>

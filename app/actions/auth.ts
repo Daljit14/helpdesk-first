@@ -14,6 +14,11 @@ import { ensureRequesterMembership } from "@/lib/org/membership";
 import { z } from "zod";
 import { isGoogleSsoEnabled, isMicrosoftSsoEnabled } from "@/lib/admin/flags";
 import { isSafeNextPath } from "@/lib/auth/paths";
+import {
+  captchaErrorMessage,
+  captchaRequired,
+  getCaptchaToken,
+} from "@/lib/auth/captcha";
 
 export type AuthState = {
   error?: string;
@@ -45,6 +50,8 @@ export async function signUpAction(
   if (!isSupabaseConfigured()) {
     return { error: "Accounts are not enabled on this deployment." };
   }
+  const captchaError = captchaRequired(formData);
+  if (captchaError) return { error: captchaError };
 
   const parsed = signUpSchema.safeParse({
     email: formData.get("email"),
@@ -57,12 +64,16 @@ export async function signUpAction(
   }
 
   const supabase = await createClient();
+  const captchaToken = getCaptchaToken(formData);
   const { data, error } = await supabase.auth.signUp({
     email: parsed.data.email,
     password: parsed.data.password,
+    ...(captchaToken ? { options: { captchaToken } } : {}),
   });
 
   if (error) {
+    const securityError = captchaErrorMessage(error);
+    if (securityError) return { error: securityError };
     return { error: error.message };
   }
 
@@ -71,7 +82,9 @@ export async function signUpAction(
     redirect(safeNextPath(formData.get("next")));
   }
 
-  redirect("/check-email");
+  redirect(
+    `/check-email?email=${encodeURIComponent(parsed.data.email)}&next=${encodeURIComponent(safeNextPath(formData.get("next")))}`
+  );
 }
 
 export async function loginAction(
@@ -81,6 +94,8 @@ export async function loginAction(
   if (!isSupabaseConfigured()) {
     return { error: "Accounts are not enabled on this deployment." };
   }
+  const captchaError = captchaRequired(formData);
+  if (captchaError) return { error: captchaError };
 
   const parsed = loginSchema.safeParse({
     email: formData.get("email"),
@@ -92,9 +107,20 @@ export async function loginAction(
   }
 
   const supabase = await createClient();
-  const { data, error } = await supabase.auth.signInWithPassword(parsed.data);
+  const captchaToken = getCaptchaToken(formData);
+  const { data, error } = await supabase.auth.signInWithPassword({
+    ...parsed.data,
+    ...(captchaToken ? { options: { captchaToken } } : {}),
+  });
 
   if (error) {
+    const securityError = captchaErrorMessage(error);
+    if (securityError) return { error: securityError };
+    if (error.message.toLowerCase().includes("email not confirmed")) {
+      redirect(
+        `/check-email?email=${encodeURIComponent(parsed.data.email)}&next=${encodeURIComponent(safeNextPath(formData.get("next")))}`
+      );
+    }
     return { error: "Incorrect email or password." };
   }
 
@@ -136,6 +162,8 @@ export async function forgotPasswordAction(
   if (!isSupabaseConfigured()) {
     return { error: "Accounts are not enabled on this deployment." };
   }
+  const captchaError = captchaRequired(formData);
+  if (captchaError) return { error: captchaError };
 
   const parsed = forgotPasswordSchema.safeParse({
     email: formData.get("email"),
@@ -146,13 +174,17 @@ export async function forgotPasswordAction(
   }
 
   const supabase = await createClient();
+  const captchaToken = getCaptchaToken(formData);
   const { error } = await supabase.auth.resetPasswordForEmail(
     parsed.data.email,
     {
       redirectTo: `${getSiteUrl()}/auth/callback?next=/reset-password`,
+      ...(captchaToken ? { captchaToken } : {}),
     }
   );
 
+  const securityError = captchaErrorMessage(error);
+  if (securityError) return { error: securityError };
   if (error?.message.toLowerCase().includes("rate limit")) {
     return {
       error:
@@ -161,6 +193,65 @@ export async function forgotPasswordAction(
   }
 
   redirect("/forgot-password/sent");
+}
+
+const signupCodeSchema = z.object({
+  email: z.string().trim().toLowerCase().email(),
+  code: z.string().regex(/^\d{6}$/),
+  next: z.string().optional(),
+});
+
+export async function verifySignupCodeAction(
+  _prevState: AuthState,
+  formData: FormData
+): Promise<AuthState> {
+  if (!isSupabaseConfigured()) {
+    return { error: "Accounts are not enabled on this deployment." };
+  }
+
+  const parsed = signupCodeSchema.safeParse({
+    email: formData.get("email"),
+    code: formData.get("code"),
+    next: formData.get("next") || undefined,
+  });
+  if (!parsed.success) {
+    return { error: "That code is invalid or expired." };
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.verifyOtp({
+    email: parsed.data.email,
+    token: parsed.data.code,
+    type: "signup",
+  });
+  if (error || !data.user) {
+    return { error: "That code is invalid or expired." };
+  }
+
+  await ensureRequesterMembership(data.user, supabase);
+  redirect(safeNextPath(parsed.data.next ? parsed.data.next : "/"));
+}
+
+export async function resendSignupCodeAction(
+  email: string,
+  captchaToken?: string
+) {
+  if (!isSupabaseConfigured()) {
+    return { error: "Accounts are not enabled on this deployment." };
+  }
+  const parsed = z.string().trim().toLowerCase().email().safeParse(email);
+  if (!parsed.success) {
+    return { error: "Please wait before requesting another code." };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.auth.resend({
+    type: "signup",
+    email: parsed.data,
+    ...(captchaToken ? { options: { captchaToken } } : {}),
+  });
+  if (error) return { error: "Please wait before requesting another code." };
+  return { ok: true };
 }
 
 export async function resetPasswordAction(

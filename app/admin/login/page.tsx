@@ -6,6 +6,7 @@ import {
   isGoogleSsoEnabled,
   isMicrosoftSsoEnabled,
 } from "@/lib/admin/flags";
+import { getTurnstileSiteKey } from "@/lib/auth/captcha";
 
 export const metadata: Metadata = {
   title: "Admin sign in",
@@ -35,6 +36,7 @@ export default async function AdminLoginPage({
             next={next}
             googleSsoEnabled={isGoogleSsoEnabled()}
             microsoftSsoEnabled={isMicrosoftSsoEnabled()}
+            turnstileSiteKey={getTurnstileSiteKey()}
           />
         </div>
       </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
   addUserComment,
   requestHuman,
@@ -35,6 +36,7 @@ export function TicketConversation({
   status: string;
   workflowEnabled?: boolean;
 }) {
+  const router = useRouter();
   const [comments, setComments] = useState(initialComments);
   const [message, setMessage] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
@@ -63,6 +65,18 @@ export function TicketConversation({
         },
         () => void refresh()
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "tickets",
+          filter: `id=eq.${ticketId}`,
+        },
+        () => {
+          router.refresh();
+        }
+      )
       .subscribe();
     const timer = window.setInterval(() => {
       if (document.visibilityState === "visible") void refresh();
@@ -71,7 +85,7 @@ export function TicketConversation({
       window.clearInterval(timer);
       supabase.removeChannel(channel);
     };
-  }, [ticketId, userId]);
+  }, [router, ticketId, userId]);
 
   if (!workflowEnabled && comments.length === 0) return null;
 

@@ -322,11 +322,14 @@ export default async function AdminTicketPage({
             {secureAttachmentsEnabled && (
               <AttachmentList
                 attachments={secureAttachments}
-                adminControls={(attachment) => (
-                  <AdminAttachmentControls
-                    key={`controls-${attachment.id}`}
-                    attachment={attachment}
-                  />
+                adminControls={Object.fromEntries(
+                  secureAttachments.map((attachment) => [
+                    attachment.id,
+                    <AdminAttachmentControls
+                      key={`controls-${attachment.id}`}
+                      attachment={attachment}
+                    />,
+                  ])
                 )}
               />
             )}

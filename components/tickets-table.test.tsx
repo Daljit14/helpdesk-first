@@ -114,7 +114,6 @@ describe("TicketsTable", () => {
           },
         ]}
         userId="user-1"
-        workflowEnabled
         portalEnabled
       />
     );
@@ -122,5 +121,19 @@ describe("TicketsTable", () => {
     expect(screen.getByTestId("tickets-previous")).toBeInTheDocument();
     expect(screen.getByText("Action needed")).toBeInTheDocument();
     expect(screen.getByText("Suggested fix ready")).toBeInTheDocument();
+  });
+
+  test("links tickets to their detail page and keeps a guide link", () => {
+    render(<TicketsTable initialTickets={[initialTicket]} userId="user-1" />);
+    expect(
+      screen.getByRole("link", { name: "No internet connection" })
+    ).toHaveAttribute("href", "/tickets/ticket-1");
+    expect(screen.getByRole("link", { name: "View guide" })).toHaveAttribute(
+      "href",
+      "/issues/no-internet"
+    );
+    expect(
+      screen.getByRole("link", { name: "View progress for ticket ticket-1" })
+    ).toHaveAttribute("href", "/tickets/ticket-1#progress");
   });
 });

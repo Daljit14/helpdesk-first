@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import {
   describeTicketAssignment,
   describeTicketStatus,
+  progressStage,
   ticketReference,
 } from "./user-status";
 
@@ -62,4 +63,22 @@ test("explains that support marked the ticket resolved", () => {
   expect(describeTicketStatus("Resolved").description).toBe(
     "Marked resolved by support — tell us if it isn't fixed"
   );
+});
+
+describe("progressStage", () => {
+  test.each([
+    ["New", 1],
+    ["Open", 1],
+    ["AI Reviewing", 1],
+    ["AI Resolving", 2],
+    ["Needs Human", 2],
+    ["In Progress", 2],
+    ["Waiting for User", 3],
+    ["Pending Verification", 4],
+    ["Resolved", 5],
+    ["Closed", 5],
+    ["Reopened", 1],
+  ])("%s maps to stage %s", (status, expected) => {
+    expect(progressStage(status)).toBe(expected);
+  });
 });

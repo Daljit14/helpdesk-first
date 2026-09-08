@@ -15,13 +15,11 @@ type TicketWithAttachments = Ticket & { attachmentCount?: number };
 export function TicketsTable({
   initialTickets,
   userId,
-  workflowEnabled = false,
   secureAttachmentsEnabled = false,
   portalEnabled = false,
 }: {
   initialTickets: TicketWithAttachments[];
   userId: string;
-  workflowEnabled?: boolean;
   secureAttachmentsEnabled?: boolean;
   portalEnabled?: boolean;
 }) {
@@ -135,14 +133,12 @@ export function TicketsTable({
           <PortalTicketSection
             heading="Open tickets"
             tickets={[]}
-            workflowEnabled={workflowEnabled}
             secureAttachmentsEnabled={secureAttachmentsEnabled}
             testId="tickets-open"
           />
           <PortalTicketSection
             heading="Previous tickets"
             tickets={[]}
-            workflowEnabled={workflowEnabled}
             secureAttachmentsEnabled={secureAttachmentsEnabled}
             testId="tickets-previous"
           />
@@ -184,14 +180,12 @@ export function TicketsTable({
         <PortalTicketSection
           heading="Open tickets"
           tickets={groups.open}
-          workflowEnabled={workflowEnabled}
           secureAttachmentsEnabled={secureAttachmentsEnabled}
           testId="tickets-open"
         />
         <PortalTicketSection
           heading="Previous tickets"
           tickets={groups.previous}
-          workflowEnabled={workflowEnabled}
           secureAttachmentsEnabled={secureAttachmentsEnabled}
           testId="tickets-previous"
         />
@@ -221,20 +215,26 @@ export function TicketsTable({
             >
               <td className="px-4 py-4 align-top">
                 <Link
-                  href={
-                    workflowEnabled
-                      ? `/tickets/${ticket.id}`
-                      : `/issues/${ticket.issue_id}`
-                  }
+                  href={`/tickets/${ticket.id}`}
                   className="font-medium underline underline-offset-4"
                 >
                   {ticket.issue_title}
                 </Link>
+                <Link
+                  href={`/issues/${ticket.issue_id}`}
+                  className="ml-3 text-xs text-muted-foreground underline underline-offset-4"
+                >
+                  View guide
+                </Link>
               </td>
               <td className="px-4 py-4 align-top">
-                <span className="glass-pill px-3 py-1 text-xs">
+                <Link
+                  href={`/tickets/${ticket.id}#progress`}
+                  aria-label={`View progress for ticket ${ticket.id}`}
+                  className="glass-pill inline-block px-3 py-1 text-xs hover:bg-muted"
+                >
                   {ticket.status}
-                </span>
+                </Link>
               </td>
               <td className="max-w-md whitespace-pre-wrap px-4 py-4 align-top">
                 {ticket.message}
@@ -266,13 +266,11 @@ export function TicketsTable({
 function PortalTicketSection({
   heading,
   tickets,
-  workflowEnabled,
   secureAttachmentsEnabled,
   testId,
 }: {
   heading: string;
   tickets: TicketWithAttachments[];
-  workflowEnabled: boolean;
   secureAttachmentsEnabled: boolean;
   testId: string;
 }) {
@@ -294,26 +292,30 @@ function PortalTicketSection({
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
                     <Link
-                      href={
-                        workflowEnabled
-                          ? `/tickets/${ticket.id}`
-                          : `/issues/${ticket.issue_id}`
-                      }
+                      href={`/tickets/${ticket.id}`}
                       className="font-medium underline underline-offset-4"
                     >
                       {ticket.issue_title}
+                    </Link>
+                    <Link
+                      href={`/issues/${ticket.issue_id}`}
+                      className="ml-3 text-xs text-muted-foreground underline underline-offset-4"
+                    >
+                      View guide
                     </Link>
                     <p className="font-mono text-xs text-muted-foreground">
                       {ticketReference(ticket.id)}
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <span
+                    <Link
+                      href={`/tickets/${ticket.id}#progress`}
+                      aria-label={`View progress for ticket ${ticket.id}`}
                       title={ticket.status}
-                      className="glass-pill px-3 py-1 text-xs"
+                      className="glass-pill px-3 py-1 text-xs hover:bg-muted"
                     >
                       {status.label}
-                    </span>
+                    </Link>
                     {status.attention && (
                       <span className="glass-pill bg-amber-500/15 px-3 py-1 text-xs text-amber-800 dark:text-amber-200">
                         Action needed

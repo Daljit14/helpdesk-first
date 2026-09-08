@@ -106,6 +106,11 @@ body::before {
       0 12px 40px -12px rgb(0 0 0 / 0.18);
   }
 
+  .glass-pill--solid {
+    background: var(--background);
+    background: color-mix(in oklch, var(--background) 92%, transparent);
+  }
+
   .glass-interactive {
     transition:
       transform 0.2s,
@@ -134,10 +139,16 @@ body::before {
     0 12px 40px -12px rgb(0 0 0 / 0.28);
 }
 
+.dark .glass-pill--solid {
+  background: var(--background);
+  background: color-mix(in oklch, var(--background) 92%, transparent);
+}
+
 @supports not (backdrop-filter: blur(1px)) {
   .glass,
   .glass-strong,
-  .glass-pill {
+  .glass-pill,
+  .glass-pill--solid {
     background: color-mix(in oklch, var(--card) 95%, transparent);
   }
 }

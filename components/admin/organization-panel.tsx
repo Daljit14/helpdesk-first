@@ -299,7 +299,8 @@ export function OrganizationPanel({
           </button>
         </div>
         <p className="text-xs text-muted-foreground">
-          Wave 7 owns email delivery. Copy the generated link to share it.
+          An email with the invite link is sent automatically. You can also copy
+          the link.
         </p>
         <ul className="grid gap-2 text-sm">
           {invitations.map((item) => (

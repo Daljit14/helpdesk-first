@@ -57,6 +57,14 @@ export function buildNotification(
       subject = "Ticket reopened";
       message = `${title} was reopened and needs attention.`;
       break;
+    case "ticket.status_changed":
+      subject = `Your ticket is now ${context.status ?? "updated"}`;
+      message = `${title} is now ${context.status ?? "updated"}.`;
+      break;
+    case "org.role_changed":
+      subject = `Your role in ${title} is now ${context.status ?? "updated"}`;
+      message = `Your role in ${title} is now ${context.status ?? "updated"}.`;
+      break;
     case "sla.first_response_at_risk":
       subject = "Ticket response SLA at risk";
       message = `${title} is approaching its first-response deadline.`;

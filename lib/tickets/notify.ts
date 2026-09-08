@@ -81,7 +81,7 @@ export async function notifyOverdueTickets(
         await sendPushToUser(member.user_id, {
           title: "Ticket SLA overdue",
           body: `${ticket.issue_title} needs attention.`,
-          url: `/admin/tickets/${ticket.id}`,
+          url: `${getSiteUrl()}/admin/tickets/${ticket.id}`,
         });
       } catch (error) {
         console.warn("Unable to notify admin of overdue ticket.", error);
@@ -140,8 +140,22 @@ export async function notifyRequester(
   }
 }
 
+export async function notifyStatusChange(
+  ticket: {
+    id: string;
+    user_id?: string | null;
+    issue_title: string;
+  },
+  change: { from: string; to: string; actorType: string }
+): Promise<void> {
+  await notifyRequester("ticket.status_changed", ticket, {
+    status: change.to,
+  });
+}
+
 export async function notifyAssignedStaff(
-  eventType: "reply.public" | "ticket.created" | "ticket.assigned",
+  eventType:
+    "reply.public" | "ticket.created" | "ticket.assigned" | "ticket.resolved",
   ticket: {
     id: string;
     organization_id: string;
@@ -186,7 +200,7 @@ export async function notifyAssignedStaff(
           body: context?.publicReplyExcerpt
             ? `${context.publicReplyExcerpt.slice(0, 120)}`
             : "A requester added a reply.",
-          url: `/admin/tickets/${ticket.id}`,
+          url: `${getSiteUrl()}/admin/tickets/${ticket.id}`,
         });
       } catch (error) {
         console.warn("Unable to notify staff of reply.", error);

@@ -133,14 +133,13 @@ export async function inviteMember(input: unknown): Promise<Result> {
   const admin = createAdminClient();
   const pending = await admin
     .from("organization_invitations")
-    .select("id")
+    .select("id", { count: "exact", head: true })
     .eq("organization_id", session.organizationId)
     .eq("email", parsed.data.email)
     .is("accepted_at", null)
     .is("revoked_at", null)
-    .gt("expires_at", new Date().toISOString())
-    .maybeSingle();
-  if (pending.data) {
+    .gt("expires_at", new Date().toISOString());
+  if ((pending.count ?? 0) > 0) {
     return { error: "An invite for this email is already pending." };
   }
   const { data: organization } = await admin

@@ -72,7 +72,7 @@ export function TicketProgress({
         )}
         {assignment.lastUpdated && (
           <p className="mt-2 text-xs text-muted-foreground">
-            Last updated: {assignment.lastUpdated}
+            {assignment.lastUpdated}
           </p>
         )}
       </div>

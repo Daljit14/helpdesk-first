@@ -111,4 +111,39 @@ describe("AiAssistant escalation", () => {
       screen.getByRole("link", { name: "Open full guide" })
     ).toHaveAttribute("href", "/issues/slow-computer/guide");
   });
+
+  test("renders other suggestions after rejecting a matched guide", async () => {
+    vi.spyOn(global, "fetch").mockImplementation(async (input) => {
+      if (String(input).includes("/api/analytics/event")) {
+        return new Response("{}", { status: 204 });
+      }
+      return new Response(
+        JSON.stringify({
+          status: "ok",
+          output: {
+            decision: "match",
+            matchedIssueSlug: "slow-computer",
+            explanation: "This looks like a slow computer.",
+            suggestedIssueSlugs: ["no-internet"],
+          },
+        }),
+        { status: 200 }
+      );
+    });
+    render(<AiAssistant />);
+    fireEvent.change(
+      screen.getByLabelText("What problem are you experiencing?"),
+      { target: { value: "my computer is very slow" } }
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "No, this is not right" })
+    );
+    expect(
+      await screen.findByText(
+        "That guide wasn't the right fit. Here are the closest approved guides for what you described."
+      )
+    ).toBeInTheDocument();
+    expect(screen.getByText("No internet connection")).toBeInTheDocument();
+  });
 });

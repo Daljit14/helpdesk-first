@@ -73,6 +73,8 @@ export function TicketConversation({
     };
   }, [ticketId, userId]);
 
+  if (!workflowEnabled && comments.length === 0) return null;
+
   function submitComment(event: React.FormEvent) {
     event.preventDefault();
     startTransition(async () => {

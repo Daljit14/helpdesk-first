@@ -25,7 +25,7 @@ export function TicketProgress({
   const currentStage = progressStage(status);
 
   return (
-    <section id="progress" className="glass mt-6 p-5">
+    <section id="progress" className="glass mt-6 scroll-mt-24 p-5">
       <h2 className="font-semibold">Ticket progress</h2>
       <ol className="mt-4 grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {stages.map((stage, index) => {

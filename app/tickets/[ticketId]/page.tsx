@@ -20,6 +20,15 @@ import {
 import { getIssueBySlug } from "@/lib/search";
 import { getIssueSteps } from "@/lib/steps";
 import { TicketProgress } from "@/components/ticket-progress";
+import {
+  Bot,
+  CheckCircle2,
+  MessageSquare,
+  RefreshCw,
+  RotateCcw,
+  Send,
+  UserCheck,
+} from "lucide-react";
 
 type TicketDetail = {
   id: string;
@@ -112,7 +121,7 @@ export default async function TicketPage({
   const { data: events } = portalEnabled
     ? await supabase
         .from("ticket_system_events")
-        .select("event_type,created_at,actor_type")
+        .select("event_type,created_at,actor_type,detail")
         .eq("ticket_id", ticketId)
         .order("created_at", { ascending: true })
     : { data: [] };
@@ -175,6 +184,34 @@ export default async function TicketPage({
     "ticket.reopened": "Reopened",
     "ticket.rated": "Rated",
     "solution.rejected": "Marked as not working",
+  };
+  const relativeTime = (value: string) => {
+    const seconds = Math.max(
+      0,
+      Math.floor(
+        (new Date(ticket.updated_at ?? ticket.created_at).getTime() -
+          new Date(value).getTime()) /
+          1000
+      )
+    );
+    if (seconds < 60) return "just now";
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes} min ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours} hr ago`;
+    return `${Math.floor(hours / 24)} days ago`;
+  };
+  const eventIcon = (eventType: string) => {
+    if (eventType === "ticket.created") return Send;
+    if (eventType.startsWith("ai.")) return Bot;
+    if (eventType.includes("assigned") || eventType.includes("claimed"))
+      return UserCheck;
+    if (eventType === "comment.created") return MessageSquare;
+    if (eventType === "status.changed") return RefreshCw;
+    if (eventType.includes("resolved") || eventType.includes("verified"))
+      return CheckCircle2;
+    if (eventType.includes("reopened")) return RotateCcw;
+    return RefreshCw;
   };
   return (
     <section className="flex flex-1 flex-col px-4 py-12 sm:px-6 lg:px-8">
@@ -280,14 +317,41 @@ export default async function TicketPage({
                       key={`${event.created_at}-${index}`}
                       className="flex gap-3 text-sm"
                     >
-                      <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-primary" />
+                      {(() => {
+                        const Icon = eventIcon(event.event_type);
+                        return (
+                          <span className="relative shrink-0">
+                            <span className="absolute left-3 top-7 h-full w-px bg-border" />
+                            <span className="relative z-10 flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary">
+                              <Icon className="h-4 w-4" />
+                            </span>
+                          </span>
+                        );
+                      })()}
                       <span>
                         <span className="font-medium">
-                          {eventLabels[event.event_type]}
+                          {(() => {
+                            if (event.event_type !== "comment.created")
+                              return eventLabels[event.event_type];
+                            return event.actor_type === "employee"
+                              ? "Support replied"
+                              : event.actor_type === "ai"
+                                ? "Assistant replied"
+                                : "You replied";
+                          })()}
                         </span>
-                        <span className="ml-2 text-muted-foreground">
-                          {new Date(event.created_at).toLocaleString()}
+                        <span
+                          className="ml-2 text-muted-foreground"
+                          title={new Date(event.created_at).toLocaleString()}
+                        >
+                          {relativeTime(event.created_at)}
                         </span>
+                        {(event.detail as { preview?: string } | null)
+                          ?.preview && (
+                          <span className="mt-1 block text-muted-foreground">
+                            {(event.detail as { preview: string }).preview}
+                          </span>
+                        )}
                       </span>
                     </li>
                   ))}

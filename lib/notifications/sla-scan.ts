@@ -86,7 +86,7 @@ export async function scanSla(): Promise<{
         eventType,
         recipientUserIds: await recipients(ticket, admin),
         ...message,
-        url: `${getSiteUrl()}/tickets/${ticket.id}`,
+        url: `${getSiteUrl()}/admin/tickets/${ticket.id}`,
         dedupeKey: `${eventType}:${ticket.id}:${ticket.human_response_due_at}`,
       });
       await admin
@@ -113,7 +113,7 @@ export async function scanSla(): Promise<{
         eventType,
         recipientUserIds: await orgStaff(ticket, admin),
         ...message,
-        url: `${getSiteUrl()}/tickets/${ticket.id}`,
+        url: `${getSiteUrl()}/admin/tickets/${ticket.id}`,
         dedupeKey: `${eventType}:${ticket.id}:${ticket.human_response_due_at}`,
       });
       await admin
@@ -139,7 +139,7 @@ export async function scanSla(): Promise<{
         eventType,
         recipientUserIds: await orgStaff(ticket, admin),
         ...message,
-        url: `${getSiteUrl()}/tickets/${ticket.id}`,
+        url: `${getSiteUrl()}/admin/tickets/${ticket.id}`,
         dedupeKey: `${eventType}:${ticket.id}:${ticket.resolution_due_at}`,
       });
       await admin

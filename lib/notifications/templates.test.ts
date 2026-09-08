@@ -18,7 +18,7 @@ describe("buildNotification", () => {
     "sla.first_response_overdue",
     "sla.resolution_overdue",
   ] as NotificationEventType[])(
-    "builds %s with a ticket URL and no internal content",
+    "builds %s without internal content",
     (eventType) => {
       const result = buildNotification(eventType, {
         ...base,
@@ -27,7 +27,7 @@ describe("buildNotification", () => {
         status: "Needs Human",
       });
       expect(result.subject).toBeTruthy();
-      expect(result.body).toContain("http://localhost:3000/tickets/t1");
+      expect(result.body).not.toMatch(/https?:\/\/|\/tickets\//);
       expect(result.body).not.toContain("internal note");
     }
   );
@@ -39,7 +39,7 @@ describe("buildNotification", () => {
     });
     expect(result.subject).toBe("Ticket received");
     expect(result.body).toContain("No internet");
-    expect(result.body).toContain("/tickets/t1");
+    expect(result.body).not.toMatch(/https?:\/\/|\/tickets\//);
   });
 
   test("truncates reply excerpt at 240 characters", () => {
@@ -48,7 +48,6 @@ describe("buildNotification", () => {
       ...base,
       publicReplyExcerpt: excerpt,
     });
-    expect(result.body.length).toBeGreaterThan(300);
     expect(result.body).toContain("a".repeat(240));
     expect(result.body).not.toContain("a".repeat(241));
   });

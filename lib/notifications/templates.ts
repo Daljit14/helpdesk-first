@@ -1,5 +1,4 @@
 import type { NotificationEventType } from "./types";
-import { getSiteUrl } from "@/lib/site-url";
 
 export type NotificationContext = {
   ticketTitle: string;
@@ -17,7 +16,6 @@ export function buildNotification(
   eventType: NotificationEventType,
   context: NotificationContext
 ): { subject: string; body: string } {
-  const url = `${getSiteUrl()}/tickets/${context.ticketId}`;
   const title = context.ticketTitle;
   const actor = context.actorLabel ?? "Your support team";
   const reply = excerpt(context.publicReplyExcerpt);
@@ -74,5 +72,5 @@ export function buildNotification(
   }
 
   if (context.status) message += ` Current status: ${context.status}.`;
-  return { subject, body: `${message}\n\nOpen ticket: ${url}` };
+  return { subject, body: message };
 }

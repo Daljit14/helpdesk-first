@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { scanSla } from "./sla-scan";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { enqueueNotification } from "./enqueue";
 
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
 vi.mock("./enqueue", () => ({ enqueueNotification: vi.fn() }));
@@ -53,5 +54,10 @@ describe("scanSla", () => {
       result.atRisk + result.firstResponseOverdue + result.resolutionOverdue
     ).toBeGreaterThanOrEqual(2);
     expect(ticketBuild.update).toHaveBeenCalled();
+    expect(vi.mocked(enqueueNotification)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: "http://localhost:3000/admin/tickets/t1",
+      })
+    );
   });
 });

@@ -32,7 +32,7 @@ export async function dispatchPending({
     .select(
       "id,organization_id,ticket_id,channel,recipient_user_id,subject,body,url,attempts"
     )
-    .eq("status", "pending")
+    .in("status", ["pending", "failed"])
     .lte("next_attempt_at", new Date().toISOString())
     .order("created_at", { ascending: true })
     .limit(limit);
@@ -46,7 +46,7 @@ export async function dispatchPending({
       .from("notification_outbox")
       .update({ status: "sending" })
       .eq("id", row.id)
-      .eq("status", "pending")
+      .in("status", ["pending", "failed"])
       .select("id")
       .maybeSingle();
     if (claimed.error || !claimed.data) continue;

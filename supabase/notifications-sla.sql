@@ -41,6 +41,8 @@ drop policy if exists "Users manage own notification preferences"
 create policy "Users manage own notification preferences"
   on public.notification_preferences for insert
   with check (user_id = auth.uid());
+drop policy if exists "Users update own notification preferences"
+  on public.notification_preferences;
 create policy "Users update own notification preferences"
   on public.notification_preferences for update
   using (user_id = auth.uid())

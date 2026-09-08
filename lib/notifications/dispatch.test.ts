@@ -18,6 +18,7 @@ function makeAdminClient(row: Record<string, unknown> | null) {
   const query = {
     select: vi.fn(() => query),
     eq: vi.fn(() => query),
+    in: vi.fn(() => query),
     lte: vi.fn(() => query),
     order: vi.fn(() => query),
     limit: vi.fn(() =>
@@ -109,6 +110,30 @@ describe("dispatchPending", () => {
     const result = await dispatchPending();
     expect(result.failed).toBe(1);
     expect(result.dead).toBe(0);
+  });
+
+  test("claims and sends a failed row whose retry time has passed", async () => {
+    const row = {
+      id: "n1",
+      organization_id: null,
+      ticket_id: "t1",
+      channel: "email",
+      recipient_user_id: "u1",
+      subject: "Ticket received",
+      body: "Your ticket has been received.",
+      url: null,
+      status: "failed",
+      attempts: 1,
+      next_attempt_at: new Date(Date.now() - 60_000).toISOString(),
+    };
+    const admin = makeAdminClient(row);
+    vi.mocked(sendEmail).mockResolvedValue({ ok: true });
+    vi.mocked(createAdminClient).mockReturnValue(admin as never);
+    const result = await dispatchPending();
+    expect(result.sent).toBe(1);
+    expect(sendEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ to: "to@example.com" })
+    );
   });
 
   test("falls back to push on a retryable email failure", async () => {

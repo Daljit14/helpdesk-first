@@ -54,6 +54,8 @@ export default async function OrganizationPage() {
           <OrganizationPanel
             organizationName={organization?.name ?? "Organization"}
             allowVerificationException={policy.allowVerificationException}
+            slaTargets={policy.slaTargets}
+            timezone={policy.timezone}
             members={members ?? []}
             domains={domains ?? []}
             invitations={invitations ?? []}

@@ -10,6 +10,7 @@ import {
   verifyDomain,
 } from "@/app/actions/organizations";
 import { updateOrganizationPolicy } from "@/app/actions/admin-workflow";
+import type { SlaTargets } from "@/lib/tickets/sla";
 
 type Member = { user_id: string; role: string; joined_via: string | null };
 type Domain = {
@@ -28,12 +29,16 @@ type Invitation = {
 export function OrganizationPanel({
   organizationName,
   allowVerificationException,
+  slaTargets,
+  timezone,
   members,
   domains,
   invitations,
 }: {
   organizationName: string;
   allowVerificationException: boolean;
+  slaTargets: SlaTargets;
+  timezone: string;
   members: Member[];
   domains: Domain[];
   invitations: Invitation[];
@@ -43,6 +48,11 @@ export function OrganizationPanel({
   const [domain, setDomain] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("requester");
+  const [allowExceptions, setAllowExceptions] = useState(
+    allowVerificationException
+  );
+  const [targets, setTargets] = useState(slaTargets);
+  const [policyTimezone, setPolicyTimezone] = useState(timezone);
 
   function run(
     action: () => Promise<
@@ -62,6 +72,12 @@ export function OrganizationPanel({
     });
   }
 
+  function savePolicy() {
+    run(() =>
+      updateOrganizationPolicy(allowExceptions, targets, policyTimezone)
+    );
+  }
+
   return (
     <div className="grid gap-6">
       {notice && <p className="rounded-2xl bg-muted p-3 text-sm">{notice}</p>}
@@ -78,13 +94,95 @@ export function OrganizationPanel({
         <label className="mt-3 flex items-center gap-3 text-sm">
           <input
             type="checkbox"
-            defaultChecked={allowVerificationException}
-            onChange={(event) =>
-              run(() => updateOrganizationPolicy(event.target.checked))
-            }
+            checked={allowExceptions}
+            onChange={(event) => setAllowExceptions(event.target.checked)}
           />
           Allow verification exceptions
         </label>
+      </section>
+
+      <section className="glass-strong grid gap-4 p-5">
+        <div>
+          <h2 className="text-xl font-semibold">SLA policy</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Targets are measured in minutes from the ticket or handoff anchor.
+          </p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {(["Urgent", "High", "Normal", "Low"] as const).map((priority) => (
+            <div
+              key={priority}
+              className="grid gap-2 rounded-xl border border-border/50 p-3"
+            >
+              <h3 className="font-medium">{priority}</h3>
+              <label className="grid gap-1 text-sm">
+                First response (minutes)
+                <input
+                  type="number"
+                  min="1"
+                  value={targets.first_response[priority]}
+                  onChange={(event) =>
+                    setTargets((current) => ({
+                      ...current,
+                      first_response: {
+                        ...current.first_response,
+                        [priority]: Number(event.target.value),
+                      },
+                    }))
+                  }
+                  className="rounded-xl border border-border/60 bg-background/50 p-2"
+                />
+              </label>
+              <label className="grid gap-1 text-sm">
+                Resolution (minutes)
+                <input
+                  type="number"
+                  min="1"
+                  value={targets.resolution[priority]}
+                  onChange={(event) =>
+                    setTargets((current) => ({
+                      ...current,
+                      resolution: {
+                        ...current.resolution,
+                        [priority]: Number(event.target.value),
+                      },
+                    }))
+                  }
+                  className="rounded-xl border border-border/60 bg-background/50 p-2"
+                />
+              </label>
+            </div>
+          ))}
+        </div>
+        <label className="grid max-w-sm gap-1 text-sm">
+          Timezone
+          <select
+            value={policyTimezone}
+            onChange={(event) => setPolicyTimezone(event.target.value)}
+            className="rounded-xl border border-border/60 bg-background/50 p-2"
+          >
+            {[
+              ["America/New_York", "Eastern Time"],
+              ["America/Chicago", "Central Time"],
+              ["America/Denver", "Mountain Time"],
+              ["America/Los_Angeles", "Pacific Time"],
+              ["UTC", "UTC"],
+              ["Europe/London", "London"],
+            ].map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button
+          type="button"
+          disabled={pending}
+          className="glass-pill justify-self-start px-4 py-2"
+          onClick={savePolicy}
+        >
+          Save SLA policy
+        </button>
       </section>
 
       <section className="glass-strong grid gap-4 p-5">

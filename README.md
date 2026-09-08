@@ -98,6 +98,25 @@ and retention. `HELP_DESK_ATTACHMENT_SCANNER=none` is the safe default for
 development; `virustotal` requires the server-only `VIRUSTOTAL_API_KEY`.
 Scheduled retention purging requires `CRON_SECRET`.
 
+## Notifications and SLA (Wave 7)
+
+Apply `supabase/notifications-sla.sql`, then set
+`HELP_DESK_NOTIFICATIONS_ENABLED=true` and fill `RESEND_API_KEY` and
+`NOTIFICATIONS_FROM_EMAIL` in your production environment. Tickets then
+enqueue lifecycle notifications to `notification_outbox` and dispatch them
+via the Resend REST API and existing web push. `CRON_SECRET` protects the
+`/api/cron/notifications-dispatch` endpoint, which scans SLA risk/overdue
+states and dispatches pending notifications. Resend's free tier may require
+a verified domain; until a domain is verified, Resend only delivers to the
+account owner's address.
+
+Requesters can set email/push preferences in `/tickets`. Organization admins
+can view and replay dead notifications from `/admin/notifications` and can
+customize SLA targets and timezone through `organization_policies`.
+
+When the notification flag is off, the existing direct push calls
+(handoff + overdue + public replies) continue to work.
+
 When `HELP_DESK_USER_PORTAL_ENABLED=true` alongside the ticket workflow flag
 after applying `supabase/user-ticket-portal.sql`, requesters can group and
 track their tickets, reply to support, reopen recently resolved tickets, and

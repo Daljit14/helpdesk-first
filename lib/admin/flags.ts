@@ -21,6 +21,10 @@ export function isUserPortalEnabled(): boolean {
   return process.env.HELP_DESK_USER_PORTAL_ENABLED === "true";
 }
 
+export function isNotificationsEnabled(): boolean {
+  return process.env.HELP_DESK_NOTIFICATIONS_ENABLED === "true";
+}
+
 export function isGoogleSsoEnabled(): boolean {
   return process.env.HELP_DESK_SSO_GOOGLE_ENABLED === "true";
 }

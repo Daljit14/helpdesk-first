@@ -1,5 +1,6 @@
 import { createHmac } from "node:crypto";
 import { CATEGORIES, ISSUES } from "@/lib/issues";
+import { DEFAULT_SLA_TARGETS } from "@/lib/tickets/sla";
 
 export type OperationsStatus =
   | "New"
@@ -78,9 +79,9 @@ export function slaDue(
   createdAt: string,
   priority: OperationsPriority
 ): string {
-  const hours = { Urgent: 4, High: 8, Normal: 24, Low: 72 }[priority];
   return new Date(
-    new Date(createdAt).getTime() + hours * 60 * 60 * 1000
+    new Date(createdAt).getTime() +
+      DEFAULT_SLA_TARGETS.resolution[priority] * 60 * 1000
   ).toISOString();
 }
 

@@ -21,6 +21,15 @@ no-ops when unconfigured.
 
 Optional accounts power bookmarks, saved guide progress, guide ratings, and support tickets. Apply [`supabase/schema.sql`](supabase/schema.sql), then set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` in your environment. Password reset uses Supabase email; add `<site>/auth/callback` to the Supabase Redirect URL allowlist (the existing `https://helpdesk-first.vercel.app/**` wildcard covers it). The site works without these variables; accounts are simply disabled.
 
+### Signup security
+
+Set `NEXT_PUBLIC_TURNSTILE_SITE_KEY` to enable the Cloudflare Turnstile widget on
+signup, login, admin login, and password-reset forms. Configure the Turnstile
+secret in Supabase Authentication → Attack Protection, not in the app. Turn on
+Authentication → Email → Confirm email and update the confirmation template to
+include `{{ .Token }}` alongside the confirmation link so users can verify with
+the 6-digit code or the link.
+
 ## AI rate limiting
 
 For production, set `HELP_DESK_AI_RATE_LIMIT_PROVIDER=upstash` and configure `UPSTASH_REDIS_REST_URL` plus `UPSTASH_REDIS_REST_TOKEN` (or connect the Vercel Upstash integration, which provides `KV_REST_API_URL` / `KV_REST_API_TOKEN`) to use a distributed Upstash Redis limiter. Local AI intake requires `HELP_DESK_AI_RATE_LIMIT_PROVIDER=memory`; otherwise `/api/ai/intake` returns `429 Rate limiting is not configured`. Keep the provider set to `memory` for local development and previews.

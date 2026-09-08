@@ -8,6 +8,24 @@ import type { AiProvider } from "./types";
 
 let warnedMissingAnthropicKey = false;
 
+function withFallback(primary: AiProvider, fallback: AiProvider): AiProvider {
+  return {
+    async classify(input, options) {
+      try {
+        return await primary.classify(input, options);
+      } catch (error) {
+        if (options?.signal?.aborted) throw error;
+        recordProviderCall({
+          provider: "anthropic",
+          model: getAiModel(),
+          outcome: "fallback",
+        });
+        return fallback.classify(input, options);
+      }
+    },
+  };
+}
+
 function budgeted(provider: AiProvider): AiProvider {
   return {
     async classify(input, options) {
@@ -57,7 +75,9 @@ export function createConfiguredAiProvider(opts?: {
   }
 
   const mock = createAiProvider();
-  if (kind === "anthropic") return anthropic ?? mock;
+  if (kind === "anthropic") {
+    return anthropic ? withFallback(anthropic, mock) : mock;
+  }
   if (kind === "shadow") {
     return new ShadowAiProvider(mock, anthropic ?? mock, (comparison) => {
       recordProviderCall({

@@ -19,7 +19,8 @@ export type CatalogEntry = {
 export type ProviderCallTelemetry = {
   provider: string;
   model: string;
-  outcome: "ok" | "timeout" | "invalid" | "unsafe" | "error" | "budget";
+  outcome:
+    "ok" | "timeout" | "invalid" | "unsafe" | "error" | "budget" | "fallback";
   latencyMs?: number;
   inputTokens?: number;
   outputTokens?: number;

@@ -44,7 +44,7 @@ create table if not exists public.ai_provider_calls (
   organization_id uuid references public.organizations(id) on delete set null,
   provider text not null,
   model text not null,
-  outcome text not null check (outcome in ('ok', 'timeout', 'invalid', 'unsafe', 'error', 'budget')),
+  outcome text not null check (outcome in ('ok', 'timeout', 'invalid', 'unsafe', 'error', 'budget', 'fallback')),
   decision text,
   latency_ms integer,
   input_tokens integer,

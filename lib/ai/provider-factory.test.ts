@@ -1,10 +1,19 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
+import { createAiProvider } from "./mock-provider";
 import { createConfiguredAiProvider } from "./provider-factory";
+import { recordProviderCall } from "./telemetry";
+
+vi.mock("./telemetry", () => ({
+  recordProviderCall: vi.fn(),
+}));
+
+const mockedRecordProviderCall = vi.mocked(recordProviderCall);
 
 afterEach(() => {
   delete process.env.HELP_DESK_AI_PROVIDER;
   delete process.env.ANTHROPIC_API_KEY;
   delete process.env.HELP_DESK_AI_DAILY_CALL_BUDGET;
+  mockedRecordProviderCall.mockReset();
   vi.restoreAllMocks();
 });
 
@@ -42,6 +51,49 @@ describe("createConfiguredAiProvider", () => {
     expect(warn).toHaveBeenCalledTimes(1);
     expect(warn).toHaveBeenCalledWith(
       expect.stringContaining("without ANTHROPIC_API_KEY")
+    );
+  });
+
+  test("falls back to the mock result when Anthropic throws", async () => {
+    process.env.HELP_DESK_AI_PROVIDER = "anthropic";
+    process.env.ANTHROPIC_API_KEY = "test-key";
+    const input = { message: "slow computer", platform: "Windows" as const };
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(
+      new Error("Anthropic unavailable")
+    );
+    const provider = createConfiguredAiProvider({
+      allowedSlugs: ["slow-computer"],
+    });
+    const expected = await createAiProvider().classify(input);
+
+    await expect(provider.classify(input)).resolves.toEqual(expected);
+    expect(mockedRecordProviderCall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: "anthropic",
+        model: expect.any(String),
+        outcome: "fallback",
+      })
+    );
+  });
+
+  test("rethrows Anthropic errors when the intake signal is aborted", async () => {
+    process.env.HELP_DESK_AI_PROVIDER = "anthropic";
+    process.env.ANTHROPIC_API_KEY = "test-key";
+    const controller = new AbortController();
+    controller.abort();
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(
+      new DOMException("The operation was aborted.", "AbortError")
+    );
+    const provider = createConfiguredAiProvider();
+
+    await expect(
+      provider.classify(
+        { message: "slow computer", platform: "Windows" },
+        { signal: controller.signal }
+      )
+    ).rejects.toThrow("The operation was aborted.");
+    expect(mockedRecordProviderCall).not.toHaveBeenCalledWith(
+      expect.objectContaining({ outcome: "fallback" })
     );
   });
 

@@ -219,6 +219,8 @@ export function AiAssistant({
         error={error}
         onRestart={handleRestart}
         searchHref={searchHref()}
+        problem={problem}
+        platform={platform}
       />
     );
   }
@@ -725,11 +727,16 @@ function UnavailableView({
   error,
   onRestart,
   searchHref,
+  problem,
+  platform,
 }: {
   error: string;
   onRestart: () => void;
   searchHref: string;
+  problem: string;
+  platform: Platform | null;
 }) {
+  const suggestions = filterIssues({ query: problem, platform }).slice(0, 3);
   return (
     <div className="mx-auto w-full max-w-2xl">
       <h1 className="text-3xl font-bold tracking-tight">
@@ -737,10 +744,32 @@ function UnavailableView({
       </h1>
       <div className="glass-strong mt-8 border-amber-500/20 bg-amber-50/60 p-6 text-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
         <p className="font-medium">{error}</p>
-        <p className="mt-2 text-sm">
-          The support assistant is not enabled right now. You can still search
-          the approved guides.
-        </p>
+        {suggestions.length > 0 && (
+          <div className="mt-4 space-y-3">
+            <h2 className="font-medium">Suggested guides</h2>
+            {suggestions.map((issue) => (
+              <article
+                key={issue.id}
+                className="rounded-2xl border border-border/60 p-4"
+              >
+                <h3 className="font-semibold">{issue.title}</h3>
+                <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-muted-foreground">
+                  {getIssueSteps(issue)
+                    .slice(0, 3)
+                    .map((step) => (
+                      <li key={step}>{step}</li>
+                    ))}
+                </ol>
+                <Link
+                  href={`/issues/${issue.id}/guide`}
+                  className="mt-3 inline-flex text-sm font-medium text-primary underline underline-offset-4"
+                >
+                  Open full guide
+                </Link>
+              </article>
+            ))}
+          </div>
+        )}
         <div className="mt-4 flex flex-wrap gap-3">
           <Link
             href={searchHref}

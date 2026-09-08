@@ -140,6 +140,28 @@ describe("processAiIntake", () => {
     }
   });
 
+  test("falls back to the mock provider for invalid configured output", async () => {
+    vi.stubEnv("HELP_DESK_AI_PROVIDER", "anthropic");
+    const invalidProvider: AiProvider = {
+      async classify(): Promise<AiIntakeOutput> {
+        return {
+          decision: "match",
+          matchedIssueSlug: "not-an-approved-issue",
+          detectedPlatform: "Windows",
+          explanation: "invalid",
+        };
+      },
+    };
+    const result = await processAiIntake(
+      { message: "slow computer", platform: "Windows" },
+      { provider: invalidProvider }
+    );
+    expect(result.status).toBe("success");
+    if (result.status === "success") {
+      expect(result.output.matchedIssueSlug).toBe("slow-computer");
+    }
+  });
+
   test("rejects AI output containing commands", async () => {
     const rogueProvider: AiProvider = {
       async classify(input: AiIntakeInput): Promise<AiIntakeOutput> {

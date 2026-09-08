@@ -27,6 +27,11 @@ export function NotificationOutbox({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [notice, setNotice] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [statusFilter, setStatusFilter] = useState("all");
+  const filteredRows =
+    statusFilter === "all"
+      ? rows
+      : rows.filter((row) => row.status === statusFilter);
 
   function toggle(id: string) {
     const next = new Set(selected);
@@ -58,8 +63,23 @@ export function NotificationOutbox({
           Replay selected ({selected.size})
         </button>
       )}
+      <label className="grid max-w-xs gap-1 text-sm">
+        Filter by status
+        <select
+          value={statusFilter}
+          onChange={(event) => setStatusFilter(event.target.value)}
+          className="rounded-xl border border-border/60 bg-background/50 p-2"
+        >
+          <option value="all">All</option>
+          <option value="pending">Pending</option>
+          <option value="sending">Sending</option>
+          <option value="sent">Sent</option>
+          <option value="failed">Failed</option>
+          <option value="dead">Dead</option>
+        </select>
+      </label>
       <ul className="grid gap-3">
-        {rows.map((row) => (
+        {filteredRows.map((row) => (
           <li
             key={row.id}
             className="glass-strong flex flex-wrap items-start justify-between gap-4 rounded-2xl p-4"

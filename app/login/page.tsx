@@ -2,6 +2,7 @@ import Link from "next/link";
 import { LoginForm } from "@/components/auth/login-form";
 import type { Metadata } from "next";
 import { isGoogleSsoEnabled, isMicrosoftSsoEnabled } from "@/lib/admin/flags";
+import { getTurnstileSiteKey } from "@/lib/auth/captcha";
 
 export const metadata: Metadata = {
   title: "Log in",
@@ -28,6 +29,7 @@ export default async function LoginPage({
           next={safeNext}
           googleSsoEnabled={isGoogleSsoEnabled()}
           microsoftSsoEnabled={isMicrosoftSsoEnabled()}
+          turnstileSiteKey={getTurnstileSiteKey()}
         />
         <p className="text-center text-sm text-muted-foreground">
           Don&apos;t have an account?{" "}

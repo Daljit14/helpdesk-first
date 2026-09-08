@@ -7,15 +7,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { startSso } from "@/app/actions/auth";
+import { TurnstileWidget } from "@/components/turnstile-widget";
 
 export function AdminLoginForm({
   next,
   googleSsoEnabled = false,
   microsoftSsoEnabled = false,
+  turnstileSiteKey = null,
 }: {
   next: string;
   googleSsoEnabled?: boolean;
   microsoftSsoEnabled?: boolean;
+  turnstileSiteKey?: string | null;
 }) {
   const [state, action, pending] = useActionState<AdminAuthState, FormData>(
     adminLogin,
@@ -60,6 +63,7 @@ export function AdminLoginForm({
           </p>
         )}
       </div>
+      <TurnstileWidget siteKey={turnstileSiteKey} />
       <Button type="submit" disabled={pending} className="w-full">
         {pending ? "Signing in…" : "Sign in"}
       </Button>

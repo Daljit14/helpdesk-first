@@ -12,6 +12,11 @@ import {
 } from "@/lib/admin/auth";
 import { isAdminDashboardEnabled } from "@/lib/admin/flags";
 import { createRateLimiter } from "@/lib/ai/rate-limit";
+import {
+  captchaErrorMessage,
+  captchaRequired,
+  getCaptchaToken,
+} from "@/lib/auth/captcha";
 
 export type AdminAuthState = {
   error?: string;
@@ -55,6 +60,8 @@ export async function adminLogin(
   if (!isAdminDashboardEnabled() || !isSupabaseConfigured()) {
     return { error: GENERIC_ERROR };
   }
+  const captchaError = captchaRequired(formData);
+  if (captchaError) return { error: captchaError };
   const parsed = loginSchema.safeParse({
     email: formData.get("email"),
     password: formData.get("password"),
@@ -75,7 +82,13 @@ export async function adminLogin(
   }
 
   const supabase = await createClient();
-  const { data, error } = await supabase.auth.signInWithPassword(parsed.data);
+  const captchaToken = getCaptchaToken(formData);
+  const { data, error } = await supabase.auth.signInWithPassword({
+    ...parsed.data,
+    ...(captchaToken ? { options: { captchaToken } } : {}),
+  });
+  const securityError = captchaErrorMessage(error);
+  if (securityError) return { error: securityError };
   if (error || !data.user) return { error: GENERIC_ERROR };
 
   const session = await establishAdminSession(data.user, "password");

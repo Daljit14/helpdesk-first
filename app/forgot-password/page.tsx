@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ForgotPasswordForm } from "@/components/auth/forgot-password-form";
+import { getTurnstileSiteKey } from "@/lib/auth/captcha";
 
 export const metadata: Metadata = {
   title: "Reset your password",
@@ -29,7 +30,7 @@ export default async function ForgotPasswordPage({
             That reset link is invalid or has expired. Request a new one below.
           </p>
         )}
-        <ForgotPasswordForm />
+        <ForgotPasswordForm turnstileSiteKey={getTurnstileSiteKey()} />
         <p className="text-center text-sm text-muted-foreground">
           <Link href="/login" className="underline underline-offset-4">
             Back to log in

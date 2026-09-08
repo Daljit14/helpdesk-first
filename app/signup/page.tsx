@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { SignupForm } from "@/components/auth/signup-form";
 import { isGoogleSsoEnabled, isMicrosoftSsoEnabled } from "@/lib/admin/flags";
+import { getTurnstileSiteKey } from "@/lib/auth/captcha";
 
 function safeNextPath(value: string | string[] | undefined): string {
   const next = Array.isArray(value) ? value[0] : value;
@@ -23,6 +24,7 @@ export default async function SignupPage({
           next={safeNextPath(next)}
           googleSsoEnabled={isGoogleSsoEnabled()}
           microsoftSsoEnabled={isMicrosoftSsoEnabled()}
+          turnstileSiteKey={getTurnstileSiteKey()}
         />
         <p className="text-center text-sm text-muted-foreground">
           Already have an account?{" "}

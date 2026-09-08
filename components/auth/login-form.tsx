@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { startSso } from "@/app/actions/auth";
+import { TurnstileWidget } from "@/components/turnstile-widget";
 
 const initialState: AuthState = null;
 
@@ -14,10 +15,12 @@ export function LoginForm({
   next = "/",
   googleSsoEnabled = false,
   microsoftSsoEnabled = false,
+  turnstileSiteKey = null,
 }: {
   next?: string;
   googleSsoEnabled?: boolean;
   microsoftSsoEnabled?: boolean;
+  turnstileSiteKey?: string | null;
 }) {
   const [state, formAction, pending] = useActionState(
     loginAction,
@@ -69,6 +72,7 @@ export function LoginForm({
         <p className="text-sm text-destructive">{state.error}</p>
       )}
 
+      <TurnstileWidget siteKey={turnstileSiteKey} />
       <Button type="submit" disabled={pending}>
         {pending ? "Logging in…" : "Log in"}
       </Button>

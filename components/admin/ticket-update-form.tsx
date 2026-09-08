@@ -73,7 +73,7 @@ export function TicketUpdateForm({
         </p>
       )}
       <input type="hidden" name="ticketId" value={ticketId} />
-      <div className="mt-4 grid gap-4 sm:grid-cols-3">
+      <div className="mt-4 grid min-w-0 gap-4 [&>label]:min-w-0 [&_input]:min-w-0 [&_select]:min-w-0">
         <label
           className="grid gap-2 text-sm font-medium"
           htmlFor="ticket-status"

@@ -99,6 +99,26 @@ describe("MockAiProvider", () => {
     });
     expect(result.decision).toBe("escalate");
     expect(result.escalationReason).toMatch(/not a.*support|contact your IT/i);
+    expect(result.suggestedIssueSlugs?.length ?? 0).toBeLessThanOrEqual(3);
+    for (const slug of result.suggestedIssueSlugs ?? []) {
+      expect(approvedOutputSlugs).toContain(slug);
+    }
+  });
+
+  test("matches the closest guide after questions are exhausted", async () => {
+    const result = await provider.classify({
+      message: "slow",
+      platform: "Windows",
+      previousAnswers: [
+        { questionId: "where-happens", answer: "everywhere" },
+        { questionId: "when-started", answer: "today" },
+        { questionId: "already-restarted", answer: "yes" },
+      ],
+    });
+    expect(result.decision).toBe("match");
+    expect(result.matchedIssueSlug).toBe("slow-computer");
+    expect(result.explanation).toContain("closest approved guide");
+    expect(result.suggestedIssueSlugs?.length).toBeLessThanOrEqual(2);
   });
 
   test("returns only approved diagnostic question IDs", async () => {

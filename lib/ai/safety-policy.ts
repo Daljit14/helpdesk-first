@@ -47,6 +47,7 @@ const ALLOWED_OUTPUT_KEYS = new Set([
   "matchedIssueSlug",
   "detectedPlatform",
   "diagnosticQuestionIds",
+  "suggestedIssueSlugs",
   "confidence",
   "explanation",
   "escalationReason",
@@ -502,6 +503,13 @@ export function validateAiOutput(
     }
   }
 
+  if (
+    o.suggestedIssueSlugs !== undefined &&
+    !Array.isArray(o.suggestedIssueSlugs)
+  ) {
+    errors.push("suggestedIssueSlugs must be an array.");
+  }
+
   if (o.explanation !== undefined) {
     if (typeof o.explanation !== "string") {
       errors.push("explanation must be a string.");
@@ -670,6 +678,14 @@ export function validateAndCoerceOutput(
   }
   if (Array.isArray(o.diagnosticQuestionIds)) {
     coerced.diagnosticQuestionIds = o.diagnosticQuestionIds as string[];
+  }
+  if (Array.isArray(o.suggestedIssueSlugs)) {
+    coerced.suggestedIssueSlugs = o.suggestedIssueSlugs
+      .filter(
+        (slug): slug is string =>
+          typeof slug === "string" && allowedSlugs.includes(slug)
+      )
+      .slice(0, 3);
   }
   if (typeof o.explanation === "string") {
     coerced.explanation = o.explanation;

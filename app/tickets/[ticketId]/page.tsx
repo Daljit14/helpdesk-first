@@ -18,6 +18,7 @@ import {
 } from "@/lib/tickets/user-status";
 import { getIssueBySlug } from "@/lib/search";
 import { getIssueSteps } from "@/lib/steps";
+import { TicketProgress } from "@/components/ticket-progress";
 
 type TicketDetail = {
   id: string;
@@ -80,8 +81,8 @@ export default async function TicketPage({
 }: {
   params: Promise<{ ticketId: string }>;
 }) {
-  if (!isTicketWorkflowEnabled()) notFound();
-  const portalEnabled = isUserPortalEnabled();
+  const workflowEnabled = isTicketWorkflowEnabled();
+  const portalEnabled = workflowEnabled && isUserPortalEnabled();
   const user = await getCurrentUser();
   if (!user) redirect("/login?next=/tickets");
   const { ticketId } = await params;
@@ -202,15 +203,11 @@ export default async function TicketPage({
             {handoffReasonLabel(ticket.handoff_reason, ticket.status)}
           </p>
         )}
-        {portalEnabled && (
-          <div className="mt-4 space-y-1 text-sm text-muted-foreground">
-            <p>{assignment.label}</p>
-            {assignment.expectedResponseBy && (
-              <p>{assignment.expectedResponseBy}</p>
-            )}
-            {assignment.lastUpdated && <p>{assignment.lastUpdated}</p>}
-          </div>
-        )}
+        <TicketProgress
+          status={ticket.status}
+          description={status.description}
+          assignment={assignment}
+        />
         <div className="glass-strong mt-6 p-5">
           <h2 className="font-semibold">Original problem</h2>
           <p className="mt-3 whitespace-pre-wrap">{ticket.message}</p>
@@ -261,7 +258,7 @@ export default async function TicketPage({
               />
             )}
             <section className="glass mt-6 p-5">
-              <h2 className="font-semibold">Activity</h2>
+              <h2 className="font-semibold">Activity timeline</h2>
               <ol className="mt-4 space-y-3">
                 {(events ?? [])
                   .filter((event) => eventLabels[event.event_type])
@@ -290,6 +287,7 @@ export default async function TicketPage({
           userId={user.id}
           initialComments={(comments ?? []) as never}
           status={ticket.status}
+          workflowEnabled={workflowEnabled}
         />
       </div>
     </section>

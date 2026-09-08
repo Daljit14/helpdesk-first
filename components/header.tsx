@@ -20,7 +20,7 @@ export function Header({ user }: { user?: User | null }) {
 
   return (
     <header className="sticky top-3 z-40 px-4">
-      <div className="glass-pill mx-auto flex max-w-6xl items-center justify-between px-5 py-2.5">
+      <div className="glass-pill glass-pill--solid mx-auto flex max-w-6xl items-center justify-between px-5 py-2.5">
         <Link
           href="/"
           className="flex items-center gap-2 text-lg font-semibold tracking-tight"

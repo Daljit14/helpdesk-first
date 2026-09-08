@@ -71,7 +71,6 @@ export default async function TicketsPage() {
         <TicketsTable
           initialTickets={ticketsWithCounts}
           userId={user.id}
-          workflowEnabled={isTicketWorkflowEnabled()}
           secureAttachmentsEnabled={secureAttachmentsEnabled}
           portalEnabled={portalEnabled}
         />

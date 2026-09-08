@@ -17,6 +17,14 @@ export type AdminSession = {
   isPlatformAdmin: boolean;
 };
 
+export function adminRoleLabel(
+  role: AdminRole,
+  isPlatformAdmin: boolean
+): string {
+  const label = role === "org_admin" ? "Org admin" : "Support agent";
+  return isPlatformAdmin ? `${label} · Platform admin` : label;
+}
+
 const ADMIN_COOKIE = "hd_admin";
 const ADMIN_SESSION_MAX_AGE = 60 * 60 * 8;
 

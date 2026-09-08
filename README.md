@@ -25,6 +25,14 @@ Optional accounts power bookmarks, saved guide progress, guide ratings, and supp
 
 For production, set `HELP_DESK_AI_RATE_LIMIT_PROVIDER=upstash` and configure `UPSTASH_REDIS_REST_URL` plus `UPSTASH_REDIS_REST_TOKEN` (or connect the Vercel Upstash integration, which provides `KV_REST_API_URL` / `KV_REST_API_TOKEN`) to use a distributed Upstash Redis limiter. Keep the provider set to `memory` for local development and previews.
 
+Grounded provider and knowledge governance features are disabled by default.
+Set `HELP_DESK_AI_PROVIDER=mock` (or `anthropic`/`shadow` with a server-only
+`ANTHROPIC_API_KEY`), `HELP_DESK_AI_MODEL`, and
+`HELP_DESK_AI_DAILY_CALL_BUDGET` as needed. Set
+`HELP_DESK_KNOWLEDGE_GOVERNANCE_ENABLED=true` only after applying
+`supabase/knowledge-governance.sql`; this enables approved-guide governance,
+citations, provider telemetry, and the admin Knowledge page.
+
 ## Operations export
 
 Apply [`supabase/operations.sql`](supabase/operations.sql), then set

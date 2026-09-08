@@ -453,6 +453,28 @@ function MatchView({
     <div className="glass-strong mt-8 space-y-6 p-6">
       <h2 className="text-xl font-semibold">Suggested approved guide</h2>
       <p className="text-muted-foreground">{output.explanation}</p>
+      {output.citation && (
+        <p className="text-sm text-muted-foreground">
+          Source:{" "}
+          {output.citation.url ? (
+            <a
+              href={output.citation.url}
+              target="_blank"
+              rel="noreferrer"
+              className="underline underline-offset-2"
+            >
+              {output.citation.title}
+            </a>
+          ) : (
+            output.citation.title
+          )}{" "}
+          · v{output.citation.version} · updated{" "}
+          {output.citation.retrievedAt
+            ? new Date(output.citation.retrievedAt).toLocaleDateString()
+            : "unknown"}{" "}
+          · {output.citation.supportedPlatforms.join(", ")}
+        </p>
+      )}
       <div className="flex flex-wrap gap-3">
         <Link
           href={guideHref}

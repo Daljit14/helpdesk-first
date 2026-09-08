@@ -1,11 +1,11 @@
 import type { NextRequest } from "next/server";
 import { processAiIntake } from "@/lib/ai/intake";
-import { createAiProvider } from "@/lib/ai/mock-provider";
+import { createConfiguredAiProvider } from "@/lib/ai/provider-factory";
 import { checkRateLimit, getRateLimiter } from "@/lib/ai/rate-limit";
 import { SAFE_ERROR_MESSAGES, validateApiRequest } from "@/lib/ai/validation";
 import { diagnosticQuestions } from "@/lib/ai/types";
-import { getAllIssueSlugs } from "@/lib/search";
 import { platforms } from "@/lib/helpdesk-data";
+import { getApprovedSlugs, getCitation } from "@/lib/knowledge/governance";
 
 export async function POST(request: NextRequest) {
   const aiState = processAiIntakeState();
@@ -58,6 +58,7 @@ export async function POST(request: NextRequest) {
   }
 
   const { message, platform, previousAnswers } = requestValidation.data;
+  const allowedSlugs = await getApprovedSlugs(null);
 
   const result = await processAiIntake(
     {
@@ -66,8 +67,8 @@ export async function POST(request: NextRequest) {
       previousAnswers,
     },
     {
-      provider: createAiProvider(),
-      allowedSlugs: getAllIssueSlugs(),
+      provider: createConfiguredAiProvider({ allowedSlugs }),
+      allowedSlugs,
       allowedQuestions: diagnosticQuestions,
       allowedPlatforms: platforms,
     }
@@ -75,6 +76,11 @@ export async function POST(request: NextRequest) {
 
   switch (result.status) {
     case "success":
+      if (result.output.matchedIssueSlug) {
+        result.output.citation =
+          (await getCitation(result.output.matchedIssueSlug, null)) ??
+          undefined;
+      }
       return Response.json({ status: "ok", output: result.output });
     case "unavailable":
       return Response.json(

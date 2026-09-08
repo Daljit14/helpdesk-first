@@ -6,6 +6,7 @@ import {
 } from "@/lib/admin/flags";
 import { createClient } from "@/lib/supabase/server";
 import { TicketConversation } from "@/components/ticket-conversation";
+import { getCitation } from "@/lib/knowledge/governance";
 import { AttachmentList } from "@/components/attachment-list";
 import { listOwnAttachments } from "@/lib/attachments/server";
 import { AttachmentLink } from "@/components/attachment-link";
@@ -89,7 +90,7 @@ export default async function TicketPage({
   const supabase = await createClient();
   const ticketSelect = portalEnabled
     ? "id,issue_title,message,status,platform,created_at,handoff_reason,resolver_type,ai_recommended_issue_id,diagnostic_answers,attachment_path,satisfaction_rating,satisfaction_comment,resolved_at,closed_at,updated_at,assigned_agent_id,human_response_due_at,first_human_response_at"
-    : "id,issue_title,message,status,platform,created_at,handoff_reason";
+    : "id,issue_title,message,status,platform,created_at,handoff_reason,ai_recommended_issue_id";
   const { data: rawTicket } = await supabase
     .from("tickets")
     .select(ticketSelect)
@@ -98,6 +99,9 @@ export default async function TicketPage({
     .maybeSingle();
   const ticket = rawTicket as TicketDetail | null;
   if (!ticket) notFound();
+  const citation = ticket.ai_recommended_issue_id
+    ? await getCitation(ticket.ai_recommended_issue_id, null)
+    : null;
   const { data: comments } = await supabase
     .from("ticket_comments")
     .select("id,message,author_type,created_at")
@@ -201,6 +205,15 @@ export default async function TicketPage({
           <p className="mt-3 text-sm text-muted-foreground">
             Why a person is helping:{" "}
             {handoffReasonLabel(ticket.handoff_reason, ticket.status)}
+          </p>
+        )}
+        {citation && (
+          <p className="mt-3 text-sm text-muted-foreground">
+            Source: {citation.title} · v{citation.version} · updated{" "}
+            {citation.retrievedAt
+              ? new Date(citation.retrievedAt).toLocaleDateString()
+              : "unknown"}{" "}
+            · {citation.supportedPlatforms.join(", ")}
           </p>
         )}
         <TicketProgress

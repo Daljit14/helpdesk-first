@@ -2,9 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { createAiProvider } from "@/lib/ai/mock-provider";
+import { createConfiguredAiProvider } from "@/lib/ai/provider-factory";
 import { processAiIntake } from "@/lib/ai/intake";
 import {
+  isSecureAttachmentsEnabled,
   isTicketWorkflowEnabled,
   isUserPortalEnabled,
 } from "@/lib/admin/flags";
@@ -17,7 +18,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/supabase/user";
 import { platforms } from "@/lib/helpdesk-data";
 import { MemoryRateLimiter } from "@/lib/ai/rate-limit";
-import { isSecureAttachmentsEnabled } from "@/lib/admin/flags";
+import { getApprovedSlugs } from "@/lib/knowledge/governance";
 import { attachTicketAttachments } from "@/lib/attachments/server";
 import { resolveOrganizationForUser } from "@/lib/org/membership";
 
@@ -113,13 +114,20 @@ export async function createWorkflowTicket(input: unknown): Promise<Result> {
   }
   await event(ticketId, organizationId, "ticket.created", "user", user.id);
 
+  const allowedSlugs = await getApprovedSlugs(organizationId);
   const intake = await processAiIntake(
     {
       message: parsed.data.message,
       platform: parsed.data.platform as never,
       previousAnswers: parsed.data.diagnosticAnswers,
     },
-    { provider: createAiProvider() }
+    {
+      provider: createConfiguredAiProvider({
+        allowedSlugs,
+        organizationId,
+      }),
+      allowedSlugs,
+    }
   );
   const output =
     intake.status === "success"
@@ -137,6 +145,15 @@ export async function createWorkflowTicket(input: unknown): Promise<Result> {
   const matched = output.matchedIssueSlug
     ? (getIssueBySlug(output.matchedIssueSlug) ?? null)
     : null;
+  if (
+    output.decision === "match" &&
+    output.matchedIssueSlug &&
+    !allowedSlugs.includes(output.matchedIssueSlug)
+  ) {
+    output.decision = "escalate";
+    output.matchedIssueSlug = undefined;
+    output.escalationReason = "No approved guide is available.";
+  }
   const decision = routeTicket({
     ai: output,
     issue: matched,

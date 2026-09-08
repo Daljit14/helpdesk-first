@@ -1,17 +1,58 @@
 export type SlaState = "ok" | "at_risk" | "breached" | "met";
 
-export function humanResponseDue(priority: string, from: Date): Date {
-  if (priority === "Urgent") return new Date(from.getTime() + 5 * 60_000);
-  if (priority === "High") return new Date(from.getTime() + 10 * 60_000);
-  if (priority === "Normal") return new Date(from.getTime() + 60 * 60_000);
+export type SlaPriority = "Urgent" | "High" | "Normal" | "Low";
+export type SlaTargets = {
+  first_response: Record<SlaPriority, number>;
+  resolution: Record<SlaPriority, number>;
+};
 
-  const due = new Date(from);
-  due.setUTCDate(due.getUTCDate() + 1);
-  while (due.getUTCDay() === 0 || due.getUTCDay() === 6) {
-    due.setUTCDate(due.getUTCDate() + 1);
-  }
-  due.setUTCHours(9, 0, 0, 0);
-  return due;
+export const DEFAULT_SLA_TARGETS: SlaTargets = {
+  first_response: { Urgent: 5, High: 10, Normal: 60, Low: 480 },
+  resolution: { Urgent: 240, High: 480, Normal: 1440, Low: 4320 },
+};
+
+export function humanResponseDue(
+  priority: string,
+  from: Date,
+  targets: SlaTargets = DEFAULT_SLA_TARGETS
+): Date {
+  const minutes =
+    targets.first_response[priority as SlaPriority] ??
+    DEFAULT_SLA_TARGETS.first_response.Normal;
+  return new Date(from.getTime() + minutes * 60_000);
+}
+
+export function resolutionDue(
+  priority: string,
+  from: Date,
+  targets: SlaTargets = DEFAULT_SLA_TARGETS
+): Date {
+  const minutes =
+    targets.resolution[priority as SlaPriority] ??
+    DEFAULT_SLA_TARGETS.resolution.Normal;
+  return new Date(from.getTime() + minutes * 60_000);
+}
+
+export async function getSlaTargets(
+  organizationId: string
+): Promise<SlaTargets> {
+  const { createAdminClient } = await import("@/lib/supabase/admin");
+  const { data } = await createAdminClient()
+    .from("organization_policies")
+    .select("sla_targets")
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+  const raw = data?.sla_targets as Partial<SlaTargets> | null | undefined;
+  return {
+    first_response: {
+      ...DEFAULT_SLA_TARGETS.first_response,
+      ...(raw?.first_response ?? {}),
+    },
+    resolution: {
+      ...DEFAULT_SLA_TARGETS.resolution,
+      ...(raw?.resolution ?? {}),
+    },
+  };
 }
 
 export function slaState(

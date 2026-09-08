@@ -10,6 +10,7 @@ import {
   toTicketId,
   type OperationsTicketLike,
 } from "./transform";
+import { DEFAULT_SLA_TARGETS } from "@/lib/tickets/sla";
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -52,6 +53,10 @@ describe("operations transforms", () => {
     expect(slaDue(created, "High")).toBe("2025-01-01T08:00:00.000Z");
     expect(slaDue(created, "Normal")).toBe("2025-01-02T00:00:00.000Z");
     expect(slaDue(created, "Low")).toBe("2025-01-04T00:00:00.000Z");
+    expect(
+      new Date(slaDue(created, "Normal")).getTime() -
+        new Date(created).getTime()
+    ).toBe(DEFAULT_SLA_TARGETS.resolution.Normal * 60 * 1000);
   });
 
   test("gets issue category labels", () => {

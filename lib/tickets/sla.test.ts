@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { formatSlaCountdown, humanResponseDue, slaState } from "./sla";
+import {
+  DEFAULT_SLA_TARGETS,
+  formatSlaCountdown,
+  humanResponseDue,
+  resolutionDue,
+  slaState,
+} from "./sla";
 
 describe("ticket SLA", () => {
   it("calculates urgent, high, and normal due times", () => {
@@ -15,13 +21,45 @@ describe("ticket SLA", () => {
     );
   });
 
-  it("uses the next business day at 09:00 for low priority", () => {
+  it("uses the default first-response target for low priority", () => {
     expect(
       humanResponseDue("Low", new Date("2025-01-10T08:00:00Z")).toISOString()
-    ).toBe("2025-01-13T09:00:00.000Z");
+    ).toBe("2025-01-10T16:00:00.000Z");
     expect(
       humanResponseDue("Low", new Date("2025-01-10T12:00:00Z")).toISOString()
-    ).toBe("2025-01-13T09:00:00.000Z");
+    ).toBe("2025-01-10T20:00:00.000Z");
+  });
+
+  it("calculates resolution due times from the same anchor", () => {
+    const from = new Date("2025-01-06T10:00:00Z");
+    expect(resolutionDue("Urgent", from).toISOString()).toBe(
+      "2025-01-06T14:00:00.000Z"
+    );
+    expect(resolutionDue("High", from).toISOString()).toBe(
+      "2025-01-06T18:00:00.000Z"
+    );
+    expect(resolutionDue("Normal", from).toISOString()).toBe(
+      "2025-01-07T10:00:00.000Z"
+    );
+  });
+
+  it("reads custom SLA targets", () => {
+    const targets = {
+      first_response: { Urgent: 1, High: 2, Normal: 3, Low: 4 },
+      resolution: { Urgent: 10, High: 20, Normal: 30, Low: 40 },
+    };
+    const from = new Date("2025-01-06T10:00:00Z");
+    expect(humanResponseDue("Normal", from, targets).toISOString()).toBe(
+      "2025-01-06T10:03:00.000Z"
+    );
+    expect(resolutionDue("Normal", from, targets).toISOString()).toBe(
+      "2025-01-06T10:30:00.000Z"
+    );
+  });
+
+  it("exposes default target constants", () => {
+    expect(DEFAULT_SLA_TARGETS.first_response.Urgent).toBe(5);
+    expect(DEFAULT_SLA_TARGETS.resolution.Low).toBe(4320);
   });
 
   it("classifies at-risk, breached, and met tickets", () => {

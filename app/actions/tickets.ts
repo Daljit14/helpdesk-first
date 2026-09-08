@@ -1,9 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { z } from "zod";
-import { createConfiguredAiProvider } from "@/lib/ai/provider-factory";
-import { processAiIntake } from "@/lib/ai/intake";
 import {
   isSecureAttachmentsEnabled,
   isTicketWorkflowEnabled,
@@ -15,7 +14,6 @@ import {
   humanResponseDue,
   resolutionDue,
 } from "@/lib/tickets/sla";
-import { detectSafetyFlags, routeTicket } from "@/lib/tickets/routing";
 import {
   notifyEmployeesOfHandoff,
   notifyRequester,
@@ -26,9 +24,10 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/supabase/user";
 import { platforms } from "@/lib/helpdesk-data";
 import { MemoryRateLimiter } from "@/lib/ai/rate-limit";
-import { getApprovedSlugs } from "@/lib/knowledge/governance";
 import { attachTicketAttachments } from "@/lib/attachments/server";
 import { resolveOrganizationForUser } from "@/lib/org/membership";
+import { event } from "@/lib/tickets/events";
+import { triageWorkflowTicket } from "@/lib/tickets/triage";
 
 type Result = { error: string } | { success: true; ticketId?: string };
 const limiter = new MemoryRateLimiter({
@@ -53,24 +52,6 @@ async function authorized(action: string) {
   if (!user) return null;
   const rate = await limiter.check(`ticket:${action}:${user.id}`);
   return rate.allowed ? user : null;
-}
-
-async function event(
-  ticketId: string,
-  organizationId: string,
-  eventType: string,
-  actorType: "user" | "ai" | "employee" | "system",
-  actorId: string | null,
-  detail: Record<string, unknown> = {}
-) {
-  await createAdminClient().from("ticket_system_events").insert({
-    ticket_id: ticketId,
-    organization_id: organizationId,
-    event_type: eventType,
-    actor_type: actorType,
-    actor_id: actorId,
-    detail,
-  });
 }
 
 export async function createWorkflowTicket(input: unknown): Promise<Result> {
@@ -140,109 +121,30 @@ export async function createWorkflowTicket(input: unknown): Promise<Result> {
     status: "New",
   });
 
-  const allowedSlugs = await getApprovedSlugs(organizationId);
-  const intake = await processAiIntake(
-    {
+  try {
+    after(
+      () =>
+        void triageWorkflowTicket({
+          ticketId,
+          organizationId,
+          userId: user.id,
+          issue: issue ?? null,
+          message: parsed.data.message,
+          platform: parsed.data.platform,
+          diagnosticAnswers: parsed.data.diagnosticAnswers,
+          due,
+        })
+    );
+  } catch {
+    void triageWorkflowTicket({
+      ticketId,
+      organizationId,
+      userId: user.id,
+      issue: issue ?? null,
       message: parsed.data.message,
-      platform: parsed.data.platform as never,
-      previousAnswers: parsed.data.diagnosticAnswers,
-    },
-    {
-      provider: createConfiguredAiProvider({
-        allowedSlugs,
-        organizationId,
-      }),
-      allowedSlugs,
-    }
-  );
-  const output =
-    intake.status === "success"
-      ? {
-          ...intake.output,
-          confidence:
-            intake.output.confidence ??
-            (intake.output.decision === "match" ? 0.9 : 0.4),
-        }
-      : {
-          decision: "escalate" as const,
-          escalationReason: intake.reason,
-          confidence: 0,
-        };
-  const matched = output.matchedIssueSlug
-    ? (getIssueBySlug(output.matchedIssueSlug) ?? null)
-    : null;
-  if (
-    output.decision === "match" &&
-    output.matchedIssueSlug &&
-    !allowedSlugs.includes(output.matchedIssueSlug)
-  ) {
-    output.decision = "escalate";
-    output.matchedIssueSlug = undefined;
-    output.escalationReason = "No approved guide is available.";
-  }
-  const decision = routeTicket({
-    ai: output,
-    issue: matched,
-    userRequestedHuman: false,
-    failedAttempts: 0,
-    questionCount: parsed.data.diagnosticAnswers.length,
-    safetyFlags: detectSafetyFlags(
-      [
-        parsed.data.message,
-        ...parsed.data.diagnosticAnswers.map((a) => a.answer),
-      ].join(" ")
-    ),
-  });
-  const update =
-    decision.resolver === "ai"
-      ? {
-          status: "AI Resolving",
-          resolver_type: "ai",
-          ai_attempted: true,
-          ai_attempted_at: new Date().toISOString(),
-          ai_confidence: decision.confidence,
-          ai_risk_level: decision.riskLevel,
-          ai_recommended_issue_id: decision.issueId,
-        }
-      : {
-          status: "Needs Human",
-          resolver_type: "unassigned",
-          handoff_reason: decision.reason,
-          needs_human_at: new Date().toISOString(),
-          escalated: true,
-        };
-  await admin
-    .from("tickets")
-    .update(update)
-    .eq("id", ticketId)
-    .eq("organization_id", organizationId);
-  if (decision.resolver === "ai") {
-    await event(ticketId, organizationId, "ai.assigned", "ai", null, {
-      issueId: decision.issueId,
-    });
-    await event(ticketId, organizationId, "ai.solution_offered", "ai", null);
-    await admin.from("ticket_comments").insert({
-      ticket_id: ticketId,
-      organization_id: organizationId,
-      author_type: "ai",
-      visibility: "public",
-      message: `I found an approved guide: ${matched?.title ?? "the recommended guide"}.`,
-    });
-  } else {
-    await event(ticketId, organizationId, "ai.escalated", "ai", null, {
-      reason: decision.reason,
-    });
-    await notifyRequester("ticket.handoff", {
-      id: ticketId,
-      user_id: user.id,
-      issue_title: issue?.title ?? "IT support request",
-      status: "Needs Human",
-    });
-    await notifyEmployeesOfHandoff(organizationId, {
-      id: ticketId,
-      issue_title: issue?.title ?? "IT support request",
-      priority: "Normal",
-      human_response_due_at: due,
+      platform: parsed.data.platform,
+      diagnosticAnswers: parsed.data.diagnosticAnswers,
+      due,
     });
   }
   revalidatePath("/tickets");

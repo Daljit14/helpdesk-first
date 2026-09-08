@@ -34,6 +34,9 @@ vi.mock("@/lib/tickets/notify", () => ({
   notifyAssignedStaff: mocks.notifyAssignedStaff,
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("next/server", () => ({
+  after: vi.fn((callback: () => unknown) => callback()),
+}));
 
 import {
   createWorkflowTicket,
@@ -114,14 +117,18 @@ describe("workflow ticket actions", () => {
         platform: "Windows",
       })
     ).resolves.toEqual({ success: true, ticketId });
-    expect(updates).toEqual([
-      expect.objectContaining({ status: "AI Resolving" }),
-    ]);
-    expect(events).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ event_type: "ai.assigned" }),
-        expect.objectContaining({ event_type: "ai.solution_offered" }),
+    await vi.waitFor(() =>
+      expect(updates).toEqual([
+        expect.objectContaining({ status: "AI Resolving" }),
       ])
+    );
+    await vi.waitFor(() =>
+      expect(events).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ event_type: "ai.assigned" }),
+          expect.objectContaining({ event_type: "ai.solution_offered" }),
+        ])
+      )
     );
     expect(updates).not.toContainEqual(
       expect.objectContaining({ status: "Resolved" })
@@ -146,13 +153,17 @@ describe("workflow ticket actions", () => {
         platform: "Windows",
       })
     ).resolves.toEqual({ success: true, ticketId });
-    expect(updates).toEqual([
-      expect.objectContaining({ status: "Needs Human" }),
-    ]);
-    expect(events).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ event_type: "ai.escalated" }),
+    await vi.waitFor(() =>
+      expect(updates).toEqual([
+        expect.objectContaining({ status: "Needs Human" }),
       ])
+    );
+    await vi.waitFor(() =>
+      expect(events).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ event_type: "ai.escalated" }),
+        ])
+      )
     );
     expect(mocks.notifyEmployeesOfHandoff).toHaveBeenCalled();
   });

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { getIssueBySlug } from "@/lib/search";
 import { getIssueSteps } from "@/lib/steps";
 import { createClient } from "@/lib/supabase/server";
@@ -202,13 +203,19 @@ export async function submitTicket(
     );
     if ("error" in attached) return { error: attached.error };
   }
-  await recordAnalyticsEvent({
-    eventType: "ticket_created",
-    path: `/issues/${result.issue.id}`,
-    issueId: result.issue.id,
-    visitorKey: "server",
-    platform: null,
-  });
+  const recordTicketAnalytics = () =>
+    recordAnalyticsEvent({
+      eventType: "ticket_created",
+      path: `/issues/${result.issue.id}`,
+      issueId: result.issue.id,
+      visitorKey: "server",
+      platform: null,
+    });
+  try {
+    after(() => void recordTicketAnalytics());
+  } catch {
+    void recordTicketAnalytics();
+  }
   revalidatePath("/tickets");
   revalidatePath(`/issues/${result.issue.id}`);
   return { success: true };

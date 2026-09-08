@@ -273,7 +273,7 @@ export default async function AdminTicketPage({
 
   return (
     <section className="flex flex-1 flex-col px-4 py-10 sm:px-6 lg:px-8">
-      <div className="mx-auto w-full max-w-4xl">
+      <div className="mx-auto w-full max-w-7xl">
         <p className="font-mono text-sm text-muted-foreground">
           {toTicketId(ticket.id)}
         </p>
@@ -305,7 +305,7 @@ export default async function AdminTicketPage({
             {new Date(ticket.updated_at ?? ticket.created_at).toLocaleString()}
           </p>
         </div>
-        <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,24rem)] lg:items-start">
+        <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
           <div className="min-w-0 space-y-6">
             <div className="glass p-5">
               <h2 className="font-semibold">Description</h2>

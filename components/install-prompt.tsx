@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { Download, X } from "lucide-react";
+import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 type BeforeInstallPromptEvent = Event & {
@@ -15,10 +15,18 @@ export function InstallPrompt() {
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(
     null
   );
-  const [dismissed, setDismissed] = useState(false);
+  const [dismissed, setDismissed] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      window.localStorage.getItem("hf-install-dismissed") === "1"
+  );
 
   useEffect(() => {
     const handler = (event: Event) => {
+      if (window.localStorage.getItem("hf-install-dismissed") === "1") {
+        setDismissed(true);
+        return;
+      }
       event.preventDefault();
       setDeferred(event as BeforeInstallPromptEvent);
     };
@@ -29,7 +37,7 @@ export function InstallPrompt() {
   if (pathname?.startsWith("/admin") || !deferred || dismissed) return null;
 
   return (
-    <div className="glass fixed bottom-4 left-1/2 z-50 flex w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 items-center gap-3 p-4">
+    <div className="glass glass--solid fixed bottom-4 left-1/2 z-50 flex w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 items-center gap-3 p-4">
       <Download className="h-5 w-5 shrink-0 text-indigo-500" aria-hidden />
       <p className="flex-1 text-sm">
         Install HelpDesk First for quicker, offline-friendly access.
@@ -44,11 +52,14 @@ export function InstallPrompt() {
         Install
       </Button>
       <button
-        aria-label="Dismiss"
-        onClick={() => setDismissed(true)}
-        className="text-muted-foreground hover:text-foreground"
+        type="button"
+        onClick={() => {
+          window.localStorage.setItem("hf-install-dismissed", "1");
+          setDismissed(true);
+        }}
+        className="text-sm text-muted-foreground hover:text-foreground"
       >
-        <X className="h-4 w-4" />
+        Not now
       </button>
     </div>
   );

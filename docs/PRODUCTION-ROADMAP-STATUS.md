@@ -25,38 +25,38 @@ tip is an ancestor of `main` but no dedicated PR-numbered merge commit exists.
 PRs #5, #10 and #15 were `main`-headed merges of one branch into another
 created through the GitHub UI; they contributed no independent code.
 
-| PR  | Title                                                                                        | Branch                                      | State           | Merge on `main`                                              |
-| --- | -------------------------------------------------------------------------------------------- | ------------------------------------------- | --------------- | ------------------------------------------------------------ |
-| 1   | feat: repository foundation for HelpDesk First                                               | `devin/helpdesk-first-foundation`           | closed unmerged | — (superseded by #2)                                         |
-| 2   | feat: repository foundation for HelpDesk First                                               | `feature/project-foundation`                | merged          | `bcb3fce2`                                                   |
-| 3   | feat: Level-1 IT support homepage                                                            | `feature/level1-homepage`                   | merged          | `843b5a7b`                                                   |
-| 4   | feat: knowledge-base search, filtering and dynamic issue pages                               | `feature/knowledge-base-search`             | merged          | absorbed (`f94b599a` is an ancestor of `main`)               |
-| 5   | Main (UI-created branch sync)                                                                | `main`                                      | merged          | no independent code                                          |
-| 6   | feat: production MVP — guided troubleshooting, escalation reports, session handling          | `feature/guided-troubleshooting-production` | merged          | `c01a2f3e`                                                   |
-| 7   | feat(safe-ai-intake): conversational intake with safety-first mock AI provider               | `feature/safe-ai-intake`                    | merged          | `e5218d91`                                                   |
-| 8   | fix(safe-ai-intake): validation, timeout, output validation, rate limiting                   | `feature/safe-ai-intake-fixes`              | merged          | `d4626216`                                                   |
-| 9   | feat: modern redesign, 100-guide catalog, optional Supabase accounts                         | `feature/redesign-accounts-backend`         | merged          | `16beca4f`                                                   |
-| 10  | Main (UI-created branch sync)                                                                | `main`                                      | merged          | no independent code                                          |
-| 11  | fix(auth): redirect to app when signup returns a session                                     | `devin/1788422755-signup-session-redirect`  | merged          | `5807dcbe`                                                   |
-| 12  | feat(auth): password reset flow                                                              | `devin/1788423443-forgot-password`          | merged          | `6d6e1021`                                                   |
-| 13  | feat(home): iOS/Android platforms, recent dismiss, results auto-scroll, jump nav             | `devin/1788424553-home-ux`                  | merged          | `045a7a71`                                                   |
-| 14  | feat: network check widget and Upstash rate limiter                                          | `devin/1788426823-network-check-upstash`    | merged          | `ffacfe06`                                                   |
-| 15  | Main (UI-created branch sync)                                                                | `main`                                      | merged          | no independent code                                          |
-| 16  | feat(rate-limit): accept Vercel Upstash `KV_REST_API_*` env vars                             | `devin/1788427950-upstash-kv-env`           | merged          | `95fc7fd1`                                                   |
-| 17  | feat: PWA/offline, ticket attachments + live status, push notifications, status page, Sentry | `devin/1788429552-cloud-features`           | merged          | `0c544fa8`                                                   |
-| 18  | fix(ai): route against the full 100-guide catalog; homepage assistant entry                  | `devin/1788434007-ai-accuracy-home-entry`   | merged          | `0d400b1b`                                                   |
-| 19  | feat(operations): privacy-safe analytics, secured export API, private admin dashboard        | `devin/1788642495-operations-export-admin`  | merged          | `30bafa17`                                                   |
-| 20  | feat(admin): secure live ticket and traffic dashboard                                        | `feature/admin-operations-dashboard`        | merged          | `d4243723`                                                   |
-| 21  | feat(admin): edit ticket status, priority and assignee from detail page                      | `devin/1788648708-admin-ticket-editing`     | merged          | `16688086`                                                   |
-| 22  | feat(resolution): multi-organization ticket and AI-resolution tracking                       | `feature/resolution-tracking`               | merged          | `a1afb79b`                                                   |
-| 23  | fix(admin): live ticket table refresh, sticky form values, resilient user ticket updates     | `fix/resolution-acceptance-followups`       | merged          | `71193a52`                                                   |
-| 24  | feat(footer): Staff login link to `/admin/login`                                             | `devin/1788702941-staff-login-footer`       | merged          | `bba13837`                                                   |
-| 25  | feat(admin): AI handoff and ticket resolution workflow (roadmap 5K)                          | `feature/admin-ticket-resolution`           | merged          | `ef2129a3`                                                   |
-| 26  | feat(ui): liquid-glass redesign (into the #25 branch)                                        | `feature/liquid-glass-ui`                   | merged          | `5645161e` (landed on `main` via #27)                        |
-| 27  | feat(ui): liquid-glass redesign (to main)                                                    | `devin/1788782035-liquid-glass-to-main`     | merged          | `a6113610`                                                   |
-| 28  | feat(portal): user ticket portal — track, reply, verify, reopen, rate (roadmap 5L)           | `feature/user-ticket-portal`                | merged          | `302c7d67`                                                   |
-| 29  | feat(ai): Anthropic grounded provider, knowledge governance, eval gate (roadmap 5M)          | `feature/grounded-ai-provider`              | **open, held**  | not on `main` (branch tip `fb8553cb`, re-merged with `main`) |
-| 30  | feat(attachments): secure quarantined image/PDF uploads, scanning, retention, audit (5N)     | `feature/secure-attachments`                | merged          | `5a1e322a`                                                   |
+| PR  | Title                                                                                        | Branch                                      | State                 | Merge on `main`                                             |
+| --- | -------------------------------------------------------------------------------------------- | ------------------------------------------- | --------------------- | ----------------------------------------------------------- |
+| 1   | feat: repository foundation for HelpDesk First                                               | `devin/helpdesk-first-foundation`           | closed unmerged       | — (superseded by #2)                                        |
+| 2   | feat: repository foundation for HelpDesk First                                               | `feature/project-foundation`                | merged                | `bcb3fce2`                                                  |
+| 3   | feat: Level-1 IT support homepage                                                            | `feature/level1-homepage`                   | merged                | `843b5a7b`                                                  |
+| 4   | feat: knowledge-base search, filtering and dynamic issue pages                               | `feature/knowledge-base-search`             | merged                | absorbed (`f94b599a` is an ancestor of `main`)              |
+| 5   | Main (UI-created branch sync)                                                                | `main`                                      | merged                | no independent code                                         |
+| 6   | feat: production MVP — guided troubleshooting, escalation reports, session handling          | `feature/guided-troubleshooting-production` | merged                | `c01a2f3e`                                                  |
+| 7   | feat(safe-ai-intake): conversational intake with safety-first mock AI provider               | `feature/safe-ai-intake`                    | merged                | `e5218d91`                                                  |
+| 8   | fix(safe-ai-intake): validation, timeout, output validation, rate limiting                   | `feature/safe-ai-intake-fixes`              | merged                | `d4626216`                                                  |
+| 9   | feat: modern redesign, 100-guide catalog, optional Supabase accounts                         | `feature/redesign-accounts-backend`         | merged                | `16beca4f`                                                  |
+| 10  | Main (UI-created branch sync)                                                                | `main`                                      | merged                | no independent code                                         |
+| 11  | fix(auth): redirect to app when signup returns a session                                     | `devin/1788422755-signup-session-redirect`  | merged                | `5807dcbe`                                                  |
+| 12  | feat(auth): password reset flow                                                              | `devin/1788423443-forgot-password`          | merged                | `6d6e1021`                                                  |
+| 13  | feat(home): iOS/Android platforms, recent dismiss, results auto-scroll, jump nav             | `devin/1788424553-home-ux`                  | merged                | `045a7a71`                                                  |
+| 14  | feat: network check widget and Upstash rate limiter                                          | `devin/1788426823-network-check-upstash`    | merged                | `ffacfe06`                                                  |
+| 15  | Main (UI-created branch sync)                                                                | `main`                                      | merged                | no independent code                                         |
+| 16  | feat(rate-limit): accept Vercel Upstash `KV_REST_API_*` env vars                             | `devin/1788427950-upstash-kv-env`           | merged                | `95fc7fd1`                                                  |
+| 17  | feat: PWA/offline, ticket attachments + live status, push notifications, status page, Sentry | `devin/1788429552-cloud-features`           | merged                | `0c544fa8`                                                  |
+| 18  | fix(ai): route against the full 100-guide catalog; homepage assistant entry                  | `devin/1788434007-ai-accuracy-home-entry`   | merged                | `0d400b1b`                                                  |
+| 19  | feat(operations): privacy-safe analytics, secured export API, private admin dashboard        | `devin/1788642495-operations-export-admin`  | merged                | `30bafa17`                                                  |
+| 20  | feat(admin): secure live ticket and traffic dashboard                                        | `feature/admin-operations-dashboard`        | merged                | `d4243723`                                                  |
+| 21  | feat(admin): edit ticket status, priority and assignee from detail page                      | `devin/1788648708-admin-ticket-editing`     | merged                | `16688086`                                                  |
+| 22  | feat(resolution): multi-organization ticket and AI-resolution tracking                       | `feature/resolution-tracking`               | merged                | `a1afb79b`                                                  |
+| 23  | fix(admin): live ticket table refresh, sticky form values, resilient user ticket updates     | `fix/resolution-acceptance-followups`       | merged                | `71193a52`                                                  |
+| 24  | feat(footer): Staff login link to `/admin/login`                                             | `devin/1788702941-staff-login-footer`       | merged                | `bba13837`                                                  |
+| 25  | feat(admin): AI handoff and ticket resolution workflow (roadmap 5K)                          | `feature/admin-ticket-resolution`           | merged                | `ef2129a3`                                                  |
+| 26  | feat(ui): liquid-glass redesign (into the #25 branch)                                        | `feature/liquid-glass-ui`                   | merged                | `5645161e` (landed on `main` via #27)                       |
+| 27  | feat(ui): liquid-glass redesign (to main)                                                    | `devin/1788782035-liquid-glass-to-main`     | merged                | `a6113610`                                                  |
+| 28  | feat(portal): user ticket portal — track, reply, verify, reopen, rate (roadmap 5L)           | `feature/user-ticket-portal`                | merged                | `302c7d67`                                                  |
+| 29  | feat(ai): Anthropic grounded provider, knowledge governance, eval gate (roadmap 5M)          | `feature/grounded-ai-provider`              | **open, eval passed** | not on `main` (branch tip `9feccd0`, re-merged with `main`) |
+| 30  | feat(attachments): secure quarantined image/PDF uploads, scanning, retention, audit (5N)     | `feature/secure-attachments`                | merged                | `5a1e322a`                                                  |
 
 ### A.1 Per-PR delivered scope
 
@@ -202,7 +202,7 @@ and UI-sync PRs (#5, #10, #15) have no schema, API or flag footprint.
   `lib/tickets/user-status.test.ts`, `components/tickets-table.test.tsx`.
 - Stated gap: guest single-ticket links deferred (guest tickets not allowed).
 
-#### PR #29 — roadmap 5M: grounded AI (OPEN, HELD — not on `main`)
+#### PR #29 — roadmap 5M: grounded AI (OPEN, EVAL PASSED — not on `main`)
 
 - Branch contents: Anthropic provider behind `AiProvider`, provider factory,
   shadow mode, daily call budget, privacy-safe telemetry;
@@ -214,8 +214,12 @@ and UI-sync PRs (#5, #10, #15) have no schema, API or flag footprint.
 - Env (branch only): `HELP_DESK_AI_PROVIDER`, `HELP_DESK_AI_MODEL`,
   `ANTHROPIC_API_KEY`, `HELP_DESK_AI_DAILY_CALL_BUDGET`,
   `HELP_DESK_KNOWLEDGE_GOVERNANCE_ENABLED`.
-- Hold reason: live eval could not run — Anthropic account has no API
-  credits. Branch is current with `main` (`fb8553cb`), CI green.
+- Live eval (2026-09-08): model `claude-haiku-4-5-20251001`, 45 cases;
+  36 passed / 9 failed; unsafe escapes 0, unapproved slugs 0,
+  unknown-handoff rate 0 (all safety gates pass). The 9 misses were the model
+  choosing `clarify` (7) or `escalate` (1) on first turn instead of a direct
+  match — conservative, not unsafe. Branch is current with `main`
+  (`9feccd0`), CI green.
 
 #### PR #30 — roadmap 5N: secure attachments
 
@@ -328,20 +332,20 @@ in Production; the grounded provider (PR #29) is not deployed anywhere.
 
 ### 5.6 AI provider gateway
 
-| Requirement                                   | Status                                         | Evidence / gap                                                                  |
-| --------------------------------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------- |
-| Provider-neutral interface                    | COMPLETE                                       | `AiProvider` (`lib/ai/types.ts`).                                               |
-| Primary + optional secondary provider         | MISSING                                        | Single provider; #29 adds factory but no failover.                              |
-| Per-org provider policy                       | MISSING                                        |                                                                                 |
-| Server-only secrets                           | COMPLETE                                       | No `NEXT_PUBLIC_` provider secrets.                                             |
-| Schema validation after every call            | COMPLETE                                       | `lib/ai/validation.ts`.                                                         |
-| Provider-independent safety validation        | COMPLETE                                       | `lib/ai/safety-policy.ts`.                                                      |
-| Timeout, cancellation, retry, circuit breaker | PARTIAL                                        | Timeout + AbortSignal; no retry/circuit breaker.                                |
+| Requirement                                   | Status                                         | Evidence / gap                                                                                                                                                                   |
+| --------------------------------------------- | ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Provider-neutral interface                    | COMPLETE                                       | `AiProvider` (`lib/ai/types.ts`).                                                                                                                                                |
+| Primary + optional secondary provider         | MISSING                                        | Single provider; #29 adds factory but no failover.                                                                                                                               |
+| Per-org provider policy                       | MISSING                                        |                                                                                                                                                                                  |
+| Server-only secrets                           | COMPLETE                                       | No `NEXT_PUBLIC_` provider secrets.                                                                                                                                              |
+| Schema validation after every call            | COMPLETE                                       | `lib/ai/validation.ts`.                                                                                                                                                          |
+| Provider-independent safety validation        | COMPLETE                                       | `lib/ai/safety-policy.ts`.                                                                                                                                                       |
+| Timeout, cancellation, retry, circuit breaker | PARTIAL                                        | Timeout + AbortSignal; no retry/circuit breaker.                                                                                                                                 |
 | Token/cost budgets                            | MISSING (on `main`) — daily call budget on #29 |
-| Kill switch global / env / org                | PARTIAL                                        | Global (`HELP_DESK_AI_ENABLED`, `NEXT_PUBLIC_AI_ENABLED`); no per-org switch.   |
-| Privacy-safe usage metrics                    | PARTIAL                                        | Analytics events pseudonymised; per-call AI latency/cost telemetry only on #29. |
-| Safe handoff when all providers down          | COMPLETE                                       | Provider failure → `Needs Human`.                                               |
-| Real grounded provider                        | BLOCKED                                        | PR #29 held on Anthropic API credits + live eval.                               |
+| Kill switch global / env / org                | PARTIAL                                        | Global (`HELP_DESK_AI_ENABLED`, `NEXT_PUBLIC_AI_ENABLED`); no per-org switch.                                                                                                    |
+| Privacy-safe usage metrics                    | PARTIAL                                        | Analytics events pseudonymised; per-call AI latency/cost telemetry only on #29.                                                                                                  |
+| Safe handoff when all providers down          | COMPLETE                                       | Provider failure → `Needs Human`.                                                                                                                                                |
+| Real grounded provider                        | AWAITING MERGE/ENV                             | Live eval (2026-09-08) passed all safety gates; awaiting owner merge and Vercel env (`HELP_DESK_AI_PROVIDER=anthropic`, `ANTHROPIC_API_KEY`, `HELP_DESK_AI_MODEL`). Not enabled. |
 
 ### 5.7 Images and PDF attachments
 
@@ -469,10 +473,10 @@ in Production; the grounded provider (PR #29) is not deployed anywhere.
 
 ### §10 AI safety evaluation
 
-| Requirement                           | Status                                      | Evidence / gap                                                                                                                                    |
-| ------------------------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Versioned adversarial test set        | PARTIAL                                     | `lib/ai/safety-policy.test.ts`, `mock-provider.accuracy.test.ts` on `main`; full fixed suite (injection, cross-tenant, outage, budget) on PR #29. |
-| Release gate run against a live model | BLOCKED                                     | Needs Anthropic credits (PR #29 hold).                                                                                                            |
+| Requirement                           | Status                                      | Evidence / gap                                                                                                                                                                   |
+| ------------------------------------- | ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Versioned adversarial test set        | PARTIAL                                     | `lib/ai/safety-policy.test.ts`, `mock-provider.accuracy.test.ts` on `main`; full fixed suite (injection, cross-tenant, outage, budget) on PR #29.                                |
+| Release gate run against a live model | COMPLETE (live eval; pending merge/env)     | Live eval (2026-09-08) passed all safety gates; awaiting owner merge and Vercel env (`HELP_DESK_AI_PROVIDER=anthropic`, `ANTHROPIC_API_KEY`, `HELP_DESK_AI_MODEL`). Not enabled. |
 | Shadow mode                           | MISSING (on `main`) — implemented on PR #29 |
 
 ---
@@ -484,26 +488,26 @@ deliverables below are now on `main`. The
 `supabase/wave-1-2-remediation.sql` migration is applied to the Supabase
 project.
 
-| Wave | Roadmap deliverable                             | Audit result                                                                                                                                                                                        |
-| ---- | ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 0    | This audit                                      | This document.                                                                                                                                                                                      |
-| 1    | Unified ticket lifecycle + AI/human workflow    | COMPLETE (PR #32, merged `3320968`) — `Reopened` status, per-step outcomes, policy-gated verification exception, confidence/risk/handoff filters, richer `ticket_actions`.                          |
-| 2    | Requester portal + conversation                 | COMPLETE (PR #32, merged `3320968`) for the remediation scope — assignment/SLA visibility and last-updated requester copy; continued AI turn and self-service export/deletion remain separate gaps. |
-| 3    | Organisation onboarding, RBAC, tenant hardening | COMPLETE (PR #34, pending merge) — `supabase/wave-3-organizations.sql`, organization actions/UI, invitation acceptance, and Google/Microsoft SSO.                                                   |
-| 4    | AI gateway + real grounded provider             | BLOCKED on Anthropic credits; PR #29 ready. Remediation after unblock: secondary provider/failover, per-org kill switch, retry/circuit breaker.                                                     |
-| 5    | Knowledge governance + citations                | Implemented on PR #29 (ships with wave 4). YouTube sources MISSING.                                                                                                                                 |
-| 6    | Secure images/PDFs                              | Largely COMPLETE via #30. BLOCKED: scanner choice. MISSING: OCR/extraction + sensitive-data check.                                                                                                  |
-| 7    | Notifications, SLA, live operations             | PARTIAL — push only; outbox/email MISSING; BLOCKED on email provider.                                                                                                                               |
-| 8    | Trust centre + analytics                        | PARTIAL.                                                                                                                                                                                            |
-| 9    | Versioned API, webhooks, sandbox                | MISSING.                                                                                                                                                                                            |
-| 10   | Security/privacy hardening + legal              | PARTIAL (RLS, MFA option, validation) / MISSING (headers, scanners, legal pages) / BLOCKED (reviewer).                                                                                              |
-| 11   | Reliability, backups, monitoring, cost          | PARTIAL / MISSING / BLOCKED (RPO/RTO approval).                                                                                                                                                     |
-| 12   | UI/accessibility/browser/content coverage       | PARTIAL.                                                                                                                                                                                            |
-| 13   | Staging + closed pilot                          | MISSING.                                                                                                                                                                                            |
-| 14   | GA                                              | MISSING.                                                                                                                                                                                            |
+| Wave | Roadmap deliverable                             | Audit result                                                                                                                                                                                                                                                                                      |
+| ---- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0    | This audit                                      | This document.                                                                                                                                                                                                                                                                                    |
+| 1    | Unified ticket lifecycle + AI/human workflow    | COMPLETE (PR #32, merged `3320968`) — `Reopened` status, per-step outcomes, policy-gated verification exception, confidence/risk/handoff filters, richer `ticket_actions`.                                                                                                                        |
+| 2    | Requester portal + conversation                 | COMPLETE (PR #32, merged `3320968`) for the remediation scope — assignment/SLA visibility and last-updated requester copy; continued AI turn and self-service export/deletion remain separate gaps.                                                                                               |
+| 3    | Organisation onboarding, RBAC, tenant hardening | COMPLETE (PR #34, pending merge) — `supabase/wave-3-organizations.sql`, organization actions/UI, invitation acceptance, and Google/Microsoft SSO.                                                                                                                                                 |
+| 4    | AI gateway + real grounded provider             | AWAITING OWNER MERGE/ENV — live eval (2026-09-08) passed all safety gates; Vercel env (`HELP_DESK_AI_PROVIDER=anthropic`, `ANTHROPIC_API_KEY`, `HELP_DESK_AI_MODEL`) remains to be configured. Not enabled. Remediation: secondary provider/failover, per-org kill switch, retry/circuit breaker. |
+| 5    | Knowledge governance + citations                | Implemented on PR #29 (ships with wave 4). YouTube sources MISSING.                                                                                                                                                                                                                               |
+| 6    | Secure images/PDFs                              | Largely COMPLETE via #30. BLOCKED: scanner choice. MISSING: OCR/extraction + sensitive-data check.                                                                                                                                                                                                |
+| 7    | Notifications, SLA, live operations             | PARTIAL — push only; outbox/email MISSING; BLOCKED on email provider.                                                                                                                                                                                                                             |
+| 8    | Trust centre + analytics                        | PARTIAL.                                                                                                                                                                                                                                                                                          |
+| 9    | Versioned API, webhooks, sandbox                | MISSING.                                                                                                                                                                                                                                                                                          |
+| 10   | Security/privacy hardening + legal              | PARTIAL (RLS, MFA option, validation) / MISSING (headers, scanners, legal pages) / BLOCKED (reviewer).                                                                                                                                                                                            |
+| 11   | Reliability, backups, monitoring, cost          | PARTIAL / MISSING / BLOCKED (RPO/RTO approval).                                                                                                                                                                                                                                                   |
+| 12   | UI/accessibility/browser/content coverage       | PARTIAL.                                                                                                                                                                                                                                                                                          |
+| 13   | Staging + closed pilot                          | MISSING.                                                                                                                                                                                                                                                                                          |
+| 14   | GA                                              | MISSING.                                                                                                                                                                                                                                                                                          |
 
 Recommended next PR after owner review: **Wave 4** while PR #29 (waves 4–5)
-waits for Anthropic credits.
+awaits owner merge and Vercel environment configuration.
 
 ---
 
@@ -514,7 +518,7 @@ Recorded decisions require legal review before school rollout.
 | Decision                                                | Blocks                 | Status                                                                                                                |
 | ------------------------------------------------------- | ---------------------- | --------------------------------------------------------------------------------------------------------------------- |
 | Launch region, school scope, minimum user age           | Wave 3, privacy review | RECORDED — launch region United States; under-13 students in scope with COPPA/FERPA review gate before school rollout |
-| Primary/secondary AI provider, retention terms          | Wave 4                 | Primary = Anthropic (chosen); credits and secondary open                                                              |
+| Primary/secondary AI provider, retention terms          | Wave 4                 | Primary = Anthropic (chosen); secondary open; owner merge and Vercel environment configuration pending                |
 | Identity provider / school SSO                          | Wave 3                 | RECORDED — identity = Google Workspace + Microsoft Entra SSO for org members                                          |
 | Malware scanner and quotas                              | Wave 6                 | Quotas = roadmap defaults; scanner open (`none` today)                                                                |
 | Email provider / sending domain                         | Wave 7                 | Open                                                                                                                  |
@@ -541,6 +545,8 @@ Recorded decisions require legal review before school rollout.
   tickets are not allowed.
 - Scanner mode is `none`; uploads show a "Not virus-scanned" badge until an
   admin marks them safe or a scanner is configured.
-- PR #29 must remain unmerged until the live evaluation passes; the
-  grounded provider must first run in shadow mode on Preview, never be
-  enabled globally on merge.
+- PR #29's live evaluation passed all safety gates; owner merge and Vercel
+  environment configuration remain pending. Configure
+  `HELP_DESK_AI_PROVIDER=anthropic`, `ANTHROPIC_API_KEY`, and
+  `HELP_DESK_AI_MODEL` before enabling the grounded provider; it is not
+  enabled globally.

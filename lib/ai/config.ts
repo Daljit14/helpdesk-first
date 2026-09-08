@@ -8,7 +8,7 @@ export function getAiProviderKind(): AiProviderKind {
 }
 
 export function getAiModel(): string {
-  return process.env.HELP_DESK_AI_MODEL?.trim() || "claude-3-5-haiku-20241022";
+  return process.env.HELP_DESK_AI_MODEL?.trim() || "claude-haiku-4-5-20251001";
 }
 
 export function getDailyCallBudget(): number {

@@ -86,6 +86,8 @@ approval.
 When `HELP_DESK_TICKET_WORKFLOW_ENABLED=true` after applying
 `supabase/ticket-workflow.sql`, the detail page also supports AI/employee
 routing, public replies, internal notes, verification, and SLA tracking.
+AI triage runs after the submit response returns; tickets show 'AI Reviewing'
+until it completes (usually a few seconds).
 Overdue notifications are checked when the operations dashboard loads or
 refreshes; they are dashboard-triggered rather than cron-driven.
 

@@ -2,7 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 
 function searchInput(page: Page) {
   return page
-    .locator('input[placeholder="What problem are you having?"]:visible')
+    .locator('input[placeholder="Describe your problem…"]:visible')
     .first();
 }
 

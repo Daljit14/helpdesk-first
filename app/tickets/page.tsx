@@ -5,6 +5,8 @@ import { getTickets } from "@/lib/guides-data";
 import { getCurrentUser } from "@/lib/supabase/user";
 import { TicketsTable } from "@/components/tickets-table";
 import { PushSubscribeButton } from "@/components/push-subscribe-button";
+import { NotificationPreferencesCard } from "@/components/notification-preferences";
+import { getNotificationPreferences } from "@/app/actions/preferences";
 import {
   isSecureAttachmentsEnabled,
   isTicketWorkflowEnabled,
@@ -21,6 +23,7 @@ export default async function TicketsPage() {
   if (!user) redirect("/login?next=/tickets");
   const portalEnabled = isTicketWorkflowEnabled() && isUserPortalEnabled();
   const tickets = await getTickets(user.id, portalEnabled);
+  const preferences = await getNotificationPreferences();
   const secureAttachmentsEnabled = isSecureAttachmentsEnabled();
   const attachmentCounts = new Map<string, number>();
   if (secureAttachmentsEnabled) {
@@ -68,12 +71,21 @@ export default async function TicketsPage() {
             New ticket
           </Link>
         )}
-        <TicketsTable
-          initialTickets={ticketsWithCounts}
-          userId={user.id}
-          secureAttachmentsEnabled={secureAttachmentsEnabled}
-          portalEnabled={portalEnabled}
-        />
+        {preferences && (
+          <NotificationPreferencesCard
+            userId={preferences.userId}
+            emailEnabled={preferences.emailEnabled}
+            pushEnabled={preferences.pushEnabled}
+          />
+        )}
+        <div className="mt-6">
+          <TicketsTable
+            initialTickets={ticketsWithCounts}
+            userId={user.id}
+            secureAttachmentsEnabled={secureAttachmentsEnabled}
+            portalEnabled={portalEnabled}
+          />
+        </div>
       </div>
     </section>
   );

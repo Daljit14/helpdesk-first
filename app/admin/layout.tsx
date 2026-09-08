@@ -52,6 +52,12 @@ export default async function AdminLayout({
                   >
                     Tickets
                   </Link>
+                  <Link
+                    className="rounded-full px-3 py-2 hover:bg-muted"
+                    href="/admin/notifications"
+                  >
+                    Notifications
+                  </Link>
                   {session.role === "org_admin" && (
                     <Link
                       className="rounded-full px-3 py-2 hover:bg-muted"

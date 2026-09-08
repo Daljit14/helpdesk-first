@@ -63,7 +63,7 @@ export function AdminLoginForm({
           </p>
         )}
       </div>
-      <TurnstileWidget siteKey={turnstileSiteKey} />
+      <TurnstileWidget siteKey={turnstileSiteKey} resetKey={state} />
       <Button type="submit" disabled={pending} className="w-full">
         {pending ? "Signing in…" : "Sign in"}
       </Button>

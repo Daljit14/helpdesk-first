@@ -83,7 +83,7 @@ export function SignupForm({
         <p className="text-sm text-destructive">{state.error}</p>
       )}
 
-      <TurnstileWidget siteKey={turnstileSiteKey} />
+      <TurnstileWidget siteKey={turnstileSiteKey} resetKey={state} />
       <Button type="submit" disabled={pending}>
         {pending ? "Creating account…" : "Create account"}
       </Button>

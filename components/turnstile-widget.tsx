@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 declare global {
   interface Window {
     turnstile?: {
+      reset: (widgetId: string) => void;
       render: (
         container: HTMLElement,
         options: {
@@ -20,10 +21,18 @@ declare global {
   }
 }
 
-export function TurnstileWidget({ siteKey }: { siteKey: string | null }) {
+export function TurnstileWidget({
+  siteKey,
+  resetKey,
+}: {
+  siteKey: string | null;
+  resetKey?: unknown;
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [token, setToken] = useState("");
   const renderedRef = useRef(false);
+  const widgetIdRef = useRef<string | null>(null);
+  const previousResetKeyRef = useRef(resetKey);
 
   const renderWidget = useCallback(() => {
     if (
@@ -34,7 +43,7 @@ export function TurnstileWidget({ siteKey }: { siteKey: string | null }) {
     ) {
       return;
     }
-    window.turnstile.render(containerRef.current, {
+    widgetIdRef.current = window.turnstile.render(containerRef.current, {
       sitekey: siteKey,
       callback: setToken,
       "expired-callback": () => setToken(""),
@@ -47,6 +56,15 @@ export function TurnstileWidget({ siteKey }: { siteKey: string | null }) {
   useEffect(() => {
     renderWidget();
   }, [renderWidget]);
+
+  useEffect(() => {
+    if (Object.is(previousResetKeyRef.current, resetKey)) return;
+    previousResetKeyRef.current = resetKey;
+    if (widgetIdRef.current && window.turnstile) {
+      window.turnstile.reset(widgetIdRef.current);
+      setToken("");
+    }
+  }, [resetKey]);
 
   if (!siteKey) return null;
 

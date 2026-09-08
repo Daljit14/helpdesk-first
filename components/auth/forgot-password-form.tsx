@@ -39,7 +39,7 @@ export function ForgotPasswordForm({
         <p className="text-sm text-destructive">{state.error}</p>
       )}
 
-      <TurnstileWidget siteKey={turnstileSiteKey} />
+      <TurnstileWidget siteKey={turnstileSiteKey} resetKey={state} />
       <Button type="submit" disabled={pending}>
         {pending ? "Sending…" : "Send reset link"}
       </Button>

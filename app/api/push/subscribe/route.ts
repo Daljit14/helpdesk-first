@@ -1,17 +1,23 @@
 import { getCurrentUser } from "@/lib/supabase/user";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user) {
-    return Response.json({ error: "Login required." }, { status: 401 });
+    return Response.json(
+      { error: "Login required.", code: "invalid" },
+      { status: 401 }
+    );
   }
 
   let body: { endpoint?: string; keys?: { p256dh?: string; auth?: string } };
   try {
     body = await request.json();
   } catch {
-    return Response.json({ error: "Invalid JSON body." }, { status: 400 });
+    return Response.json(
+      { error: "Invalid JSON body.", code: "invalid" },
+      { status: 400 }
+    );
   }
 
   const endpoint = body.endpoint;
@@ -19,11 +25,24 @@ export async function POST(request: Request) {
   const auth = body.keys?.auth;
 
   if (!endpoint || !p256dh || !auth) {
-    return Response.json({ error: "Invalid subscription." }, { status: 400 });
+    return Response.json(
+      { error: "Invalid subscription.", code: "invalid" },
+      { status: 400 }
+    );
   }
 
-  const supabase = await createClient();
-  const { error } = await supabase.from("push_subscriptions").upsert({
+  const supabase = createAdminClient();
+  const { error: deleteError } = await supabase
+    .from("push_subscriptions")
+    .delete()
+    .eq("endpoint", endpoint);
+  if (deleteError) {
+    return Response.json(
+      { error: "Could not save subscription.", code: "db" },
+      { status: 500 }
+    );
+  }
+  const { error } = await supabase.from("push_subscriptions").insert({
     user_id: user.id,
     endpoint,
     p256dh,
@@ -32,7 +51,7 @@ export async function POST(request: Request) {
 
   if (error) {
     return Response.json(
-      { error: "Could not save subscription." },
+      { error: "Could not save subscription.", code: "db" },
       { status: 500 }
     );
   }

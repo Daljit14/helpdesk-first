@@ -10,6 +10,7 @@ import {
 import { isTicketWorkflowEnabled } from "@/lib/admin/flags";
 import { getOrganizationPolicy } from "@/lib/admin/policies";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { ASSIGNABLE_ROLES } from "@/lib/org/roles";
 import type { NotificationEventType } from "@/lib/notifications/types";
 import {
   DEFAULT_SLA_TARGETS,
@@ -22,6 +23,7 @@ import {
   notifyEmployeesOfHandoff,
   notifyRequester,
   notifyAssignedStaff,
+  notifyStatusChange,
 } from "@/lib/tickets/notify";
 
 type Result = { error: string } | { success: true };
@@ -121,7 +123,7 @@ export async function assignTicket(
     .select("user_id")
     .eq("organization_id", found.session.organizationId)
     .eq("user_id", agentUserId)
-    .in("role", ["admin", "support_agent"])
+    .in("role", ASSIGNABLE_ROLES)
     .maybeSingle();
   if (!member.data) return { error: "Invalid agent." };
   const profile = await createAdminClient()
@@ -204,6 +206,13 @@ export async function changeStatus(
   );
   if (result.error) return { error: "Unable to update status." };
   await writeEvent(found.session, ticketId, "status.changed", { status });
+  if (status !== "Needs Human") {
+    await notifyStatusChange(found.ticket, {
+      from: found.ticket.status,
+      to: status,
+      actorType: "employee",
+    });
+  }
   if (status === "Needs Human") {
     await notifyRequester("ticket.handoff", found.ticket, {
       status: "Needs Human",
@@ -276,7 +285,8 @@ async function addComment(
   await writeEvent(
     found.session,
     ticketId,
-    visibility === "public" ? "comment.created" : "internal_note.created"
+    visibility === "public" ? "comment.created" : "internal_note.created",
+    visibility === "public" ? { preview: parsed.data.slice(0, 80) } : {}
   );
   await recordAudit(found.session, `ticket.${action}`, ticketId);
   revalidatePath(`/admin/tickets/${ticketId}`);

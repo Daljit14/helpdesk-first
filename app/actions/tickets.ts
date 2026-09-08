@@ -231,30 +231,33 @@ export async function addUserComment(
     return { error: "Not authorized." };
   const body = z.string().trim().min(1).max(4000).safeParse(message);
   if (!body.success) return { error: "Invalid comment." };
+  const admin = createAdminClient();
+  const ticket = await admin
+    .from("tickets")
+    .select("id,organization_id,issue_title,assigned_agent_id")
+    .eq("id", ticketId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (!ticket.data) return { error: "Ticket not found." };
   const supabase = await createClient();
   const { error } = await supabase.from("ticket_comments").insert({
     ticket_id: ticketId,
+    organization_id: ticket.data.organization_id,
     author_id: user.id,
     author_type: "user",
     visibility: "public",
     message: body.data,
   });
   if (error) return { error: "Unable to add comment." };
-  const admin = createAdminClient();
-  const ticket = await admin
-    .from("tickets")
-    .select("organization_id,issue_title,assigned_agent_id")
-    .eq("id", ticketId)
-    .maybeSingle();
-  if (ticket.data)
-    await event(
-      ticketId,
-      ticket.data.organization_id,
-      "comment.created",
-      "user",
-      user.id
-    );
-  if (ticket.data) {
+  await event(
+    ticketId,
+    ticket.data.organization_id,
+    "comment.created",
+    "user",
+    user.id,
+    { preview: body.data.slice(0, 80) }
+  );
+  {
     const ticketRow = {
       id: ticketId,
       user_id: user.id,
@@ -285,6 +288,18 @@ export async function verifyTicket(
     confirmed,
   });
   if (error) return { error: "Unable to update ticket." };
+  if (confirmed) {
+    const { data: ticket } = await createAdminClient()
+      .from("tickets")
+      .select("id,user_id,organization_id,issue_title,assigned_agent_id,status")
+      .eq("id", ticketId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (ticket) {
+      await notifyRequester("ticket.resolved", ticket);
+      await notifyAssignedStaff("ticket.resolved", ticket);
+    }
+  }
   revalidatePath(`/tickets/${ticketId}`);
   return { success: true };
 }

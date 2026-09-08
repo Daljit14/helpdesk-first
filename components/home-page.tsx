@@ -210,7 +210,7 @@ export function HomePage({
               value={query}
               onChange={setQuery}
               onSubmit={handleSearchSubmit}
-              placeholder="What problem are you having?"
+              placeholder="Describe your problem…"
             />
           </div>
         </div>

@@ -23,7 +23,7 @@ export function Header({ user }: { user?: User | null }) {
       <div className="glass-pill glass-pill--solid mx-auto flex max-w-6xl items-center justify-between px-5 py-2.5">
         <Link
           href="/"
-          className="flex items-center gap-2 text-lg font-semibold tracking-tight"
+          className="flex items-center gap-2 whitespace-nowrap text-base font-semibold tracking-tight sm:text-lg"
         >
           <Headset className="h-5 w-5 text-indigo-500" aria-hidden />
           <span>HelpDesk First</span>
@@ -131,7 +131,7 @@ export function Header({ user }: { user?: User | null }) {
       </div>
 
       {open && (
-        <div className="glass mx-4 mt-2 md:hidden">
+        <div className="glass glass--solid mx-4 mt-2 md:hidden">
           <nav aria-label="Mobile" className="mx-auto max-w-6xl px-5 py-3">
             <ul className="flex flex-col gap-1 text-sm font-medium">
               <li>

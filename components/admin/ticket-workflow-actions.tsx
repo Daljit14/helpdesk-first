@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState, useTransition } from "react";
+import { Button } from "@/components/ui/button";
 import {
   addInternalNote,
   addPublicComment,
@@ -282,17 +283,17 @@ export function TicketWorkflowActions({
           className={fieldClass}
           required
         />
-        <button
+        <Button
           type="submit"
+          variant="secondary"
           disabled={pending || !internalMessage.trim()}
           aria-busy={pending}
-          className={buttonClass}
         >
           Add internal note
-        </button>
+        </Button>
       </form>
 
-      <div className="mt-6 grid gap-6 border-t border-border pt-5 lg:grid-cols-2">
+      <div className="mt-6 grid gap-6 border-t border-border pt-5">
         <form
           className="grid gap-3"
           onSubmit={(event) =>

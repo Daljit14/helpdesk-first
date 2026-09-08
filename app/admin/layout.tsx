@@ -4,7 +4,10 @@ import { adminLogout } from "@/app/actions/admin-auth";
 import { adminRoleLabel, getAdminSession } from "@/lib/admin/auth";
 import { Button } from "@/components/ui/button";
 import { AdminThemeToggle } from "@/components/admin/admin-theme-toggle";
-import { isSecureAttachmentsEnabled } from "@/lib/admin/flags";
+import {
+  isKnowledgeGovernanceEnabled,
+  isSecureAttachmentsEnabled,
+} from "@/lib/admin/flags";
 
 export const metadata: Metadata = {
   robots: { index: false, follow: false },
@@ -23,29 +26,31 @@ export default async function AdminLayout({
           <Link href="/admin/operations" className="font-semibold">
             HelpDesk First · Operations
           </Link>
-          <div className="flex flex-wrap items-center gap-4 text-sm">
+          <div className="flex w-full flex-wrap items-center gap-4 text-sm md:w-auto">
             <AdminThemeToggle />
             {session && (
-              <>
+              <div className="flex w-full flex-wrap items-center gap-4 md:w-auto">
                 <span
                   className="glass-pill px-3 py-1"
                   title="Your role in this organization"
                 >
                   {adminRoleLabel(session.role, session.isPlatformAdmin)}
                 </span>
-                <nav className="flex gap-1">
+                <nav className="flex flex-wrap gap-1 [&_a]:whitespace-nowrap">
                   <Link
                     className="rounded-full px-3 py-2 hover:bg-muted"
                     href="/admin/operations"
                   >
                     Operations
                   </Link>
-                  <Link
-                    className="rounded-full px-3 py-2 hover:bg-muted"
-                    href="/admin/knowledge"
-                  >
-                    Knowledge
-                  </Link>
+                  {isKnowledgeGovernanceEnabled() && (
+                    <Link
+                      className="whitespace-nowrap rounded-full px-3 py-2 hover:bg-muted"
+                      href="/admin/knowledge"
+                    >
+                      Knowledge
+                    </Link>
+                  )}
                   <Link
                     className="rounded-full px-3 py-2 hover:bg-muted"
                     href="/admin/operations#tickets"
@@ -88,7 +93,7 @@ export default async function AdminLayout({
                     Logout
                   </Button>
                 </form>
-              </>
+              </div>
             )}
           </div>
         </div>

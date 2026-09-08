@@ -86,6 +86,19 @@ function handoffReasonLabel(
   return reason ? (labels[reason] ?? null) : null;
 }
 
+function relativeTime(value: string): string {
+  const seconds = Math.max(
+    0,
+    Math.floor((Date.now() - new Date(value).getTime()) / 1000)
+  );
+  if (seconds < 60) return "just now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hr ago`;
+  return `${Math.floor(hours / 24)} days ago`;
+}
+
 export default async function TicketPage({
   params,
 }: {
@@ -184,22 +197,6 @@ export default async function TicketPage({
     "ticket.reopened": "Reopened",
     "ticket.rated": "Rated",
     "solution.rejected": "Marked as not working",
-  };
-  const relativeTime = (value: string) => {
-    const seconds = Math.max(
-      0,
-      Math.floor(
-        (new Date(ticket.updated_at ?? ticket.created_at).getTime() -
-          new Date(value).getTime()) /
-          1000
-      )
-    );
-    if (seconds < 60) return "just now";
-    const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `${minutes} min ago`;
-    const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `${hours} hr ago`;
-    return `${Math.floor(hours / 24)} days ago`;
   };
   const eventIcon = (eventType: string) => {
     if (eventType === "ticket.created") return Send;

@@ -108,7 +108,6 @@ body::before {
 
   .glass-pill--solid {
     background: var(--background);
-    background: color-mix(in oklch, var(--background) 92%, transparent);
   }
 
   .glass-interactive {
@@ -141,7 +140,6 @@ body::before {
 
 .dark .glass-pill--solid {
   background: var(--background);
-  background: color-mix(in oklch, var(--background) 92%, transparent);
 }
 
 @supports not (backdrop-filter: blur(1px)) {

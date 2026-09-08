@@ -23,7 +23,7 @@ Optional accounts power bookmarks, saved guide progress, guide ratings, and supp
 
 ## AI rate limiting
 
-For production, set `HELP_DESK_AI_RATE_LIMIT_PROVIDER=upstash` and configure `UPSTASH_REDIS_REST_URL` plus `UPSTASH_REDIS_REST_TOKEN` (or connect the Vercel Upstash integration, which provides `KV_REST_API_URL` / `KV_REST_API_TOKEN`) to use a distributed Upstash Redis limiter. Keep the provider set to `memory` for local development and previews.
+For production, set `HELP_DESK_AI_RATE_LIMIT_PROVIDER=upstash` and configure `UPSTASH_REDIS_REST_URL` plus `UPSTASH_REDIS_REST_TOKEN` (or connect the Vercel Upstash integration, which provides `KV_REST_API_URL` / `KV_REST_API_TOKEN`) to use a distributed Upstash Redis limiter. Local AI intake requires `HELP_DESK_AI_RATE_LIMIT_PROVIDER=memory`; otherwise `/api/ai/intake` returns `429 Rate limiting is not configured`. Keep the provider set to `memory` for local development and previews.
 
 ## Operations export
 

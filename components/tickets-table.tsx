@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import type { Ticket } from "@/lib/guides-data";
+import { getIssueBySlug } from "@/lib/search";
 import { AttachmentLink } from "@/components/attachment-link";
 import {
   describeTicketStatus,
@@ -220,12 +221,14 @@ export function TicketsTable({
                 >
                   {ticket.issue_title}
                 </Link>
-                <Link
-                  href={`/issues/${ticket.issue_id}`}
-                  className="ml-3 text-xs text-muted-foreground underline underline-offset-4"
-                >
-                  View guide
-                </Link>
+                {getIssueBySlug(ticket.issue_id) && (
+                  <Link
+                    href={`/issues/${ticket.issue_id}`}
+                    className="ml-3 text-xs text-muted-foreground underline underline-offset-4"
+                  >
+                    View guide
+                  </Link>
+                )}
               </td>
               <td className="px-4 py-4 align-top">
                 <Link
@@ -287,6 +290,7 @@ function PortalTicketSection({
             const status = describeTicketStatus(ticket.status, {
               resolverType: ticket.resolver_type,
             });
+            const issue = getIssueBySlug(ticket.issue_id);
             return (
               <li key={ticket.id} className="glass p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -297,12 +301,14 @@ function PortalTicketSection({
                     >
                       {ticket.issue_title}
                     </Link>
-                    <Link
-                      href={`/issues/${ticket.issue_id}`}
-                      className="ml-3 text-xs text-muted-foreground underline underline-offset-4"
-                    >
-                      View guide
-                    </Link>
+                    {issue && (
+                      <Link
+                        href={`/issues/${ticket.issue_id}`}
+                        className="ml-3 text-xs text-muted-foreground underline underline-offset-4"
+                      >
+                        View guide
+                      </Link>
+                    )}
                     <p className="font-mono text-xs text-muted-foreground">
                       {ticketReference(ticket.id)}
                     </p>

@@ -16,7 +16,7 @@ import { buttonVariants } from "@/lib/button-variants";
 import { cn } from "@/lib/utils";
 import { platforms, type Platform } from "@/lib/helpdesk-data";
 import { CATEGORIES } from "@/lib/issues";
-import { getIssueBySlug } from "@/lib/search";
+import { filterIssues, getIssueBySlug } from "@/lib/search";
 import { getIssueSteps } from "@/lib/steps";
 import {
   diagnosticQuestions,
@@ -156,10 +156,28 @@ export function AiAssistant({
       }),
       keepalive: true,
     }).catch(() => {});
+    const rejectedSlug =
+      currentOutput?.decision === "match"
+        ? currentOutput.matchedIssueSlug
+        : undefined;
+    const previousSuggestions = (currentOutput?.suggestedIssueSlugs ?? [])
+      .filter((slug) => slug !== rejectedSlug)
+      .filter((slug) => getIssueBySlug(slug));
+    const fallbackSuggestions = filterIssues({
+      query: problem,
+      platform,
+    })
+      .map((issue) => issue.id)
+      .filter((slug) => slug !== rejectedSlug);
+
     setCurrentOutput({
       decision: "escalate",
       escalationReason:
-        "The suggested guide did not match your problem. You can use the search page to find the right topic or contact your IT team.",
+        "That guide wasn't the right fit. Here are the closest approved guides for what you described.",
+      suggestedIssueSlugs: (previousSuggestions.length
+        ? previousSuggestions
+        : fallbackSuggestions
+      ).slice(0, 3),
     });
   }
 

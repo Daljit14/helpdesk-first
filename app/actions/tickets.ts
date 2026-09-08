@@ -10,9 +10,17 @@ import {
   isUserPortalEnabled,
 } from "@/lib/admin/flags";
 import { getIssueBySlug } from "@/lib/search";
-import { humanResponseDue } from "@/lib/tickets/sla";
+import {
+  getSlaTargets,
+  humanResponseDue,
+  resolutionDue,
+} from "@/lib/tickets/sla";
 import { detectSafetyFlags, routeTicket } from "@/lib/tickets/routing";
-import { notifyEmployeesOfHandoff } from "@/lib/tickets/notify";
+import {
+  notifyEmployeesOfHandoff,
+  notifyRequester,
+  notifyAssignedStaff,
+} from "@/lib/tickets/notify";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/supabase/user";
@@ -78,7 +86,14 @@ export async function createWorkflowTicket(input: unknown): Promise<Result> {
     : null;
   const admin = createAdminClient();
   const { organizationId } = await resolveOrganizationForUser(user.id);
-  const due = humanResponseDue("Normal", new Date()).toISOString();
+  const slaTargets = await getSlaTargets(organizationId);
+  const createdAt = new Date();
+  const due = humanResponseDue("Normal", createdAt, slaTargets).toISOString();
+  const resolutionDueAt = resolutionDue(
+    "Normal",
+    createdAt,
+    slaTargets
+  ).toISOString();
   const inserted = await admin
     .from("tickets")
     .insert({
@@ -99,6 +114,7 @@ export async function createWorkflowTicket(input: unknown): Promise<Result> {
       status: "AI Reviewing",
       resolver_type: "unassigned",
       human_response_due_at: due,
+      resolution_due_at: resolutionDueAt,
     })
     .select("id")
     .single();
@@ -113,6 +129,16 @@ export async function createWorkflowTicket(input: unknown): Promise<Result> {
     if ("error" in attached) return { error: attached.error };
   }
   await event(ticketId, organizationId, "ticket.created", "user", user.id);
+
+  const createdTicketSummary = {
+    id: ticketId,
+    user_id: user.id,
+    issue_title: issue?.title ?? "IT support request",
+    status: "AI Reviewing",
+  };
+  await notifyRequester("ticket.created", createdTicketSummary, {
+    status: "New",
+  });
 
   const allowedSlugs = await getApprovedSlugs(organizationId);
   const intake = await processAiIntake(
@@ -206,6 +232,12 @@ export async function createWorkflowTicket(input: unknown): Promise<Result> {
     await event(ticketId, organizationId, "ai.escalated", "ai", null, {
       reason: decision.reason,
     });
+    await notifyRequester("ticket.handoff", {
+      id: ticketId,
+      user_id: user.id,
+      issue_title: issue?.title ?? "IT support request",
+      status: "Needs Human",
+    });
     await notifyEmployeesOfHandoff(organizationId, {
       id: ticketId,
       issue_title: issue?.title ?? "IT support request",
@@ -235,7 +267,9 @@ export async function requestHuman(
   const admin = createAdminClient();
   const { data: ticket } = await admin
     .from("tickets")
-    .select("organization_id,issue_title,priority,human_response_due_at")
+    .select(
+      "id,organization_id,issue_title,priority,human_response_due_at,user_id"
+    )
     .eq("id", ticketId)
     .maybeSingle();
   if (ticket) {
@@ -307,7 +341,7 @@ export async function addUserComment(
   const admin = createAdminClient();
   const ticket = await admin
     .from("tickets")
-    .select("organization_id")
+    .select("organization_id,issue_title,assigned_agent_id")
     .eq("id", ticketId)
     .maybeSingle();
   if (ticket.data)
@@ -318,6 +352,18 @@ export async function addUserComment(
       "user",
       user.id
     );
+  if (ticket.data) {
+    const ticketRow = {
+      id: ticketId,
+      user_id: user.id,
+      organization_id: ticket.data.organization_id,
+      issue_title: ticket.data.issue_title ?? "IT support request",
+      assigned_agent_id: ticket.data.assigned_agent_id ?? null,
+    };
+    await notifyAssignedStaff("reply.public", ticketRow, {
+      publicReplyExcerpt: body.data,
+    });
+  }
   revalidatePath(`/tickets/${ticketId}`);
   return { success: true };
 }
@@ -372,7 +418,9 @@ export async function reopenTicketByUser(
   const admin = createAdminClient();
   const { data: ticket } = await admin
     .from("tickets")
-    .select("organization_id,issue_title,priority,human_response_due_at")
+    .select(
+      "id,organization_id,issue_title,priority,human_response_due_at,user_id"
+    )
     .eq("id", ticketId)
     .maybeSingle();
   if (ticket) {
@@ -386,6 +434,7 @@ export async function reopenTicketByUser(
         reason: parsedReason.data,
       }
     );
+    await notifyRequester("ticket.reopened", ticket, { status: "Reopened" });
     await notifyEmployeesOfHandoff(ticket.organization_id, {
       id: ticketId,
       issue_title: ticket.issue_title,

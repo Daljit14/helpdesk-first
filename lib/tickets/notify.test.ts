@@ -64,10 +64,9 @@ describe("workflow notifications", () => {
     };
     const memberBuilder = {
       select: vi.fn(() => memberBuilder),
-      eq: vi.fn((column: string) =>
-        column === "role"
-          ? Promise.resolve({ data: [{ user_id: "admin-1" }], error: null })
-          : memberBuilder
+      eq: vi.fn(() => memberBuilder),
+      in: vi.fn(() =>
+        Promise.resolve({ data: [{ user_id: "admin-1" }], error: null })
       ),
     };
     vi.mocked(createAdminClient).mockReturnValue({

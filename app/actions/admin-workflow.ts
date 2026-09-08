@@ -10,9 +10,19 @@ import {
 import { isTicketWorkflowEnabled } from "@/lib/admin/flags";
 import { getOrganizationPolicy } from "@/lib/admin/policies";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { sendPushToUser } from "@/lib/push/send";
-import { humanResponseDue } from "@/lib/tickets/sla";
-import { notifyEmployeesOfHandoff } from "@/lib/tickets/notify";
+import type { NotificationEventType } from "@/lib/notifications/types";
+import {
+  DEFAULT_SLA_TARGETS,
+  getSlaTargets,
+  humanResponseDue,
+  resolutionDue,
+  type SlaTargets,
+} from "@/lib/tickets/sla";
+import {
+  notifyEmployeesOfHandoff,
+  notifyRequester,
+  notifyAssignedStaff,
+} from "@/lib/tickets/notify";
 
 type Result = { error: string } | { success: true };
 const id = z.string().uuid();
@@ -87,6 +97,13 @@ export async function claimTicket(ticketId: string): Promise<Result> {
   if (result.error) return { error: "Unable to claim ticket." };
   await writeEvent(found.session, ticketId, "employee.claimed");
   await recordAudit(found.session, "ticket.claim", ticketId);
+  await notifyRequester("ticket.assigned", found.ticket, {
+    status: "In Progress",
+    actorLabel: found.session.displayName ?? "Support",
+  });
+  await notifyAssignedStaff("ticket.assigned", found.ticket, {
+    actorLabel: found.session.displayName ?? "Support",
+  });
   revalidatePath(`/admin/tickets/${ticketId}`);
   return { success: true };
 }
@@ -124,6 +141,13 @@ export async function assignTicket(
     agentUserId,
   });
   await recordAudit(found.session, "ticket.assign", ticketId);
+  await notifyRequester("ticket.assigned", found.ticket, {
+    status: "In Progress",
+    actorLabel: profile.data?.display_name ?? "Support",
+  });
+  await notifyAssignedStaff("ticket.assigned", found.ticket, {
+    actorLabel: profile.data?.display_name ?? "Support",
+  });
   revalidatePath(`/admin/tickets/${ticketId}`);
   return { success: true };
 }
@@ -158,9 +182,17 @@ export async function changeStatus(
   if (status === "Needs Human") {
     values.needs_human_at =
       found.ticket.needs_human_at ?? new Date().toISOString();
+    const slaTargets = await getSlaTargets(found.session.organizationId);
+    const dueFrom = new Date();
     values.human_response_due_at = humanResponseDue(
       found.ticket.priority,
-      new Date()
+      dueFrom,
+      slaTargets
+    ).toISOString();
+    values.resolution_due_at = resolutionDue(
+      found.ticket.priority,
+      dueFrom,
+      slaTargets
     ).toISOString();
     values.handoff_reason =
       found.ticket.handoff_reason ?? "employee_requested_human";
@@ -173,6 +205,9 @@ export async function changeStatus(
   if (result.error) return { error: "Unable to update status." };
   await writeEvent(found.session, ticketId, "status.changed", { status });
   if (status === "Needs Human") {
+    await notifyRequester("ticket.handoff", found.ticket, {
+      status: "Needs Human",
+    });
     await notifyEmployeesOfHandoff(found.session.organizationId, {
       id: ticketId,
       issue_title: found.ticket.issue_title,
@@ -199,6 +234,9 @@ export async function reopenTicket(ticketId: string): Promise<Result> {
   if (result.error) return { error: "Unable to reopen ticket." };
   await writeEvent(found.session, ticketId, "ticket.reopened");
   await recordAudit(found.session, "ticket.reopen", ticketId);
+  await notifyRequester("ticket.reopened", found.ticket, {
+    status: "Reopened",
+  });
   revalidatePath(`/admin/tickets/${ticketId}`);
   return { success: true };
 }
@@ -228,17 +266,12 @@ async function addComment(
       first_human_response_at:
         found.ticket.first_human_response_at ?? new Date().toISOString(),
     });
-    if (found.ticket.user_id) {
-      try {
-        await sendPushToUser(found.ticket.user_id, {
-          title: "Your ticket has a new reply",
-          body: "Your IT support team replied.",
-          url: `/tickets/${ticketId}`,
-        });
-      } catch (error) {
-        console.warn("Unable to notify ticket owner.", error);
-      }
-    }
+    await notifyRequester("reply.public", found.ticket, {
+      publicReplyExcerpt: parsed.data,
+    });
+    await notifyAssignedStaff("reply.public", found.ticket, {
+      publicReplyExcerpt: parsed.data,
+    });
   }
   await writeEvent(
     found.session,
@@ -268,6 +301,12 @@ export const requestInformation = async (
 ): Promise<Result> => {
   const result = await addPublicComment(ticketId, body);
   if ("error" in result) return result;
+  const found = await sessionFor("request-info", ticketId);
+  if (found) {
+    await notifyRequester("info.requested", found.ticket, {
+      publicReplyExcerpt: body,
+    });
+  }
   return changeStatus(ticketId, "Waiting for User");
 };
 export const requestVerification = async (
@@ -283,6 +322,9 @@ export const requestVerification = async (
     verification_requested_at: new Date().toISOString(),
   });
   await writeEvent(found.session, ticketId, "verification.requested");
+  await notifyRequester("verification.requested", found.ticket, {
+    publicReplyExcerpt: body,
+  });
   return { success: true };
 };
 
@@ -402,19 +444,12 @@ export async function submitResolution(
     isUserConfirmed ? {} : { method: parsed.data.verificationMethod }
   );
   if (found.ticket.user_id) {
-    try {
-      await sendPushToUser(found.ticket.user_id, {
-        title: isUserConfirmed
-          ? "Please confirm your issue is fixed"
-          : "Your ticket was marked resolved",
-        body: isUserConfirmed
-          ? "Your IT support team completed a resolution."
-          : "Your ticket was marked resolved by support — reopen if it isn't fixed",
-        url: `/tickets/${ticketId}`,
-      });
-    } catch (error) {
-      console.warn("Unable to notify ticket owner.", error);
-    }
+    const eventType: NotificationEventType = isUserConfirmed
+      ? "verification.requested"
+      : "ticket.resolved";
+    await notifyRequester(eventType, found.ticket, {
+      publicReplyExcerpt: parsed.data.userExplanation,
+    });
   }
   await recordAudit(
     found.session,
@@ -481,7 +516,9 @@ export async function recordAction(input: {
 }
 
 export async function updateOrganizationPolicy(
-  allowVerificationException: boolean
+  allowVerificationException: boolean,
+  slaTargets?: SlaTargets,
+  timezone?: string
 ): Promise<Result> {
   if (!isTicketWorkflowEnabled()) return { error: "Not available." };
   const session = await getAdminSession();
@@ -489,11 +526,24 @@ export async function updateOrganizationPolicy(
     return { error: "Not authorized." };
   if (typeof allowVerificationException !== "boolean")
     return { error: "Invalid policy." };
+  const targets =
+    slaTargets ??
+    (await getOrganizationPolicy(session.organizationId)).slaTargets;
+  const validTargets = (["Urgent", "High", "Normal", "Low"] as const).every(
+    (priority) =>
+      Number.isFinite(targets.first_response[priority]) &&
+      targets.first_response[priority] > 0 &&
+      Number.isFinite(targets.resolution[priority]) &&
+      targets.resolution[priority] > 0
+  );
+  if (!validTargets) return { error: "Invalid SLA targets." };
   const result = await createAdminClient()
     .from("organization_policies")
     .upsert({
       organization_id: session.organizationId,
       allow_verification_exception: allowVerificationException,
+      sla_targets: targets ?? DEFAULT_SLA_TARGETS,
+      timezone: timezone ?? "America/New_York",
       updated_at: new Date().toISOString(),
       updated_by: session.userId,
     });

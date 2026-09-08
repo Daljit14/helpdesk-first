@@ -1,5 +1,11 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendPushToUser } from "@/lib/push/send";
+import { isNotificationsEnabled } from "@/lib/admin/flags";
+import { enqueueNotification } from "@/lib/notifications/enqueue";
+import { buildNotification } from "@/lib/notifications/templates";
+import { getSiteUrl } from "@/lib/site-url";
+import type { NotificationEventType } from "@/lib/notifications/types";
+import type { NotificationContext } from "@/lib/notifications/templates";
 
 export async function notifyEmployeesOfHandoff(
   organizationId: string,
@@ -15,7 +21,26 @@ export async function notifyEmployeesOfHandoff(
     .from("organization_members")
     .select("user_id, role")
     .eq("organization_id", organizationId)
-    .in("role", ["admin", "support_agent"]);
+    .in("role", ["admin", "org_admin", "support_agent"]);
+  if (isNotificationsEnabled()) {
+    const recipients = (members ?? []).map((member) => member.user_id);
+    const eventType = "ticket.handoff" as const;
+    const message = buildNotification(eventType, {
+      ticketTitle: ticket.issue_title,
+      ticketId: ticket.id,
+      status: "Needs Human",
+    });
+    await enqueueNotification({
+      organizationId,
+      ticketId: ticket.id,
+      eventType,
+      recipientUserIds: recipients,
+      ...message,
+      url: `${getSiteUrl()}/admin/tickets/${ticket.id}`,
+      dedupeKey: `${eventType}:${ticket.id}:${ticket.human_response_due_at ?? Date.now()}`,
+    });
+    return;
+  }
   const due = ticket.human_response_due_at
     ? new Date(ticket.human_response_due_at).toLocaleString()
     : "soon";
@@ -24,7 +49,7 @@ export async function notifyEmployeesOfHandoff(
       await sendPushToUser(member.user_id, {
         title: "Ticket needs a human",
         body: `${ticket.issue_title} · ${ticket.priority} · respond by ${due}`,
-        url: `/admin/tickets/${ticket.id}`,
+        url: `${getSiteUrl()}/admin/tickets/${ticket.id}`,
       });
     } catch (error) {
       console.warn("Unable to notify employee of ticket handoff.", error);
@@ -35,6 +60,7 @@ export async function notifyEmployeesOfHandoff(
 export async function notifyOverdueTickets(
   organizationId: string
 ): Promise<void> {
+  if (isNotificationsEnabled()) return;
   const admin = createAdminClient();
   const { data: tickets } = await admin
     .from("tickets")
@@ -48,7 +74,7 @@ export async function notifyOverdueTickets(
     .from("organization_members")
     .select("user_id")
     .eq("organization_id", organizationId)
-    .eq("role", "admin");
+    .in("role", ["admin", "org_admin"]);
   for (const ticket of tickets ?? []) {
     for (const member of admins ?? []) {
       try {
@@ -66,5 +92,105 @@ export async function notifyOverdueTickets(
       .update({ overdue_notified_at: new Date().toISOString() })
       .eq("id", ticket.id)
       .eq("organization_id", organizationId);
+  }
+}
+
+export async function notifyRequester(
+  eventType: NotificationEventType,
+  ticket: {
+    id: string;
+    user_id?: string | null;
+    issue_title: string;
+    status?: string | null;
+  },
+  context?: Omit<NotificationContext, "ticketTitle" | "ticketId">
+): Promise<void> {
+  if (!ticket.user_id) return;
+  const url = `${getSiteUrl()}/tickets/${ticket.id}`;
+  if (isNotificationsEnabled()) {
+    const message = buildNotification(eventType, {
+      ticketTitle: ticket.issue_title,
+      ticketId: ticket.id,
+      status: ticket.status ?? undefined,
+      ...context,
+    });
+    await enqueueNotification({
+      organizationId: null,
+      ticketId: ticket.id,
+      eventType,
+      recipientUserIds: [ticket.user_id],
+      ...message,
+      url,
+      dedupeKey: `${eventType}:${ticket.id}:${context?.publicReplyExcerpt ?? Date.now()}`,
+    });
+    return;
+  }
+  if (eventType === "reply.public") {
+    try {
+      await sendPushToUser(ticket.user_id, {
+        title: "Your ticket has a new reply",
+        body: context?.publicReplyExcerpt
+          ? `${context.publicReplyExcerpt.slice(0, 120)}`
+          : "Your IT support team replied.",
+        url,
+      });
+    } catch (error) {
+      console.warn("Unable to notify ticket owner.", error);
+    }
+  }
+}
+
+export async function notifyAssignedStaff(
+  eventType: "reply.public" | "ticket.created" | "ticket.assigned",
+  ticket: {
+    id: string;
+    organization_id: string;
+    issue_title: string;
+    assigned_agent_id?: string | null;
+  },
+  context?: Omit<NotificationContext, "ticketTitle" | "ticketId">
+): Promise<void> {
+  const admin = createAdminClient();
+  const recipients = ticket.assigned_agent_id
+    ? [ticket.assigned_agent_id]
+    : ((
+        await admin
+          .from("organization_members")
+          .select("user_id")
+          .eq("organization_id", ticket.organization_id)
+          .in("role", ["admin", "org_admin", "support_agent"])
+      ).data?.map((row) => row.user_id) ?? []);
+  if (recipients.length === 0) return;
+  if (isNotificationsEnabled()) {
+    const message = buildNotification(eventType, {
+      ticketTitle: ticket.issue_title,
+      ticketId: ticket.id,
+      ...context,
+    });
+    await enqueueNotification({
+      organizationId: ticket.organization_id,
+      ticketId: ticket.id,
+      eventType,
+      recipientUserIds: recipients,
+      ...message,
+      url: `${getSiteUrl()}/admin/tickets/${ticket.id}`,
+      dedupeKey: `${eventType}:${ticket.id}:${context?.publicReplyExcerpt ?? Date.now()}`,
+    });
+    return;
+  }
+  if (eventType === "reply.public") {
+    for (const userId of recipients) {
+      try {
+        await sendPushToUser(userId, {
+          title: "Ticket has a new reply",
+          body: context?.publicReplyExcerpt
+            ? `${context.publicReplyExcerpt.slice(0, 120)}`
+            : "A requester added a reply.",
+          url: `/admin/tickets/${ticket.id}`,
+        });
+      } catch (error) {
+        console.warn("Unable to notify staff of reply.", error);
+      }
+    }
   }
 }

@@ -6,6 +6,8 @@ const mocks = vi.hoisted(() => ({
   createClient: vi.fn(),
   processAiIntake: vi.fn(),
   notifyEmployeesOfHandoff: vi.fn(),
+  notifyRequester: vi.fn(),
+  notifyAssignedStaff: vi.fn(),
   isTicketWorkflowEnabled: vi.fn(() => true),
   isUserPortalEnabled: vi.fn(() => true),
 }));
@@ -28,6 +30,8 @@ vi.mock("@/lib/ai/mock-provider", () => ({
 }));
 vi.mock("@/lib/tickets/notify", () => ({
   notifyEmployeesOfHandoff: mocks.notifyEmployeesOfHandoff,
+  notifyRequester: mocks.notifyRequester,
+  notifyAssignedStaff: mocks.notifyAssignedStaff,
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
@@ -76,6 +80,7 @@ function setupAdmin() {
     from: vi.fn((table: string) => {
       if (table === "organization_members") return chain;
       if (table === "tickets") return tickets;
+      if (table === "organization_policies") return chain;
       if (table === "ticket_system_events") return insertTable(events);
       if (table === "ticket_comments") return insertTable(comments);
       return insertTable([]);

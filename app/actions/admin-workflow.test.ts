@@ -6,6 +6,8 @@ const mocks = vi.hoisted(() => ({
   createAdminClient: vi.fn(),
   sendPushToUser: vi.fn(),
   notifyEmployeesOfHandoff: vi.fn(),
+  notifyRequester: vi.fn(),
+  notifyAssignedStaff: vi.fn(),
   getOrganizationPolicy: vi.fn(),
 }));
 
@@ -31,6 +33,8 @@ vi.mock("@/lib/push/send", () => ({
 }));
 vi.mock("@/lib/tickets/notify", () => ({
   notifyEmployeesOfHandoff: mocks.notifyEmployeesOfHandoff,
+  notifyRequester: mocks.notifyRequester,
+  notifyAssignedStaff: mocks.notifyAssignedStaff,
 }));
 vi.mock("@/lib/admin/policies", () => ({
   getOrganizationPolicy: mocks.getOrganizationPolicy,
@@ -345,7 +349,7 @@ describe("admin workflow actions", () => {
     expect(mocks.sendPushToUser).not.toHaveBeenCalled();
   });
 
-  test("adds a public comment and pushes the ticket owner", async () => {
+  test("adds a public comment and notifies the ticket owner", async () => {
     mocks.getAdminSession.mockResolvedValue(session);
     setup();
     await expect(addPublicComment(ticketId, "A public reply")).resolves.toEqual(
@@ -353,9 +357,10 @@ describe("admin workflow actions", () => {
         success: true,
       }
     );
-    expect(mocks.sendPushToUser).toHaveBeenCalledWith(
-      "user-1",
-      expect.objectContaining({ title: "Your ticket has a new reply" })
+    expect(mocks.notifyRequester).toHaveBeenCalledWith(
+      "reply.public",
+      expect.objectContaining({ id: ticketId, user_id: "user-1" }),
+      expect.objectContaining({ publicReplyExcerpt: "A public reply" })
     );
   });
 

@@ -20,3 +20,11 @@ export function isSecureAttachmentsEnabled(): boolean {
 export function isUserPortalEnabled(): boolean {
   return process.env.HELP_DESK_USER_PORTAL_ENABLED === "true";
 }
+
+export function isGoogleSsoEnabled(): boolean {
+  return process.env.HELP_DESK_SSO_GOOGLE_ENABLED === "true";
+}
+
+export function isMicrosoftSsoEnabled(): boolean {
+  return process.env.HELP_DESK_SSO_MICROSOFT_ENABLED === "true";
+}

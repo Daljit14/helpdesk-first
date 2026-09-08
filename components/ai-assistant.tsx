@@ -15,6 +15,9 @@ import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/lib/button-variants";
 import { cn } from "@/lib/utils";
 import { platforms, type Platform } from "@/lib/helpdesk-data";
+import { CATEGORIES } from "@/lib/issues";
+import { getIssueBySlug } from "@/lib/search";
+import { getIssueSteps } from "@/lib/steps";
 import {
   diagnosticQuestions,
   type AiIntakeOutput,
@@ -267,6 +270,7 @@ export function AiAssistant({
         ) : currentOutput?.decision === "escalate" ? (
           <EscalateView
             reason={currentOutput.escalationReason ?? ""}
+            suggestedIssueSlugs={currentOutput.suggestedIssueSlugs}
             searchHref={searchHref()}
             onRestart={handleRestart}
             workflowEnabled={workflowEnabled}
@@ -386,6 +390,7 @@ function ClarifyView({
     return (
       <EscalateView
         reason="The assistant could not find a suitable follow-up question. Use the search page or contact your IT team."
+        suggestedIssueSlugs={output.suggestedIssueSlugs}
         searchHref={`/?q=${encodeURIComponent(problem)}`}
         onRestart={() => window.location.reload()}
         workflowEnabled={workflowEnabled}
@@ -517,12 +522,34 @@ function MatchView({
         <ArrowLeft className="h-4 w-4" />
         Back to search
       </Link>
+      {output.suggestedIssueSlugs && output.suggestedIssueSlugs.length > 0 && (
+        <div className="border-t border-border/60 pt-4">
+          <p className="text-sm font-medium">Other possible matches</p>
+          <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-2 text-sm">
+            {output.suggestedIssueSlugs.map((slug) => {
+              const issue = getIssueBySlug(slug);
+              if (!issue) return null;
+              return (
+                <li key={slug}>
+                  <Link
+                    href={`/issues/${slug}/guide`}
+                    className="text-primary underline underline-offset-4 hover:text-primary/80"
+                  >
+                    {issue.title}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
 
 function EscalateView({
   reason,
+  suggestedIssueSlugs = [],
   searchHref,
   onRestart,
   workflowEnabled = false,
@@ -530,6 +557,7 @@ function EscalateView({
   onSendToSupport,
 }: {
   reason: string;
+  suggestedIssueSlugs?: string[];
   searchHref: string;
   onRestart: () => void;
   workflowEnabled?: boolean;
@@ -538,6 +566,10 @@ function EscalateView({
 }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const suggestions = suggestedIssueSlugs
+    .map((slug) => getIssueBySlug(slug))
+    .filter((issue): issue is NonNullable<typeof issue> => Boolean(issue));
+  const hasSuggestions = suggestions.length > 0;
 
   async function sendToSupport() {
     if (!onSendToSupport) return;
@@ -554,12 +586,70 @@ function EscalateView({
   }
 
   return (
-    <div className="glass-strong mt-8 space-y-6 border-destructive/20 bg-destructive/5 p-6">
-      <div className="flex items-center gap-2 text-destructive">
+    <div
+      className={cn(
+        "glass-strong mt-8 space-y-6 p-6",
+        hasSuggestions
+          ? "border-primary/20 bg-primary/5"
+          : "border-destructive/20 bg-destructive/5"
+      )}
+    >
+      <div
+        className={cn(
+          "flex items-center gap-2",
+          hasSuggestions ? "text-foreground" : "text-destructive"
+        )}
+      >
         <AlertTriangle className="h-6 w-6" aria-hidden="true" />
-        <h2 className="text-xl font-semibold">Contact your IT team</h2>
+        <h2 className="text-xl font-semibold">
+          {hasSuggestions ? "Here's what I found" : "Contact your IT team"}
+        </h2>
       </div>
-      <p className="text-destructive">{reason}</p>
+      <p
+        className={
+          hasSuggestions ? "text-muted-foreground" : "text-destructive"
+        }
+      >
+        {reason}
+      </p>
+      {hasSuggestions && (
+        <div>
+          <h3 className="font-medium">Suggested guides</h3>
+          <div className="mt-3 space-y-3">
+            {suggestions.map((issue) => {
+              const category =
+                CATEGORIES.find((item) => item.id === issue.category)?.label ??
+                issue.category;
+              return (
+                <article
+                  key={issue.id}
+                  className="rounded-2xl border border-border/60 p-4"
+                >
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <h4 className="font-semibold">{issue.title}</h4>
+                    <span className="text-xs text-muted-foreground">
+                      {category}
+                    </span>
+                  </div>
+                  <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-muted-foreground">
+                    {getIssueSteps(issue)
+                      .slice(0, 3)
+                      .map((step) => (
+                        <li key={step}>{step}</li>
+                      ))}
+                  </ol>
+                  <Link
+                    href={`/issues/${issue.id}/guide`}
+                    className="mt-3 inline-flex text-sm font-medium text-primary underline underline-offset-4 hover:text-primary/80"
+                  >
+                    Open full guide
+                  </Link>
+                </article>
+              );
+            })}
+          </div>
+        </div>
+      )}
       {error && (
         <p role="alert" className="text-sm text-destructive">
           {error}

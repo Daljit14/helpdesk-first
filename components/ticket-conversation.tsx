@@ -27,11 +27,13 @@ export function TicketConversation({
   userId,
   initialComments,
   status,
+  workflowEnabled = false,
 }: {
   ticketId: string;
   userId: string;
   initialComments: Comment[];
   status: string;
+  workflowEnabled?: boolean;
 }) {
   const [comments, setComments] = useState(initialComments);
   const [message, setMessage] = useState("");
@@ -111,43 +113,48 @@ export function TicketConversation({
             </li>
           ))}
         </ol>
-        <form onSubmit={submitComment} className="mt-4 space-y-2">
-          <label htmlFor="ticket-comment" className="font-medium">
-            Reply
-          </label>
-          <textarea
-            id="ticket-comment"
-            value={message}
-            onChange={(event) => setMessage(event.target.value)}
-            className="w-full rounded-2xl border border-border/70 bg-background/60 p-3 backdrop-blur"
-            rows={3}
-          />
-          <button className="rounded-full bg-gradient-to-b from-primary to-primary/85 px-5 py-2 text-primary-foreground shadow-md shadow-primary/25">
-            Add reply
-          </button>
-        </form>
+        {workflowEnabled && (
+          <form onSubmit={submitComment} className="mt-4 space-y-2">
+            <label htmlFor="ticket-comment" className="font-medium">
+              Reply
+            </label>
+            <textarea
+              id="ticket-comment"
+              value={message}
+              onChange={(event) => setMessage(event.target.value)}
+              className="w-full rounded-2xl border border-border/70 bg-background/60 p-3 backdrop-blur"
+              rows={3}
+            />
+            <button className="rounded-full bg-gradient-to-b from-primary to-primary/85 px-5 py-2 text-primary-foreground shadow-md shadow-primary/25">
+              Add reply
+            </button>
+          </form>
+        )}
         {notice && <p className="mt-2 text-sm">{notice}</p>}
       </div>
-      {(status === "AI Resolving" || status === "Waiting for User") && (
-        <button
-          type="button"
-          onClick={() =>
-            startTransition(async () => {
-              const result = await requestHuman(
-                ticketId,
-                "User requested human support."
-              );
-              setNotice(
-                "error" in result ? result.error : "A human has been requested."
-              );
-            })
-          }
-          className="glass-pill px-5 py-2"
-        >
-          I still need help from a person
-        </button>
-      )}
-      {status === "Pending Verification" && (
+      {workflowEnabled &&
+        (status === "AI Resolving" || status === "Waiting for User") && (
+          <button
+            type="button"
+            onClick={() =>
+              startTransition(async () => {
+                const result = await requestHuman(
+                  ticketId,
+                  "User requested human support."
+                );
+                setNotice(
+                  "error" in result
+                    ? result.error
+                    : "A human has been requested."
+                );
+              })
+            }
+            className="glass-pill px-5 py-2"
+          >
+            I still need help from a person
+          </button>
+        )}
+      {workflowEnabled && status === "Pending Verification" && (
         <div className="flex flex-wrap gap-3">
           <button
             type="button"

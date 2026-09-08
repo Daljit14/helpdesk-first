@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { ensureRequesterMembership } from "@/lib/org/membership";
 
 function safeNextPath(value: string | null): string {
   return value && value.startsWith("/") && !value.startsWith("//")
@@ -17,13 +18,19 @@ export async function GET(request: NextRequest) {
   }
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.exchangeCodeForSession(code);
+  const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
   if (error) {
     return NextResponse.redirect(
-      new URL("/forgot-password?error=expired", request.url)
+      new URL(
+        next === "/reset-password"
+          ? "/forgot-password?error=expired"
+          : "/login?error=sso",
+        request.url
+      )
     );
   }
 
+  if (data.user) await ensureRequesterMembership(data.user, supabase);
   return NextResponse.redirect(new URL(next, request.url));
 }

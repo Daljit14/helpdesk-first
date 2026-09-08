@@ -1,7 +1,11 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { AdminLoginForm } from "@/components/admin/admin-login-form";
-import { isAdminDashboardEnabled } from "@/lib/admin/flags";
+import {
+  isAdminDashboardEnabled,
+  isGoogleSsoEnabled,
+  isMicrosoftSsoEnabled,
+} from "@/lib/admin/flags";
 
 export const metadata: Metadata = {
   title: "Admin sign in",
@@ -27,7 +31,11 @@ export default async function AdminLoginPage({
           Use your authorized HelpDesk First account.
         </p>
         <div className="mt-8">
-          <AdminLoginForm next={next} />
+          <AdminLoginForm
+            next={next}
+            googleSsoEnabled={isGoogleSsoEnabled()}
+            microsoftSsoEnabled={isMicrosoftSsoEnabled()}
+          />
         </div>
       </div>
     </section>

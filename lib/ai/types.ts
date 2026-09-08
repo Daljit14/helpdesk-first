@@ -19,6 +19,7 @@ export type AiIntakeOutput = {
   matchedIssueSlug?: string;
   detectedPlatform?: Platform | null;
   diagnosticQuestionIds?: string[];
+  suggestedIssueSlugs?: string[];
   explanation?: string;
   escalationReason?: string;
   citation?: import("@/lib/knowledge/governance").Citation;

@@ -3,6 +3,7 @@ import type { Platform } from "@/lib/helpdesk-data";
 import type { AiIntakeInput, AiIntakeOutput, AiProvider } from "./types";
 import { diagnosticQuestions } from "./types";
 import { getSafeResponseLimit, isPasswordRecovery } from "./safety-policy";
+import { filterIssues } from "@/lib/search";
 
 const MATCH_SCORE_THRESHOLD = 1.5;
 const MATCH_GAP_THRESHOLD = 0.3;
@@ -424,6 +425,11 @@ export class MockAiProvider implements AiProvider {
       return {
         decision: "escalate",
         detectedPlatform,
+        suggestedIssueSlugs: getSuggestedIssueSlugs(
+          combined,
+          detectedPlatform,
+          sorted
+        ),
         escalationReason:
           "Your description does not match an issue that HelpDesk First can guide you through. Please contact your IT team or use the search page.",
       };
@@ -451,6 +457,11 @@ export class MockAiProvider implements AiProvider {
       return {
         decision: "escalate",
         detectedPlatform,
+        suggestedIssueSlugs: getSuggestedIssueSlugs(
+          combined,
+          detectedPlatform,
+          sorted
+        ),
         escalationReason:
           "Your description does not clearly match an issue that HelpDesk First can guide you through. Please contact your IT team or use the search page.",
       };
@@ -474,9 +485,27 @@ export class MockAiProvider implements AiProvider {
     }
 
     if (questionCount >= MAX_QUESTIONS) {
+      if (top.score >= MIN_SCORE_FOR_CLARIFY) {
+        return {
+          decision: "match",
+          matchedIssueSlug: top.issue.id,
+          detectedPlatform,
+          suggestedIssueSlugs: sorted
+            .filter((item) => item.issue.id !== top.issue.id)
+            .slice(0, 2)
+            .map((item) => item.issue.id),
+          explanation:
+            "This is the closest approved guide for what you described. If it doesn't fit, try one of the other suggestions.",
+        };
+      }
       return {
         decision: "escalate",
         detectedPlatform,
+        suggestedIssueSlugs: getSuggestedIssueSlugs(
+          combined,
+          detectedPlatform,
+          sorted
+        ),
         escalationReason:
           "I could not confidently match your description to an approved guide after a few questions. Please contact your IT team or use the search page.",
       };
@@ -499,6 +528,21 @@ export class MockAiProvider implements AiProvider {
         "I need a little more information to match you to the right approved guide.",
     };
   }
+}
+
+function getSuggestedIssueSlugs(
+  combined: string,
+  detectedPlatform: Platform | null,
+  scored: ScoredIssue[]
+): string[] {
+  const scoredSlugs = scored
+    .filter((item) => item.score > 0)
+    .slice(0, 3)
+    .map((item) => item.issue.id);
+  if (scoredSlugs.length > 0) return scoredSlugs;
+  return filterIssues({ query: combined, platform: detectedPlatform })
+    .slice(0, 3)
+    .map((issue) => issue.id);
 }
 
 function buildCombinedText(input: AiIntakeInput): string {

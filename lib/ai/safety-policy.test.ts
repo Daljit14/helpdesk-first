@@ -2,6 +2,7 @@ import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
 import {
   checkUserMessageSafety,
   isAiEnabled,
+  validateAndCoerceOutput,
   validateAiOutput,
 } from "./safety-policy";
 import { diagnosticQuestions } from "./types";
@@ -180,6 +181,29 @@ describe("validateAiOutput", () => {
       platforms
     );
     expect(result.valid).toBe(true);
+  });
+
+  test("filters unknown suggestions and truncates the list", () => {
+    const result = validateAndCoerceOutput(
+      {
+        decision: "escalate",
+        escalationReason: "Please contact support.",
+        suggestedIssueSlugs: [
+          "slow-computer",
+          "not-approved",
+          "no-internet",
+          "email-sign-in",
+        ],
+      },
+      allowedSlugs,
+      allowedQuestions,
+      platforms
+    );
+    expect(result?.suggestedIssueSlugs).toEqual([
+      "slow-computer",
+      "no-internet",
+      "email-sign-in",
+    ]);
   });
 
   test("rejects unknown issue slug", () => {

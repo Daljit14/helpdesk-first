@@ -74,7 +74,7 @@ export default async function KnowledgePage({
         </div>
         <KnowledgeTable
           guides={guides}
-          canWrite={session.role === "admin"}
+          canWrite={session.role === "org_admin"}
           revisions={revisions}
         />
       </div>

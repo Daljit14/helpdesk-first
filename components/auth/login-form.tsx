@@ -6,10 +6,19 @@ import { loginAction, type AuthState } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { startSso } from "@/app/actions/auth";
 
 const initialState: AuthState = null;
 
-export function LoginForm({ next = "/" }: { next?: string }) {
+export function LoginForm({
+  next = "/",
+  googleSsoEnabled = false,
+  microsoftSsoEnabled = false,
+}: {
+  next?: string;
+  googleSsoEnabled?: boolean;
+  microsoftSsoEnabled?: boolean;
+}) {
   const [state, formAction, pending] = useActionState(
     loginAction,
     initialState
@@ -63,6 +72,30 @@ export function LoginForm({ next = "/" }: { next?: string }) {
       <Button type="submit" disabled={pending}>
         {pending ? "Logging in…" : "Log in"}
       </Button>
+      {(googleSsoEnabled || microsoftSsoEnabled) && (
+        <div className="grid gap-2">
+          {googleSsoEnabled && (
+            <Button
+              type="submit"
+              formAction={() => startSso({ provider: "google", next })}
+              variant="outline"
+              className="w-full"
+            >
+              Continue with Google
+            </Button>
+          )}
+          {microsoftSsoEnabled && (
+            <Button
+              type="submit"
+              formAction={() => startSso({ provider: "azure", next })}
+              variant="outline"
+              className="w-full"
+            >
+              Continue with Microsoft
+            </Button>
+          )}
+        </div>
+      )}
     </form>
   );
 }

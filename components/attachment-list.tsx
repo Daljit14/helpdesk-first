@@ -35,7 +35,7 @@ export function AttachmentList({
   adminControls,
 }: {
   attachments: AttachmentListItem[];
-  adminControls?: (attachment: AttachmentListItem) => React.ReactNode;
+  adminControls?: Record<string, React.ReactNode>;
 }) {
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -102,7 +102,7 @@ export function AttachmentList({
                     {pendingId === attachment.id ? "Opening…" : "Open"}
                   </button>
                 )}
-                {adminControls?.(attachment)}
+                {adminControls?.[attachment.id]}
               </span>
             </li>
           );

@@ -10,6 +10,10 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { getSiteUrl } from "@/lib/site-url";
+import { ensureRequesterMembership } from "@/lib/org/membership";
+import { z } from "zod";
+import { isGoogleSsoEnabled, isMicrosoftSsoEnabled } from "@/lib/admin/flags";
+import { isSafeNextPath } from "@/lib/auth/paths";
 
 export type AuthState = {
   error?: string;
@@ -17,15 +21,16 @@ export type AuthState = {
 } | null;
 
 function safeNextPath(value: FormDataEntryValue | null): string {
-  if (
-    typeof value !== "string" ||
-    !value.startsWith("/") ||
-    value.startsWith("//")
-  ) {
+  if (typeof value !== "string" || !isSafeNextPath(value)) {
     return "/";
   }
   return value;
 }
+
+const ssoInputSchema = z.object({
+  provider: z.enum(["google", "azure"]),
+  next: z.string().refine(isSafeNextPath),
+});
 
 function fieldErrorsFrom(issues: { path: PropertyKey[]; message: string }[]) {
   const out: Record<string, string> = {};
@@ -61,7 +66,8 @@ export async function signUpAction(
     return { error: error.message };
   }
 
-  if (data.session) {
+  if (data.session && data.user) {
+    await ensureRequesterMembership(data.user, supabase);
     redirect(safeNextPath(formData.get("next")));
   }
 
@@ -86,13 +92,41 @@ export async function loginAction(
   }
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithPassword(parsed.data);
+  const { data, error } = await supabase.auth.signInWithPassword(parsed.data);
 
   if (error) {
     return { error: "Incorrect email or password." };
   }
 
+  if (data.user) await ensureRequesterMembership(data.user, supabase);
   redirect(safeNextPath(formData.get("next")));
+}
+
+export async function startSso(input: {
+  provider: "google" | "azure";
+  next: string;
+}) {
+  const parsed = ssoInputSchema.safeParse(input);
+  if (!parsed.success || !isSupabaseConfigured()) {
+    redirect("/login?error=sso");
+  }
+  if (
+    (parsed.data.provider === "google" && !isGoogleSsoEnabled()) ||
+    (parsed.data.provider === "azure" && !isMicrosoftSsoEnabled())
+  ) {
+    redirect("/login?error=sso");
+  }
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: parsed.data.provider,
+    options: {
+      redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || getSiteUrl()}/auth/callback?next=${encodeURIComponent(parsed.data.next)}`,
+      scopes:
+        parsed.data.provider === "azure" ? "email openid profile" : undefined,
+    },
+  });
+  if (error || !data.url) redirect("/login?error=sso");
+  redirect(data.url);
 }
 
 export async function forgotPasswordAction(

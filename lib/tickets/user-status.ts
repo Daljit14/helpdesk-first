@@ -134,3 +134,27 @@ export function describeTicketStatus(
 export function ticketReference(id: string): string {
   return toTicketId(id);
 }
+
+export function progressStage(status: string): 0 | 1 | 2 | 3 | 4 | 5 {
+  switch (status.trim().toLowerCase()) {
+    case "new":
+    case "open":
+    case "ai reviewing":
+    case "reopened":
+      return 1;
+    case "ai resolving":
+    case "needs human":
+    case "in progress":
+      return 2;
+    case "waiting":
+    case "waiting for user":
+      return 3;
+    case "pending verification":
+      return 4;
+    case "resolved":
+    case "closed":
+      return 5;
+    default:
+      return 0;
+  }
+}

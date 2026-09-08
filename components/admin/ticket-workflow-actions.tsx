@@ -17,7 +17,7 @@ import {
 type Member = {
   userId: string;
   displayName: string;
-  role: "admin" | "support_agent";
+  role: "org_admin" | "support_agent";
 };
 
 type ResolutionValues = {
@@ -199,7 +199,10 @@ export function TicketWorkflowActions({
                 {members.map((member) => (
                   <option key={member.userId} value={member.userId}>
                     {member.displayName} (
-                    {member.role === "admin" ? "Admin" : "Support agent"})
+                    {member.role === "org_admin"
+                      ? "Organization admin"
+                      : "Support agent"}
+                    )
                   </option>
                 ))}
               </select>

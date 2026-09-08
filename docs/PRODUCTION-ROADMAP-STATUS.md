@@ -1,9 +1,9 @@
 # Production Roadmap Status
 
 Roadmap version audited: **2.0** (Phase 0 / proposed PR #31).
-Audit baseline: `origin/main` at `5a1e322a7b9a5a9122c116f4509b56300f338ba9`
-(merge of PR #30). Test totals on that commit: Vitest **621 passed, 4 skipped**
-(45 files passed, 4 DB-gated files skipped); **11 Playwright spec files**.
+Audit baseline: `origin/main` at `3320968` (merge of PR #32).
+Test totals on that commit: Vitest **632 passed, 4 skipped** (45 files
+passed, 4 DB-gated files skipped); **11 Playwright spec files**.
 
 Status vocabulary (from the roadmap):
 
@@ -257,55 +257,55 @@ in Production; the grounded provider (PR #29) is not deployed anywhere.
 
 ### 5.1 Requester experience
 
-| Requirement                                             | Status   | Evidence / gap                                                                                       |
-| ------------------------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------- |
-| Sign in via verified identity                           | PARTIAL  | Supabase email/password + reset (#9/#12). No org SSO, no verified-domain identity.                   |
-| Describe problem once (text)                            | COMPLETE | `/assistant` intake → ticket (#7, #25).                                                              |
-| Select/confirm device, OS, app, urgency                 | PARTIAL  | Platform + priority captured (`tickets.platform                                                      | priority`); no application/version field. |
-| Attach screenshots/PDFs                                 | COMPLETE | #30 (flag ON).                                                                                       |
-| Ticket number immediately                               | COMPLETE | `TCK-…` shown on creation (#25/#28).                                                                 |
-| Continue AI conversation inside the ticket              | PARTIAL  | Diagnostic questions answered at intake; no continued AI turn after ticket creation.                 |
-| Cited, approved troubleshooting steps                   | MISSING  | Citations/governance only on PR #29 branch.                                                          |
-| Report each step worked / failed / could not perform    | PARTIAL  | Whole-solution "fixed / not fixed" only (`record_ai_attempt_failed`); no per-step outcome.           |
-| Request a human at any time                             | COMPLETE | Portal "request a person" → `handoff_ticket` (#28).                                                  |
-| Full history retained on handoff                        | COMPLETE | Original description, AI attempts, questions, handoff reason preserved (#25).                        |
-| Read/respond to employee public comments                | COMPLETE | `ticket_comments` public visibility (#25/#28).                                                       |
-| Status, assignment, expected next response, last update | PARTIAL  | Status, last update and next action shown; assignment state and SLA due time not shown to requester. |
-| Confirm fixed / reject / reopen                         | COMPLETE | `user_verify_ticket`, `user_reopen_ticket` (#28).                                                    |
-| Rate outcome + feedback                                 | COMPLETE | `user_rate_ticket` (#28).                                                                            |
-| Export or request deletion of own data                  | MISSING  | No self-service export/deletion.                                                                     |
-| Never see internal notes / other tenants / prompts      | COMPLETE | RLS on `ticket_comments`, `ticket_system_events`; `tests/db/portal-isolation.test.ts`.               |
+| Requirement                                             | Status                              | Evidence / gap                                                                                                               |
+| ------------------------------------------------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Sign in via verified identity                           | PARTIAL                             | Supabase email/password + reset (#9/#12). No org SSO, no verified-domain identity.                                           |
+| Describe problem once (text)                            | COMPLETE                            | `/assistant` intake → ticket (#7, #25).                                                                                      |
+| Select/confirm device, OS, app, urgency                 | PARTIAL                             | Platform + priority captured (`tickets.platform                                                                              | priority`); no application/version field. |
+| Attach screenshots/PDFs                                 | COMPLETE                            | #30 (flag ON).                                                                                                               |
+| Ticket number immediately                               | COMPLETE                            | `TCK-…` shown on creation (#25/#28).                                                                                         |
+| Continue AI conversation inside the ticket              | PARTIAL                             | Diagnostic questions answered at intake; no continued AI turn after ticket creation.                                         |
+| Cited, approved troubleshooting steps                   | MISSING                             | Citations/governance only on PR #29 branch.                                                                                  |
+| Report each step worked / failed / could not perform    | COMPLETE (PR #32, merged `3320968`) | `components/ticket-step-outcomes.tsx`; `record_step_outcome(...)`; `ticket_step_outcomes`.                                   |
+| Request a human at any time                             | COMPLETE                            | Portal "request a person" → `handoff_ticket` (#28).                                                                          |
+| Full history retained on handoff                        | COMPLETE                            | Original description, AI attempts, questions, handoff reason preserved (#25).                                                |
+| Read/respond to employee public comments                | COMPLETE                            | `ticket_comments` public visibility (#25/#28).                                                                               |
+| Status, assignment, expected next response, last update | COMPLETE (PR #32, merged `3320968`) | `app/tickets/[ticketId]/page.tsx`; `lib/tickets/user-status.ts`; `assigned_agent_id`, `human_response_due_at`, `updated_at`. |
+| Confirm fixed / reject / reopen                         | COMPLETE                            | `user_verify_ticket`, `user_reopen_ticket` (#28).                                                                            |
+| Rate outcome + feedback                                 | COMPLETE                            | `user_rate_ticket` (#28).                                                                                                    |
+| Export or request deletion of own data                  | MISSING                             | No self-service export/deletion.                                                                                             |
+| Never see internal notes / other tenants / prompts      | COMPLETE                            | RLS on `ticket_comments`, `ticket_system_events`; `tests/db/portal-isolation.test.ts`.                                       |
 
 ### 5.2 Employee/Admin experience
 
-| Requirement                                                                                                           | Status   | Evidence / gap                                                                                                                                                            |
-| --------------------------------------------------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Queue cards (incl. Reopened)                                                                                          | PARTIAL  | Needs Human, AI Resolving, Unassigned, Assigned to Me, In Progress, Waiting, Pending Verification, SLA At Risk, Resolved by AI/Employee exist; no `Reopened` status/card. |
-| Filters (org, status, priority, platform, category, assignee, AI confidence, risk, handoff reason, resolution source) | PARTIAL  | Status/priority/platform/category/assignee/source filters; no confidence, risk or handoff-reason filters.                                                                 |
-| Sortable table, 5-minute + manual refresh                                                                             | COMPLETE | `/api/admin/operations`, `components/admin/*` (#20/#23).                                                                                                                  |
-| Claim / reassign                                                                                                      | COMPLETE | `app/actions/admin-workflow.ts`.                                                                                                                                          |
-| Public comments + internal notes                                                                                      | COMPLETE | `visibility` column + RLS.                                                                                                                                                |
-| Full AI summary, evidence, citations, attempts, handoff reason                                                        | PARTIAL  | Summary, confidence, risk, attempts, reason shown; citations require PR #29.                                                                                              |
-| Attachment scan status + authorised viewing                                                                           | COMPLETE | `/admin/attachments`, `AdminAttachmentControls` (#30).                                                                                                                    |
-| Immutable activity timeline                                                                                           | COMPLETE | `ticket_system_events` + immutability trigger.                                                                                                                            |
-| Structured tool/action log                                                                                            | COMPLETE | `ticket_actions`.                                                                                                                                                         |
-| Priority / status / SLA controls                                                                                      | COMPLETE | #21, #25.                                                                                                                                                                 |
-| Request information / request verification                                                                            | COMPLETE | #25.                                                                                                                                                                      |
-| Required resolution report                                                                                            | COMPLETE | Zod schema in `admin-workflow.ts` (7 required fields).                                                                                                                    |
-| Reopen and close                                                                                                      | COMPLETE | #25/#28.                                                                                                                                                                  |
-| Org-scoped analytics + export                                                                                         | COMPLETE | `admin_workflow_metrics(org)`, `/api/admin/operations/export`.                                                                                                            |
-| Audited settings for users, roles, policies, knowledge, integrations                                                  | PARTIAL  | Attachment policy settings only; no user/role/knowledge/integration admin UI on `main`.                                                                                   |
-| Individual `support_agent` accounts                                                                                   | COMPLETE | `organization_members.role`, per-user Supabase auth.                                                                                                                      |
+| Requirement                                                                                                           | Status                              | Evidence / gap                                                                                                                   |
+| --------------------------------------------------------------------------------------------------------------------- | ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Queue cards (incl. Reopened)                                                                                          | COMPLETE (PR #32, merged `3320968`) | `components/admin/admin-dashboard.tsx`; `Reopened` status and queue card/filter.                                                 |
+| Filters (org, status, priority, platform, category, assignee, AI confidence, risk, handoff reason, resolution source) | COMPLETE (PR #32, merged `3320968`) | `lib/admin/operations-data.ts`; `app/api/admin/operations/route.ts`; dashboard controls map confidence, risk and handoff reason. |
+| Sortable table, 5-minute + manual refresh                                                                             | COMPLETE                            | `/api/admin/operations`, `components/admin/*` (#20/#23).                                                                         |
+| Claim / reassign                                                                                                      | COMPLETE                            | `app/actions/admin-workflow.ts`.                                                                                                 |
+| Public comments + internal notes                                                                                      | COMPLETE                            | `visibility` column + RLS.                                                                                                       |
+| Full AI summary, evidence, citations, attempts, handoff reason                                                        | PARTIAL                             | Summary, confidence, risk, attempts, reason shown; citations require PR #29.                                                     |
+| Attachment scan status + authorised viewing                                                                           | COMPLETE                            | `/admin/attachments`, `AdminAttachmentControls` (#30).                                                                           |
+| Immutable activity timeline                                                                                           | COMPLETE                            | `ticket_system_events` + immutability trigger.                                                                                   |
+| Structured tool/action log                                                                                            | COMPLETE                            | `ticket_actions`.                                                                                                                |
+| Priority / status / SLA controls                                                                                      | COMPLETE                            | #21, #25.                                                                                                                        |
+| Request information / request verification                                                                            | COMPLETE                            | #25.                                                                                                                             |
+| Required resolution report                                                                                            | COMPLETE                            | Zod schema in `admin-workflow.ts` (7 required fields).                                                                           |
+| Reopen and close                                                                                                      | COMPLETE                            | #25/#28.                                                                                                                         |
+| Org-scoped analytics + export                                                                                         | COMPLETE                            | `admin_workflow_metrics(org)`, `/api/admin/operations/export`.                                                                   |
+| Audited settings for users, roles, policies, knowledge, integrations                                                  | PARTIAL                             | Attachment policy settings only; no user/role/knowledge/integration admin UI on `main`.                                          |
+| Individual `support_agent` accounts                                                                                   | COMPLETE                            | `organization_members.role`, per-user Supabase auth.                                                                             |
 
 ### 5.3 Ticket lifecycle
 
-| Requirement                                              | Status   | Evidence / gap                                                                                                           |
-| -------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------ |
-| Required statuses incl. `Reopened`                       | PARTIAL  | 9 workflow statuses present; `Reopened` is an event + `reopen_count`, not a status. Legacy `Open`/`Waiting` still valid. |
-| Server-side validated, org-scoped, audited transitions   | COMPLETE | Server actions + DB triggers + `ticket_system_events`; `tests/db/workflow-isolation.test.ts`.                            |
-| Normal resolution requires user confirmation             | COMPLETE | Resolve → `Pending Verification`; `user_verify_ticket`.                                                                  |
-| Documented employee verification exception, policy-gated | PARTIAL  | `verificationMethod` other than `user_confirmed` is allowed with a recorded report, but no per-org policy gate.          |
-| AI cannot verify itself                                  | COMPLETE | No AI path writes `verified_by_user`/`Resolved`.                                                                         |
+| Requirement                                              | Status                              | Evidence / gap                                                                                                                                               |
+| -------------------------------------------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Required statuses incl. `Reopened`                       | COMPLETE (PR #32, merged `3320968`) | `supabase/wave-1-2-remediation.sql` recreates `tickets_workflow_status_check`; `lib/operations/transform.ts` and requester/admin actions support `Reopened`. |
+| Server-side validated, org-scoped, audited transitions   | COMPLETE                            | Server actions + DB triggers + `ticket_system_events`; `tests/db/workflow-isolation.test.ts`.                                                                |
+| Normal resolution requires user confirmation             | COMPLETE                            | Resolve → `Pending Verification`; `user_verify_ticket`.                                                                                                      |
+| Documented employee verification exception, policy-gated | COMPLETE (PR #32, merged `3320968`) | `organization_policies.allow_verification_exception`; `submitResolution`; `tickets_employee_resolution_confirmation`; `verification.exception`.              |
+| AI cannot verify itself                                  | COMPLETE                            | No AI path writes `verified_by_user`/`Resolved`.                                                                                                             |
 
 ### 5.4 AI triage and handoff
 
@@ -361,24 +361,24 @@ in Production; the grounded provider (PR #29) is not deployed anywhere.
 
 ### 5.8 Multi-organisation identity and student privacy
 
-| Requirement                                                                  | Status   | Evidence / gap                                                                                                 |
-| ---------------------------------------------------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------- |
-| Roles `requester`, `support_agent`, `org_admin`, restricted `platform_admin` | PARTIAL  | Roles on `main`: `admin`, `support_agent` (+ implicit requester = authenticated user). No `platform_admin`.    |
-| `org_id` on every tenant row + RLS                                           | COMPLETE | `organization_id` on tickets; org-scoped RLS on comments, actions, events, attachments; 4 DB isolation suites. |
-| Tenant enforcement in caches, search, retrieval, exports, jobs               | PARTIAL  | Exports/metrics org-scoped; no retrieval layer yet; purge job is cross-org by design (service role).           |
-| Organisation creation, verified domain, invitations, role management, SSO    | MISSING  | Organisations/members are seeded by SQL; no onboarding UI.                                                     |
-| Minimal school directory fields                                              | COMPLETE | Only auth id, email, display name, membership role stored; no grades/health/etc.                               |
-| Jurisdiction / age / DPA / privacy review                                    | BLOCKED  | Owner decisions (Roadmap §14).                                                                                 |
+| Requirement                                                                  | Status                           | Evidence / gap                                                                                                                            |
+| ---------------------------------------------------------------------------- | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Roles `requester`, `support_agent`, `org_admin`, restricted `platform_admin` | COMPLETE (PR #34, pending merge) | `supabase/wave-3-organizations.sql` adds role constraints, `platform_admins`, and `lib/admin/auth.ts` maps legacy `admin` to `org_admin`. |
+| `org_id` on every tenant row + RLS                                           | COMPLETE                         | `organization_id` on tickets; org-scoped RLS on comments, actions, events, attachments; 4 DB isolation suites.                            |
+| Tenant enforcement in caches, search, retrieval, exports, jobs               | PARTIAL                          | Exports/metrics org-scoped; no retrieval layer yet; purge job is cross-org by design (service role).                                      |
+| Organisation creation, verified domain, invitations, role management, SSO    | COMPLETE (PR #34, pending merge) | `app/actions/organizations.ts`, `/admin/organization`, `/admin/organizations`, `/invite/[token]`, and Supabase OAuth routes/actions.      |
+| Minimal school directory fields                                              | COMPLETE                         | Only auth id, email, display name, membership role stored; no grades/health/etc.                                                          |
+| Jurisdiction / age / DPA / privacy review                                    | BLOCKED                          | Owner decisions (Roadmap §14).                                                                                                            |
 
 ### 5.9 Comments, actions and resolution records
 
-| Requirement                                                                                                                   | Status   | Evidence / gap                                                                                                                          |
-| ----------------------------------------------------------------------------------------------------------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| Messages: author, timestamp, org, ticket, visibility                                                                          | COMPLETE | `ticket_comments`.                                                                                                                      |
-| Edit/delete policy                                                                                                            | MISSING  | Comments are append-only; no edit/delete policy defined.                                                                                |
-| Internal notes excluded before serialisation to requesters                                                                    | COMPLETE | RLS + `listPublicComments`; `portal-isolation.test.ts`.                                                                                 |
-| Action record: tool, version, actor, reason, redacted params, consent type, times, result, verification, rollback, audit link | PARTIAL  | `ticket_actions` has tool, summary, result, consent flag, employee, time; no version, redacted params, rollback or verification result. |
-| Resolution record incl. resolver type                                                                                         | COMPLETE | `resolution_report` JSON + `resolver_type`.                                                                                             |
+| Requirement                                                                                                                   | Status                              | Evidence / gap                                                                                                                            |
+| ----------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Messages: author, timestamp, org, ticket, visibility                                                                          | COMPLETE                            | `ticket_comments`.                                                                                                                        |
+| Edit/delete policy                                                                                                            | MISSING                             | Comments are append-only; no edit/delete policy defined.                                                                                  |
+| Internal notes excluded before serialisation to requesters                                                                    | COMPLETE                            | RLS + `listPublicComments`; `portal-isolation.test.ts`.                                                                                   |
+| Action record: tool, version, actor, reason, redacted params, consent type, times, result, verification, rollback, audit link | COMPLETE (PR #32, merged `3320968`) | `supabase/wave-1-2-remediation.sql` adds richer `ticket_actions` fields; `app/actions/admin-workflow.ts` validates and scrubs parameters. |
+| Resolution record incl. resolver type                                                                                         | COMPLETE                            | `resolution_report` JSON + `resolver_type`.                                                                                               |
 
 ### 5.10 Notifications and SLA
 
@@ -416,24 +416,24 @@ in Production; the grounded provider (PR #29) is not deployed anywhere.
 
 ### §6 Core data model
 
-| Entity                                                              | Status                                                                       | Present as                                                                                                      |
-| ------------------------------------------------------------------- | ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| organizations                                                       | COMPLETE                                                                     | `organizations`                                                                                                 |
-| users                                                               | COMPLETE                                                                     | Supabase `auth.users` + `admin_profiles`                                                                        |
-| organization_memberships                                            | COMPLETE                                                                     | `organization_members`                                                                                          |
-| organization_policies                                               | PARTIAL                                                                      | `attachment_policies` only                                                                                      |
-| tickets                                                             | COMPLETE                                                                     | `tickets`                                                                                                       |
-| ticket_messages                                                     | COMPLETE                                                                     | `ticket_comments`                                                                                               |
-| ticket_assignments                                                  | PARTIAL                                                                      | Columns on `tickets` + events; no history table                                                                 |
-| ticket_events                                                       | COMPLETE                                                                     | `ticket_system_events` (+ legacy `ticket_events`)                                                               |
-| ticket_attachments                                                  | COMPLETE                                                                     | `ticket_attachments`                                                                                            |
-| ai_runs / diagnoses                                                 | PARTIAL                                                                      | Columns on `tickets` (`ai_*`, `diagnostic_answers`); no run table                                               |
+| Entity                                                              | Status                                                                       | Present as                                                                                                                    |
+| ------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| organizations                                                       | COMPLETE                                                                     | `organizations`                                                                                                               |
+| users                                                               | COMPLETE                                                                     | Supabase `auth.users` + `admin_profiles`                                                                                      |
+| organization_memberships                                            | COMPLETE                                                                     | `organization_members`                                                                                                        |
+| organization_policies                                               | COMPLETE (PR #32, merged `3320968`)                                          | `public.organization_policies` in `supabase/wave-1-2-remediation.sql` (`allow_verification_exception`, `reopen_window_days`). |
+| tickets                                                             | COMPLETE                                                                     | `tickets`                                                                                                                     |
+| ticket_messages                                                     | COMPLETE                                                                     | `ticket_comments`                                                                                                             |
+| ticket_assignments                                                  | PARTIAL                                                                      | Columns on `tickets` + events; no history table                                                                               |
+| ticket_events                                                       | COMPLETE                                                                     | `ticket_system_events` (+ legacy `ticket_events`)                                                                             |
+| ticket_attachments                                                  | COMPLETE                                                                     | `ticket_attachments`                                                                                                          |
+| ai_runs / diagnoses                                                 | PARTIAL                                                                      | Columns on `tickets` (`ai_*`, `diagnostic_answers`); no run table                                                             |
 | knowledge_sources/documents/versions                                | MISSING (on `main`) — `knowledge_guides`, `knowledge_guide_revisions` on #29 |
-| action_records                                                      | COMPLETE                                                                     | `ticket_actions`                                                                                                |
-| verification_records                                                | PARTIAL                                                                      | Columns on `tickets`                                                                                            |
-| notification_outbox / deliveries                                    | MISSING                                                                      |                                                                                                                 |
-| audit_events                                                        | PARTIAL                                                                      | `operations_audit`, `ticket_system_events`, `attachment_events` (separate append-only tables, no unified table) |
-| api_keys / webhook_endpoints / webhook_deliveries                   | MISSING                                                                      |                                                                                                                 |
+| action_records                                                      | COMPLETE                                                                     | `ticket_actions`                                                                                                              |
+| verification_records                                                | PARTIAL                                                                      | Columns on `tickets`                                                                                                          |
+| notification_outbox / deliveries                                    | MISSING                                                                      |                                                                                                                               |
+| audit_events                                                        | PARTIAL                                                                      | `operations_audit`, `ticket_system_events`, `attachment_events` (separate append-only tables, no unified table)               |
+| api_keys / webhook_endpoints / webhook_deliveries                   | MISSING                                                                      |                                                                                                                               |
 | endpoint_devices / capability_definitions / action_runs / approvals | MISSING (future, Finish line B)                                              |
 
 ### §8 Security and privacy baseline
@@ -479,44 +479,50 @@ in Production; the grounded provider (PR #29) is not deployed anywhere.
 
 ## Part C — Roadmap 2.0 wave mapping
 
-| Wave | Roadmap deliverable                             | Audit result                                                                                                                                                                |
-| ---- | ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 0    | This audit                                      | This document.                                                                                                                                                              |
-| 1    | Unified ticket lifecycle + AI/human workflow    | Largely COMPLETE via #25. Remediation: `Reopened` status, per-step outcomes, policy-gated verification exception, confidence/risk/handoff filters, richer `ticket_actions`. |
-| 2    | Requester portal + conversation                 | Largely COMPLETE via #28. Remediation: assignment/SLA visibility, continued AI turn in ticket, self-service export/deletion.                                                |
-| 3    | Organisation onboarding, RBAC, tenant hardening | MISSING/BLOCKED — needs identity/SSO/region decisions. First substantive new wave.                                                                                          |
-| 4    | AI gateway + real grounded provider             | BLOCKED on Anthropic credits; PR #29 ready. Remediation after unblock: secondary provider/failover, per-org kill switch, retry/circuit breaker.                             |
-| 5    | Knowledge governance + citations                | Implemented on PR #29 (ships with wave 4). YouTube sources MISSING.                                                                                                         |
-| 6    | Secure images/PDFs                              | Largely COMPLETE via #30. BLOCKED: scanner choice. MISSING: OCR/extraction + sensitive-data check.                                                                          |
-| 7    | Notifications, SLA, live operations             | PARTIAL — push only; outbox/email MISSING; BLOCKED on email provider.                                                                                                       |
-| 8    | Trust centre + analytics                        | PARTIAL.                                                                                                                                                                    |
-| 9    | Versioned API, webhooks, sandbox                | MISSING.                                                                                                                                                                    |
-| 10   | Security/privacy hardening + legal              | PARTIAL (RLS, MFA option, validation) / MISSING (headers, scanners, legal pages) / BLOCKED (reviewer).                                                                      |
-| 11   | Reliability, backups, monitoring, cost          | PARTIAL / MISSING / BLOCKED (RPO/RTO approval).                                                                                                                             |
-| 12   | UI/accessibility/browser/content coverage       | PARTIAL.                                                                                                                                                                    |
-| 13   | Staging + closed pilot                          | MISSING.                                                                                                                                                                    |
-| 14   | GA                                              | MISSING.                                                                                                                                                                    |
+Wave 1/2 remediation is PR #32, merged as `3320968`; the completed
+deliverables below are now on `main`. The
+`supabase/wave-1-2-remediation.sql` migration is applied to the Supabase
+project.
 
-Recommended next PR after owner review: **Wave 1/2 remediation** (small,
-unblocked, no owner decision required), then **Wave 3** once identity/region
-decisions are recorded, while PR #29 (waves 4–5) waits for Anthropic credits.
+| Wave | Roadmap deliverable                             | Audit result                                                                                                                                                                                        |
+| ---- | ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0    | This audit                                      | This document.                                                                                                                                                                                      |
+| 1    | Unified ticket lifecycle + AI/human workflow    | COMPLETE (PR #32, merged `3320968`) — `Reopened` status, per-step outcomes, policy-gated verification exception, confidence/risk/handoff filters, richer `ticket_actions`.                          |
+| 2    | Requester portal + conversation                 | COMPLETE (PR #32, merged `3320968`) for the remediation scope — assignment/SLA visibility and last-updated requester copy; continued AI turn and self-service export/deletion remain separate gaps. |
+| 3    | Organisation onboarding, RBAC, tenant hardening | COMPLETE (PR #34, pending merge) — `supabase/wave-3-organizations.sql`, organization actions/UI, invitation acceptance, and Google/Microsoft SSO.                                                   |
+| 4    | AI gateway + real grounded provider             | BLOCKED on Anthropic credits; PR #29 ready. Remediation after unblock: secondary provider/failover, per-org kill switch, retry/circuit breaker.                                                     |
+| 5    | Knowledge governance + citations                | Implemented on PR #29 (ships with wave 4). YouTube sources MISSING.                                                                                                                                 |
+| 6    | Secure images/PDFs                              | Largely COMPLETE via #30. BLOCKED: scanner choice. MISSING: OCR/extraction + sensitive-data check.                                                                                                  |
+| 7    | Notifications, SLA, live operations             | PARTIAL — push only; outbox/email MISSING; BLOCKED on email provider.                                                                                                                               |
+| 8    | Trust centre + analytics                        | PARTIAL.                                                                                                                                                                                            |
+| 9    | Versioned API, webhooks, sandbox                | MISSING.                                                                                                                                                                                            |
+| 10   | Security/privacy hardening + legal              | PARTIAL (RLS, MFA option, validation) / MISSING (headers, scanners, legal pages) / BLOCKED (reviewer).                                                                                              |
+| 11   | Reliability, backups, monitoring, cost          | PARTIAL / MISSING / BLOCKED (RPO/RTO approval).                                                                                                                                                     |
+| 12   | UI/accessibility/browser/content coverage       | PARTIAL.                                                                                                                                                                                            |
+| 13   | Staging + closed pilot                          | MISSING.                                                                                                                                                                                            |
+| 14   | GA                                              | MISSING.                                                                                                                                                                                            |
+
+Recommended next PR after owner review: **Wave 4** while PR #29 (waves 4–5)
+waits for Anthropic credits.
 
 ---
 
-## Part D — Owner decisions still open (Roadmap §14)
+## Part D — Owner decisions (Roadmap §14)
 
-| Decision                                                | Blocks                 | Status                                                       |
-| ------------------------------------------------------- | ---------------------- | ------------------------------------------------------------ |
-| Launch region, school scope, minimum user age           | Wave 3, privacy review | Open                                                         |
-| Primary/secondary AI provider, retention terms          | Wave 4                 | Primary = Anthropic (chosen); credits and secondary open     |
-| Identity provider / school SSO                          | Wave 3                 | Open                                                         |
-| Malware scanner and quotas                              | Wave 6                 | Quotas = roadmap defaults; scanner open (`none` today)       |
-| Email provider / sending domain                         | Wave 7                 | Open                                                         |
-| Default retention/deletion policy                       | Pilot                  | Attachments 365 days; tickets open                           |
-| Business hours, priorities, response/resolution targets | Wave 7                 | Response targets exist per priority; resolution targets open |
-| Privacy/security reviewer, pen-test owner               | Wave 10                | Open                                                         |
-| Support/on-call owner, incident contact                 | Pilot/GA               | Open                                                         |
-| Hosting budget, reliability objectives                  | Wave 11                | Open                                                         |
+Recorded decisions require legal review before school rollout.
+
+| Decision                                                | Blocks                 | Status                                                                                                                |
+| ------------------------------------------------------- | ---------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Launch region, school scope, minimum user age           | Wave 3, privacy review | RECORDED — launch region United States; under-13 students in scope with COPPA/FERPA review gate before school rollout |
+| Primary/secondary AI provider, retention terms          | Wave 4                 | Primary = Anthropic (chosen); credits and secondary open                                                              |
+| Identity provider / school SSO                          | Wave 3                 | RECORDED — identity = Google Workspace + Microsoft Entra SSO for org members                                          |
+| Malware scanner and quotas                              | Wave 6                 | Quotas = roadmap defaults; scanner open (`none` today)                                                                |
+| Email provider / sending domain                         | Wave 7                 | Open                                                                                                                  |
+| Default retention/deletion policy                       | Pilot                  | Attachments 365 days; tickets open                                                                                    |
+| Business hours, priorities, response/resolution targets | Wave 7                 | Response targets exist per priority; resolution targets open                                                          |
+| Privacy/security reviewer, pen-test owner               | Wave 10                | Open                                                                                                                  |
+| Support/on-call owner, incident contact                 | Pilot/GA               | Open                                                                                                                  |
+| Hosting budget, reliability objectives                  | Wave 11                | Open                                                                                                                  |
 
 ---
 
@@ -527,9 +533,8 @@ decisions are recorded, while PR #29 (waves 4–5) waits for Anthropic credits.
   secure attachments are enabled. Removal needs a data migration.
 - Legacy statuses `Open` and `Waiting` are still valid in the DB check
   constraint; new tickets use the 5K vocabulary.
-- Roles are `admin`/`support_agent`; roadmap names are `org_admin`/
-  `support_agent`/`platform_admin`. Renaming requires a migration and
-  should be done in Wave 3 with evidence, not by reinterpretation.
+- Legacy `admin` remains legal for rollback safety; Wave 3 maps it to
+  `org_admin` and adds requester/platform-admin membership paths.
 - Every `supabase/*.sql` file ends with a commented rollback block; all are
   additive and have been applied to the production Supabase project.
 - Guest single-ticket access links (#28) were deferred because guest

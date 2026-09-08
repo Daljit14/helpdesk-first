@@ -31,7 +31,9 @@ export async function transitionKnowledgeGuide(
 ): Promise<{ error: string } | { success: true }> {
   if (!isKnowledgeGovernanceEnabled()) return { error: "Not available." };
   const session = await getAdminSession();
-  if (!session || session.role !== "admin") return { error: "Not authorized." };
+  if (!session || session.role !== "org_admin") {
+    return { error: "Not authorized." };
+  }
   if (!(await limiter.check(`knowledge:${session.userId}`)).allowed) {
     return { error: "Too many requests. Please try again later." };
   }
@@ -53,7 +55,9 @@ export async function updateKnowledgeGuideMetadata(
 ): Promise<{ error: string } | { success: true }> {
   if (!isKnowledgeGovernanceEnabled()) return { error: "Not available." };
   const session = await getAdminSession();
-  if (!session || session.role !== "admin") return { error: "Not authorized." };
+  if (!session || session.role !== "org_admin") {
+    return { error: "Not authorized." };
+  }
   if (!(await limiter.check(`knowledge:${session.userId}`)).allowed) {
     return { error: "Too many requests. Please try again later." };
   }

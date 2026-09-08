@@ -31,7 +31,7 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 const admin = {
   userId: "00000000-0000-0000-0000-000000000001",
   email: "admin@example.com",
-  role: "admin" as const,
+  role: "org_admin" as const,
   organizationId: "00000000-0000-0000-0000-000000000002",
   displayName: "Admin",
 };

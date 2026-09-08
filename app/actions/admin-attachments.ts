@@ -204,7 +204,7 @@ export async function adminUpdateAttachmentPolicy(
   if (
     !session ||
     session.organizationId !== organizationId ||
-    session.role !== "admin"
+    session.role !== "org_admin"
   ) {
     return { error: "Not authorized." };
   }

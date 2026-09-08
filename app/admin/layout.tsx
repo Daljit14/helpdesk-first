@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { adminLogout } from "@/app/actions/admin-auth";
-import { getAdminSession } from "@/lib/admin/auth";
+import { adminRoleLabel, getAdminSession } from "@/lib/admin/auth";
 import { Button } from "@/components/ui/button";
 import { AdminThemeToggle } from "@/components/admin/admin-theme-toggle";
 import { isSecureAttachmentsEnabled } from "@/lib/admin/flags";
@@ -19,7 +19,7 @@ export default async function AdminLayout({
   return (
     <div className="flex min-h-full flex-1 flex-col">
       <header className="sticky top-3 z-40 px-4">
-        <div className="glass-pill mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-4 px-5 py-2.5">
+        <div className="glass-pill glass-pill--solid mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-4 px-5 py-2.5">
           <Link href="/admin/operations" className="font-semibold">
             HelpDesk First · Operations
           </Link>
@@ -27,7 +27,12 @@ export default async function AdminLayout({
             <AdminThemeToggle />
             {session && (
               <>
-                <span className="glass-pill px-3 py-1">{session.role}</span>
+                <span
+                  className="glass-pill px-3 py-1"
+                  title="Your role in this organization"
+                >
+                  {adminRoleLabel(session.role, session.isPlatformAdmin)}
+                </span>
                 <nav className="flex gap-1">
                   <Link
                     className="rounded-full px-3 py-2 hover:bg-muted"
@@ -47,6 +52,22 @@ export default async function AdminLayout({
                   >
                     Tickets
                   </Link>
+                  {session.role === "org_admin" && (
+                    <Link
+                      className="rounded-full px-3 py-2 hover:bg-muted"
+                      href="/admin/organization"
+                    >
+                      Organization
+                    </Link>
+                  )}
+                  {session.isPlatformAdmin && (
+                    <Link
+                      className="rounded-full px-3 py-2 hover:bg-muted"
+                      href="/admin/organizations"
+                    >
+                      Organizations
+                    </Link>
+                  )}
                   {isSecureAttachmentsEnabled() && (
                     <Link
                       className="rounded-full px-3 py-2 hover:bg-muted"

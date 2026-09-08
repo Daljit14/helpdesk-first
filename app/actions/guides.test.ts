@@ -1,8 +1,9 @@
-import { afterEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { submitTicket } from "./guides";
 
 const mocks = vi.hoisted(() => ({
   getCurrentUser: vi.fn(),
+  createAdminClient: vi.fn(),
   createClient: vi.fn(),
   insert: vi.fn(),
 }));
@@ -15,6 +16,9 @@ vi.mock("@/lib/supabase/user", () => ({
 vi.mock("@/lib/supabase/server", () => ({
   createClient: mocks.createClient,
 }));
+vi.mock("@/lib/supabase/admin", () => ({
+  createAdminClient: mocks.createAdminClient,
+}));
 vi.mock("@/lib/analytics/events", () => ({
   recordAnalyticsEvent: vi.fn(),
 }));
@@ -23,6 +27,7 @@ afterEach(() => {
   vi.unstubAllEnvs();
   getCurrentUser.mockReset();
   createClient.mockReset();
+  mocks.createAdminClient.mockReset();
   insert.mockReset();
 });
 
@@ -35,6 +40,18 @@ function formData(attachmentPath: string) {
 }
 
 describe("submitTicket attachment paths", () => {
+  beforeEach(() => {
+    const chain = {
+      select: vi.fn(() => chain),
+      eq: vi.fn(() => chain),
+      limit: vi.fn(() => chain),
+      maybeSingle: vi.fn(async () => ({ data: null, error: null })),
+    };
+    mocks.createAdminClient.mockReturnValue({
+      from: vi.fn(() => chain),
+    });
+  });
+
   test.each([
     "another-user/attachment.png",
     "user-1/../another-user/attachment.png",

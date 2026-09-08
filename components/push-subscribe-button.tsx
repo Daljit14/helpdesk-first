@@ -16,7 +16,7 @@ export function PushSubscribeButton() {
     try {
       const permission = await Notification.requestPermission();
       if (permission !== "granted") {
-        setError("Notifications were not allowed.");
+        setError("Notifications are blocked in your browser settings.");
         return;
       }
       const subscription = await subscribeToPush();
@@ -30,7 +30,11 @@ export function PushSubscribeButton() {
         body: JSON.stringify(subscription.toJSON()),
       });
       if (!res.ok) {
-        setError("Could not save your subscription.");
+        setError(
+          res.status === 401
+            ? "Log in to get notified."
+            : "Could not save your subscription. Try again."
+        );
         return;
       }
       setSubscribed(true);
@@ -76,7 +80,20 @@ export function PushSubscribeButton() {
           ? "Turn off ticket alerts"
           : "Get notified on ticket updates"}
       </Button>
-      {error && <span className="text-sm text-destructive">{error}</span>}
+      {error && (
+        <>
+          <span className="text-sm text-destructive">{error}</span>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            onClick={() => void enable()}
+            disabled={pending}
+          >
+            Try again
+          </Button>
+        </>
+      )}
     </div>
   );
 }

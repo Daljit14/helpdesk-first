@@ -17,8 +17,9 @@ import {
 
 type Member = {
   userId: string;
-  displayName: string;
-  role: "org_admin" | "support_agent";
+  email?: string;
+  displayName?: string;
+  role: "org_admin" | "support_agent" | "platform_admin";
 };
 
 type ResolutionValues = {
@@ -199,14 +200,27 @@ export function TicketWorkflowActions({
                 <option value="">Select employee</option>
                 {members.map((member) => (
                   <option key={member.userId} value={member.userId}>
-                    {member.displayName} (
+                    {member.email ?? member.displayName ?? member.userId} —{" "}
                     {member.role === "org_admin"
-                      ? "Organization admin"
-                      : "Support agent"}
-                    )
+                      ? "Org admin"
+                      : member.role === "platform_admin"
+                        ? "Platform admin"
+                        : "Support agent"}
                   </option>
                 ))}
               </select>
+              {members.length === 0 && (
+                <span className="text-xs text-muted-foreground">
+                  No support staff yet. Invite them from the{" "}
+                  <a
+                    href="/admin/organization"
+                    className="underline underline-offset-2"
+                  >
+                    Organization page
+                  </a>
+                  .
+                </span>
+              )}
             </label>
             <button
               type="submit"

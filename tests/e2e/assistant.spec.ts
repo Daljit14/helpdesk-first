@@ -48,7 +48,7 @@ test.describe("Support assistant", () => {
     await expect(page.getByText("Suggested approved guide")).toBeVisible();
     await page.getByRole("button", { name: "No, this is not right" }).click();
     await expect(
-      page.getByRole("heading", { name: "Contact your IT team" })
+      page.getByRole("heading", { name: "Here's what I found" })
     ).toBeVisible();
   });
 

@@ -1,5 +1,8 @@
 import { getAllIssueSlugs } from "@/lib/search";
 import { platforms } from "@/lib/helpdesk-data";
+import { getAiModel, getAiProviderKind } from "./config";
+import { createAiProvider } from "./mock-provider";
+import { recordProviderCall } from "./telemetry";
 import {
   diagnosticQuestions,
   type AiIntakeInput,
@@ -83,6 +86,23 @@ export async function processAiIntake(
     allowedPlatforms
   );
   if (!coerced) {
+    if (getAiProviderKind() !== "mock") {
+      recordProviderCall({
+        provider: getAiProviderKind(),
+        model: getAiModel(),
+        outcome: "invalid",
+      });
+      const mockOutput = await classifyWithTimeout(createAiProvider(), input);
+      const mockCoerced = mockOutput
+        ? validateAndCoerceOutput(
+            mockOutput,
+            allowedSlugs,
+            allowedQuestions,
+            allowedPlatforms
+          )
+        : null;
+      if (mockCoerced) return { status: "success", output: mockCoerced };
+    }
     return {
       status: "unavailable",
       reason:

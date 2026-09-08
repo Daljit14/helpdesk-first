@@ -45,6 +45,7 @@ export function OrganizationPanel({
 }) {
   const [pending, startTransition] = useTransition();
   const [notice, setNotice] = useState<string | null>(null);
+  const [inviteNotice, setInviteNotice] = useState<string | null>(null);
   const [domain, setDomain] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("requester");
@@ -57,15 +58,16 @@ export function OrganizationPanel({
   function run(
     action: () => Promise<
       { error: string } | { success: true; [key: string]: unknown }
-    >
+    >,
+    setResult: (value: string) => void = setNotice
   ) {
     startTransition(async () => {
       const result = await action();
       if ("error" in result && typeof result.error === "string")
-        setNotice(result.error);
+        setResult(result.error);
       else {
         const inviteUrl = "inviteUrl" in result ? result.inviteUrl : null;
-        setNotice(
+        setResult(
           typeof inviteUrl === "string" ? `Invite link: ${inviteUrl}` : "Saved."
         );
       }
@@ -293,13 +295,19 @@ export function OrganizationPanel({
           <button
             type="button"
             className="glass-pill px-4 py-2"
-            onClick={() => run(() => inviteMember({ email, role }))}
+            onClick={() =>
+              run(() => inviteMember({ email, role }), setInviteNotice)
+            }
           >
             Create invite
           </button>
         </div>
+        {inviteNotice && (
+          <p className="rounded-2xl bg-muted p-3 text-sm">{inviteNotice}</p>
+        )}
         <p className="text-xs text-muted-foreground">
-          Wave 7 owns email delivery. Copy the generated link to share it.
+          An email with the invite link is sent automatically. You can also copy
+          the link.
         </p>
         <ul className="grid gap-2 text-sm">
           {invitations.map((item) => (
@@ -310,7 +318,9 @@ export function OrganizationPanel({
               <button
                 type="button"
                 className="underline"
-                onClick={() => run(() => revokeInvitation(item.id))}
+                onClick={() =>
+                  run(() => revokeInvitation(item.id), setInviteNotice)
+                }
               >
                 Revoke
               </button>

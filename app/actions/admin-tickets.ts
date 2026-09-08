@@ -5,6 +5,7 @@ import { z } from "zod";
 import { getAdminSession, recordAudit } from "@/lib/admin/auth";
 import { isAdminDashboardEnabled } from "@/lib/admin/flags";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { notifyStatusChange } from "@/lib/tickets/notify";
 
 export type UpdateTicketState = {
   error?: string;
@@ -42,6 +43,13 @@ export async function updateTicket(
   const { ticketId, status, priority, assignedAgent, resolutionSummary } =
     parsed.data;
   const admin = createAdminClient();
+  const { data: previous } = await admin
+    .from("tickets")
+    .select("id,user_id,issue_title,status")
+    .eq("id", ticketId)
+    .eq("organization_id", session.organizationId)
+    .maybeSingle();
+  if (!previous) return { error: "Ticket not found." };
   const { data, error } = await admin
     .from("tickets")
     .update({
@@ -56,6 +64,13 @@ export async function updateTicket(
     .maybeSingle();
 
   if (error || !data) return { error: "Ticket not found." };
+  if (previous.status !== status) {
+    await notifyStatusChange(previous, {
+      from: previous.status,
+      to: status,
+      actorType: "employee",
+    });
+  }
 
   await recordAudit(session, "ticket.update", ticketId);
   revalidatePath(`/admin/tickets/${ticketId}`);

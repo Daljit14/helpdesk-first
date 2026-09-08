@@ -7,6 +7,7 @@ import {
   type AiProvider,
   type DiagnosticQuestion,
 } from "./types";
+import { getSafeResponseLimit } from "./safety-policy";
 
 export type CatalogEntry = {
   slug: string;
@@ -66,6 +67,7 @@ export const CLASSIFY_TOOL = {
       diagnosticQuestionIds: {
         type: "array",
         items: { type: "string" },
+        maxItems: 3,
       },
       explanation: { type: "string" },
       escalationReason: { type: "string" },
@@ -103,6 +105,8 @@ export function buildSystemPrompt(
     "You are a safety-first IT support intake classifier.",
     "You never author troubleshooting steps. Only select an approved guide slug from the catalog, ask approved diagnostic question ids, or escalate.",
     "Escalate when uncertain, privileged, security/password/MFA/malware/data-recovery/BIOS/remote, or when no matching guide exists. Confidence must be between 0 and 1.",
+    "Ask at most 3 diagnostic question ids per turn, most useful first.",
+    "Prefer decision match when a catalog guide clearly fits the described symptoms (e.g. a frozen or hanging computer -> computer-freezing); ask questions only when the message is too vague to choose a guide.",
     "Approved guide catalog (slug | title | category | devices | first 3 symptoms):",
     catalogText,
     `Allowed diagnostic question ids: ${questions.map((question) => question.id).join(", ")}`,
@@ -112,7 +116,17 @@ export function buildSystemPrompt(
 
 export function parseToolResult(json: unknown): AiIntakeOutput | null {
   const parsed = outputSchema.safeParse(json);
-  return parsed.success ? parsed.data : null;
+  if (!parsed.success) return null;
+  if (Array.isArray(parsed.data.diagnosticQuestionIds)) {
+    return {
+      ...parsed.data,
+      diagnosticQuestionIds: parsed.data.diagnosticQuestionIds.slice(
+        0,
+        getSafeResponseLimit()
+      ),
+    };
+  }
+  return parsed.data;
 }
 
 export class AnthropicAiProvider implements AiProvider {

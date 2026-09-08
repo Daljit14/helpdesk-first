@@ -257,18 +257,16 @@ export async function addUserComment(
     user.id,
     { preview: body.data.slice(0, 80) }
   );
-  {
-    const ticketRow = {
-      id: ticketId,
-      user_id: user.id,
-      organization_id: ticket.data.organization_id,
-      issue_title: ticket.data.issue_title ?? "IT support request",
-      assigned_agent_id: ticket.data.assigned_agent_id ?? null,
-    };
-    await notifyAssignedStaff("reply.public", ticketRow, {
-      publicReplyExcerpt: body.data,
-    });
-  }
+  const ticketRow = {
+    id: ticketId,
+    user_id: user.id,
+    organization_id: ticket.data.organization_id,
+    issue_title: ticket.data.issue_title ?? "IT support request",
+    assigned_agent_id: ticket.data.assigned_agent_id ?? null,
+  };
+  await notifyAssignedStaff("reply.public", ticketRow, {
+    publicReplyExcerpt: body.data,
+  });
   revalidatePath(`/tickets/${ticketId}`);
   return { success: true };
 }

@@ -48,9 +48,6 @@ function inputs(overrides: Partial<EscalationInputs> = {}): EscalationInputs {
         },
       ],
       excluded_steps: [],
-      withheld_steps: [
-        { guideSlug: "computer-freezing", stepIndex: 1, risk: "approval" },
-      ],
       status: "escalated",
       escalation_package: null,
       escalation_package_at: null,

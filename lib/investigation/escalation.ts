@@ -238,8 +238,7 @@ export function buildEscalationPackage(
         at: step.created_at,
       };
     });
-  const latestWithheld =
-    turn?.withheld_steps ?? inputs.investigation?.withheld_steps ?? [];
+  const latestWithheld = turn?.withheld_steps ?? [];
   const withheldSteps = latestWithheld.slice(0, 40).map((step: StepRef) => {
     const details = stepDetails(step.guideSlug, step.stepIndex);
     return {

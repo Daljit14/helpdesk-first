@@ -5,3 +5,7 @@ export function isInvestigationEnabled(): boolean {
 export function isStepPolicyEnabled(): boolean {
   return process.env.HELP_DESK_STEP_POLICY_ENABLED === "true";
 }
+
+export function isEscalationPackageEnabled(): boolean {
+  return process.env.HELP_DESK_ESCALATION_PACKAGE_ENABLED === "true";
+}

@@ -1,7 +1,14 @@
 import { createConfiguredAiProvider } from "@/lib/ai/provider-factory";
 import { loadFailedSteps } from "@/lib/investigation/load";
 import { runInvestigationTurn } from "@/lib/investigation/engine";
-import { isInvestigationEnabled } from "@/lib/investigation/config";
+import {
+  isEscalationPackageEnabled,
+  isInvestigationEnabled,
+} from "@/lib/investigation/config";
+import {
+  snapshotEscalationPackage,
+  summarizeEscalationPackage,
+} from "@/lib/investigation/escalation";
 import { getApprovedSlugs } from "@/lib/knowledge/governance";
 import { getIssueBySlug } from "@/lib/search";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -130,6 +137,10 @@ export async function triageWorkflowTicket(params: {
         message: `I found an approved guide: ${matched?.title ?? "the recommended guide"}.`,
       });
     } else {
+      const packageSnapshot =
+        isEscalationPackageEnabled() && organizationId
+          ? await snapshotEscalationPackage(admin, ticketId, organizationId)
+          : null;
       await event(ticketId, organizationId, "ai.escalated", "ai", null, {
         reason: decision.reason,
       });
@@ -145,6 +156,9 @@ export async function triageWorkflowTicket(params: {
           issue_title: issue?.title ?? "IT support request",
           priority: "Normal",
           human_response_due_at: due,
+          diagnosis: packageSnapshot
+            ? summarizeEscalationPackage(packageSnapshot)
+            : undefined,
         });
       }
     }
@@ -166,6 +180,14 @@ export async function triageWorkflowTicket(params: {
       ticketUpdate = ticketUpdate.eq("organization_id", organizationId);
     }
     await ticketUpdate;
+    const packageSnapshot =
+      isEscalationPackageEnabled() && organizationId
+        ? await snapshotEscalationPackage(
+            failureAdmin,
+            ticketId,
+            organizationId
+          )
+        : null;
     await event(ticketId, organizationId, "ai.escalated", "ai", null, {
       reason: "Automatic triage failed.",
     });
@@ -175,6 +197,9 @@ export async function triageWorkflowTicket(params: {
         issue_title: issue?.title ?? "IT support request",
         priority: "Normal",
         human_response_due_at: due,
+        diagnosis: packageSnapshot
+          ? summarizeEscalationPackage(packageSnapshot)
+          : undefined,
       });
     }
   }

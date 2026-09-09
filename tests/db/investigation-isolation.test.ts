@@ -92,6 +92,7 @@ describe.skipIf(!canRun)("investigation tenant isolation", () => {
             context: {},
             hypotheses: [],
             excluded_steps: [],
+            escalation_package: { version: 1 },
           })
         ).error
       ).toBeNull();
@@ -106,6 +107,12 @@ describe.skipIf(!canRun)("investigation tenant isolation", () => {
         .eq("ticket_id", ticketId);
       expect(foreignRead.error).toBeNull();
       expect(foreignRead.data).toEqual([]);
+      const foreignPackage = await anon
+        .from("ticket_investigations")
+        .select("escalation_package")
+        .eq("ticket_id", ticketId);
+      expect(foreignPackage.error).toBeNull();
+      expect(foreignPackage.data).toEqual([]);
       const foreignTurns = await anon
         .from("ticket_investigation_turns")
         .select("*")

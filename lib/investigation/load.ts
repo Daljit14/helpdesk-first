@@ -35,7 +35,9 @@ export async function loadInvestigation(
   try {
     const investigation = await client
       .from("ticket_investigations")
-      .select("*")
+      .select(
+        "ticket_id,organization_id,user_id,context,hypotheses,excluded_steps,status,escalation_package,escalation_package_at,created_at,updated_at"
+      )
       .eq("ticket_id", ticketId)
       .maybeSingle();
     if (investigation.error) throw investigation.error;

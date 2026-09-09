@@ -28,6 +28,11 @@ import { attachTicketAttachments } from "@/lib/attachments/server";
 import { resolveOrganizationForUser } from "@/lib/org/membership";
 import { event } from "@/lib/tickets/events";
 import { triageWorkflowTicket } from "@/lib/tickets/triage";
+import { isEscalationPackageEnabled } from "@/lib/investigation/config";
+import {
+  snapshotEscalationPackage,
+  summarizeEscalationPackage,
+} from "@/lib/investigation/escalation";
 
 type Result = { error: string } | { success: true; ticketId?: string };
 const limiter = new MemoryRateLimiter({
@@ -174,11 +179,22 @@ export async function requestHuman(
     .eq("id", ticketId)
     .maybeSingle();
   if (ticket) {
+    const packageSnapshot =
+      isEscalationPackageEnabled() && ticket.organization_id
+        ? await snapshotEscalationPackage(
+            admin,
+            ticketId,
+            ticket.organization_id
+          )
+        : null;
     await notifyEmployeesOfHandoff(ticket.organization_id, {
       id: ticketId,
       issue_title: ticket.issue_title,
       priority: ticket.priority,
       human_response_due_at: ticket.human_response_due_at,
+      diagnosis: packageSnapshot
+        ? summarizeEscalationPackage(packageSnapshot)
+        : undefined,
     });
   }
   revalidatePath(`/tickets/${ticketId}`);

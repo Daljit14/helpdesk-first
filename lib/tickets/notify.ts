@@ -14,6 +14,7 @@ export async function notifyEmployeesOfHandoff(
     issue_title: string;
     priority: string;
     human_response_due_at?: string | null;
+    diagnosis?: string;
   }
 ): Promise<void> {
   const admin = createAdminClient();
@@ -25,11 +26,17 @@ export async function notifyEmployeesOfHandoff(
   if (isNotificationsEnabled()) {
     const recipients = (members ?? []).map((member) => member.user_id);
     const eventType = "ticket.handoff" as const;
-    const message = buildNotification(eventType, {
+    const notification = buildNotification(eventType, {
       ticketTitle: ticket.issue_title,
       ticketId: ticket.id,
       status: "Needs Human",
     });
+    const message = ticket.diagnosis
+      ? {
+          ...notification,
+          body: `${notification.body}\n\nDiagnosis: ${ticket.diagnosis}`,
+        }
+      : notification;
     await enqueueNotification({
       organizationId,
       ticketId: ticket.id,

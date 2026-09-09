@@ -6,6 +6,8 @@ const mocks = vi.hoisted(() => ({
   processAiIntake: vi.fn(),
   notifyEmployeesOfHandoff: vi.fn(),
   notifyRequester: vi.fn(),
+  isEscalationPackageEnabled: vi.fn(),
+  snapshotEscalationPackage: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/admin", () => ({
@@ -21,6 +23,14 @@ vi.mock("@/lib/tickets/notify", () => ({
   notifyEmployeesOfHandoff: mocks.notifyEmployeesOfHandoff,
   notifyRequester: mocks.notifyRequester,
 }));
+vi.mock("@/lib/investigation/config", () => ({
+  isInvestigationEnabled: () => false,
+  isEscalationPackageEnabled: mocks.isEscalationPackageEnabled,
+}));
+vi.mock("@/lib/investigation/escalation", () => ({
+  snapshotEscalationPackage: mocks.snapshotEscalationPackage,
+  summarizeEscalationPackage: () => "Diagnosis summary",
+}));
 
 import { triageWorkflowTicket } from "./triage";
 
@@ -31,6 +41,8 @@ describe("triageWorkflowTicket", () => {
     mocks.processAiIntake.mockRejectedValue(new Error("provider unavailable"));
     mocks.notifyEmployeesOfHandoff.mockResolvedValue(undefined);
     mocks.notifyRequester.mockResolvedValue(undefined);
+    mocks.isEscalationPackageEnabled.mockReturnValue(false);
+    mocks.snapshotEscalationPackage.mockResolvedValue(null);
   });
 
   it("escalates when automatic triage fails", async () => {
@@ -89,5 +101,59 @@ describe("triageWorkflowTicket", () => {
       "org-1",
       expect.objectContaining({ id: "ticket-1" })
     );
+  });
+
+  it("snapshots an escalation package only when the flag is enabled", async () => {
+    mocks.isEscalationPackageEnabled.mockReturnValue(true);
+    mocks.snapshotEscalationPackage.mockResolvedValue({
+      version: 1,
+    });
+    const chain = {
+      update: vi.fn(() => chain),
+      eq: vi.fn(() => chain),
+    };
+    mocks.createAdminClient.mockReturnValue({
+      from: vi.fn((table: string) => {
+        if (table === "tickets") return chain;
+        if (table === "ticket_system_events") {
+          return {
+            insert: vi.fn(async () => ({ error: null })),
+          };
+        }
+        return { insert: vi.fn(async () => ({ error: null })) };
+      }),
+    });
+
+    await triageWorkflowTicket({
+      ticketId: "ticket-1",
+      organizationId: "org-1",
+      userId: "user-1",
+      issue: null,
+      message: "Needs support",
+      platform: "Windows",
+      diagnosticAnswers: [],
+      due: "2026-01-01T00:00:00.000Z",
+    });
+
+    expect(mocks.snapshotEscalationPackage).toHaveBeenCalledWith(
+      expect.anything(),
+      "ticket-1",
+      "org-1"
+    );
+    mocks.isEscalationPackageEnabled.mockReturnValue(false);
+    mocks.snapshotEscalationPackage.mockClear();
+
+    await triageWorkflowTicket({
+      ticketId: "ticket-2",
+      organizationId: "org-1",
+      userId: "user-1",
+      issue: null,
+      message: "Needs support",
+      platform: "Windows",
+      diagnosticAnswers: [],
+      due: "2026-01-01T00:00:00.000Z",
+    });
+
+    expect(mocks.snapshotEscalationPackage).not.toHaveBeenCalled();
   });
 });

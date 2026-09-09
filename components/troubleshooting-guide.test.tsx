@@ -10,6 +10,7 @@ import { TroubleshootingGuide } from "./troubleshooting-guide";
 import { ISSUES } from "@/lib/issues";
 import { getIssueSteps } from "@/lib/steps";
 import { clearAllSessions } from "@/lib/session";
+import { getIssueStepPolicies } from "@/lib/investigation/policy";
 
 const issue = ISSUES.find((i) => i.id === "no-sound")!;
 const steps = getIssueSteps(issue);
@@ -135,5 +136,67 @@ describe("TroubleshootingGuide", () => {
     await waitFor(() => {
       expect(screen.getByTestId("step-count")).toHaveTextContent(/Step 1 of 5/);
     });
+  });
+
+  test("caution steps require local confirmation before outcomes", async () => {
+    const cautionIssue = ISSUES.find((item) => item.id === "low-storage")!;
+    render(
+      <TroubleshootingGuide
+        issue={cautionIssue}
+        stepPolicies={getIssueStepPolicies(cautionIssue)}
+      />
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("step-count")).toHaveTextContent(/Step 1 of/)
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "I completed this step" })
+    );
+    await waitFor(() =>
+      expect(screen.getByText("Confirm first")).toBeInTheDocument()
+    );
+    expect(
+      screen.queryByRole("button", { name: "This did not work" })
+    ).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "I understand, continue" })
+    );
+    expect(
+      screen.getByRole("button", { name: "This did not work" })
+    ).toBeInTheDocument();
+  });
+
+  test("approval steps show the approval label without outcome buttons", async () => {
+    const approvalIssue = ISSUES.find((item) => item.id === "no-sound")!;
+    const policies = getIssueStepPolicies(approvalIssue).map((policy, index) =>
+      index === 0 ? { ...policy, risk: "approval" as const } : policy
+    );
+    render(
+      <TroubleshootingGuide issue={approvalIssue} stepPolicies={policies} />
+    );
+    await waitFor(() =>
+      expect(screen.getByText("Requires IT approval")).toBeInTheDocument()
+    );
+    expect(
+      screen.getByRole("button", { name: "Ask IT to approve" })
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "I completed this step" })
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Skip" })).toBeInTheDocument();
+  });
+
+  test("denied steps are omitted while raw indexes remain available", async () => {
+    const deniedIssue = ISSUES.find((item) => item.id === "no-sound")!;
+    const policies = getIssueStepPolicies(deniedIssue).map((policy, index) =>
+      index === 0 ? { ...policy, risk: "denied" as const } : policy
+    );
+    render(
+      <TroubleshootingGuide issue={deniedIssue} stepPolicies={policies} />
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("step-title")).toHaveTextContent(steps[1]!)
+    );
+    expect(screen.queryByText(steps[0]!)).not.toBeInTheDocument();
   });
 });

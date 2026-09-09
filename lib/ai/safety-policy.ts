@@ -58,6 +58,7 @@ const ALLOWED_OUTPUT_KEYS = new Set([
   "escalationReason",
   "hypotheses",
   "nextSteps",
+  "withheldSteps",
 ]);
 
 export function isAiEnabled(): AiAvailability {

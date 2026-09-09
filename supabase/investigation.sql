@@ -20,6 +20,7 @@ create table if not exists public.ticket_investigation_turns (
   question_ids jsonb not null default '[]'::jsonb,
   hypotheses jsonb not null default '[]'::jsonb,
   next_steps jsonb not null default '[]'::jsonb,
+  withheld_steps jsonb not null default '[]'::jsonb,
   provider text not null check (length(provider) <= 40),
   model text check (length(model) <= 120),
   created_at timestamptz not null default now()

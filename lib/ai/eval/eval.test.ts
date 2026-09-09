@@ -127,4 +127,30 @@ describe("grounded AI evaluation", () => {
       ).toBe(false);
     }
   });
+
+  test("requester next steps never contain approval or denied risks", async () => {
+    process.env.HELP_DESK_AI_ENABLED = "true";
+    const result = await runInvestigationTurn({
+      input: { message: "low storage", platform: "Windows" },
+      provider: {
+        classify: async () => ({
+          decision: "match",
+          matchedIssueSlug: "low-storage",
+          detectedPlatform: "Windows",
+          explanation: "A guide matches.",
+        }),
+      },
+      allowedSlugs: ["low-storage"],
+      audience: "requester",
+      persist: false,
+    });
+    expect(result.status).toBe("success");
+    if (result.status === "success") {
+      expect(
+        result.output.nextSteps?.some(
+          (step) => step.risk === "approval" || step.risk === "denied"
+        )
+      ).toBe(false);
+    }
+  });
 });

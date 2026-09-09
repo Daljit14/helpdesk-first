@@ -4,7 +4,12 @@ import type { AiIntakeInput, AiProvider } from "@/lib/ai/types";
 import { ISSUES } from "@/lib/issues";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isInvestigationEnabled } from "./config";
-import { containsFailedStep, deriveNextSteps } from "./steps";
+import {
+  containsFailedStep,
+  deriveNextSteps,
+  deriveWithheldSteps,
+} from "./steps";
+import type { Audience } from "./policy";
 
 type InvestigationClient = ReturnType<typeof createAdminClient>;
 
@@ -16,6 +21,7 @@ export type InvestigationTurnInput = {
   organizationId?: string | null;
   userId?: string;
   persist?: boolean;
+  audience?: Audience;
   admin?: InvestigationClient;
 };
 
@@ -62,6 +68,7 @@ async function persistTurn(
       question_ids: output.diagnosticQuestionIds ?? [],
       hypotheses: output.hypotheses ?? [],
       next_steps: output.nextSteps ?? [],
+      withheld_steps: output.withheldSteps ?? [],
       provider: getAiProviderKind(),
       model: getAiModel(),
     })
@@ -83,23 +90,37 @@ export async function runInvestigationTurn(
   }
 
   const failedSteps = params.input.failedSteps ?? [];
+  const audience = params.audience ?? "requester";
   let output = result.output;
   if (result.output.matchedIssueSlug) {
     const issue = ISSUES.find(
       (candidate) => candidate.id === result.output.matchedIssueSlug
     );
     if (issue) {
-      const nextSteps = deriveNextSteps(issue, failedSteps);
-      output = { ...result.output, nextSteps };
+      const nextSteps = deriveNextSteps(issue, failedSteps, audience);
+      const withheldSteps = deriveWithheldSteps(issue, audience);
+      output = { ...result.output, nextSteps, withheldSteps };
       if (nextSteps.length === 0) {
         output = {
           decision: "escalate",
           escalationReason:
-            "All approved steps for the matching guide were already tried.",
+            withheldSteps.length > 0
+              ? "Remaining steps for this guide require IT approval."
+              : "All approved steps for the matching guide were already tried.",
           confidence: output.confidence,
           hypotheses: output.hypotheses,
           nextSteps: [],
+          withheldSteps,
         };
+      }
+      if (
+        output.nextSteps?.some(
+          (step) => step.risk === "specialist" || step.risk === "denied"
+        ) ||
+        (audience === "requester" &&
+          output.nextSteps?.some((step) => step.risk === "approval"))
+      ) {
+        throw new Error("Investigation next steps violate step policy.");
       }
       if (containsFailedStep(output.nextSteps ?? [], failedSteps)) {
         throw new Error("Investigation next steps include a failed step.");

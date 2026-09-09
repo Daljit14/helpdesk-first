@@ -3,6 +3,7 @@ import type {
   InvestigationRow,
   InvestigationTurnRow,
 } from "@/lib/investigation/types";
+import { riskLabel } from "@/lib/investigation/policy";
 
 export function TicketInvestigation({
   investigation,
@@ -92,6 +93,38 @@ export function TicketInvestigation({
                 )}
               </li>
             ))}
+          </ul>
+        </div>
+      )}
+      {turns.some((turn) => turn.next_steps.length > 0) && (
+        <div className="space-y-2">
+          <h3 className="font-medium">Next steps</h3>
+          <ul className="space-y-1 text-sm">
+            {turns.flatMap((turn) =>
+              turn.next_steps.map((step) => (
+                <li key={`${turn.id}-${step.guideSlug}-${step.stepIndex}`}>
+                  Step {step.stepIndex + 1}{" "}
+                  <span className="rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground">
+                    {riskLabel(step.risk ?? "safe")}
+                  </span>
+                </li>
+              ))
+            )}
+          </ul>
+        </div>
+      )}
+      {turns.some((turn) => (turn.withheld_steps ?? []).length > 0) && (
+        <div className="space-y-2">
+          <h3 className="font-medium">Withheld by policy</h3>
+          <ul className="space-y-1 text-sm text-muted-foreground">
+            {turns.flatMap((turn) =>
+              (turn.withheld_steps ?? []).map((step) => (
+                <li key={`${turn.id}-${step.guideSlug}-${step.stepIndex}`}>
+                  Step {step.stepIndex + 1}:{" "}
+                  {riskLabel(step.risk ?? "approval")}
+                </li>
+              ))
+            )}
           </ul>
         </div>
       )}

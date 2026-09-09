@@ -1,6 +1,7 @@
-import { getIssueSteps } from "@/lib/steps";
 import type { Issue } from "@/lib/issues";
 import type { StepRef } from "@/lib/ai/types";
+import type { Audience } from "./policy";
+import { getIssueStepPolicies, isOfferable } from "./policy";
 
 export function containsFailedStep(
   steps: StepRef[],
@@ -17,13 +18,12 @@ export function containsFailedStep(
 
 export function deriveNextSteps(
   issue: Issue,
-  failedSteps: StepRef[]
+  failedSteps: StepRef[],
+  audience: Audience = "requester"
 ): StepRef[] {
-  const refs = getIssueSteps(issue).map((_, stepIndex) => ({
-    guideSlug: issue.id,
-    stepIndex,
-  }));
-  return refs
+  return getIssueStepPolicies(issue)
+    .filter((step) => isOfferable(step.risk, audience))
+    .map(({ guideSlug, stepIndex, risk }) => ({ guideSlug, stepIndex, risk }))
     .filter(
       (step) =>
         !failedSteps.some(
@@ -32,4 +32,13 @@ export function deriveNextSteps(
         )
     )
     .slice(0, 8);
+}
+
+export function deriveWithheldSteps(
+  issue: Issue,
+  audience: Audience = "requester"
+): StepRef[] {
+  return getIssueStepPolicies(issue)
+    .filter((step) => !isOfferable(step.risk, audience))
+    .map(({ guideSlug, stepIndex, risk }) => ({ guideSlug, stepIndex, risk }));
 }

@@ -12,15 +12,16 @@ import {
   toTicketId,
 } from "@/lib/operations/transform";
 import {
+  isEscalationPackageEnabled,
   isInvestigationEnabled,
   isResolutionTrackingEnabled,
+  isSecureAttachmentsEnabled,
+  isTicketWorkflowEnabled,
 } from "@/lib/admin/flags";
 import { getIssueBySlug } from "@/lib/search";
 import { TicketWorkflowActions } from "@/components/admin/ticket-workflow-actions";
 import { canAccessTicket } from "@/lib/admin/auth";
-import { isTicketWorkflowEnabled } from "@/lib/admin/flags";
 import { getCitation } from "@/lib/knowledge/governance";
-import { isSecureAttachmentsEnabled } from "@/lib/admin/flags";
 import { getOrganizationPolicy } from "@/lib/admin/policies";
 import { listAdminAttachments } from "@/app/actions/admin-attachments";
 import { AttachmentList } from "@/components/attachment-list";
@@ -28,6 +29,12 @@ import { AdminAttachmentControls } from "@/components/admin/admin-attachment-con
 import { ASSIGNABLE_ROLES, type AssignableRole } from "@/lib/org/roles";
 import { TicketInvestigation } from "@/components/ticket-investigation";
 import { loadInvestigation } from "@/lib/investigation/load";
+import {
+  buildEscalationPackage,
+  type EscalationPackage,
+} from "@/lib/investigation/escalation";
+import { loadEscalationInputs } from "@/lib/investigation/escalation-load";
+import { EscalationPackageCard } from "@/components/escalation-package";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -282,6 +289,44 @@ export default async function AdminTicketPage({
     isInvestigationEnabled() && workflowEnabled
       ? await loadInvestigation(admin, uuid)
       : null;
+  const escalationEnabled = isEscalationPackageEnabled() && workflowEnabled;
+  const shouldShowEscalation =
+    escalationEnabled &&
+    (["Needs Human", "In Progress", "Reopened"].includes(ticket.status) ||
+      investigation?.investigation.status === "escalated");
+  let escalationPackage: EscalationPackage | null = null;
+  let escalationSnapshotAt: string | null = null;
+  if (shouldShowEscalation) {
+    escalationPackage = investigation?.investigation.escalation_package ?? null;
+    escalationSnapshotAt =
+      investigation?.investigation.escalation_package_at ?? null;
+    if (!escalationPackage) {
+      const inputs = await loadEscalationInputs(
+        admin,
+        uuid,
+        session.organizationId
+      );
+      escalationPackage = inputs ? buildEscalationPackage(inputs) : null;
+    }
+    if (escalationPackage) {
+      const sources = await Promise.all(
+        escalationPackage.sources.map(async (source) => {
+          const sourceCitation = await getCitation(
+            source.guideSlug,
+            session.organizationId
+          );
+          return sourceCitation
+            ? {
+                ...source,
+                title: sourceCitation.title,
+                url: sourceCitation.url,
+              }
+            : source;
+        })
+      );
+      escalationPackage = { ...escalationPackage, sources };
+    }
+  }
 
   return (
     <section className="flex flex-1 flex-col px-4 py-10 sm:px-6 lg:px-8">
@@ -376,6 +421,12 @@ export default async function AdminTicketPage({
                       : JSON.stringify(ticket.diagnostic_answers ?? [])}
                   </p>
                 </div>
+                {escalationPackage && (
+                  <EscalationPackageCard
+                    pkg={escalationPackage}
+                    snapshotAt={escalationSnapshotAt}
+                  />
+                )}
                 {investigation && (
                   <TicketInvestigation
                     investigation={investigation.investigation}

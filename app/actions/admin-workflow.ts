@@ -7,7 +7,10 @@ import {
   getAdminSession,
   recordAudit,
 } from "@/lib/admin/auth";
-import { isTicketWorkflowEnabled } from "@/lib/admin/flags";
+import {
+  isEscalationPackageEnabled,
+  isTicketWorkflowEnabled,
+} from "@/lib/admin/flags";
 import { getOrganizationPolicy } from "@/lib/admin/policies";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ASSIGNABLE_ROLES } from "@/lib/org/roles";
@@ -25,6 +28,10 @@ import {
   notifyAssignedStaff,
   notifyStatusChange,
 } from "@/lib/tickets/notify";
+import {
+  snapshotEscalationPackage,
+  summarizeEscalationPackage,
+} from "@/lib/investigation/escalation";
 
 type Result = { error: string } | { success: true };
 const id = z.string().uuid();
@@ -214,6 +221,13 @@ export async function changeStatus(
     });
   }
   if (status === "Needs Human") {
+    const packageSnapshot = isEscalationPackageEnabled()
+      ? await snapshotEscalationPackage(
+          createAdminClient(),
+          ticketId,
+          found.session.organizationId
+        )
+      : null;
     await notifyRequester("ticket.handoff", found.ticket, {
       status: "Needs Human",
     });
@@ -222,6 +236,9 @@ export async function changeStatus(
       issue_title: found.ticket.issue_title,
       priority: found.ticket.priority,
       human_response_due_at: values.human_response_due_at as string,
+      diagnosis: packageSnapshot
+        ? summarizeEscalationPackage(packageSnapshot)
+        : undefined,
     });
   }
   await recordAudit(found.session, "ticket.status", ticketId);

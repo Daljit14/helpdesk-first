@@ -65,19 +65,30 @@ export function TicketInvestigation({
             {turns.map((turn, index) => (
               <li
                 key={String(turn.id ?? index)}
-                className="flex flex-wrap gap-x-2"
+                className="flex flex-wrap items-center gap-2"
               >
                 <span>{new Date(turn.created_at).toLocaleString()}</span>
-                <span>{turn.decision}</span>
+                <span aria-hidden="true">·</span>
+                <span className="glass-pill px-2 py-0.5 text-xs text-foreground">
+                  {turn.decision}
+                </span>
                 {turn.confidence !== null && (
-                  <span>{Math.round(turn.confidence * 100)}%</span>
+                  <>
+                    <span aria-hidden="true">·</span>
+                    <span>
+                      AI confidence {Math.round(turn.confidence * 100)}%
+                    </span>
+                  </>
                 )}
                 {turn.matched_issue_slug && (
-                  <span>
-                    {ISSUES.find(
-                      (issue) => issue.id === turn.matched_issue_slug
-                    )?.title ?? turn.matched_issue_slug}
-                  </span>
+                  <>
+                    <span aria-hidden="true">·</span>
+                    <span className="text-foreground">
+                      {ISSUES.find(
+                        (issue) => issue.id === turn.matched_issue_slug
+                      )?.title ?? turn.matched_issue_slug}
+                    </span>
+                  </>
                 )}
               </li>
             ))}

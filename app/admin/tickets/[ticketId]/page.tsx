@@ -286,12 +286,6 @@ export default async function AdminTicketPage({
   return (
     <section className="flex flex-1 flex-col px-4 py-10 sm:px-6 lg:px-8">
       <div className="mx-auto w-full max-w-7xl">
-        {investigation && (
-          <TicketInvestigation
-            investigation={investigation.investigation}
-            turns={investigation.turns}
-          />
-        )}
         <p className="font-mono text-sm text-muted-foreground">
           {toTicketId(ticket.id)}
         </p>
@@ -382,6 +376,12 @@ export default async function AdminTicketPage({
                       : JSON.stringify(ticket.diagnostic_answers ?? [])}
                   </p>
                 </div>
+                {investigation && (
+                  <TicketInvestigation
+                    investigation={investigation.investigation}
+                    turns={investigation.turns}
+                  />
+                )}
                 <div className="glass p-5">
                   <h2 className="font-semibold">Step outcomes</h2>
                   <ul className="mt-3 space-y-2 text-sm">

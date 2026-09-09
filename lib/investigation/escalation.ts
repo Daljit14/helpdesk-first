@@ -268,13 +268,15 @@ export function buildEscalationPackage(
     }));
   const sourceContext = inputs.investigation?.context ?? {};
   const context = {
-    os: nullableText(sourceContext.os),
-    device: nullableText(sourceContext.device),
-    app: nullableText(sourceContext.app),
-    userRole: nullableText(sourceContext.userRole),
     platform: nullableText(inputs.ticket.platform),
     requesterRole: nullableText(inputs.requesterRole),
     attachmentCount: inputs.attachmentCount,
+    ...(sourceContext.os ? { os: text(sourceContext.os) } : {}),
+    ...(sourceContext.device ? { device: text(sourceContext.device) } : {}),
+    ...(sourceContext.app ? { app: text(sourceContext.app) } : {}),
+    ...(sourceContext.userRole
+      ? { userRole: text(sourceContext.userRole) }
+      : {}),
   };
 
   return {

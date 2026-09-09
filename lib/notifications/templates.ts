@@ -23,6 +23,11 @@ export function buildNotification(
   let message = `${title} has an update.`;
 
   switch (eventType) {
+    case "account.created":
+      subject = "Welcome to HelpDesk First";
+      message =
+        "Your account is ready. Submit a ticket any time and you'll get an email the moment there's an update.";
+      break;
     case "ticket.created":
       subject = "Ticket received";
       message = `${title} was submitted successfully.`;

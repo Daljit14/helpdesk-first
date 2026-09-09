@@ -39,6 +39,7 @@ async function persistTurn(
         ticket_id: params.ticketId,
         organization_id: params.organizationId ?? null,
         user_id: params.userId,
+        updated_at: new Date().toISOString(),
         context: params.input.context ?? {},
         hypotheses: output.hypotheses ?? [],
         excluded_steps: failedSteps,

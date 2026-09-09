@@ -513,63 +513,8 @@ export function validateAiOutput(
   if (o.hypotheses !== undefined) {
     if (!Array.isArray(o.hypotheses)) {
       errors.push("hypotheses must be an array.");
-    } else {
-      if (o.hypotheses.length > MAX_HYPOTHESES) {
-        errors.push(`AI returned more than ${MAX_HYPOTHESES} hypotheses.`);
-      }
-      for (const hypothesis of o.hypotheses) {
-        if (
-          !hypothesis ||
-          typeof hypothesis !== "object" ||
-          Array.isArray(hypothesis)
-        ) {
-          errors.push("hypotheses must contain objects.");
-          continue;
-        }
-        const value = hypothesis as Record<string, unknown>;
-        if (
-          typeof value.cause !== "string" ||
-          value.cause.trim().length === 0 ||
-          value.cause.length > MAX_HYPOTHESIS_CAUSE_LENGTH ||
-          !isSafeString(value.cause)
-        ) {
-          errors.push("hypothesis cause is invalid.");
-        }
-        if (
-          typeof value.confidence !== "number" ||
-          value.confidence < 0 ||
-          value.confidence > 1
-        ) {
-          errors.push("hypothesis confidence must be between 0 and 1.");
-        }
-        if (!Array.isArray(value.evidence)) {
-          errors.push("hypothesis evidence must be an array.");
-        } else {
-          if (
-            value.evidence.length < 1 ||
-            value.evidence.length > MAX_EVIDENCE_ITEMS
-          ) {
-            errors.push(
-              `hypothesis evidence must contain 1 to ${MAX_EVIDENCE_ITEMS} items.`
-            );
-          }
-          for (const evidence of value.evidence) {
-            if (
-              typeof evidence !== "string" ||
-              evidence.length > MAX_EVIDENCE_LENGTH ||
-              !isSafeString(evidence)
-            ) {
-              errors.push("hypothesis evidence is invalid.");
-            }
-          }
-        }
-        if (
-          value.guideSlug !== undefined &&
-          typeof value.guideSlug !== "string"
-        ) {
-          errors.push("hypothesis guideSlug must be a string.");
-        }
-      }
+    } else if (o.hypotheses.length > MAX_HYPOTHESES) {
+      errors.push(`AI returned more than ${MAX_HYPOTHESES} hypotheses.`);
     }
   }
 
@@ -750,13 +695,38 @@ export function validateAndCoerceOutput(
     coerced.diagnosticQuestionIds = o.diagnosticQuestionIds as string[];
   }
   if (Array.isArray(o.hypotheses)) {
-    coerced.hypotheses = o.hypotheses
-      .map((value) => {
-        const hypothesis = value as Hypothesis;
+    const hypotheses = o.hypotheses
+      .flatMap((value): Hypothesis[] => {
+        if (!value || typeof value !== "object" || Array.isArray(value)) {
+          return [];
+        }
+        const hypothesis = value as Record<string, unknown>;
+        if (
+          typeof hypothesis.cause !== "string" ||
+          hypothesis.cause.trim().length === 0 ||
+          hypothesis.cause.length > MAX_HYPOTHESIS_CAUSE_LENGTH ||
+          !isSafeString(hypothesis.cause) ||
+          typeof hypothesis.confidence !== "number" ||
+          hypothesis.confidence < 0 ||
+          hypothesis.confidence > 1 ||
+          !Array.isArray(hypothesis.evidence) ||
+          hypothesis.evidence.length < 1 ||
+          hypothesis.evidence.length > MAX_EVIDENCE_ITEMS ||
+          hypothesis.evidence.some(
+            (evidence) =>
+              typeof evidence !== "string" ||
+              evidence.length > MAX_EVIDENCE_LENGTH ||
+              !isSafeString(evidence)
+          ) ||
+          (hypothesis.guideSlug !== undefined &&
+            typeof hypothesis.guideSlug !== "string")
+        ) {
+          return [];
+        }
         const next: Hypothesis = {
           cause: hypothesis.cause,
           confidence: hypothesis.confidence,
-          evidence: hypothesis.evidence,
+          evidence: hypothesis.evidence as string[],
         };
         if (
           typeof hypothesis.guideSlug === "string" &&
@@ -764,9 +734,10 @@ export function validateAndCoerceOutput(
         ) {
           next.guideSlug = hypothesis.guideSlug;
         }
-        return next;
+        return [next];
       })
       .sort((a, b) => b.confidence - a.confidence);
+    if (hypotheses.length > 0) coerced.hypotheses = hypotheses;
   }
   if (Array.isArray(o.suggestedIssueSlugs)) {
     coerced.suggestedIssueSlugs = o.suggestedIssueSlugs

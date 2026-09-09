@@ -429,7 +429,7 @@ describe("validateAiOutput", () => {
     expect(result?.hypotheses?.[0]?.guideSlug).toBeUndefined();
   });
 
-  test("rejects unsafe, oversized, and excessive hypotheses", () => {
+  test("rejects excessive hypotheses and drops invalid items", () => {
     expect(
       validateAiOutput(
         {
@@ -446,42 +446,45 @@ describe("validateAiOutput", () => {
         platforms
       ).valid
     ).toBe(false);
-    expect(
-      validateAiOutput(
-        {
-          decision: "match",
-          matchedIssueSlug: "slow-computer",
-          hypotheses: [
-            {
-              cause: "<script>alert(1)</script>",
-              confidence: 0.5,
-              evidence: ["evidence"],
-            },
-          ],
-        },
-        allowedSlugs,
-        allowedQuestions,
-        platforms
-      ).valid
-    ).toBe(false);
-    expect(
-      validateAiOutput(
-        {
-          decision: "match",
-          matchedIssueSlug: "slow-computer",
-          hypotheses: [
-            {
-              cause: "cause",
-              confidence: 0.5,
-              evidence: ["x".repeat(121)],
-            },
-          ],
-        },
-        allowedSlugs,
-        allowedQuestions,
-        platforms
-      ).valid
-    ).toBe(false);
+    const unsafeCause = validateAndCoerceOutput(
+      {
+        decision: "match",
+        matchedIssueSlug: "slow-computer",
+        detectedPlatform: "Windows",
+        explanation: "This looks like a slow computer issue.",
+        hypotheses: [
+          {
+            cause: "<script>alert(1)</script>",
+            confidence: 0.5,
+            evidence: ["evidence"],
+          },
+        ],
+      },
+      allowedSlugs,
+      allowedQuestions,
+      platforms
+    );
+    expect(unsafeCause?.hypotheses).toBeUndefined();
+
+    const oversizedEvidence = validateAndCoerceOutput(
+      {
+        decision: "match",
+        matchedIssueSlug: "slow-computer",
+        detectedPlatform: "Windows",
+        explanation: "This looks like a slow computer issue.",
+        hypotheses: [
+          {
+            cause: "cause",
+            confidence: 0.5,
+            evidence: ["x".repeat(121)],
+          },
+        ],
+      },
+      allowedSlugs,
+      allowedQuestions,
+      platforms
+    );
+    expect(oversizedEvidence?.hypotheses).toBeUndefined();
   });
 
   test("strips provider-supplied next steps", () => {

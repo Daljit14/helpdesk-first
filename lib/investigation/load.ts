@@ -1,5 +1,6 @@
 import type { StepRef } from "@/lib/ai/types";
 import { createAdminClient } from "@/lib/supabase/admin";
+import type { InvestigationRow, InvestigationTurnRow } from "./types";
 
 type InvestigationClient = ReturnType<typeof createAdminClient>;
 
@@ -27,20 +28,31 @@ export async function loadFailedSteps(
 export async function loadInvestigation(
   client: InvestigationClient,
   ticketId: string
-): Promise<{ investigation: unknown; turns: unknown[] } | null> {
-  const investigation = await client
-    .from("ticket_investigations")
-    .select("*")
-    .eq("ticket_id", ticketId)
-    .maybeSingle();
-  if (investigation.error) throw investigation.error;
-  if (!investigation.data) return null;
+): Promise<{
+  investigation: InvestigationRow;
+  turns: InvestigationTurnRow[];
+} | null> {
+  try {
+    const investigation = await client
+      .from("ticket_investigations")
+      .select("*")
+      .eq("ticket_id", ticketId)
+      .maybeSingle();
+    if (investigation.error) throw investigation.error;
+    if (!investigation.data) return null;
 
-  const turns = await client
-    .from("ticket_investigation_turns")
-    .select("*")
-    .eq("ticket_id", ticketId)
-    .order("created_at", { ascending: false });
-  if (turns.error) throw turns.error;
-  return { investigation: investigation.data, turns: turns.data ?? [] };
+    const turns = await client
+      .from("ticket_investigation_turns")
+      .select("*")
+      .eq("ticket_id", ticketId)
+      .order("created_at", { ascending: false });
+    if (turns.error) throw turns.error;
+    return {
+      investigation: investigation.data as InvestigationRow,
+      turns: (turns.data ?? []) as InvestigationTurnRow[],
+    };
+  } catch (error) {
+    console.error("Failed to load investigation.", error);
+    return null;
+  }
 }

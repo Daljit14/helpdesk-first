@@ -47,6 +47,18 @@ The safe-intake system referred to as "Phase 5A" is the stack built by PRs #7/#8
 4. **Feature flags per slice** (`HELP_DESK_INVESTIGATION_ENABLED`, `HELP_DESK_KNOWLEDGE_LEARNING_ENABLED`, `HELP_DESK_INTEGRATIONS_ENABLED`), all default off; production kill switch unchanged.
 5. **Every slice ships with unit tests + an eval extension + org-isolation DB test where a table is added.**
 
+### 3.1 Guarantees (approved by the owner before implementation)
+
+| Guarantee                                       | How it is enforced                                                                                                                                                                            |
+| ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| AI recommends actions but never executes them   | No code path performs device, shell, credential, firmware or security-control actions. Outputs are recommendations; humans record outcomes.                                                   |
+| Only approved guide steps can be returned       | Recommended steps are `{ guideSlug, stepIndex }` references into the approved catalog; `validateAndCoerceOutput` + approved-slug check reject anything else. No free-text steps.              |
+| Failed steps cannot be recommended again        | Steps with `failed` / `could_not_perform` outcomes are excluded from the prompt candidate set and rejected post-validation if the model repeats them (eval case added).                       |
+| Evidence and hypotheses are stored safely       | Stored only in org-scoped RLS tables (`ticket_investigations`, `ticket_investigation_turns`) as validated structured output; attachments stay behind the existing quarantine/private storage. |
+| Raw prompts and hidden reasoning are not stored | Same policy as `lib/ai/telemetry.ts` today: only provider, model, latency, token counts, outcome and validated output are persisted. No prompt text, raw completions or reasoning.            |
+| Every new feature has a kill switch             | Per-slice flags (`HELP_DESK_INVESTIGATION_ENABLED`, `HELP_DESK_KNOWLEDGE_LEARNING_ENABLED`, `HELP_DESK_INTEGRATIONS_ENABLED`) default off, plus the existing global `HELP_DESK_AI_ENABLED`.   |
+| Every new table enforces organization isolation | Every new table carries `organization_id`, RLS policies mirroring `ticket-workflow.sql`, and an org-isolation DB test in `tests/db/`.                                                         |
+
 ## 4. Proposed slices, in priority order
 
 ### 5B.1 Investigation trace + diagnostic engine (capabilities 1, 4, 8) — first

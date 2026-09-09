@@ -1,6 +1,10 @@
 import { describe, expect, test } from "vitest";
 import { ISSUES } from "@/lib/issues";
-import { containsFailedStep, deriveNextSteps } from "./steps";
+import {
+  containsFailedStep,
+  deriveNextSteps,
+  deriveWithheldSteps,
+} from "./steps";
 
 describe("investigation steps", () => {
   const issue = ISSUES.find((candidate) => candidate.id === "slow-computer")!;
@@ -21,5 +25,24 @@ describe("investigation steps", () => {
     expect(
       containsFailedStep(steps, [{ guideSlug: "other", stepIndex: 0 }])
     ).toBe(false);
+  });
+
+  test("filters approval steps for requesters and includes them for staff", () => {
+    const requester = deriveNextSteps(issue, [], "requester");
+    const staff = deriveNextSteps(issue, [], "staff");
+    expect(requester.every((step) => step.risk !== "approval")).toBe(true);
+    expect(staff.length).toBeGreaterThanOrEqual(requester.length);
+  });
+
+  test("derives steps withheld from the requester", () => {
+    const withheld = deriveWithheldSteps(issue, "requester");
+    expect(
+      withheld.every(
+        (step) =>
+          step.risk === "approval" ||
+          step.risk === "specialist" ||
+          step.risk === "denied"
+      )
+    ).toBe(true);
   });
 });

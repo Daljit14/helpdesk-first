@@ -4,6 +4,7 @@ import { AiAssistant } from "@/components/ai-assistant";
 import { getCurrentUser } from "@/lib/supabase/user";
 import {
   isResolutionTrackingEnabled,
+  isStepPolicyEnabled,
   isTicketWorkflowEnabled,
 } from "@/lib/admin/flags";
 
@@ -30,6 +31,7 @@ export default async function AssistantPage() {
           }
           workflowEnabled={isTicketWorkflowEnabled()}
           signedIn={Boolean(user)}
+          stepPolicyEnabled={isStepPolicyEnabled()}
         />
       </Suspense>
     </section>

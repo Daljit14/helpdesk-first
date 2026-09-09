@@ -7,6 +7,7 @@ export type InvestigationRow = {
   context: InvestigationContext;
   hypotheses: Hypothesis[];
   excluded_steps: StepRef[];
+  withheld_steps: StepRef[];
   status: "open" | "escalated" | "resolved";
   created_at: string;
   updated_at: string;
@@ -22,6 +23,7 @@ export type InvestigationTurnRow = {
   question_ids: string[];
   hypotheses: Hypothesis[];
   next_steps: StepRef[];
+  withheld_steps: StepRef[];
   provider: string;
   model: string | null;
   created_at: string;

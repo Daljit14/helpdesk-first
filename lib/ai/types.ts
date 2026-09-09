@@ -1,4 +1,5 @@
 import type { Platform } from "@/lib/helpdesk-data";
+import type { StepRisk } from "@/lib/investigation/policy";
 
 export type Decision = "match" | "clarify" | "escalate";
 
@@ -17,6 +18,7 @@ export type Hypothesis = {
 export type StepRef = {
   guideSlug: string;
   stepIndex: number;
+  risk?: StepRisk;
 };
 
 export type InvestigationContext = {
@@ -46,6 +48,7 @@ export type AiIntakeOutput = {
   citation?: import("@/lib/knowledge/governance").Citation;
   hypotheses?: Hypothesis[];
   nextSteps?: StepRef[];
+  withheldSteps?: StepRef[];
 };
 
 export interface AiProvider {

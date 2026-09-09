@@ -14,6 +14,18 @@ function provider() {
   };
 }
 
+function providerFor(issueSlug: string) {
+  return {
+    classify: vi.fn(async () => ({
+      decision: "match" as const,
+      matchedIssueSlug: issueSlug,
+      confidence: 0.8,
+      detectedPlatform: "Windows" as const,
+      explanation: "A guide matches.",
+    })),
+  };
+}
+
 function database() {
   const rows: Record<string, unknown>[] = [];
   const chain = {
@@ -109,6 +121,59 @@ describe("runInvestigationTurn", () => {
     expect(result.status).toBe("success");
     expect(db.rows).toHaveLength(2);
     expect(db.rows.every((row) => !("message" in row))).toBe(true);
+    expect(db.rows[1]).toHaveProperty("withheld_steps");
+  });
+
+  test("withholds approval steps for requesters and includes them for staff", async () => {
+    const requester = await runInvestigationTurn({
+      input: { message: "low storage", platform: "Windows" },
+      provider: providerFor("low-storage"),
+      allowedSlugs: ["low-storage"],
+      persist: false,
+    });
+    const staff = await runInvestigationTurn({
+      input: { message: "low storage", platform: "Windows" },
+      provider: providerFor("low-storage"),
+      allowedSlugs: ["low-storage"],
+      audience: "staff",
+      persist: false,
+    });
+    expect(requester.status).toBe("success");
+    expect(staff.status).toBe("success");
+    if (requester.status === "success" && staff.status === "success") {
+      expect(
+        requester.output.nextSteps?.some((step) => step.risk === "approval")
+      ).toBe(false);
+      expect(
+        requester.output.withheldSteps?.some((step) => step.risk === "approval")
+      ).toBe(true);
+      expect(
+        staff.output.nextSteps?.some((step) => step.risk === "approval")
+      ).toBe(true);
+    }
+  });
+
+  test("escalates with the approval-only reason when only withheld steps remain", async () => {
+    const result = await runInvestigationTurn({
+      input: {
+        message: "low storage",
+        platform: "Windows",
+        failedSteps: [0, 1, 2, 4].map((stepIndex) => ({
+          guideSlug: "low-storage",
+          stepIndex,
+        })),
+      },
+      provider: providerFor("low-storage"),
+      allowedSlugs: ["low-storage"],
+      persist: false,
+    });
+    expect(result.status).toBe("success");
+    if (result.status === "success") {
+      expect(result.output.decision).toBe("escalate");
+      expect(result.output.escalationReason).toBe(
+        "Remaining steps for this guide require IT approval."
+      );
+    }
   });
 
   test("does not throw when persistence fails", async () => {

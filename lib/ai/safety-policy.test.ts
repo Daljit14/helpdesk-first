@@ -503,6 +503,22 @@ describe("validateAiOutput", () => {
     expect(result).not.toHaveProperty("nextSteps");
   });
 
+  test("strips provider-supplied withheld steps", () => {
+    const result = validateAndCoerceOutput(
+      {
+        decision: "match",
+        matchedIssueSlug: "slow-computer",
+        detectedPlatform: "Windows",
+        explanation: "This looks like a slow computer issue.",
+        withheldSteps: [{ guideSlug: "slow-computer", stepIndex: 0 }],
+      },
+      allowedSlugs,
+      allowedQuestions,
+      platforms
+    );
+    expect(result).not.toHaveProperty("withheldSteps");
+  });
+
   test("rejects duplicate diagnostic question IDs", () => {
     const result = validateAiOutput(
       {

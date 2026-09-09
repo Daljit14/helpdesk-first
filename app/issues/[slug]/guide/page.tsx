@@ -7,6 +7,8 @@ import { getCurrentUser } from "@/lib/supabase/user";
 import { getProgress } from "@/lib/guides-data";
 import { createClient } from "@/lib/supabase/server";
 import { isResolutionTrackingEnabled } from "@/lib/admin/flags";
+import { isStepPolicyEnabled } from "@/lib/admin/flags";
+import { getIssueStepPolicies } from "@/lib/investigation/policy";
 
 export async function generateStaticParams() {
   return getAllIssueSlugs().map((slug) => ({ slug }));
@@ -57,6 +59,9 @@ export default async function GuidePage({
     ? await getProgress(user.id, issue.id)
     : [];
   const resolutionTrackingEnabled = isResolutionTrackingEnabled();
+  const stepPolicies = isStepPolicyEnabled()
+    ? getIssueStepPolicies(issue)
+    : undefined;
   let linkedTicket: { id: string; alreadyResolved: boolean } | null = null;
   const ticketParam = typeof query.ticket === "string" ? query.ticket : null;
   if (
@@ -99,6 +104,7 @@ export default async function GuidePage({
           canPersist={Boolean(user)}
           linkedTicket={linkedTicket}
           resolutionTrackingEnabled={resolutionTrackingEnabled}
+          stepPolicies={stepPolicies}
         />
       </Suspense>
     </section>

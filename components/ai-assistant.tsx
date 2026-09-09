@@ -18,6 +18,7 @@ import { platforms, type Platform } from "@/lib/helpdesk-data";
 import { CATEGORIES } from "@/lib/issues";
 import { filterIssues, getIssueBySlug } from "@/lib/search";
 import { getIssueSteps } from "@/lib/steps";
+import { getIssueStepPolicies, isOfferable } from "@/lib/investigation/policy";
 import {
   diagnosticQuestions,
   type AiIntakeOutput,
@@ -32,10 +33,12 @@ export function AiAssistant({
   resolutionTrackingEnabled = false,
   workflowEnabled = false,
   signedIn = false,
+  stepPolicyEnabled = false,
 }: {
   resolutionTrackingEnabled?: boolean;
   workflowEnabled?: boolean;
   signedIn?: boolean;
+  stepPolicyEnabled?: boolean;
 }) {
   const router = useRouter();
   const [problem, setProblem] = useState("");
@@ -221,6 +224,7 @@ export function AiAssistant({
         searchHref={searchHref()}
         problem={problem}
         platform={platform}
+        stepPolicyEnabled={stepPolicyEnabled}
       />
     );
   }
@@ -295,6 +299,7 @@ export function AiAssistant({
             onRestart={handleRestart}
             workflowEnabled={workflowEnabled}
             signedIn={signedIn}
+            stepPolicyEnabled={stepPolicyEnabled}
             onSendToSupport={handleSendToSupport}
           />
         ) : currentOutput?.decision === "clarify" ? (
@@ -311,6 +316,7 @@ export function AiAssistant({
             problem={problem}
             workflowEnabled={workflowEnabled}
             signedIn={signedIn}
+            stepPolicyEnabled={stepPolicyEnabled}
             onSendToSupport={handleSendToSupport}
           />
         ) : (
@@ -351,6 +357,7 @@ function ClarifyView({
   problem,
   workflowEnabled,
   signedIn,
+  stepPolicyEnabled,
   onSendToSupport,
 }: {
   output: AiIntakeOutput;
@@ -365,6 +372,7 @@ function ClarifyView({
   problem: string;
   workflowEnabled: boolean;
   signedIn: boolean;
+  stepPolicyEnabled: boolean;
   onSendToSupport: () => Promise<{ error?: string }>;
 }) {
   const firstQuestionId = output.diagnosticQuestionIds?.[0];
@@ -415,6 +423,7 @@ function ClarifyView({
         onRestart={() => window.location.reload()}
         workflowEnabled={workflowEnabled}
         signedIn={signedIn}
+        stepPolicyEnabled={stepPolicyEnabled}
         onSendToSupport={onSendToSupport}
       />
     );
@@ -609,6 +618,7 @@ function EscalateView({
   onRestart,
   workflowEnabled = false,
   signedIn = false,
+  stepPolicyEnabled = false,
   onSendToSupport,
 }: {
   reason: string;
@@ -617,6 +627,7 @@ function EscalateView({
   onRestart: () => void;
   workflowEnabled?: boolean;
   signedIn?: boolean;
+  stepPolicyEnabled?: boolean;
   onSendToSupport?: () => Promise<{ error?: string }>;
 }) {
   const [pending, setPending] = useState(false);
@@ -687,7 +698,12 @@ function EscalateView({
                     </span>
                   </div>
                   <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-muted-foreground">
-                    {getIssueSteps(issue)
+                    {(stepPolicyEnabled
+                      ? getIssueStepPolicies(issue)
+                          .filter((step) => isOfferable(step.risk, "requester"))
+                          .map((step) => step.text)
+                      : getIssueSteps(issue)
+                    )
                       .slice(0, 3)
                       .map((step) => (
                         <li key={step}>{step}</li>
@@ -764,12 +780,14 @@ function UnavailableView({
   searchHref,
   problem,
   platform,
+  stepPolicyEnabled,
 }: {
   error: string;
   onRestart: () => void;
   searchHref: string;
   problem: string;
   platform: Platform | null;
+  stepPolicyEnabled: boolean;
 }) {
   const suggestions = filterIssues({ query: problem, platform }).slice(0, 3);
   return (
@@ -789,7 +807,12 @@ function UnavailableView({
               >
                 <h3 className="font-semibold">{issue.title}</h3>
                 <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-muted-foreground">
-                  {getIssueSteps(issue)
+                  {(stepPolicyEnabled
+                    ? getIssueStepPolicies(issue)
+                        .filter((step) => isOfferable(step.risk, "requester"))
+                        .map((step) => step.text)
+                    : getIssueSteps(issue)
+                  )
                     .slice(0, 3)
                     .map((step) => (
                       <li key={step}>{step}</li>

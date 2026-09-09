@@ -29,6 +29,7 @@ import {
   confirmTicketResolved,
   escalateTicket,
 } from "@/app/actions/resolution";
+import type { StepPolicy } from "@/lib/investigation/policy";
 
 type TroubleshootingGuideProps = {
   issue: Issue;
@@ -36,6 +37,7 @@ type TroubleshootingGuideProps = {
   canPersist?: boolean;
   linkedTicket?: { id: string; alreadyResolved: boolean } | null;
   resolutionTrackingEnabled?: boolean;
+  stepPolicies?: StepPolicy[];
 };
 
 type GuideState = {
@@ -72,6 +74,7 @@ export function TroubleshootingGuide({
   canPersist = false,
   linkedTicket = null,
   resolutionTrackingEnabled = false,
+  stepPolicies,
 }: TroubleshootingGuideProps) {
   const searchParams = useSearchParams();
   const platform: string = useMemo(() => {
@@ -82,6 +85,18 @@ export function TroubleshootingGuide({
   }, [searchParams, issue.devices]);
 
   const steps = useMemo(() => getIssueSteps(issue), [issue]);
+  const visibleStepIndexes = useMemo(
+    () =>
+      stepPolicies
+        ? stepPolicies
+            .filter(
+              (policy) =>
+                policy.risk !== "specialist" && policy.risk !== "denied"
+            )
+            .map((policy) => policy.stepIndex)
+        : steps.map((_, index) => index),
+    [stepPolicies, steps]
+  );
   const [completedSteps, setCompletedSteps] = useState<number[]>(() => [
     ...new Set(initialCompletedSteps),
   ]);
@@ -98,15 +113,15 @@ export function TroubleshootingGuide({
         rating: saved.rating,
       };
     }
-    const firstIncomplete = steps.findIndex(
-      (_, index) => !initialCompletedSteps.includes(index)
+    const firstIncomplete = visibleStepIndexes.find(
+      (index) => !initialCompletedSteps.includes(index)
     );
     return {
       ...initialState(),
       currentStepIndex:
-        firstIncomplete === -1
-          ? Math.max(steps.length - 1, 0)
-          : firstIncomplete,
+        firstIncomplete ??
+        visibleStepIndexes[visibleStepIndexes.length - 1] ??
+        0,
     };
   });
   const [resolutionNotice, setResolutionNotice] = useState<string | null>(
@@ -118,8 +133,26 @@ export function TroubleshootingGuide({
   const statusRef = useRef<HTMLDivElement>(null);
   const completedEventSent = useRef(false);
 
-  const totalSteps = steps.length;
+  const totalSteps = visibleStepIndexes.length;
   const currentStep = steps[state.currentStepIndex];
+  const currentVisiblePosition = Math.max(
+    0,
+    visibleStepIndexes.indexOf(state.currentStepIndex)
+  );
+
+  function advanceStep() {
+    const nextIndex = visibleStepIndexes[currentVisiblePosition + 1];
+    if (nextIndex === undefined) {
+      setState((prev) => ({
+        ...prev,
+        status: "escalated",
+        escalationReason: "Remaining steps for this guide require IT approval.",
+      }));
+      statusRef.current?.focus();
+      return;
+    }
+    setState((prev) => ({ ...prev, currentStepIndex: nextIndex }));
+  }
 
   useEffect(() => {
     const session: TroubleshootingSession = {
@@ -157,7 +190,7 @@ export function TroubleshootingGuide({
         void saveProgress(issue.id, nextCompleted);
       });
     }
-    if (state.currentStepIndex === totalSteps - 1) {
+    if (currentVisiblePosition === totalSteps - 1) {
       if (!completedEventSent.current) {
         completedEventSent.current = true;
         void fetch("/api/analytics/event", {
@@ -193,23 +226,37 @@ export function TroubleshootingGuide({
       }
       statusRef.current?.focus();
     } else {
-      setState((prev) => ({
-        ...prev,
-        currentStepIndex: prev.currentStepIndex + 1,
-      }));
+      advanceStep();
     }
   }
 
   function handleDidNotWork() {
     recordAttempt("did-not-work");
-    if (state.currentStepIndex === totalSteps - 1) {
+    if (currentVisiblePosition === totalSteps - 1) {
       setState((prev) => ({ ...prev, status: "escalated" }));
       statusRef.current?.focus();
     } else {
+      advanceStep();
+    }
+  }
+
+  function handleApprovalRequest() {
+    const reason = "This step requires IT approval.";
+    if (resolutionTrackingEnabled && linkedTicket) {
+      startTransition(() => {
+        void escalateTicket(linkedTicket.id, reason).then((result) => {
+          setResolutionNotice(
+            "success" in result ? "Sent to IT for approval." : result.error
+          );
+        });
+      });
+    } else {
       setState((prev) => ({
         ...prev,
-        currentStepIndex: prev.currentStepIndex + 1,
+        status: "escalated",
+        escalationReason: reason,
       }));
+      statusRef.current?.focus();
     }
   }
 
@@ -323,6 +370,7 @@ export function TroubleshootingGuide({
           />
         ) : (
           <StepView
+            key={state.currentStepIndex}
             issue={issue}
             platform={platform}
             state={state}
@@ -330,6 +378,9 @@ export function TroubleshootingGuide({
             onDidNotWork={handleDidNotWork}
             onCannotComplete={handleCannotComplete}
             onSolved={handleSolved}
+            onSkip={advanceStep}
+            onApprovalRequest={handleApprovalRequest}
+            stepPolicies={stepPolicies}
           />
         )}
       </div>
@@ -345,6 +396,9 @@ function StepView({
   onDidNotWork,
   onCannotComplete,
   onSolved,
+  onSkip,
+  onApprovalRequest,
+  stepPolicies,
 }: {
   issue: Issue;
   platform: string;
@@ -353,11 +407,31 @@ function StepView({
   onDidNotWork: () => void;
   onCannotComplete: () => void;
   onSolved: () => void;
+  onSkip: () => void;
+  onApprovalRequest: () => void;
+  stepPolicies?: StepPolicy[];
 }) {
   const index = state.currentStepIndex;
   const steps = getIssueSteps(issue);
-  const total = steps.length;
+  const visibleSteps = stepPolicies
+    ? stepPolicies.filter(
+        (policy) => policy.risk !== "specialist" && policy.risk !== "denied"
+      )
+    : steps.map((text, stepIndex) => ({
+        guideSlug: issue.id,
+        stepIndex,
+        text,
+        risk: "safe" as const,
+        reason: "no elevated risk rule matched",
+      }));
+  const visiblePosition = Math.max(
+    0,
+    visibleSteps.findIndex((policy) => policy.stepIndex === index)
+  );
+  const total = visibleSteps.length;
   const step = steps[index];
+  const policy = stepPolicies?.find((item) => item.stepIndex === index);
+  const [confirmed, setConfirmed] = useState(false);
   const safetyWarning = getIssueSafetyWarning(issue);
   const escalationWarning = getIssueEscalationWarning(issue);
 
@@ -368,37 +442,55 @@ function StepView({
         aria-live="polite"
         className="text-sm font-medium text-muted-foreground"
       >
-        Step {index + 1} of {total}
+        Step {visiblePosition + 1} of {total}
       </p>
 
       <ol aria-label="Troubleshooting steps" className="space-y-2">
-        {steps.map((stepLabel, stepIndex) => (
+        {visibleSteps.map((visibleStep, visibleIndex) => (
           <li
-            key={stepLabel}
+            key={visibleStep.stepIndex}
             className={`flex items-center gap-3 text-sm ${
-              stepIndex === index
+              visibleStep.stepIndex === index
                 ? "font-semibold text-foreground"
                 : "text-muted-foreground"
             }`}
           >
             <span
               className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border ${
-                stepIndex <= index
+                visibleIndex <= visiblePosition
                   ? "border-primary bg-primary/10 text-primary"
                   : "border-border bg-background/40"
               }`}
             >
-              {stepIndex + 1}
+              {visibleIndex + 1}
             </span>
-            <span>{stepLabel}</span>
+            <span>{visibleStep.text}</span>
           </li>
         ))}
       </ol>
 
       <div className="glass-strong p-6">
-        <h2 data-testid="step-title" className="text-xl font-semibold">
+        <h2
+          data-testid="step-title"
+          className={`text-xl font-semibold ${
+            policy?.risk === "approval" ? "text-muted-foreground" : ""
+          }`}
+        >
           {step}
         </h2>
+        {policy && policy.risk !== "safe" && (
+          <span
+            className={`mt-3 inline-flex rounded-full border px-2 py-1 text-xs ${
+              policy.risk === "caution"
+                ? "border-amber-500/60 bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+                : "border-border text-muted-foreground"
+            }`}
+          >
+            {policy.risk === "caution"
+              ? "Confirm first"
+              : "Requires IT approval"}
+          </span>
+        )}
       </div>
 
       {safetyWarning && index === 0 && (
@@ -408,24 +500,41 @@ function StepView({
         </div>
       )}
 
-      <div className="glass sticky bottom-3 z-10 grid gap-3 p-3 sm:static sm:grid-cols-2 sm:bg-transparent sm:p-0 sm:shadow-none">
-        <Button type="button" variant="default" onClick={onSolved}>
-          <CheckCircle className="mr-2 h-4 w-4" />
-          Problem solved
-        </Button>
+      {policy?.risk === "approval" ? (
+        <div className="glass sticky bottom-3 z-10 flex flex-wrap gap-3 p-3 sm:static sm:bg-transparent sm:p-0 sm:shadow-none">
+          <Button type="button" onClick={onApprovalRequest}>
+            Ask IT to approve
+          </Button>
+          <Button type="button" variant="outline" onClick={onSkip}>
+            Skip
+          </Button>
+        </div>
+      ) : policy?.risk === "caution" && !confirmed ? (
+        <div className="glass sticky bottom-3 z-10 p-3 sm:static sm:bg-transparent sm:p-0 sm:shadow-none">
+          <Button type="button" onClick={() => setConfirmed(true)}>
+            I understand, continue
+          </Button>
+        </div>
+      ) : (
+        <div className="glass sticky bottom-3 z-10 grid gap-3 p-3 sm:static sm:grid-cols-2 sm:bg-transparent sm:p-0 sm:shadow-none">
+          <Button type="button" variant="default" onClick={onSolved}>
+            <CheckCircle className="mr-2 h-4 w-4" />
+            Problem solved
+          </Button>
 
-        <Button type="button" variant="outline" onClick={onCompleted}>
-          I completed this step
-        </Button>
+          <Button type="button" variant="outline" onClick={onCompleted}>
+            I completed this step
+          </Button>
 
-        <Button type="button" variant="outline" onClick={onDidNotWork}>
-          This did not work
-        </Button>
+          <Button type="button" variant="outline" onClick={onDidNotWork}>
+            This did not work
+          </Button>
 
-        <Button type="button" variant="ghost" onClick={onCannotComplete}>
-          <XCircle className="mr-2 h-4 w-4" />I cannot complete this step
-        </Button>
-      </div>
+          <Button type="button" variant="ghost" onClick={onCannotComplete}>
+            <XCircle className="mr-2 h-4 w-4" />I cannot complete this step
+          </Button>
+        </div>
+      )}
 
       {escalationWarning && (
         <div className="glass border-l-4 border-destructive bg-destructive/5 p-4 text-destructive">

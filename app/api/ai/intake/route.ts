@@ -69,6 +69,7 @@ export async function POST(request: NextRequest) {
     },
     provider: createConfiguredAiProvider({ allowedSlugs }),
     allowedSlugs,
+    audience: "requester",
     persist: false,
   });
 

@@ -10,6 +10,17 @@ import {
 } from "./policy";
 
 describe("step policy", () => {
+  test("policies are plain serializable objects (no RegExp leaks)", () => {
+    for (const issue of ISSUES) {
+      for (const policy of getIssueStepPolicies(issue)) {
+        expect(Object.keys(policy).sort()).toEqual(
+          ["guideSlug", "reason", "risk", "stepIndex", "text"].sort()
+        );
+        expect(JSON.parse(JSON.stringify(policy))).toEqual(policy);
+      }
+    }
+  });
+
   test.each([
     ["Check that the volume is turned up and not muted.", "safe"],
     ["Restart the application.", "safe"],

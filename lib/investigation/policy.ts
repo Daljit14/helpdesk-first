@@ -194,6 +194,10 @@ function isUpdateInstallation(text: string): boolean {
   );
 }
 
+function toClassification(rule: Rule): { risk: StepRisk; reason: string } {
+  return { risk: rule.risk, reason: rule.reason };
+}
+
 export function classifyStep(text: string): { risk: StepRisk; reason: string } {
   const normalized = text.toLowerCase();
   for (const rule of safeRules) {
@@ -201,25 +205,25 @@ export function classifyStep(text: string): { risk: StepRisk; reason: string } {
       rule.matches.test(normalized) &&
       !advisoryImperativeActions.test(normalized)
     ) {
-      return rule;
+      return toClassification(rule);
     }
   }
   for (const rule of deniedRules) {
-    if (rule.matches.test(normalized)) return rule;
+    if (rule.matches.test(normalized)) return toClassification(rule);
   }
   for (const rule of specialistRules) {
-    if (rule.matches.test(normalized)) return rule;
+    if (rule.matches.test(normalized)) return toClassification(rule);
   }
   if (driverUpdateCautionRule.matches.test(normalized)) {
-    return driverUpdateCautionRule;
+    return toClassification(driverUpdateCautionRule);
   }
   if (!isUpdateInstallation(normalized)) {
     for (const rule of approvalRules) {
-      if (rule.matches.test(normalized)) return rule;
+      if (rule.matches.test(normalized)) return toClassification(rule);
     }
   }
   for (const rule of cautionRules) {
-    if (rule.matches.test(normalized)) return rule;
+    if (rule.matches.test(normalized)) return toClassification(rule);
   }
   return { risk: "safe", reason: "no elevated risk rule matched" };
 }

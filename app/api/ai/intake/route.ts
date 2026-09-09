@@ -1,10 +1,8 @@
 import type { NextRequest } from "next/server";
-import { processAiIntake } from "@/lib/ai/intake";
 import { createConfiguredAiProvider } from "@/lib/ai/provider-factory";
+import { runInvestigationTurn } from "@/lib/investigation/engine";
 import { checkRateLimit, getRateLimiter } from "@/lib/ai/rate-limit";
 import { SAFE_ERROR_MESSAGES, validateApiRequest } from "@/lib/ai/validation";
-import { diagnosticQuestions } from "@/lib/ai/types";
-import { platforms } from "@/lib/helpdesk-data";
 import { getApprovedSlugs, getCitation } from "@/lib/knowledge/governance";
 
 export async function POST(request: NextRequest) {
@@ -57,22 +55,22 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { message, platform, previousAnswers } = requestValidation.data;
+  const { message, platform, previousAnswers, context, failedSteps } =
+    requestValidation.data;
   const allowedSlugs = await getApprovedSlugs(null);
 
-  const result = await processAiIntake(
-    {
+  const result = await runInvestigationTurn({
+    input: {
       message,
       platform,
       previousAnswers,
+      context,
+      failedSteps,
     },
-    {
-      provider: createConfiguredAiProvider({ allowedSlugs }),
-      allowedSlugs,
-      allowedQuestions: diagnosticQuestions,
-      allowedPlatforms: platforms,
-    }
-  );
+    provider: createConfiguredAiProvider({ allowedSlugs }),
+    allowedSlugs,
+    persist: false,
+  });
 
   switch (result.status) {
     case "success":

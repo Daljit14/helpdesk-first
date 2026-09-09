@@ -1,5 +1,7 @@
 import { createConfiguredAiProvider } from "@/lib/ai/provider-factory";
-import { processAiIntake } from "@/lib/ai/intake";
+import { loadFailedSteps } from "@/lib/investigation/load";
+import { runInvestigationTurn } from "@/lib/investigation/engine";
+import { isInvestigationEnabled } from "@/lib/investigation/config";
 import { getApprovedSlugs } from "@/lib/knowledge/governance";
 import { getIssueBySlug } from "@/lib/search";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -39,20 +41,24 @@ export async function triageWorkflowTicket(params: {
   try {
     admin = createAdminClient();
     const allowedSlugs = await getApprovedSlugs(organizationId);
-    const intake = await processAiIntake(
-      {
+    const failedSteps = isInvestigationEnabled()
+      ? await loadFailedSteps(admin, ticketId)
+      : [];
+    const intake = await runInvestigationTurn({
+      input: {
         message,
         platform: platform as never,
         previousAnswers: diagnosticAnswers,
+        context: { os: platform },
+        failedSteps,
       },
-      {
-        provider: createConfiguredAiProvider({
-          allowedSlugs,
-          organizationId,
-        }),
-        allowedSlugs,
-      }
-    );
+      ticketId,
+      organizationId,
+      userId,
+      provider: createConfiguredAiProvider({ allowedSlugs, organizationId }),
+      allowedSlugs,
+      admin,
+    });
     const output =
       intake.status === "success"
         ? {

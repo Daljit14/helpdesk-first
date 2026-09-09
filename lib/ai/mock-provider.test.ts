@@ -19,8 +19,29 @@ describe("MockAiProvider", () => {
       expect(result.decision).not.toBe("escalate");
       expect(result.matchedIssueSlug).toBe(id);
       expect(result.explanation).toMatch(/issue|guide|troubleshoot/i);
+      if (result.decision === "match") {
+        expect(result.hypotheses?.length).toBeGreaterThanOrEqual(1);
+        expect(result.hypotheses?.length).toBeLessThanOrEqual(3);
+        expect(result.hypotheses?.[0]?.guideSlug).toBe(result.matchedIssueSlug);
+      }
     }
   );
+
+  test("uses evidence from the message in match hypotheses", async () => {
+    const message = "my computer is freezing and slow";
+    const result = await provider.classify({
+      message,
+      platform: "Windows",
+    });
+    expect(result.decision).toBe("match");
+    expect(
+      result.hypotheses?.some((hypothesis) =>
+        hypothesis.evidence.some((evidence) =>
+          message.toLowerCase().includes(evidence.toLowerCase())
+        )
+      )
+    ).toBe(true);
+  });
 
   test.each(approvedSlugs)(
     "returns one of the approved slugs '%s' without generated steps or commands",

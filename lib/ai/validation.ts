@@ -1,5 +1,10 @@
 import { platforms, type Platform } from "@/lib/helpdesk-data";
-import { diagnosticQuestions, type DiagnosticAnswer } from "./types";
+import {
+  diagnosticQuestions,
+  type DiagnosticAnswer,
+  type InvestigationContext,
+  type StepRef,
+} from "./types";
 
 export const MAX_MESSAGE_LENGTH = 1000;
 export const MAX_ANSWER_LENGTH = 500;
@@ -10,8 +15,14 @@ const ALLOWED_REQUEST_FIELDS = new Set([
   "message",
   "platform",
   "previousAnswers",
+  "context",
+  "failedSteps",
 ]);
 const ALLOWED_ANSWER_FIELDS = new Set(["questionId", "answer"]);
+const ALLOWED_CONTEXT_FIELDS = new Set(["os", "device", "app", "userRole"]);
+const ALLOWED_STEP_FIELDS = new Set(["guideSlug", "stepIndex"]);
+const MAX_CONTEXT_LENGTH = 80;
+const MAX_FAILED_STEPS = 20;
 
 const diagnosticQuestionIds = new Set(diagnosticQuestions.map((q) => q.id));
 
@@ -19,6 +30,8 @@ export type ValidatedIntakeRequest = {
   message: string;
   platform: Platform | null;
   previousAnswers: DiagnosticAnswer[];
+  context?: InvestigationContext;
+  failedSteps?: StepRef[];
 };
 
 export type ValidationErrorCode =
@@ -34,7 +47,10 @@ export type ValidationErrorCode =
   | "INVALID_ANSWER_SHAPE"
   | "UNKNOWN_QUESTION_ID"
   | "DUPLICATE_QUESTION_ID"
-  | "PLATFORM_TYPE_INVALID";
+  | "PLATFORM_TYPE_INVALID"
+  | "INVALID_CONTEXT"
+  | "CONTEXT_VALUE_TOO_LONG"
+  | "INVALID_FAILED_STEPS";
 
 export type RequestValidationError = {
   code: ValidationErrorCode;
@@ -57,6 +73,9 @@ export const SAFE_ERROR_MESSAGES: Record<ValidationErrorCode, string> = {
   UNKNOWN_QUESTION_ID: "A diagnostic question ID is not recognized.",
   DUPLICATE_QUESTION_ID: "A diagnostic question was provided more than once.",
   PLATFORM_TYPE_INVALID: "The platform value must be a string or null.",
+  INVALID_CONTEXT: "The investigation context is malformed.",
+  CONTEXT_VALUE_TOO_LONG: "An investigation context value is too long.",
+  INVALID_FAILED_STEPS: "A failed investigation step is malformed.",
 };
 
 export function isValidPlatform(value: string): value is Platform {
@@ -95,7 +114,7 @@ export function validateApiRequest(
     }
   }
 
-  const { message, platform, previousAnswers } = request;
+  const { message, platform, previousAnswers, context, failedSteps } = request;
 
   if (typeof message !== "string" || message.trim().length === 0) {
     errors.push({
@@ -209,6 +228,100 @@ export function validateApiRequest(
     }
   }
 
+  let validatedContext: InvestigationContext | undefined;
+  if (context !== undefined) {
+    if (!context || typeof context !== "object" || Array.isArray(context)) {
+      errors.push({
+        code: "INVALID_CONTEXT",
+        field: "context",
+        message: SAFE_ERROR_MESSAGES.INVALID_CONTEXT,
+      });
+    } else {
+      const contextObject = context as Record<string, unknown>;
+      for (const key of Object.keys(contextObject)) {
+        if (!ALLOWED_CONTEXT_FIELDS.has(key)) {
+          errors.push({
+            code: "UNKNOWN_FIELD",
+            field: `context.${key}`,
+            message: SAFE_ERROR_MESSAGES.UNKNOWN_FIELD,
+          });
+        }
+      }
+      const nextContext: InvestigationContext = {};
+      for (const key of ALLOWED_CONTEXT_FIELDS) {
+        const value = contextObject[key];
+        if (value === undefined) continue;
+        if (typeof value !== "string") {
+          errors.push({
+            code: "INVALID_CONTEXT",
+            field: `context.${key}`,
+            message: SAFE_ERROR_MESSAGES.INVALID_CONTEXT,
+          });
+        } else if (value.length > MAX_CONTEXT_LENGTH) {
+          errors.push({
+            code: "CONTEXT_VALUE_TOO_LONG",
+            field: `context.${key}`,
+            message: SAFE_ERROR_MESSAGES.CONTEXT_VALUE_TOO_LONG,
+          });
+        } else {
+          nextContext[key as keyof InvestigationContext] = value.trim();
+        }
+      }
+      validatedContext = nextContext;
+    }
+  }
+
+  let validatedFailedSteps: StepRef[] | undefined;
+  if (failedSteps !== undefined) {
+    if (!Array.isArray(failedSteps) || failedSteps.length > MAX_FAILED_STEPS) {
+      errors.push({
+        code: "INVALID_FAILED_STEPS",
+        field: "failedSteps",
+        message: SAFE_ERROR_MESSAGES.INVALID_FAILED_STEPS,
+      });
+    } else {
+      validatedFailedSteps = [];
+      for (const [index, step] of failedSteps.entries()) {
+        if (!step || typeof step !== "object" || Array.isArray(step)) {
+          errors.push({
+            code: "INVALID_FAILED_STEPS",
+            field: `failedSteps[${index}]`,
+            message: SAFE_ERROR_MESSAGES.INVALID_FAILED_STEPS,
+          });
+          continue;
+        }
+        const stepObject = step as Record<string, unknown>;
+        for (const key of Object.keys(stepObject)) {
+          if (!ALLOWED_STEP_FIELDS.has(key)) {
+            errors.push({
+              code: "UNKNOWN_FIELD",
+              field: `failedSteps[${index}].${key}`,
+              message: SAFE_ERROR_MESSAGES.UNKNOWN_FIELD,
+            });
+          }
+        }
+        if (
+          typeof stepObject.guideSlug !== "string" ||
+          stepObject.guideSlug.length > 120 ||
+          !Number.isInteger(stepObject.stepIndex) ||
+          (stepObject.stepIndex as number) < 0 ||
+          (stepObject.stepIndex as number) > 99
+        ) {
+          errors.push({
+            code: "INVALID_FAILED_STEPS",
+            field: `failedSteps[${index}]`,
+            message: SAFE_ERROR_MESSAGES.INVALID_FAILED_STEPS,
+          });
+          continue;
+        }
+        validatedFailedSteps.push({
+          guideSlug: stepObject.guideSlug,
+          stepIndex: stepObject.stepIndex as number,
+        });
+      }
+    }
+  }
+
   if (
     typeof message === "string" &&
     Array.isArray(previousAnswers) &&
@@ -247,6 +360,8 @@ export function validateApiRequest(
       message: (message as string).trim(),
       platform: validatedPlatform,
       previousAnswers: validatedAnswers,
+      ...(validatedContext ? { context: validatedContext } : {}),
+      ...(validatedFailedSteps ? { failedSteps: validatedFailedSteps } : {}),
     },
   };
 }

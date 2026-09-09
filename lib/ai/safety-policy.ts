@@ -4,10 +4,15 @@ import type {
   AiIntakeInput,
   AiIntakeOutput,
   DiagnosticQuestion,
+  Hypothesis,
 } from "./types";
 
 export const MAX_EXPLANATION_LENGTH = 500;
 export const MAX_ESCALATION_REASON_LENGTH = 500;
+export const MAX_HYPOTHESES = 3;
+export const MAX_HYPOTHESIS_CAUSE_LENGTH = 160;
+export const MAX_EVIDENCE_LENGTH = 120;
+export const MAX_EVIDENCE_ITEMS = 3;
 
 export const UNSAFE_CATEGORIES = [
   "password-request",
@@ -51,6 +56,8 @@ const ALLOWED_OUTPUT_KEYS = new Set([
   "confidence",
   "explanation",
   "escalationReason",
+  "hypotheses",
+  "nextSteps",
 ]);
 
 export function isAiEnabled(): AiAvailability {
@@ -503,6 +510,69 @@ export function validateAiOutput(
     }
   }
 
+  if (o.hypotheses !== undefined) {
+    if (!Array.isArray(o.hypotheses)) {
+      errors.push("hypotheses must be an array.");
+    } else {
+      if (o.hypotheses.length > MAX_HYPOTHESES) {
+        errors.push(`AI returned more than ${MAX_HYPOTHESES} hypotheses.`);
+      }
+      for (const hypothesis of o.hypotheses) {
+        if (
+          !hypothesis ||
+          typeof hypothesis !== "object" ||
+          Array.isArray(hypothesis)
+        ) {
+          errors.push("hypotheses must contain objects.");
+          continue;
+        }
+        const value = hypothesis as Record<string, unknown>;
+        if (
+          typeof value.cause !== "string" ||
+          value.cause.trim().length === 0 ||
+          value.cause.length > MAX_HYPOTHESIS_CAUSE_LENGTH ||
+          !isSafeString(value.cause)
+        ) {
+          errors.push("hypothesis cause is invalid.");
+        }
+        if (
+          typeof value.confidence !== "number" ||
+          value.confidence < 0 ||
+          value.confidence > 1
+        ) {
+          errors.push("hypothesis confidence must be between 0 and 1.");
+        }
+        if (!Array.isArray(value.evidence)) {
+          errors.push("hypothesis evidence must be an array.");
+        } else {
+          if (
+            value.evidence.length < 1 ||
+            value.evidence.length > MAX_EVIDENCE_ITEMS
+          ) {
+            errors.push(
+              `hypothesis evidence must contain 1 to ${MAX_EVIDENCE_ITEMS} items.`
+            );
+          }
+          for (const evidence of value.evidence) {
+            if (
+              typeof evidence !== "string" ||
+              evidence.length > MAX_EVIDENCE_LENGTH ||
+              !isSafeString(evidence)
+            ) {
+              errors.push("hypothesis evidence is invalid.");
+            }
+          }
+        }
+        if (
+          value.guideSlug !== undefined &&
+          typeof value.guideSlug !== "string"
+        ) {
+          errors.push("hypothesis guideSlug must be a string.");
+        }
+      }
+    }
+  }
+
   if (
     o.suggestedIssueSlugs !== undefined &&
     !Array.isArray(o.suggestedIssueSlugs)
@@ -678,6 +748,25 @@ export function validateAndCoerceOutput(
   }
   if (Array.isArray(o.diagnosticQuestionIds)) {
     coerced.diagnosticQuestionIds = o.diagnosticQuestionIds as string[];
+  }
+  if (Array.isArray(o.hypotheses)) {
+    coerced.hypotheses = o.hypotheses
+      .map((value) => {
+        const hypothesis = value as Hypothesis;
+        const next: Hypothesis = {
+          cause: hypothesis.cause,
+          confidence: hypothesis.confidence,
+          evidence: hypothesis.evidence,
+        };
+        if (
+          typeof hypothesis.guideSlug === "string" &&
+          allowedSlugs.includes(hypothesis.guideSlug)
+        ) {
+          next.guideSlug = hypothesis.guideSlug;
+        }
+        return next;
+      })
+      .sort((a, b) => b.confidence - a.confidence);
   }
   if (Array.isArray(o.suggestedIssueSlugs)) {
     coerced.suggestedIssueSlugs = o.suggestedIssueSlugs

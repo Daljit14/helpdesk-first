@@ -202,16 +202,16 @@ and UI-sync PRs (#5, #10, #15) have no schema, API or flag footprint.
   `lib/tickets/user-status.test.ts`, `components/tickets-table.test.tsx`.
 - Stated gap: guest single-ticket links deferred (guest tickets not allowed).
 
-#### PR #29 — roadmap 5M: grounded AI (OPEN, EVAL PASSED — not on `main`)
+#### PR #29 — roadmap 5M: grounded AI (MERGED, LIVE)
 
-- Branch contents: Anthropic provider behind `AiProvider`, provider factory,
+- Production contents: Anthropic provider behind `AiProvider`, provider factory,
   shadow mode, daily call budget, privacy-safe telemetry;
   `supabase/knowledge-governance.sql` (`knowledge_guides`,
   `knowledge_guide_revisions`, `approved_guide_slugs(org)`); admin knowledge
   governance page (Draft/In Review/Approved/Retired, owner, reviewer, expiry,
   platforms, risk tier, revisions/rollback); citations on the admin and
   requester ticket pages; fixed adversarial eval suite.
-- Env (branch only): `HELP_DESK_AI_PROVIDER`, `HELP_DESK_AI_MODEL`,
+- Env (production): `HELP_DESK_AI_PROVIDER`, `HELP_DESK_AI_MODEL`,
   `ANTHROPIC_API_KEY`, `HELP_DESK_AI_DAILY_CALL_BUDGET`,
   `HELP_DESK_KNOWLEDGE_GOVERNANCE_ENABLED`.
 - Live eval (2026-09-08): model `claude-haiku-4-5-20251001`, 45 cases;
@@ -253,7 +253,7 @@ Flags ON in Production: `HELP_DESK_ADMIN_DASHBOARD_ENABLED`,
 `HELP_DESK_RESOLUTION_TRACKING_ENABLED`, `HELP_DESK_USER_PORTAL_ENABLED`,
 `HELP_DESK_SECURE_ATTACHMENTS_ENABLED`. `HELP_DESK_TICKET_WORKFLOW_ENABLED`
 is ON in Preview only. `HELP_DESK_AI_ENABLED` / `NEXT_PUBLIC_AI_ENABLED` exist
-in Production; the grounded provider (PR #29) is not deployed anywhere.
+in Production; the grounded provider (PR #29) runs Claude Haiku 4.5 in production.
 
 ---
 
@@ -506,8 +506,7 @@ project.
 | 13   | Staging + closed pilot                          | MISSING.                                                                                                                                                                                                                                                                                          |
 | 14   | GA                                              | MISSING.                                                                                                                                                                                                                                                                                          |
 
-Recommended next PR after owner review: **Wave 4** while PR #29 (waves 4–5)
-awaits owner merge and Vercel environment configuration.
+Recommended next PR after owner review: **Phase 5B investigation tracing**.
 
 ---
 
@@ -545,8 +544,5 @@ Recorded decisions require legal review before school rollout.
   tickets are not allowed.
 - Scanner mode is `none`; uploads show a "Not virus-scanned" badge until an
   admin marks them safe or a scanner is configured.
-- PR #29's live evaluation passed all safety gates; owner merge and Vercel
-  environment configuration remain pending. Configure
-  `HELP_DESK_AI_PROVIDER=anthropic`, `ANTHROPIC_API_KEY`, and
-  `HELP_DESK_AI_MODEL` before enabling the grounded provider; it is not
-  enabled globally.
+- PR #29's live evaluation passed all safety gates; Claude Haiku 4.5 is live
+  in production through the grounded provider configuration.

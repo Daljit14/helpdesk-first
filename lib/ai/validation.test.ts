@@ -209,4 +209,35 @@ describe("validateApiRequest", () => {
     });
     expect(result.success).toBe(false);
   });
+
+  test("accepts investigation context and failed steps", () => {
+    const result = validateApiRequest({
+      message: "computer is slow",
+      context: { os: "Windows", device: "laptop" },
+      failedSteps: [{ guideSlug: "slow-computer", stepIndex: 1 }],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  test("rejects oversized context and unknown investigation fields", () => {
+    const result = validateApiRequest({
+      message: "computer is slow",
+      context: { os: "x".repeat(81), unexpected: "value" },
+    });
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.errors.map((error) => error.code)).toEqual(
+      expect.arrayContaining(["CONTEXT_VALUE_TOO_LONG", "UNKNOWN_FIELD"])
+    );
+  });
+
+  test("rejects malformed failed steps", () => {
+    const result = validateApiRequest({
+      message: "computer is slow",
+      failedSteps: [{ guideSlug: "slow-computer", stepIndex: 100 }],
+    });
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.errors[0]?.code).toBe("INVALID_FAILED_STEPS");
+  });
 });

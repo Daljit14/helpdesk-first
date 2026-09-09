@@ -398,6 +398,108 @@ describe("validateAiOutput", () => {
     expect(result.valid).toBe(false);
   });
 
+  test("accepts and sorts safe hypotheses", () => {
+    const result = validateAndCoerceOutput(
+      {
+        decision: "match",
+        matchedIssueSlug: "slow-computer",
+        detectedPlatform: "Windows",
+        explanation: "This looks like a slow computer issue.",
+        hypotheses: [
+          {
+            cause: "Secondary",
+            confidence: 0.4,
+            evidence: ["slow"],
+            guideSlug: "slow-computer",
+          },
+          {
+            cause: "Primary",
+            confidence: 0.9,
+            evidence: ["computer"],
+            guideSlug: "unknown",
+          },
+        ],
+      },
+      allowedSlugs,
+      allowedQuestions,
+      platforms
+    );
+    expect(result?.hypotheses?.[0]?.cause).toBe("Primary");
+    expect(result?.hypotheses?.[1]?.guideSlug).toBe("slow-computer");
+    expect(result?.hypotheses?.[0]?.guideSlug).toBeUndefined();
+  });
+
+  test("rejects unsafe, oversized, and excessive hypotheses", () => {
+    expect(
+      validateAiOutput(
+        {
+          decision: "match",
+          matchedIssueSlug: "slow-computer",
+          hypotheses: Array.from({ length: 4 }, () => ({
+            cause: "cause",
+            confidence: 0.5,
+            evidence: ["evidence"],
+          })),
+        },
+        allowedSlugs,
+        allowedQuestions,
+        platforms
+      ).valid
+    ).toBe(false);
+    expect(
+      validateAiOutput(
+        {
+          decision: "match",
+          matchedIssueSlug: "slow-computer",
+          hypotheses: [
+            {
+              cause: "<script>alert(1)</script>",
+              confidence: 0.5,
+              evidence: ["evidence"],
+            },
+          ],
+        },
+        allowedSlugs,
+        allowedQuestions,
+        platforms
+      ).valid
+    ).toBe(false);
+    expect(
+      validateAiOutput(
+        {
+          decision: "match",
+          matchedIssueSlug: "slow-computer",
+          hypotheses: [
+            {
+              cause: "cause",
+              confidence: 0.5,
+              evidence: ["x".repeat(121)],
+            },
+          ],
+        },
+        allowedSlugs,
+        allowedQuestions,
+        platforms
+      ).valid
+    ).toBe(false);
+  });
+
+  test("strips provider-supplied next steps", () => {
+    const result = validateAndCoerceOutput(
+      {
+        decision: "match",
+        matchedIssueSlug: "slow-computer",
+        detectedPlatform: "Windows",
+        explanation: "This looks like a slow computer issue.",
+        nextSteps: [{ guideSlug: "slow-computer", stepIndex: 0 }],
+      },
+      allowedSlugs,
+      allowedQuestions,
+      platforms
+    );
+    expect(result).not.toHaveProperty("nextSteps");
+  });
+
   test("rejects duplicate diagnostic question IDs", () => {
     const result = validateAiOutput(
       {

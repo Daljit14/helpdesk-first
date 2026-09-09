@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/supabase/user";
 import {
   isTicketWorkflowEnabled,
   isUserPortalEnabled,
+  isInvestigationEnabled,
 } from "@/lib/admin/flags";
 import { createClient } from "@/lib/supabase/server";
 import { TicketConversation } from "@/components/ticket-conversation";
@@ -20,6 +21,8 @@ import {
 import { getIssueBySlug } from "@/lib/search";
 import { getIssueSteps } from "@/lib/steps";
 import { TicketProgress } from "@/components/ticket-progress";
+import { TicketInvestigation } from "@/components/ticket-investigation";
+import { loadInvestigation } from "@/lib/investigation/load";
 import {
   Bot,
   CheckCircle2,
@@ -121,6 +124,10 @@ export default async function TicketPage({
     .maybeSingle();
   const ticket = rawTicket as TicketDetail | null;
   if (!ticket) notFound();
+  const investigation =
+    isInvestigationEnabled() && portalEnabled
+      ? await loadInvestigation(supabase, ticketId)
+      : null;
   const citation = ticket.ai_recommended_issue_id
     ? await getCitation(ticket.ai_recommended_issue_id, null)
     : null;
@@ -280,6 +287,12 @@ export default async function TicketPage({
           )}
         </div>
         <AttachmentList attachments={attachments} />
+        {investigation && (
+          <TicketInvestigation
+            investigation={investigation.investigation}
+            turns={investigation.turns}
+          />
+        )}
         {portalEnabled && (
           <>
             <TicketPortalActions

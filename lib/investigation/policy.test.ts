@@ -27,8 +27,40 @@ describe("step policy", () => {
     ["Open a terminal and run arbitrary commands.", "denied"],
     ["Run a trusted antivirus or system scan.", "safe"],
     ["Run a full scan with the organization antimalware tool.", "safe"],
+    [
+      "Contact IT with any error code or message; do not change VPN server settings yourself.",
+      "safe",
+    ],
+    [
+      "If the installation still fails, contact IT with the exact error message.",
+      "safe",
+    ],
+    [
+      "If the device still does not start, contact your IT support team.",
+      "safe",
+    ],
+    ["Disable the antivirus and run the command in PowerShell.", "denied"],
+    ["Download the installer again in case the file is corrupted.", "caution"],
+    [
+      "Check that you have enough free disk space for the installation.",
+      "safe",
+    ],
+    ["Confirm the app has the latest update from the app store.", "safe"],
+    ["Check for and install pending operating-system updates.", "safe"],
+    ["Update or reinstall the device driver.", "approval"],
+    [
+      "Check for software or driver updates for your wireless adapter.",
+      "caution",
+    ],
+    ["Check for operating system audio driver updates.", "caution"],
     ["Factory reset the device.", "approval"],
     ["Install the latest security updates.", "safe"],
+    [
+      "Restart the computer to clear temporary files and refresh memory.",
+      "safe",
+    ],
+    ["Restart the computer or mobile device.", "safe"],
+    ["Save any open work and restart the computer.", "safe"],
   ])("%s => %s", (text, risk) => {
     expect(classifyStep(text).risk).toBe(risk);
   });

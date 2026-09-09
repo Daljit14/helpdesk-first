@@ -16,6 +16,18 @@ export const STEP_RISK_OVERRIDES: Record<string, Record<number, StepRisk>> = {};
 
 type Rule = { risk: StepRisk; reason: string; matches: RegExp };
 
+const safeRules: Rule[] = [
+  {
+    risk: "safe",
+    reason: "matches: advisory or support contact",
+    matches:
+      /^(?:if\b[^.]*,\s*)?(?:contact|ask|report (?:it|the alert|the message) to|tell)\b.*\b(?:it|support|help ?desk|supplier|provider)\b/i,
+  },
+];
+
+const advisoryImperativeActions =
+  /\b(?:bypass|disable|flash|regedit|powershell|terminal|command)\b/i;
+
 const deniedRules: Rule[] = [
   {
     risk: "denied",
@@ -87,7 +99,8 @@ const approvalRules: Rule[] = [
   {
     risk: "approval",
     reason: "matches: software installation",
-    matches: /\binstall(?:ing|er|ation)?\b/i,
+    matches:
+      /\b(?:install|installing)\b(?!\s+(?:pending|the latest|available|system|operating|os|updates?|it from the app store))\b/i,
   },
   {
     risk: "approval",
@@ -97,7 +110,8 @@ const approvalRules: Rule[] = [
   {
     risk: "approval",
     reason: "matches: driver or safe mode",
-    matches: /\bdriver\b|\bsafe mode\b/i,
+    matches:
+      /\b(?:update|install|reinstall|roll back|uninstall)\b.*\bdriver\b|\bsafe mode\b/i,
   },
   {
     risk: "approval",
@@ -126,11 +140,23 @@ const approvalRules: Rule[] = [
   },
 ];
 
+const driverUpdateCautionRule: Rule = {
+  risk: "caution",
+  reason: "matches: checking for driver updates",
+  matches: /\bcheck for\b.*\bdriver updates?\b/i,
+};
+
 const cautionRules: Rule[] = [
   {
     risk: "caution",
     reason: "matches: temporary files or cache cleanup",
-    matches: /\bclear\b.*\b(?:temporary|temp|cache|cookies|browsing)\b/i,
+    matches:
+      /^\s*(?:[^.]*\band\b\s+)?clear\b.*\b(?:temporary|temp|cache|cookies|browsing)\b/i,
+  },
+  {
+    risk: "caution",
+    reason: "matches: installer download or handling",
+    matches: /\binstaller\b/i,
   },
   {
     risk: "caution",
@@ -170,11 +196,22 @@ function isUpdateInstallation(text: string): boolean {
 
 export function classifyStep(text: string): { risk: StepRisk; reason: string } {
   const normalized = text.toLowerCase();
+  for (const rule of safeRules) {
+    if (
+      rule.matches.test(normalized) &&
+      !advisoryImperativeActions.test(normalized)
+    ) {
+      return rule;
+    }
+  }
   for (const rule of deniedRules) {
     if (rule.matches.test(normalized)) return rule;
   }
   for (const rule of specialistRules) {
     if (rule.matches.test(normalized)) return rule;
+  }
+  if (driverUpdateCautionRule.matches.test(normalized)) {
+    return driverUpdateCautionRule;
   }
   if (!isUpdateInstallation(normalized)) {
     for (const rule of approvalRules) {

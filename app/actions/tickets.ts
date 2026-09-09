@@ -122,18 +122,17 @@ export async function createWorkflowTicket(input: unknown): Promise<Result> {
   });
 
   try {
-    after(
-      () =>
-        void triageWorkflowTicket({
-          ticketId,
-          organizationId,
-          userId: user.id,
-          issue: issue ?? null,
-          message: parsed.data.message,
-          platform: parsed.data.platform,
-          diagnosticAnswers: parsed.data.diagnosticAnswers,
-          due,
-        })
+    after(() =>
+      triageWorkflowTicket({
+        ticketId,
+        organizationId,
+        userId: user.id,
+        issue: issue ?? null,
+        message: parsed.data.message,
+        platform: parsed.data.platform,
+        diagnosticAnswers: parsed.data.diagnosticAnswers,
+        due,
+      })
     );
   } catch {
     void triageWorkflowTicket({

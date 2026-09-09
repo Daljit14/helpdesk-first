@@ -1,4 +1,5 @@
 export type NotificationEventType =
+  | "account.created"
   | "ticket.created"
   | "ticket.handoff"
   | "ticket.assigned"

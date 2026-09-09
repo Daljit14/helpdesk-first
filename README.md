@@ -112,14 +112,16 @@ Scheduled retention purging requires `CRON_SECRET`.
 ## Notifications and SLA (Wave 7)
 
 Apply `supabase/notifications-sla.sql`, then set
-`HELP_DESK_NOTIFICATIONS_ENABLED=true` and fill `RESEND_API_KEY` and
-`NOTIFICATIONS_FROM_EMAIL` in your production environment. Tickets then
-enqueue lifecycle notifications to `notification_outbox` and dispatch them
-via the Resend REST API and existing web push. `CRON_SECRET` protects the
-`/api/cron/notifications-dispatch` endpoint, which scans SLA risk/overdue
-states and dispatches pending notifications. Resend's free tier may require
-a verified domain; until a domain is verified, Resend only delivers to the
-account owner's address.
+`HELP_DESK_NOTIFICATIONS_ENABLED=true` and fill `BREVO_API_KEY` and
+`NOTIFICATIONS_FROM_EMAIL` in your production environment. Tickets (and new
+account sign-ups) then enqueue lifecycle notifications to
+`notification_outbox` and dispatch them via the Brevo REST API and existing
+web push. `CRON_SECRET` protects the `/api/cron/notifications-dispatch`
+endpoint, which scans SLA risk/overdue states and dispatches pending
+notifications. Brevo's free tier (300 emails/day, no expiry) only requires
+verifying a single sender email address (a confirmation-link click, no
+DNS/domain ownership needed) and delivers to any real recipient — see
+`.env.example` for setup steps.
 
 Requesters can set email/push preferences in `/tickets`. Organization admins
 can view and replay dead notifications from `/admin/notifications` and can

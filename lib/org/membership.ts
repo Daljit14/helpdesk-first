@@ -2,6 +2,9 @@ import { createHash } from "node:crypto";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { enqueueNotification } from "@/lib/notifications/enqueue";
+import { buildNotification } from "@/lib/notifications/templates";
+import { getSiteUrl } from "@/lib/site-url";
 
 export const DEFAULT_ORGANIZATION_ID = "00000000-0000-0000-0000-000000000001";
 
@@ -61,7 +64,28 @@ export async function ensureRequesterMembership(
       role: "requester",
       joined_via: "default",
     });
+    await sendWelcomeEmail(user.id);
   } catch (error) {
     console.error("requester membership provisioning failed", error);
+  }
+}
+
+async function sendWelcomeEmail(userId: string): Promise<void> {
+  try {
+    const message = buildNotification("account.created", {
+      ticketTitle: "HelpDesk First",
+      ticketId: userId,
+    });
+    await enqueueNotification({
+      organizationId: DEFAULT_ORGANIZATION_ID,
+      ticketId: null,
+      eventType: "account.created",
+      recipientUserIds: [userId],
+      ...message,
+      url: `${getSiteUrl()}/tickets`,
+      dedupeKey: `account.created:${userId}`,
+    });
+  } catch (error) {
+    console.error("welcome email enqueue failed", error);
   }
 }

@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, test } from "vitest";
 import { createAiProvider } from "../mock-provider";
 import { EVAL_CASES, runEval } from "./eval";
+import { processAiIntake } from "../intake";
+import { runInvestigationTurn } from "@/lib/investigation/engine";
 
 afterEach(() => {
   delete process.env.HELP_DESK_AI_ENABLED;
@@ -40,6 +42,89 @@ describe("grounded AI evaluation", () => {
       expect(evaluated?.output).not.toMatchObject({
         decision: "match",
       });
+    }
+  });
+
+  test("drops an unapproved hypothesis guide slug", async () => {
+    process.env.HELP_DESK_AI_ENABLED = "true";
+    const result = await processAiIntake(
+      { message: "slow computer", platform: "Windows" },
+      {
+        provider: {
+          classify: async () => ({
+            decision: "match",
+            matchedIssueSlug: "slow-computer",
+            detectedPlatform: "Windows",
+            explanation: "A guide matches.",
+            hypotheses: [
+              {
+                cause: "Unknown",
+                confidence: 0.8,
+                evidence: ["slow computer"],
+                guideSlug: "not-approved",
+              },
+            ],
+          }),
+        },
+        allowedSlugs: ["slow-computer"],
+      }
+    );
+    expect(result.status).toBe("success");
+    if (result.status === "success") {
+      expect(result.output.hypotheses?.[0]?.guideSlug).toBeUndefined();
+    }
+  });
+
+  test("provider next steps never reach the intake caller", async () => {
+    process.env.HELP_DESK_AI_ENABLED = "true";
+    const result = await processAiIntake(
+      { message: "slow computer", platform: "Windows" },
+      {
+        provider: {
+          classify: async () => ({
+            decision: "match",
+            matchedIssueSlug: "slow-computer",
+            detectedPlatform: "Windows",
+            explanation: "A guide matches.",
+            nextSteps: [{ guideSlug: "slow-computer", stepIndex: 99 }],
+          }),
+        },
+        allowedSlugs: ["slow-computer"],
+      }
+    );
+    expect(result.status).toBe("success");
+    if (result.status === "success") {
+      expect(result.output.nextSteps).toBeUndefined();
+    }
+  });
+
+  test("provider next steps cannot re-recommend a failed step", async () => {
+    process.env.HELP_DESK_AI_ENABLED = "true";
+    const result = await runInvestigationTurn({
+      input: {
+        message: "slow computer",
+        platform: "Windows",
+        failedSteps: [{ guideSlug: "slow-computer", stepIndex: 0 }],
+      },
+      provider: {
+        classify: async () => ({
+          decision: "match",
+          matchedIssueSlug: "slow-computer",
+          detectedPlatform: "Windows",
+          explanation: "A guide matches.",
+          nextSteps: [{ guideSlug: "slow-computer", stepIndex: 0 }],
+        }),
+      },
+      allowedSlugs: ["slow-computer"],
+      persist: false,
+    });
+    expect(result.status).toBe("success");
+    if (result.status === "success") {
+      expect(
+        result.output.nextSteps?.some(
+          (step) => step.guideSlug === "slow-computer" && step.stepIndex === 0
+        )
+      ).toBe(false);
     }
   });
 });

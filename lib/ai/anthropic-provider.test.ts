@@ -61,7 +61,7 @@ describe("AnthropicAiProvider", () => {
       fetchImpl.mock.calls as unknown as Array<[string, RequestInit]>
     )[0]!;
     const request = JSON.parse(call[1].body as string);
-    expect(request.max_tokens).toBe(400);
+    expect(request.max_tokens).toBe(700);
     expect(request.temperature).toBe(0);
     expect(request.messages[0].content).toContain("<user_data>");
   });
@@ -90,6 +90,42 @@ describe("AnthropicAiProvider", () => {
       "where-happens",
       "when-started",
     ]);
+  });
+
+  test("preserves and truncates hypotheses", () => {
+    const result = parseToolResult({
+      ...output,
+      hypotheses: [
+        {
+          cause: "Slow startup",
+          confidence: 0.8,
+          evidence: ["slow"],
+          guideSlug: "slow-computer",
+        },
+      ],
+    });
+    expect(result?.hypotheses).toEqual([
+      {
+        cause: "Slow startup",
+        confidence: 0.8,
+        evidence: ["slow"],
+        guideSlug: "slow-computer",
+      },
+    ]);
+  });
+
+  test("includes the question cap in the prompt and schema", () => {
+    expect(buildSystemPrompt([], [])).toContain("at most 3");
+    expect(
+      (
+        CLASSIFY_TOOL.input_schema.properties.diagnosticQuestionIds as {
+          maxItems?: number;
+        }
+      ).maxItems
+    ).toBe(3);
+    expect(CLASSIFY_TOOL.input_schema.properties.hypotheses).toMatchObject({
+      maxItems: 3,
+    });
   });
 
   test("throws for non-200 responses", async () => {

@@ -472,6 +472,41 @@ function MatchView({
   return (
     <div className="glass-strong mt-8 space-y-6 p-6">
       <h2 className="text-xl font-semibold">Suggested approved guide</h2>
+      {output.hypotheses && output.hypotheses.length > 0 && (
+        <div className="space-y-3">
+          <h3 className="font-medium">Likely causes</h3>
+          {output.hypotheses.map((hypothesis) => (
+            <div key={`${hypothesis.cause}-${hypothesis.guideSlug ?? "none"}`}>
+              <div className="flex items-center justify-between text-sm">
+                <span>{hypothesis.cause}</span>
+                <span>{Math.round(hypothesis.confidence * 100)}%</span>
+              </div>
+              <div
+                className="mt-1 h-2 overflow-hidden rounded-full bg-muted"
+                role="progressbar"
+                aria-valuenow={Math.round(hypothesis.confidence * 100)}
+                aria-valuemin={0}
+                aria-valuemax={100}
+              >
+                <div
+                  className="h-full rounded-full bg-primary"
+                  style={{
+                    width: `${Math.round(hypothesis.confidence * 100)}%`,
+                  }}
+                />
+              </div>
+              <details className="mt-2 text-sm text-muted-foreground">
+                <summary className="cursor-pointer">Why</summary>
+                <ul className="mt-1 list-disc space-y-1 pl-5">
+                  {hypothesis.evidence.map((evidence) => (
+                    <li key={evidence}>“{evidence}”</li>
+                  ))}
+                </ul>
+              </details>
+            </div>
+          ))}
+        </div>
+      )}
       <p className="text-muted-foreground">{output.explanation}</p>
       {output.citation && (
         <p className="text-sm text-muted-foreground">

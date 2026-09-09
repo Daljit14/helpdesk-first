@@ -4,10 +4,15 @@ import type {
   AiIntakeInput,
   AiIntakeOutput,
   DiagnosticQuestion,
+  Hypothesis,
 } from "./types";
 
 export const MAX_EXPLANATION_LENGTH = 500;
 export const MAX_ESCALATION_REASON_LENGTH = 500;
+export const MAX_HYPOTHESES = 3;
+export const MAX_HYPOTHESIS_CAUSE_LENGTH = 160;
+export const MAX_EVIDENCE_LENGTH = 120;
+export const MAX_EVIDENCE_ITEMS = 3;
 
 export const UNSAFE_CATEGORIES = [
   "password-request",
@@ -51,6 +56,8 @@ const ALLOWED_OUTPUT_KEYS = new Set([
   "confidence",
   "explanation",
   "escalationReason",
+  "hypotheses",
+  "nextSteps",
 ]);
 
 export function isAiEnabled(): AiAvailability {
@@ -503,6 +510,14 @@ export function validateAiOutput(
     }
   }
 
+  if (o.hypotheses !== undefined) {
+    if (!Array.isArray(o.hypotheses)) {
+      errors.push("hypotheses must be an array.");
+    } else if (o.hypotheses.length > MAX_HYPOTHESES) {
+      errors.push(`AI returned more than ${MAX_HYPOTHESES} hypotheses.`);
+    }
+  }
+
   if (
     o.suggestedIssueSlugs !== undefined &&
     !Array.isArray(o.suggestedIssueSlugs)
@@ -678,6 +693,51 @@ export function validateAndCoerceOutput(
   }
   if (Array.isArray(o.diagnosticQuestionIds)) {
     coerced.diagnosticQuestionIds = o.diagnosticQuestionIds as string[];
+  }
+  if (Array.isArray(o.hypotheses)) {
+    const hypotheses = o.hypotheses
+      .flatMap((value): Hypothesis[] => {
+        if (!value || typeof value !== "object" || Array.isArray(value)) {
+          return [];
+        }
+        const hypothesis = value as Record<string, unknown>;
+        if (
+          typeof hypothesis.cause !== "string" ||
+          hypothesis.cause.trim().length === 0 ||
+          hypothesis.cause.length > MAX_HYPOTHESIS_CAUSE_LENGTH ||
+          !isSafeString(hypothesis.cause) ||
+          typeof hypothesis.confidence !== "number" ||
+          hypothesis.confidence < 0 ||
+          hypothesis.confidence > 1 ||
+          !Array.isArray(hypothesis.evidence) ||
+          hypothesis.evidence.length < 1 ||
+          hypothesis.evidence.length > MAX_EVIDENCE_ITEMS ||
+          hypothesis.evidence.some(
+            (evidence) =>
+              typeof evidence !== "string" ||
+              evidence.length > MAX_EVIDENCE_LENGTH ||
+              !isSafeString(evidence)
+          ) ||
+          (hypothesis.guideSlug !== undefined &&
+            typeof hypothesis.guideSlug !== "string")
+        ) {
+          return [];
+        }
+        const next: Hypothesis = {
+          cause: hypothesis.cause,
+          confidence: hypothesis.confidence,
+          evidence: hypothesis.evidence as string[],
+        };
+        if (
+          typeof hypothesis.guideSlug === "string" &&
+          allowedSlugs.includes(hypothesis.guideSlug)
+        ) {
+          next.guideSlug = hypothesis.guideSlug;
+        }
+        return [next];
+      })
+      .sort((a, b) => b.confidence - a.confidence);
+    if (hypotheses.length > 0) coerced.hypotheses = hypotheses;
   }
   if (Array.isArray(o.suggestedIssueSlugs)) {
     coerced.suggestedIssueSlugs = o.suggestedIssueSlugs

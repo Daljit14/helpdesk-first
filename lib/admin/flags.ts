@@ -32,3 +32,7 @@ export function isGoogleSsoEnabled(): boolean {
 export function isMicrosoftSsoEnabled(): boolean {
   return process.env.HELP_DESK_SSO_MICROSOFT_ENABLED === "true";
 }
+
+export function isInvestigationEnabled(): boolean {
+  return process.env.HELP_DESK_INVESTIGATION_ENABLED === "true";
+}

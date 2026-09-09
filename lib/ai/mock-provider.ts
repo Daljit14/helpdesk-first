@@ -480,6 +480,7 @@ export class MockAiProvider implements AiProvider {
         decision: "match",
         matchedIssueSlug: top.issue.id,
         detectedPlatform,
+        ...buildHypothesisField(input.message, sorted.slice(0, 3)),
         explanation: `Based on your description, this looks like "${top.issue.title}" for ${detectedPlatform ?? "your device"}. I can start the approved troubleshooting guide for that issue.`,
       };
     }
@@ -490,6 +491,7 @@ export class MockAiProvider implements AiProvider {
           decision: "match",
           matchedIssueSlug: top.issue.id,
           detectedPlatform,
+          ...buildHypothesisField(input.message, sorted.slice(0, 3)),
           suggestedIssueSlugs: sorted
             .filter((item) => item.issue.id !== top.issue.id)
             .slice(0, 2)
@@ -543,6 +545,36 @@ function getSuggestedIssueSlugs(
   return filterIssues({ query: combined, platform: detectedPlatform })
     .slice(0, 3)
     .map((issue) => issue.id);
+}
+
+function buildHypotheses(
+  message: string,
+  scored: ScoredIssue[]
+): NonNullable<AiIntakeOutput["hypotheses"]> | undefined {
+  const topScore = scored[0]?.score ?? 1;
+  const hypotheses = scored.slice(0, 3).flatMap(({ issue, score }) => {
+    const evidence = issue.symptoms
+      .filter((symptom) =>
+        message.toLowerCase().includes(symptom.toLowerCase())
+      )
+      .slice(0, 3);
+    if (evidence.length === 0) return [];
+    return {
+      cause: issue.title,
+      confidence: Math.max(0.35, Math.min(0.95, (score / topScore) * 0.95)),
+      evidence,
+      guideSlug: issue.id,
+    };
+  });
+  return hypotheses.length > 0 ? hypotheses : undefined;
+}
+
+function buildHypothesisField(
+  message: string,
+  scored: ScoredIssue[]
+): { hypotheses?: NonNullable<AiIntakeOutput["hypotheses"]> } {
+  const hypotheses = buildHypotheses(message, scored);
+  return hypotheses ? { hypotheses } : {};
 }
 
 function buildCombinedText(input: AiIntakeInput): string {

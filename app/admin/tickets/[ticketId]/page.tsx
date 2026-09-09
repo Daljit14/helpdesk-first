@@ -11,7 +11,10 @@ import {
   slaDue,
   toTicketId,
 } from "@/lib/operations/transform";
-import { isResolutionTrackingEnabled } from "@/lib/admin/flags";
+import {
+  isInvestigationEnabled,
+  isResolutionTrackingEnabled,
+} from "@/lib/admin/flags";
 import { getIssueBySlug } from "@/lib/search";
 import { TicketWorkflowActions } from "@/components/admin/ticket-workflow-actions";
 import { canAccessTicket } from "@/lib/admin/auth";
@@ -23,6 +26,8 @@ import { listAdminAttachments } from "@/app/actions/admin-attachments";
 import { AttachmentList } from "@/components/attachment-list";
 import { AdminAttachmentControls } from "@/components/admin/admin-attachment-controls";
 import { ASSIGNABLE_ROLES, type AssignableRole } from "@/lib/org/roles";
+import { TicketInvestigation } from "@/components/ticket-investigation";
+import { loadInvestigation } from "@/lib/investigation/load";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -273,10 +278,20 @@ export default async function AdminTicketPage({
         .eq("ticket_id", uuid)
         .order("step_index", { ascending: true })
     : { data: [] };
+  const investigation =
+    isInvestigationEnabled() && workflowEnabled
+      ? await loadInvestigation(admin, uuid)
+      : null;
 
   return (
     <section className="flex flex-1 flex-col px-4 py-10 sm:px-6 lg:px-8">
       <div className="mx-auto w-full max-w-7xl">
+        {investigation && (
+          <TicketInvestigation
+            investigation={investigation.investigation}
+            turns={investigation.turns}
+          />
+        )}
         <p className="font-mono text-sm text-muted-foreground">
           {toTicketId(ticket.id)}
         </p>

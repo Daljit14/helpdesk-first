@@ -7,10 +7,31 @@ export type DiagnosticAnswer = {
   answer: string;
 };
 
+export type Hypothesis = {
+  cause: string;
+  confidence: number;
+  evidence: string[];
+  guideSlug?: string;
+};
+
+export type StepRef = {
+  guideSlug: string;
+  stepIndex: number;
+};
+
+export type InvestigationContext = {
+  os?: string;
+  device?: string;
+  app?: string;
+  userRole?: string;
+};
+
 export type AiIntakeInput = {
   message: string;
   platform?: Platform | null;
   previousAnswers?: DiagnosticAnswer[];
+  context?: InvestigationContext;
+  failedSteps?: StepRef[];
 };
 
 export type AiIntakeOutput = {
@@ -23,6 +44,8 @@ export type AiIntakeOutput = {
   explanation?: string;
   escalationReason?: string;
   citation?: import("@/lib/knowledge/governance").Citation;
+  hypotheses?: Hypothesis[];
+  nextSteps?: StepRef[];
 };
 
 export interface AiProvider {

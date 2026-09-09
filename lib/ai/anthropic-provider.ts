@@ -39,6 +39,19 @@ const outputSchema = z
       .union([z.enum(["Windows", "Mac", "iOS", "Android", "Other"]), z.null()])
       .optional(),
     diagnosticQuestionIds: z.array(z.string()).optional(),
+    hypotheses: z
+      .array(
+        z
+          .object({
+            cause: z.string(),
+            confidence: z.number().min(0).max(1),
+            evidence: z.array(z.string()).min(1).max(3),
+            guideSlug: z.string().optional(),
+          })
+          .strict()
+      )
+      .max(3)
+      .optional(),
     explanation: z.string().optional(),
     escalationReason: z.string().optional(),
   })
@@ -68,6 +81,26 @@ export const CLASSIFY_TOOL = {
         type: "array",
         items: { type: "string" },
         maxItems: 3,
+      },
+      hypotheses: {
+        type: "array",
+        maxItems: 3,
+        items: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            cause: { type: "string" },
+            confidence: { type: "number", minimum: 0, maximum: 1 },
+            evidence: {
+              type: "array",
+              items: { type: "string" },
+              minItems: 1,
+              maxItems: 3,
+            },
+            guideSlug: { type: "string" },
+          },
+          required: ["cause", "confidence", "evidence"],
+        },
       },
       explanation: { type: "string" },
       escalationReason: { type: "string" },
@@ -107,6 +140,8 @@ export function buildSystemPrompt(
     "Escalate when uncertain, privileged, security/password/MFA/malware/data-recovery/BIOS/remote, or when no matching guide exists. Confidence must be between 0 and 1.",
     "Ask at most 3 diagnostic question ids per turn, most useful first.",
     "Prefer decision match when a catalog guide clearly fits the described symptoms (e.g. a frozen or hanging computer -> computer-freezing); ask questions only when the message is too vague to choose a guide.",
+    "Also return up to 3 hypotheses: the likely cause, confidence 0-1, and evidence as short quotes (<=120 chars) taken verbatim from the user's message or answers; guideSlug only if it is a catalog slug. Never invent evidence.",
+    "failedSteps lists guide steps the user already tried without success; do not choose a guide whose only relevant steps are all in failedSteps if a better guide exists.",
     "Approved guide catalog (slug | title | category | devices | first 3 symptoms):",
     catalogText,
     `Allowed diagnostic question ids: ${questions.map((question) => question.id).join(", ")}`,
@@ -166,7 +201,7 @@ export class AnthropicAiProvider implements AiProvider {
         },
         body: JSON.stringify({
           model: this.model,
-          max_tokens: 400,
+          max_tokens: 700,
           temperature: 0,
           system: buildSystemPrompt(
             this.catalog ?? buildCatalog(),
@@ -181,6 +216,8 @@ export class AnthropicAiProvider implements AiProvider {
                 message: input.message.slice(0, 2000),
                 platform: input.platform ?? null,
                 previousAnswers: input.previousAnswers ?? [],
+                context: input.context ?? null,
+                failedSteps: input.failedSteps ?? [],
               })}</user_data>`,
             },
           ],

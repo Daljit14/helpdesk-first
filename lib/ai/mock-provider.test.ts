@@ -12,15 +12,43 @@ describe("MockAiProvider", () => {
   test.each(approvedSlugs)(
     "matches the approved issue with slug '%s' when described plainly",
     async (id) => {
+      const message = id.replace(/-/g, " ") + " on windows";
       const result = await provider.classify({
-        message: id.replace(/-/g, " ") + " on windows",
+        message,
         platform: "Windows",
       });
       expect(result.decision).not.toBe("escalate");
       expect(result.matchedIssueSlug).toBe(id);
       expect(result.explanation).toMatch(/issue|guide|troubleshoot/i);
+      if (result.decision === "match") {
+        expect(result.hypotheses?.length ?? 0).toBeLessThanOrEqual(3);
+        for (const hypothesis of result.hypotheses ?? []) {
+          expect(hypothesis.evidence.length).toBeGreaterThan(0);
+          expect(
+            hypothesis.evidence.some((evidence) =>
+              message.toLowerCase().includes(evidence.toLowerCase())
+            )
+          ).toBe(true);
+        }
+      }
     }
   );
+
+  test("uses evidence from the message in match hypotheses", async () => {
+    const message = "apps freeze and become unclickable";
+    const result = await provider.classify({
+      message,
+      platform: "Windows",
+    });
+    expect(result.decision).toBe("match");
+    expect(
+      result.hypotheses?.some((hypothesis) =>
+        hypothesis.evidence.some((evidence) =>
+          message.toLowerCase().includes(evidence.toLowerCase())
+        )
+      )
+    ).toBe(true);
+  });
 
   test.each(approvedSlugs)(
     "returns one of the approved slugs '%s' without generated steps or commands",

@@ -1,11 +1,16 @@
-import { notFound, redirect } from "next/navigation";
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { logoutAction } from "@/app/actions/auth";
 import { getCurrentUser } from "@/lib/supabase/user";
 import {
   isTicketWorkflowEnabled,
   isUserPortalEnabled,
   isInvestigationEnabled,
 } from "@/lib/admin/flags";
+import { getAdminSession } from "@/lib/admin/auth";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { resolveTicketRedirect } from "@/lib/tickets/access-redirect";
 import { TicketConversation } from "@/components/ticket-conversation";
 import { getCitation } from "@/lib/knowledge/governance";
 import { AttachmentList } from "@/components/attachment-list";
@@ -102,16 +107,68 @@ function relativeTime(value: string): string {
   return `${Math.floor(hours / 24)} days ago`;
 }
 
+function TicketUnavailable({
+  email,
+  ticketId,
+}: {
+  email: string;
+  ticketId: string;
+}) {
+  const adminLoginPath = `/admin/login?next=${encodeURIComponent(
+    `/admin/tickets/${ticketId}`
+  )}`;
+
+  return (
+    <section className="flex flex-1 items-center justify-center px-4 py-12 sm:px-6">
+      <div className="glass-strong w-full max-w-xl space-y-5 p-6">
+        <div>
+          <h1 className="text-2xl font-semibold">
+            This ticket isn&apos;t available for this account
+          </h1>
+          <p className="mt-3 text-muted-foreground">
+            You&apos;re signed in as <strong>{email}</strong>. Open the link
+            with the account that submitted the ticket, or sign in as a support
+            person.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          <Link
+            href="/tickets"
+            className="rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
+          >
+            My tickets
+          </Link>
+          <Link
+            href={adminLoginPath}
+            className="rounded-full border border-border px-4 py-2 text-sm font-medium"
+          >
+            Sign in as support
+          </Link>
+          <form action={logoutAction}>
+            <button
+              type="submit"
+              className="rounded-full border border-border px-4 py-2 text-sm font-medium"
+            >
+              Sign out
+            </button>
+          </form>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default async function TicketPage({
   params,
 }: {
   params: Promise<{ ticketId: string }>;
 }) {
+  const { ticketId } = await params;
   const workflowEnabled = isTicketWorkflowEnabled();
   const portalEnabled = workflowEnabled && isUserPortalEnabled();
   const user = await getCurrentUser();
-  if (!user) redirect("/login?next=/tickets");
-  const { ticketId } = await params;
+  if (!user)
+    redirect(`/login?next=${encodeURIComponent(`/tickets/${ticketId}`)}`);
   const supabase = await createClient();
   const ticketSelect = portalEnabled
     ? "id,issue_title,message,status,platform,created_at,handoff_reason,resolver_type,ai_recommended_issue_id,diagnostic_answers,attachment_path,satisfaction_rating,satisfaction_comment,resolved_at,closed_at,updated_at,assigned_agent_id,human_response_due_at,first_human_response_at"
@@ -123,7 +180,27 @@ export default async function TicketPage({
     .eq("user_id", user.id)
     .maybeSingle();
   const ticket = rawTicket as TicketDetail | null;
-  if (!ticket) notFound();
+  if (!ticket) {
+    const adminSession = await getAdminSession();
+    const { data: accessTicket } = await createAdminClient()
+      .from("tickets")
+      .select("id,organization_id")
+      .eq("id", ticketId)
+      .maybeSingle();
+    const access = resolveTicketRedirect({
+      ownsTicket: false,
+      adminSession,
+      ticketOrgId: accessTicket?.organization_id,
+      ticketId,
+    });
+    if (access.kind === "admin") redirect(access.href);
+    return (
+      <TicketUnavailable
+        email={user.email ?? "this account"}
+        ticketId={ticketId}
+      />
+    );
+  }
   const investigation =
     isInvestigationEnabled() && portalEnabled
       ? await loadInvestigation(supabase, ticketId)

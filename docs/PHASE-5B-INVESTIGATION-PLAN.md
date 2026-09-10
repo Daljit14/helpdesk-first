@@ -88,6 +88,8 @@ The safe-intake system referred to as "Phase 5A" is the stack built by PRs #7/#8
 
 ### 5B.5 Knowledge health + research labelling (capabilities 2, 7)
 
+Status: Implemented: health findings. Deferred: external research allow-list.
+
 - Nightly cron `app/api/cron/knowledge-health`: per guide — success rate from `ticket_step_outcomes`/verification, unresolved-after-guide rate, expired `expires_at`, orphan/legacy slugs, link check on citation URLs, "asked but no guide" clusters from escalations → `knowledge_health_findings` table + admin panel.
 - Research engine: answers labelled `fact` (approved guide), `likely` (hypothesis with confidence), `uncertain`; external sources limited to an org-configurable allow-list (`organization_policies.trusted_sources`), fetched server-side, cited, never executed as instructions. Default allow-list empty ⇒ internal-only until an admin opts in.
 

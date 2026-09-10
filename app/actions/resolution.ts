@@ -7,7 +7,11 @@ import { normalizePlatform } from "@/lib/operations/transform";
 import { recordAnalyticsEvent } from "@/lib/analytics/events";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/supabase/user";
-import { isResolutionTrackingEnabled } from "@/lib/admin/flags";
+import {
+  isResolutionTrackingEnabled,
+  isTicketWorkflowEnabled,
+} from "@/lib/admin/flags";
+import { completeUserHandoff } from "@/lib/tickets/handoff";
 
 type ResolutionActionResult = { error: string };
 
@@ -100,11 +104,25 @@ export async function escalateTicket(
   if (!user) return { error: "Not authorized." };
 
   const supabase = await createClient();
+  const trimmedReason = reason.trim().slice(0, 1000);
   const { error } = await supabase.rpc("escalate_ticket", {
     ticket: parsed.data,
-    reason: reason.trim().slice(0, 1000),
+    reason: trimmedReason,
   });
   if (error) return { error: "Unable to escalate ticket." };
+  if (isTicketWorkflowEnabled()) {
+    const { error: handoffError } = await supabase.rpc("handoff_ticket", {
+      ticket: parsed.data,
+      reason: trimmedReason,
+      handoff: "user_requested_human",
+    });
+    if (handoffError) {
+      console.error("Unable to complete workflow handoff.", handoffError);
+    } else {
+      await completeUserHandoff(parsed.data);
+    }
+  }
   revalidatePath("/tickets");
+  revalidatePath(`/tickets/${parsed.data}`);
   return { success: true };
 }

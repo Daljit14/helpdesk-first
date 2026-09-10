@@ -233,6 +233,92 @@ describe("processAiIntake", () => {
     }
   });
 
+  test("falls back when a provider clarifies after three answers", async () => {
+    vi.stubEnv("HELP_DESK_AI_PROVIDER", "anthropic");
+    const provider: AiProvider = {
+      async classify(): Promise<AiIntakeOutput> {
+        return {
+          decision: "clarify",
+          detectedPlatform: "Windows",
+          diagnosticQuestionIds: ["network-owner"],
+          explanation: "Please provide one more answer.",
+        };
+      },
+    };
+    const result = await processAiIntake(
+      {
+        message: "no wifi on laptop",
+        platform: "Windows",
+        previousAnswers: [
+          { questionId: "which-platform", answer: "Windows" },
+          { questionId: "where-happens", answer: "At home" },
+          { questionId: "when-started", answer: "Today" },
+        ],
+      },
+      { provider }
+    );
+    expect(result.status).toBe("success");
+    if (result.status === "success") {
+      expect(result.output.decision).not.toBe("clarify");
+    }
+  });
+
+  test("passes clarification through below the answer cap", async () => {
+    vi.stubEnv("HELP_DESK_AI_PROVIDER", "anthropic");
+    const provider: AiProvider = {
+      async classify(): Promise<AiIntakeOutput> {
+        return {
+          decision: "clarify",
+          detectedPlatform: "Windows",
+          diagnosticQuestionIds: ["network-owner"],
+          explanation: "Please provide one more answer.",
+        };
+      },
+    };
+    const result = await processAiIntake(
+      {
+        message: "no wifi on laptop",
+        platform: "Windows",
+        previousAnswers: [
+          { questionId: "which-platform", answer: "Windows" },
+          { questionId: "where-happens", answer: "At home" },
+        ],
+      },
+      { provider }
+    );
+    expect(result.status).toBe("success");
+    if (result.status === "success") {
+      expect(result.output.decision).toBe("clarify");
+    }
+  });
+
+  test("does not fall back recursively for the mock provider", async () => {
+    vi.stubEnv("HELP_DESK_AI_PROVIDER", "mock");
+    const provider: AiProvider = {
+      async classify(): Promise<AiIntakeOutput> {
+        return {
+          decision: "clarify",
+          detectedPlatform: "Windows",
+          diagnosticQuestionIds: ["network-owner"],
+          explanation: "Please provide one more answer.",
+        };
+      },
+    };
+    const result = await processAiIntake(
+      {
+        message: "no wifi on laptop",
+        platform: "Windows",
+        previousAnswers: [
+          { questionId: "which-platform", answer: "Windows" },
+          { questionId: "where-happens", answer: "At home" },
+          { questionId: "when-started", answer: "Today" },
+        ],
+      },
+      { provider }
+    );
+    expect(result.status).toBe("unavailable");
+  });
+
   test("does not expose raw user content in log messages", async () => {
     const logSpy = vi
       .spyOn(console, "error")

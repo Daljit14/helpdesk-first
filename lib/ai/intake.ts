@@ -10,6 +10,7 @@ import {
   type AiProvider,
   type DiagnosticQuestion,
 } from "./types";
+import { MAX_DIAGNOSTIC_ANSWERS } from "./validation";
 import {
   checkUserMessageSafety,
   getProviderTimeoutMs,
@@ -79,12 +80,18 @@ export async function processAiIntake(
   const allowedQuestions = options.allowedQuestions ?? diagnosticQuestions;
   const allowedPlatforms = options.allowedPlatforms ?? platforms;
 
-  const coerced = validateAndCoerceOutput(
+  let coerced = validateAndCoerceOutput(
     rawOutput,
     allowedSlugs,
     allowedQuestions,
     allowedPlatforms
   );
+  if (
+    coerced?.decision === "clarify" &&
+    (input.previousAnswers?.length ?? 0) >= MAX_DIAGNOSTIC_ANSWERS
+  ) {
+    coerced = null;
+  }
   if (!coerced) {
     if (getAiProviderKind() !== "mock") {
       recordProviderCall({

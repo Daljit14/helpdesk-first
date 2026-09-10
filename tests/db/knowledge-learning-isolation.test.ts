@@ -43,6 +43,7 @@ describe.skipIf(!canRun)("knowledge learning tenant isolation", () => {
     let foreignId: string | null = null;
     let ticketId: string | null = null;
     let draftId: string | null = null;
+    let eventId: string | null = null;
     try {
       expect(
         (
@@ -124,12 +125,31 @@ describe.skipIf(!canRun)("knowledge learning tenant isolation", () => {
         .single();
       expect(draft.error).toBeNull();
       draftId = draft.data?.id ?? null;
+      const event = await service
+        .from("knowledge_learning_events")
+        .insert({
+          organization_id: orgId,
+          ticket_id: ticketId,
+          status: "pending",
+        })
+        .select("id")
+        .single();
+      expect(event.error).toBeNull();
+      eventId = event.data?.id ?? null;
       expect(
         (await anon.auth.signInWithPassword({ email: foreignEmail, password }))
           .error
       ).toBeNull();
       expect(
         (await anon.from("knowledge_drafts").select("*").eq("id", draftId)).data
+      ).toEqual([]);
+      expect(
+        (
+          await anon
+            .from("knowledge_learning_events")
+            .select("*")
+            .eq("id", eventId)
+        ).data
       ).toEqual([]);
       await anon.auth.signOut();
       expect(
@@ -144,10 +164,24 @@ describe.skipIf(!canRun)("knowledge learning tenant isolation", () => {
           })
         ).error
       ).toBeTruthy();
+      expect(
+        (
+          await anon.from("knowledge_learning_events").insert({
+            organization_id: orgId,
+            ticket_id: ticketId,
+            status: "pending",
+          })
+        ).error
+      ).toBeTruthy();
     } finally {
       await anon.auth.signOut();
       if (draftId)
         await service.from("knowledge_drafts").delete().eq("id", draftId);
+      if (eventId)
+        await service
+          .from("knowledge_learning_events")
+          .delete()
+          .eq("id", eventId);
       if (ticketId) await service.from("tickets").delete().eq("id", ticketId);
       if (ownerId && otherId) {
         await service

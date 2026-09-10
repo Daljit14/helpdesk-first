@@ -1,7 +1,14 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { ExternalLink, FileText, ImageIcon } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Circle,
+  ExternalLink,
+  FileText,
+  ImageIcon,
+} from "lucide-react";
 import { getAttachmentAccessUrl } from "@/app/actions/attachments";
 
 export type AttachmentListItem = {
@@ -28,6 +35,16 @@ function statusLabel(item: AttachmentListItem): string {
     return `Rejected${item.rejection_reason ? ` (${item.rejection_reason})` : ""}`;
   if (item.scan_verdict === "unscanned") return "Not virus-scanned";
   return item.status[0]?.toUpperCase() + item.status.slice(1);
+}
+
+function StatusIcon({ item }: { item: AttachmentListItem }) {
+  if (item.status === "rejected") {
+    return <AlertTriangle className="h-3.5 w-3.5" aria-hidden />;
+  }
+  if (item.status === "ready") {
+    return <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />;
+  }
+  return <Circle className="h-3.5 w-3.5" aria-hidden />;
 }
 
 export function AttachmentList({
@@ -82,13 +99,8 @@ export function AttachmentList({
                 </span>
               </span>
               <span className="flex items-center gap-2 text-xs">
-                <span
-                  className={
-                    attachment.status === "rejected"
-                      ? "text-destructive"
-                      : "text-muted-foreground"
-                  }
-                >
+                <span className="inline-flex items-center gap-1 text-muted-foreground">
+                  <StatusIcon item={attachment} />
                   {statusLabel(attachment)}
                 </span>
                 {attachment.status === "ready" && (

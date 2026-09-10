@@ -2,6 +2,13 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Circle,
+  Clock,
+  RotateCcw,
+} from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { Ticket } from "@/lib/guides-data";
 import { getIssueBySlug } from "@/lib/search";
@@ -12,6 +19,20 @@ import {
 } from "@/lib/tickets/user-status";
 
 type TicketWithAttachments = Ticket & { attachmentCount?: number };
+
+function StatusIcon({ label }: { label: string }) {
+  const normalized = label.toLowerCase();
+  const Icon = normalized.includes("resolved")
+    ? CheckCircle2
+    : normalized.includes("waiting") || normalized.includes("reply")
+      ? Clock
+      : normalized.includes("reopen")
+        ? RotateCcw
+        : normalized.includes("needed") || normalized.includes("suggested")
+          ? AlertTriangle
+          : Circle;
+  return <Icon className="h-3.5 w-3.5" aria-hidden />;
+}
 
 export function TicketsTable({
   initialTickets,
@@ -318,12 +339,14 @@ function PortalTicketSection({
                       href={`/tickets/${ticket.id}#progress`}
                       aria-label={`View progress for ticket ${ticket.id}`}
                       title={ticket.status}
-                      className="glass-pill px-3 py-1 text-xs hover:bg-muted"
+                      className="glass-pill inline-flex items-center gap-1 px-3 py-1 text-xs hover:bg-muted"
                     >
+                      <StatusIcon label={status.label} />
                       {status.label}
                     </Link>
                     {status.attention && (
-                      <span className="glass-pill bg-amber-500/15 px-3 py-1 text-xs text-amber-800 dark:text-amber-200">
+                      <span className="glass-pill inline-flex items-center gap-1 bg-[var(--status-warning)]/15 px-3 py-1 text-xs text-[var(--status-warning-foreground)]">
+                        <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
                         Action needed
                       </span>
                     )}

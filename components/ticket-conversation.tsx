@@ -141,7 +141,7 @@ export function TicketConversation({
               className="w-full rounded-2xl border border-border/70 bg-background/60 p-3 backdrop-blur"
               rows={3}
             />
-            <button className="rounded-full bg-gradient-to-b from-primary to-primary/85 px-5 py-2 text-primary-foreground shadow-md shadow-primary/25">
+            <button className="v2-touch rounded-xl bg-primary px-5 py-2 text-primary-foreground shadow-md">
               Add reply
             </button>
           </form>
@@ -182,7 +182,7 @@ export function TicketConversation({
                 );
               })
             }
-            className="rounded-full bg-gradient-to-b from-primary to-primary/85 px-5 py-2 text-primary-foreground shadow-md shadow-primary/25"
+            className="v2-touch rounded-xl bg-primary px-5 py-2 text-primary-foreground shadow-md"
           >
             Yes, it&apos;s fixed
           </button>

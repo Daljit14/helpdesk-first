@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { TicketUpdateForm } from "@/components/admin/ticket-update-form";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -139,6 +140,31 @@ function priorityTone(priority: string) {
   }
 }
 
+function TicketAccessDenied() {
+  return (
+    <section className="flex flex-1 items-center justify-center px-4 py-12 sm:px-6">
+      <div className="glass-strong w-full max-w-xl space-y-5 p-6">
+        <div>
+          <h1 className="text-2xl font-semibold">
+            This ticket isn&apos;t in your organization or isn&apos;t assigned
+            to you.
+          </h1>
+          <p className="mt-3 text-muted-foreground">
+            Return to the admin ticket list to view tickets available to your
+            account.
+          </p>
+        </div>
+        <Link
+          href="/admin/tickets"
+          className="inline-flex rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
+        >
+          Back to tickets
+        </Link>
+      </div>
+    </section>
+  );
+}
+
 export default async function AdminTicketPage({
   params,
 }: {
@@ -181,8 +207,9 @@ export default async function AdminTicketPage({
     error: Error | null;
   };
   const ticket = rawTicket;
-  if (error || !ticket) notFound();
-  if (workflowEnabled && !canAccessTicket(session, ticket)) notFound();
+  if (error || !ticket) return <TicketAccessDenied />;
+  if (workflowEnabled && !canAccessTicket(session, ticket))
+    return <TicketAccessDenied />;
   const exceptionDetails = verificationExceptionDetails(
     ticket.resolution_report
   );

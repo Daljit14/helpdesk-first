@@ -34,7 +34,10 @@ const sensitiveTopics: { label: string; matches: RegExp }[] = [
     matches:
       /\b(?:password|passcode|mfa|2fa|two[- ]factor|authenticator|one[- ]time code|reset (?:my )?login)\b/i,
   },
-  { label: "recovery key", matches: /\b(?:recovery|bitlocker|filevault)\s+key\b/i },
+  {
+    label: "recovery key",
+    matches: /\b(?:recovery|bitlocker|filevault)\s+key\b/i,
+  },
   {
     label: "suspected compromise",
     matches:
@@ -79,7 +82,9 @@ function isCompleteReport(report: unknown): boolean {
 }
 
 export function detectSensitiveTopic(text: string): string | null {
-  return sensitiveTopics.find((topic) => topic.matches.test(text))?.label ?? null;
+  return (
+    sensitiveTopics.find((topic) => topic.matches.test(text))?.label ?? null
+  );
 }
 
 export function evaluateLearningEligibility(

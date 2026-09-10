@@ -145,9 +145,36 @@ export function riskForStepText(text: string): StepRisk {
 export type SimilarGuide = { slug: string; title: string; score: number };
 
 const stopWords = new Set([
-  "the", "a", "an", "and", "or", "to", "of", "is", "not", "my", "on", "in",
-  "it", "for", "with", "will", "does", "can", "cannot", "when", "after",
-  "before", "but", "no", "at", "be", "was", "are", "this", "that",
+  "the",
+  "a",
+  "an",
+  "and",
+  "or",
+  "to",
+  "of",
+  "is",
+  "not",
+  "my",
+  "on",
+  "in",
+  "it",
+  "for",
+  "with",
+  "will",
+  "does",
+  "can",
+  "cannot",
+  "when",
+  "after",
+  "before",
+  "but",
+  "no",
+  "at",
+  "be",
+  "was",
+  "are",
+  "this",
+  "that",
 ]);
 
 export function tokenize(value: string): Set<string> {
@@ -169,7 +196,10 @@ function overlap(a: Set<string>, b: Set<string>): number {
 }
 
 export function findSimilarGuides(
-  article: Pick<LearnedArticle, "title" | "symptoms" | "rootCause" | "platforms">,
+  article: Pick<
+    LearnedArticle,
+    "title" | "symptoms" | "rootCause" | "platforms"
+  >,
   issues: Pick<Issue, "id" | "title" | "symptoms" | "devices">[],
   limit = 3
 ): SimilarGuide[] {

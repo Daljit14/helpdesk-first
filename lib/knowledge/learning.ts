@@ -230,7 +230,10 @@ export function buildLearnedArticleInput(
   const rootCause = redactForLearning(report.data.rootCause, 600);
   const actions = redactForLearning(report.data.actionsPerformed, 3000);
   const tools = redactForLearning(report.data.toolsUsed, 300);
-  const preventive = redactForLearning(report.data.preventiveRecommendation, 600);
+  const preventive = redactForLearning(
+    report.data.preventiveRecommendation,
+    600
+  );
   const seen = new Set<string>();
   const uniqueSymptomText = symptoms
     .map(({ text }) => text)
@@ -249,7 +252,8 @@ export function buildLearnedArticleInput(
       platform: inputs.ticket.platform,
       relatedSlug: draft.relatedSlug,
       relatedTitle: draft.relatedSlug
-        ? (getIssueBySlug(draft.relatedSlug)?.title ?? inputs.ticket.issue_title)
+        ? (getIssueBySlug(draft.relatedSlug)?.title ??
+          inputs.ticket.issue_title)
         : null,
       rootCause: rootCause.text,
       actionsPerformed: actions.text,
@@ -375,7 +379,8 @@ export async function generateCandidate(
     .maybeSingle();
   if (ticketResult.error) throw ticketResult.error;
   const ticket = ticketResult.data as TicketRow | null;
-  if (!ticket) return { outcome: { kind: "skipped", reason: "ticket_missing" } };
+  if (!ticket)
+    return { outcome: { kind: "skipped", reason: "ticket_missing" } };
 
   const report = resolutionReportSchema.safeParse(ticket.resolution_report);
   const eligibility = evaluateLearningEligibility({
@@ -679,7 +684,11 @@ export async function reviewKnowledgeDraft(
   if (found.error || !found.data) return { error: "Draft not found." };
   const draft = mapDraft(found.data as DraftRow);
   const now = new Date().toISOString();
-  const reviewed = { reviewed_by: input.actorId, reviewed_at: now, updated_at: now };
+  const reviewed = {
+    reviewed_by: input.actorId,
+    reviewed_at: now,
+    updated_at: now,
+  };
 
   async function update(
     patch: Record<string, unknown>,
@@ -716,7 +725,9 @@ export async function reviewKnowledgeDraft(
         .eq("id", input.draftId)
         .eq("organization_id", input.organizationId)
         .in("status", ["rejected", "failed"]);
-      return result.error ? { error: "Unable to discard draft." } : { success: true };
+      return result.error
+        ? { error: "Unable to discard draft." }
+        : { success: true };
     }
     case "reject": {
       const reason = input.reason.trim();
@@ -725,7 +736,11 @@ export async function reviewKnowledgeDraft(
         return { error: "Draft not found or already reviewed." };
       }
       return update(
-        { status: "rejected", rejection_reason: reason.slice(0, 1000), ...reviewed },
+        {
+          status: "rejected",
+          rejection_reason: reason.slice(0, 1000),
+          ...reviewed,
+        },
         REVIEWABLE_STATUSES
       );
     }
@@ -760,7 +775,9 @@ export async function reviewKnowledgeDraft(
       };
       const validation = validateLearnedArticle(merged, getAllIssueSlugs());
       if (!validation.ok || !validation.article) {
-        return { error: `Edit rejected: ${validation.errors.join("; ")}`.slice(0, 300) };
+        return {
+          error: `Edit rejected: ${validation.errors.join("; ")}`.slice(0, 300),
+        };
       }
       return update(
         {
@@ -783,7 +800,8 @@ export async function reviewKnowledgeDraft(
         return { error: "This draft has already been regenerated once." };
       }
       const instructions = input.instructions.trim().slice(0, 1000);
-      if (!instructions) return { error: "Reviewer instructions are required." };
+      if (!instructions)
+        return { error: "Reviewer instructions are required." };
       const generated = await generateCandidate(
         admin,
         draft.ticketId,
@@ -791,7 +809,9 @@ export async function reviewKnowledgeDraft(
         { reviewerInstructions: instructions }
       );
       if (generated.outcome.kind !== "created" || !("row" in generated)) {
-        return { error: "The source ticket is no longer eligible for learning." };
+        return {
+          error: "The source ticket is no longer eligible for learning.",
+        };
       }
       const {
         organization_id: _org,
@@ -802,10 +822,10 @@ export async function reviewKnowledgeDraft(
       void _org;
       void _ticket;
       void _hash;
-      return update(
-        { ...patch, regeneration_count: 1, updated_at: now },
-        [...REVIEWABLE_STATUSES, "failed"]
-      );
+      return update({ ...patch, regeneration_count: 1, updated_at: now }, [
+        ...REVIEWABLE_STATUSES,
+        "failed",
+      ]);
     }
     case "approve_new": {
       if (!editableStatuses.has(draft.status) || !draft.article) {
@@ -829,7 +849,8 @@ export async function reviewKnowledgeDraft(
         })
         .select("id")
         .single();
-      if (guide.error || !guide.data) return { error: "Unable to create guide." };
+      if (guide.error || !guide.data)
+        return { error: "Unable to create guide." };
       const revision = await admin
         .from("knowledge_guide_revisions")
         .insert({
@@ -864,13 +885,21 @@ export async function reviewKnowledgeDraft(
         .from("knowledge_guides")
         .select("*")
         .eq("slug", targetSlug)
-        .or(`organization_id.is.null,organization_id.eq.${input.organizationId}`)
+        .or(
+          `organization_id.is.null,organization_id.eq.${input.organizationId}`
+        )
         .order("organization_id", { ascending: false, nullsFirst: false })
         .limit(1);
       const guide = guideResult.data?.[0] as
-        | { id: string; status: string; version: number; organization_id: string | null }
+        | {
+            id: string;
+            status: string;
+            version: number;
+            organization_id: string | null;
+          }
         | undefined;
-      if (guideResult.error || !guide) return { error: "Target guide not found." };
+      if (guideResult.error || !guide)
+        return { error: "Target guide not found." };
       const revision = await admin
         .from("knowledge_guide_revisions")
         .insert({
@@ -883,7 +912,11 @@ export async function reviewKnowledgeDraft(
           note: `Proposed revision from learning draft ${draft.id}${
             input.note?.trim() ? `: ${input.note.trim()}` : ""
           }`.slice(0, 1000),
-          prior_snapshot: { guide, learningDraftId: draft.id, article: draft.article },
+          prior_snapshot: {
+            guide,
+            learningDraftId: draft.id,
+            article: draft.article,
+          },
         })
         .select("id")
         .single();

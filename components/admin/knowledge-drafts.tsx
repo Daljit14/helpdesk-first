@@ -3,7 +3,10 @@
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { reviewKnowledgeDraft } from "@/app/actions/knowledge";
-import type { KnowledgeDraft, KnowledgeDraftStatus } from "@/lib/knowledge/learning";
+import type {
+  KnowledgeDraft,
+  KnowledgeDraftStatus,
+} from "@/lib/knowledge/learning";
 import { describeRedactions } from "@/lib/knowledge/learning-redaction";
 import { riskLabel } from "@/lib/investigation/policy";
 import { Button } from "@/components/ui/button";
@@ -33,7 +36,8 @@ export function KnowledgeDrafts({
   const [panel, setPanel] = useState<{ id: string; kind: Panel } | null>(null);
   const gaps = drafts.filter((draft) => !draft.relatedSlug).length;
   const awaiting = drafts.filter(
-    (draft) => draft.status === "draft" || draft.status === "needs_security_review"
+    (draft) =>
+      draft.status === "draft" || draft.status === "needs_security_review"
   ).length;
 
   function submit(input: Parameters<typeof reviewKnowledgeDraft>[0]) {
@@ -83,7 +87,9 @@ export function KnowledgeDrafts({
             const open = panel?.id === draft.id ? panel.kind : null;
             const revisionTargets = [
               ...(draft.relatedSlug ? [draft.relatedSlug] : []),
-              ...draft.similarSlugs.filter((slug) => slug !== draft.relatedSlug),
+              ...draft.similarSlugs.filter(
+                (slug) => slug !== draft.relatedSlug
+              ),
             ];
             return (
               <article
@@ -139,7 +145,9 @@ export function KnowledgeDrafts({
                   · {draft.modelProvider ?? "deterministic"}
                   {draft.modelVersion ? ` v${draft.modelVersion}` : ""}
                   {draft.promptVersion ? ` · ${draft.promptVersion}` : ""}
-                  {article ? ` · confidence ${Math.round(article.confidence * 100)}%` : ""}
+                  {article
+                    ? ` · confidence ${Math.round(article.confidence * 100)}%`
+                    : ""}
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
                   Privacy: {describeRedactions(draft.redactionSummary)}
@@ -182,7 +190,10 @@ export function KnowledgeDrafts({
                     <p className="mt-1 text-sm">
                       <strong>Root cause:</strong> {article.rootCause}
                     </p>
-                    <DetailList title="Preconditions" items={article.preconditions} />
+                    <DetailList
+                      title="Preconditions"
+                      items={article.preconditions}
+                    />
                     <div className="mt-3 text-sm">
                       <strong>Steps:</strong>
                       <ol className="mt-1 list-inside list-decimal space-y-1">
@@ -196,7 +207,10 @@ export function KnowledgeDrafts({
                         ))}
                       </ol>
                     </div>
-                    <DetailList title="Verification" items={article.verification} />
+                    <DetailList
+                      title="Verification"
+                      items={article.verification}
+                    />
                     <DetailList
                       title="Escalate when"
                       items={article.escalationConditions}
@@ -211,9 +225,13 @@ export function KnowledgeDrafts({
                   </>
                 ) : (
                   <>
-                    <DetailList title="Symptoms" items={draft.content.symptoms} />
+                    <DetailList
+                      title="Symptoms"
+                      items={draft.content.symptoms}
+                    />
                     <p className="mt-3 text-sm">
-                      <strong>Root cause:</strong> {draft.content.rootCause || "—"}
+                      <strong>Root cause:</strong>{" "}
+                      {draft.content.rootCause || "—"}
                     </p>
                     <DetailList
                       title="Resolution steps"
@@ -225,7 +243,11 @@ export function KnowledgeDrafts({
                 <ReviewHistory draft={draft} />
                 {reviewable && (
                   <div className="mt-4 space-y-3">
-                    <div className="flex flex-wrap gap-2" role="group" aria-label={`Actions for ${draft.title}`}>
+                    <div
+                      className="flex flex-wrap gap-2"
+                      role="group"
+                      aria-label={`Actions for ${draft.title}`}
+                    >
                       <Button
                         type="button"
                         size="sm"
@@ -241,7 +263,9 @@ export function KnowledgeDrafts({
                         size="sm"
                         variant="outline"
                         disabled={pending || !article}
-                        onClick={() => setPanel({ id: draft.id, kind: "revision" })}
+                        onClick={() =>
+                          setPanel({ id: draft.id, kind: "revision" })
+                        }
                       >
                         Approve as revision
                       </Button>
@@ -275,7 +299,9 @@ export function KnowledgeDrafts({
                         size="sm"
                         variant="outline"
                         disabled={pending || draft.regenerationCount >= 1}
-                        onClick={() => setPanel({ id: draft.id, kind: "regenerate" })}
+                        onClick={() =>
+                          setPanel({ id: draft.id, kind: "regenerate" })
+                        }
                       >
                         Regenerate once
                       </Button>
@@ -284,7 +310,9 @@ export function KnowledgeDrafts({
                         size="sm"
                         variant="outline"
                         disabled={pending}
-                        onClick={() => setPanel({ id: draft.id, kind: "reject" })}
+                        onClick={() =>
+                          setPanel({ id: draft.id, kind: "reject" })
+                        }
                       >
                         Reject
                       </Button>
@@ -302,7 +330,10 @@ export function KnowledgeDrafts({
                           });
                         }}
                       >
-                        <label className="text-sm" htmlFor={`target-${draft.id}`}>
+                        <label
+                          className="text-sm"
+                          htmlFor={`target-${draft.id}`}
+                        >
                           Existing guide to revise
                         </label>
                         <input
@@ -353,7 +384,10 @@ export function KnowledgeDrafts({
                           });
                         }}
                       >
-                        <label className="text-sm" htmlFor={`title-${draft.id}`}>
+                        <label
+                          className="text-sm"
+                          htmlFor={`title-${draft.id}`}
+                        >
                           Title
                         </label>
                         <input
@@ -373,7 +407,10 @@ export function KnowledgeDrafts({
                           defaultValue={article.rootCause}
                           className="min-h-16 rounded-xl border border-border bg-background/60 p-2 text-sm"
                         />
-                        <label className="text-sm" htmlFor={`steps-${draft.id}`}>
+                        <label
+                          className="text-sm"
+                          htmlFor={`steps-${draft.id}`}
+                        >
                           Steps (one per line; each is re-checked by the risk
                           policy)
                         </label>
@@ -381,7 +418,9 @@ export function KnowledgeDrafts({
                           id={`steps-${draft.id}`}
                           name="steps"
                           data-draft-id={draft.id}
-                          defaultValue={article.steps.map((step) => step.text).join("\n")}
+                          defaultValue={article.steps
+                            .map((step) => step.text)
+                            .join("\n")}
                           className="min-h-24 rounded-xl border border-border bg-background/60 p-2 text-sm"
                         />
                         <div className="flex gap-2">
@@ -404,7 +443,10 @@ export function KnowledgeDrafts({
                           });
                         }}
                       >
-                        <label className="text-sm" htmlFor={`instructions-${draft.id}`}>
+                        <label
+                          className="text-sm"
+                          htmlFor={`instructions-${draft.id}`}
+                        >
                           Reviewer instructions
                         </label>
                         <textarea
@@ -434,7 +476,10 @@ export function KnowledgeDrafts({
                           });
                         }}
                       >
-                        <label className="text-sm" htmlFor={`reason-${draft.id}`}>
+                        <label
+                          className="text-sm"
+                          htmlFor={`reason-${draft.id}`}
+                        >
                           Rejection reason (required)
                         </label>
                         <textarea
@@ -445,7 +490,12 @@ export function KnowledgeDrafts({
                           className="min-h-16 rounded-xl border border-border bg-background/60 p-2 text-sm"
                         />
                         <div className="flex gap-2">
-                          <Button type="submit" size="sm" variant="outline" disabled={pending}>
+                          <Button
+                            type="submit"
+                            size="sm"
+                            variant="outline"
+                            disabled={pending}
+                          >
                             Confirm rejection
                           </Button>
                           <CancelButton onClick={() => setPanel(null)} />
@@ -455,7 +505,8 @@ export function KnowledgeDrafts({
                   </div>
                 )}
                 {canWrite &&
-                  (draft.status === "rejected" || draft.status === "failed") && (
+                  (draft.status === "rejected" ||
+                    draft.status === "failed") && (
                     <div className="mt-3">
                       <Button
                         type="button"

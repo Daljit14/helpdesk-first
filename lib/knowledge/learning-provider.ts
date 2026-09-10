@@ -76,14 +76,23 @@ export const deterministicLearnedArticleProvider: LearnedArticleProvider = {
       platforms,
       rootCause: input.rootCause.slice(0, 600),
       preconditions: [
-        ...(input.toolsUsed ? [`Access to ${input.toolsUsed}`.slice(0, 300)] : []),
+        ...(input.toolsUsed
+          ? [`Access to ${input.toolsUsed}`.slice(0, 300)]
+          : []),
         ...(input.failedGuideSteps.length && input.relatedSlug
           ? [
               `Steps ${input.failedGuideSteps.map((index) => index + 1).join(", ")} of the "${input.relatedSlug}" guide did not resolve the issue.`,
             ]
           : []),
       ],
-      steps: steps.length ? steps : [{ text: input.actionsPerformed.slice(0, 400), risk: classifyStep(input.actionsPerformed).risk }],
+      steps: steps.length
+        ? steps
+        : [
+            {
+              text: input.actionsPerformed.slice(0, 400),
+              risk: classifyStep(input.actionsPerformed).risk,
+            },
+          ],
       verification: [
         "Ask the user to repeat the action that originally failed and confirm the symptom no longer occurs.",
       ],

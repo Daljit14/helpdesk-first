@@ -12,6 +12,14 @@ import { getIssueSteps } from "@/lib/steps";
 import { clearAllSessions } from "@/lib/session";
 import { getIssueStepPolicies } from "@/lib/investigation/policy";
 
+const mocks = vi.hoisted(() => ({
+  recordStepOutcome: vi.fn(),
+}));
+
+vi.mock("@/app/actions/tickets", () => ({
+  recordStepOutcome: mocks.recordStepOutcome,
+}));
+
 const issue = ISSUES.find((i) => i.id === "no-sound")!;
 const steps = getIssueSteps(issue);
 
@@ -23,6 +31,8 @@ vi.mock("next/navigation", () => ({
 describe("TroubleshootingGuide", () => {
   beforeEach(() => {
     clearAllSessions();
+    vi.clearAllMocks();
+    mocks.recordStepOutcome.mockResolvedValue({ success: true });
   });
 
   afterEach(() => {
@@ -91,6 +101,46 @@ describe("TroubleshootingGuide", () => {
         "This problem is unresolved"
       );
     });
+  });
+
+  test("records linked workflow step failures using the raw step index", async () => {
+    render(
+      <TroubleshootingGuide
+        issue={issue}
+        linkedTicket={{ id: "ticket-1", alreadyResolved: false }}
+        workflowEnabled
+      />
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("step-count")).toHaveTextContent(/Step 1 of 5/)
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "This did not work" }));
+
+    await waitFor(() => {
+      expect(mocks.recordStepOutcome).toHaveBeenCalledWith(
+        "ticket-1",
+        issue.id,
+        0,
+        "failed"
+      );
+    });
+  });
+
+  test("does not record guide outcomes when workflow is disabled", async () => {
+    render(
+      <TroubleshootingGuide
+        issue={issue}
+        linkedTicket={{ id: "ticket-1", alreadyResolved: false }}
+      />
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("step-count")).toHaveTextContent(/Step 1 of 5/)
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "This did not work" }));
+
+    expect(mocks.recordStepOutcome).not.toHaveBeenCalled();
   });
 
   test("escalation can generate a report", async () => {

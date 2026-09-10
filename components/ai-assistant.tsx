@@ -289,6 +289,8 @@ export function AiAssistant({
             searchHref={searchHref()}
             resolutionTrackingEnabled={resolutionTrackingEnabled}
             signedIn={signedIn}
+            problem={problem}
+            previousAnswers={previousAnswers}
             onStartTicket={(href) => router.push(href)}
           />
         ) : currentOutput?.decision === "escalate" ? (
@@ -463,6 +465,8 @@ function MatchView({
   searchHref,
   resolutionTrackingEnabled,
   signedIn,
+  problem,
+  previousAnswers,
   onStartTicket,
 }: {
   output: AiIntakeOutput;
@@ -471,6 +475,8 @@ function MatchView({
   searchHref: string;
   resolutionTrackingEnabled: boolean;
   signedIn: boolean;
+  problem: string;
+  previousAnswers: DiagnosticAnswer[];
   onStartTicket: (href: string) => void;
 }) {
   const effectivePlatform = output.detectedPlatform ?? platform ?? "Other";
@@ -559,6 +565,8 @@ function MatchView({
             const result = await startAiTicket({
               issueId: output.matchedIssueSlug,
               platform: effectivePlatform,
+              message: problem,
+              diagnosticAnswers: previousAnswers,
             });
             if ("ticketId" in result) {
               onStartTicket(`${guideHref}&ticket=${result.ticketId}`);

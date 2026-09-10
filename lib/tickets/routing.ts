@@ -17,6 +17,25 @@ export type HandoffReason =
   | "credentials_involved"
   | "high_risk";
 
+export const HANDOFF_REASON_LABELS: Record<HandoffReason, string> = {
+  low_confidence: "AI confidence too low",
+  no_approved_guide: "No approved guide matched",
+  repeated_failure: "Repeated troubleshooting failures",
+  insufficient_diagnostics: "Not enough diagnostic information",
+  user_requested_human: "User asked for IT help",
+  admin_access_required: "Administrator access required",
+  hardware_repair: "Hardware repair suspected",
+  security_concern: "Security concern",
+  remote_assistance_required: "Remote assistance required",
+  credentials_involved: "Credentials involved",
+  high_risk: "High-risk action required",
+};
+
+export function formatHandoffReason(reason: string | null): string | null {
+  if (!reason) return null;
+  return (HANDOFF_REASON_LABELS as Record<string, string>)[reason] ?? reason;
+}
+
 export type RouteInput = {
   ai: AiIntakeOutput;
   issue: Issue | null;

@@ -23,6 +23,8 @@ function canonicalPlatform(raw: string): string | null {
 export async function startAiTicket(input: {
   issueId: string;
   platform: string;
+  message?: string;
+  diagnosticAnswers?: Array<{ questionId: string; answer: string }>;
 }): Promise<{ ticketId: string } | ResolutionActionResult> {
   if (process.env.HELP_DESK_TICKET_WORKFLOW_ENABLED === "true") {
     const { createWorkflowTicket } = await import("@/app/actions/tickets");
@@ -30,7 +32,15 @@ export async function startAiTicket(input: {
     const result = await createWorkflowTicket({
       issueId: input.issueId,
       platform: input.platform,
-      message: `I need help with the "${issue?.title ?? "IT issue"}" problem.`,
+      message:
+        input.message?.trim().slice(0, 2000) ||
+        `I need help with the "${issue?.title ?? "IT issue"}" problem.`,
+      diagnosticAnswers: (input.diagnosticAnswers ?? [])
+        .slice(0, 8)
+        .map(({ questionId, answer }) => ({
+          questionId,
+          answer: answer.slice(0, 500),
+        })),
     });
     return "ticketId" in result && result.ticketId
       ? { ticketId: result.ticketId }

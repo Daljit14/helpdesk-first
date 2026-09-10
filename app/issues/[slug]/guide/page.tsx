@@ -6,8 +6,11 @@ import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/supabase/user";
 import { getProgress } from "@/lib/guides-data";
 import { createClient } from "@/lib/supabase/server";
-import { isResolutionTrackingEnabled } from "@/lib/admin/flags";
-import { isStepPolicyEnabled } from "@/lib/admin/flags";
+import {
+  isResolutionTrackingEnabled,
+  isStepPolicyEnabled,
+  isTicketWorkflowEnabled,
+} from "@/lib/admin/flags";
 import { getIssueStepPolicies } from "@/lib/investigation/policy";
 
 export async function generateStaticParams() {
@@ -59,6 +62,7 @@ export default async function GuidePage({
     ? await getProgress(user.id, issue.id)
     : [];
   const resolutionTrackingEnabled = isResolutionTrackingEnabled();
+  const workflowEnabled = isTicketWorkflowEnabled();
   const stepPolicies = isStepPolicyEnabled()
     ? getIssueStepPolicies(issue)
     : undefined;
@@ -104,6 +108,7 @@ export default async function GuidePage({
           canPersist={Boolean(user)}
           linkedTicket={linkedTicket}
           resolutionTrackingEnabled={resolutionTrackingEnabled}
+          workflowEnabled={workflowEnabled}
           stepPolicies={stepPolicies}
         />
       </Suspense>

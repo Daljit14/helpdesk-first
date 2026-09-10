@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   isTicketWorkflowEnabled: vi.fn(),
   recordAnalyticsEvent: vi.fn(),
   completeUserHandoff: vi.fn(),
+  createWorkflowTicket: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/user", () => ({
@@ -30,11 +31,21 @@ vi.mock("@/lib/analytics/events", () => ({
 vi.mock("@/lib/tickets/handoff", () => ({
   completeUserHandoff: mocks.completeUserHandoff,
 }));
+vi.mock("@/app/actions/tickets", () => ({
+  createWorkflowTicket: mocks.createWorkflowTicket,
+}));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+
+const originalWorkflowEnv = process.env.HELP_DESK_TICKET_WORKFLOW_ENABLED;
 
 afterEach(() => {
   vi.clearAllMocks();
   mocks.isTicketWorkflowEnabled.mockReturnValue(false);
+  if (originalWorkflowEnv === undefined) {
+    delete process.env.HELP_DESK_TICKET_WORKFLOW_ENABLED;
+  } else {
+    process.env.HELP_DESK_TICKET_WORKFLOW_ENABLED = originalWorkflowEnv;
+  }
 });
 
 const user = { id: "user-1" };
@@ -78,6 +89,49 @@ describe("resolution actions", () => {
       })
     );
     expect(mocks.recordAnalyticsEvent).toHaveBeenCalled();
+  });
+
+  test("passes assistant intake context to workflow tickets", async () => {
+    process.env.HELP_DESK_TICKET_WORKFLOW_ENABLED = "true";
+    mocks.createWorkflowTicket.mockResolvedValue({ success: true, ticketId });
+
+    await expect(
+      startAiTicket({
+        issueId: "no-internet",
+        platform: "Windows",
+        message: "  Wi-Fi stopped working  ",
+        diagnosticAnswers: [
+          { questionId: "which-platform", answer: "Windows" },
+          { questionId: "where", answer: "Office" },
+        ],
+      })
+    ).resolves.toEqual({ ticketId });
+
+    expect(mocks.createWorkflowTicket).toHaveBeenCalledWith({
+      issueId: "no-internet",
+      platform: "Windows",
+      message: "Wi-Fi stopped working",
+      diagnosticAnswers: [
+        { questionId: "which-platform", answer: "Windows" },
+        { questionId: "where", answer: "Office" },
+      ],
+    });
+  });
+
+  test("uses the generic workflow message when assistant context is omitted", async () => {
+    process.env.HELP_DESK_TICKET_WORKFLOW_ENABLED = "true";
+    mocks.createWorkflowTicket.mockResolvedValue({ success: true, ticketId });
+
+    await expect(
+      startAiTicket({ issueId: "no-internet", platform: "Windows" })
+    ).resolves.toEqual({ ticketId });
+
+    expect(mocks.createWorkflowTicket).toHaveBeenCalledWith({
+      issueId: "no-internet",
+      platform: "Windows",
+      message: 'I need help with the "No internet connection" problem.',
+      diagnosticAnswers: [],
+    });
   });
 
   test("calls the resolution RPCs", async () => {

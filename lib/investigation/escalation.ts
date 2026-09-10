@@ -7,6 +7,7 @@ import { getIssueStepPolicies } from "./policy";
 import type { InvestigationRow, InvestigationTurnRow } from "./types";
 import { loadEscalationInputs } from "./escalation-load";
 import type { createAdminClient } from "@/lib/supabase/admin";
+import { formatHandoffReason } from "@/lib/tickets/routing";
 
 export type EscalationPackage = {
   version: 1;
@@ -321,7 +322,8 @@ export function summarizeEscalationPackage(pkg: EscalationPackage): string {
   const failed = pkg.stepsAttempted.filter(
     (step) => step.outcome !== "worked"
   ).length;
-  const reason = pkg.handoff.reason ?? "No handoff reason recorded";
+  const reason =
+    formatHandoffReason(pkg.handoff.reason) ?? "No handoff reason recorded";
   const summary = `${pkg.problem.issueTitle ?? "Ticket"}: ${root}. ${pkg.stepsAttempted.length} steps tried (${failed} not completed). Handoff: ${reason}.`;
   return summary.slice(0, 600);
 }

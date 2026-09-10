@@ -35,6 +35,7 @@ import {
 } from "@/lib/investigation/escalation";
 import { loadEscalationInputs } from "@/lib/investigation/escalation-load";
 import { EscalationPackageCard } from "@/components/escalation-package";
+import { formatHandoffReason } from "@/lib/tickets/routing";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -406,7 +407,10 @@ export default async function AdminTicketPage({
                   {citation && <p>Guide version: v{citation.version}</p>}
                   <p>Confidence: {ticket.ai_confidence ?? "—"}</p>
                   <p>Risk: {ticket.ai_risk_level ?? "—"}</p>
-                  <p>Handoff reason: {ticket.handoff_reason ?? "—"}</p>
+                  <p>
+                    Handoff reason:{" "}
+                    {formatHandoffReason(ticket.handoff_reason ?? null) ?? "—"}
+                  </p>
                   <p>
                     AI attempts: {ticket.ai_failed_attempts ?? 0} failed of 2
                   </p>

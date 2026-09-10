@@ -1,5 +1,6 @@
 import type { EscalationPackage } from "@/lib/investigation/escalation";
 import { riskLabel } from "@/lib/investigation/policy";
+import { formatHandoffReason } from "@/lib/tickets/routing";
 
 function Empty() {
   return <span className="text-muted-foreground">None recorded</span>;
@@ -250,7 +251,9 @@ export function EscalationPackageCard({
         <dl className="grid gap-2 sm:grid-cols-2">
           <div>
             <dt className="font-medium">Reason</dt>
-            <dd>{pkg.handoff.reason ?? "None recorded"}</dd>
+            <dd>
+              {formatHandoffReason(pkg.handoff.reason) ?? "None recorded"}
+            </dd>
           </div>
           <div>
             <dt className="font-medium">Detail</dt>

@@ -29,6 +29,7 @@ import {
   confirmTicketResolved,
   escalateTicket,
 } from "@/app/actions/resolution";
+import { recordStepOutcome } from "@/app/actions/tickets";
 import type { StepPolicy } from "@/lib/investigation/policy";
 
 type TroubleshootingGuideProps = {
@@ -37,6 +38,7 @@ type TroubleshootingGuideProps = {
   canPersist?: boolean;
   linkedTicket?: { id: string; alreadyResolved: boolean } | null;
   resolutionTrackingEnabled?: boolean;
+  workflowEnabled?: boolean;
   stepPolicies?: StepPolicy[];
 };
 
@@ -74,6 +76,7 @@ export function TroubleshootingGuide({
   canPersist = false,
   linkedTicket = null,
   resolutionTrackingEnabled = false,
+  workflowEnabled = false,
   stepPolicies,
 }: TroubleshootingGuideProps) {
   const searchParams = useSearchParams();
@@ -179,8 +182,20 @@ export function TroubleshootingGuide({
     return step;
   }
 
+  function recordLinkedStepOutcome(
+    stepIndex: number,
+    outcome: "worked" | "failed" | "could_not_perform"
+  ) {
+    if (!workflowEnabled || !linkedTicket) return;
+    void recordStepOutcome(linkedTicket.id, issue.id, stepIndex, outcome).catch(
+      () => {}
+    );
+  }
+
   function handleCompleted() {
+    const stepIndex = state.currentStepIndex;
     const step = recordAttempt("completed");
+    recordLinkedStepOutcome(stepIndex, "worked");
     const nextCompleted = [
       ...new Set([...completedSteps, state.currentStepIndex]),
     ];
@@ -231,7 +246,9 @@ export function TroubleshootingGuide({
   }
 
   function handleDidNotWork() {
+    const stepIndex = state.currentStepIndex;
     recordAttempt("did-not-work");
+    recordLinkedStepOutcome(stepIndex, "failed");
     if (currentVisiblePosition === totalSteps - 1) {
       setState((prev) => ({ ...prev, status: "escalated" }));
       statusRef.current?.focus();
@@ -261,7 +278,9 @@ export function TroubleshootingGuide({
   }
 
   function handleCannotComplete() {
+    const stepIndex = state.currentStepIndex;
     recordAttempt("cannot-complete");
+    recordLinkedStepOutcome(stepIndex, "could_not_perform");
     setState((prev) => ({ ...prev, status: "escalated" }));
     statusRef.current?.focus();
   }

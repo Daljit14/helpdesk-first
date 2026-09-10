@@ -3,12 +3,21 @@ import { getIssueBySlug } from "@/lib/search";
 import {
   AI_CONFIDENCE_THRESHOLD,
   detectSafetyFlags,
+  formatHandoffReason,
   routeTicket,
 } from "./routing";
 
 const issue = getIssueBySlug("wifi-disconnecting") ?? null;
 
 describe("ticket routing", () => {
+  it("formats known and unknown handoff reasons", () => {
+    expect(formatHandoffReason("user_requested_human")).toBe(
+      "User asked for IT help"
+    );
+    expect(formatHandoffReason("custom reason")).toBe("custom reason");
+    expect(formatHandoffReason(null)).toBeNull();
+  });
+
   it("routes a confident approved low-risk match to AI", () => {
     expect(
       routeTicket({

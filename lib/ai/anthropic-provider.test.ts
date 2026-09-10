@@ -114,6 +114,43 @@ describe("AnthropicAiProvider", () => {
     ]);
   });
 
+  test("warns when safety validation drops returned hypotheses", async () => {
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const provider = new AnthropicAiProvider({
+      apiKey: "test-key",
+      model: "test-model",
+      fetchImpl: vi.fn(async () =>
+        response({
+          ...output,
+          hypotheses: [
+            {
+              cause: "<unsafe>",
+              confidence: 0.8,
+              evidence: ["slow"],
+            },
+          ],
+        })
+      ),
+      catalog: [
+        {
+          slug: "slow-computer",
+          title: "Slow computer",
+          category: "Computer",
+          devices: ["Windows"],
+          symptoms: ["slow"],
+        },
+      ],
+    });
+
+    await provider.classify({ message: "slow", platform: "Windows" });
+
+    expect(warning).toHaveBeenCalledWith(
+      "AI hypotheses dropped by validation",
+      { count: 1 }
+    );
+    warning.mockRestore();
+  });
+
   test("includes the question cap in the prompt and schema", () => {
     expect(buildSystemPrompt([], [])).toContain("at most 3");
     expect(

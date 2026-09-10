@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { ISSUES } from "@/lib/issues";
-import { runInvestigationTurn } from "./engine";
+import { fallbackHypothesis, runInvestigationTurn } from "./engine";
 
 function provider() {
   return {
@@ -22,6 +22,26 @@ function providerFor(issueSlug: string) {
       confidence: 0.8,
       detectedPlatform: "Windows" as const,
       explanation: "A guide matches.",
+    })),
+  };
+}
+
+function providerWithHypothesis(issueSlug: string) {
+  return {
+    classify: vi.fn(async () => ({
+      decision: "match" as const,
+      matchedIssueSlug: issueSlug,
+      confidence: 0.8,
+      detectedPlatform: "Windows" as const,
+      explanation: "A guide matches.",
+      hypotheses: [
+        {
+          cause: "Provider cause",
+          confidence: 0.7,
+          evidence: ["The user's wording"],
+          guideSlug: issueSlug,
+        },
+      ],
     })),
   };
 }
@@ -83,6 +103,80 @@ describe("runInvestigationTurn", () => {
     expect(db.rows).toHaveLength(0);
   });
 
+  test("persists a catalog-grounded fallback hypothesis when the provider returns none", async () => {
+    const db = database();
+    const issue = ISSUES.find((candidate) => candidate.id === "no-internet")!;
+    const result = await runInvestigationTurn({
+      input: {
+        message: "Web pages will not load",
+        platform: "Windows",
+      },
+      provider: providerFor(issue.id),
+      allowedSlugs: [issue.id],
+      ticketId: "ticket-id",
+      organizationId: "org-id",
+      userId: "user-id",
+      persist: true,
+      admin: db.client as never,
+    });
+
+    expect(result.status).toBe("success");
+    expect(db.rows[0]?.hypotheses).toEqual([
+      {
+        cause: issue.title,
+        confidence: 0.8,
+        evidence: ["Web pages will not load"],
+        guideSlug: issue.id,
+      },
+    ]);
+    expect(db.rows[1]?.hypotheses).toEqual(db.rows[0]?.hypotheses);
+  });
+
+  test("uses a truthful fallback evidence string when no symptom matches", async () => {
+    const issue = ISSUES.find((candidate) => candidate.id === "no-internet")!;
+    const result = await runInvestigationTurn({
+      input: { message: "The connection is unavailable", platform: "Windows" },
+      provider: providerFor(issue.id),
+      allowedSlugs: [issue.id],
+      persist: false,
+    });
+
+    expect(result.status).toBe("success");
+    if (result.status === "success") {
+      expect(result.output.hypotheses).toEqual([
+        {
+          cause: issue.title,
+          confidence: 0.8,
+          evidence: [`Assistant matched approved guide "${issue.title}"`],
+          guideSlug: issue.id,
+        },
+      ]);
+    }
+  });
+
+  test("preserves provider hypotheses without appending a fallback", async () => {
+    const result = await runInvestigationTurn({
+      input: { message: "slow computer", platform: "Windows" },
+      provider: providerWithHypothesis("slow-computer"),
+      allowedSlugs: ["slow-computer"],
+      persist: false,
+    });
+
+    expect(result.status).toBe("success");
+    if (result.status === "success") {
+      expect(result.output.hypotheses).toHaveLength(1);
+      expect(result.output.hypotheses?.[0]?.cause).toBe("Provider cause");
+    }
+  });
+
+  test("clamps fallback hypothesis confidence", () => {
+    const issue = ISSUES.find((candidate) => candidate.id === "no-internet")!;
+    const input = { message: "No internet" };
+    expect(fallbackHypothesis(issue, input, 0.1).confidence).toBe(0.35);
+    expect(fallbackHypothesis(issue, input, 1).confidence).toBe(0.95);
+    expect(fallbackHypothesis(issue, input, undefined).confidence).toBe(0.5);
+  });
+
   test("escalates when every approved step failed", async () => {
     const issue = ISSUES.find((candidate) => candidate.id === "slow-computer")!;
     const { getIssueSteps } = await import("@/lib/steps");
@@ -103,6 +197,7 @@ describe("runInvestigationTurn", () => {
     if (result.status === "success") {
       expect(result.output.decision).toBe("escalate");
       expect(result.output.escalationReason).toContain("already tried");
+      expect(result.output.hypotheses).toHaveLength(1);
     }
   });
 

@@ -28,11 +28,7 @@ import { attachTicketAttachments } from "@/lib/attachments/server";
 import { resolveOrganizationForUser } from "@/lib/org/membership";
 import { event } from "@/lib/tickets/events";
 import { triageWorkflowTicket } from "@/lib/tickets/triage";
-import { isEscalationPackageEnabled } from "@/lib/investigation/config";
-import {
-  snapshotEscalationPackage,
-  summarizeEscalationPackage,
-} from "@/lib/investigation/escalation";
+import { completeUserHandoff } from "@/lib/tickets/handoff";
 
 type Result = { error: string } | { success: true; ticketId?: string };
 const limiter = new MemoryRateLimiter({
@@ -170,33 +166,7 @@ export async function requestHuman(
     handoff: "user_requested_human",
   });
   if (error) return { error: "Unable to request human support." };
-  const admin = createAdminClient();
-  const { data: ticket } = await admin
-    .from("tickets")
-    .select(
-      "id,organization_id,issue_title,priority,human_response_due_at,user_id"
-    )
-    .eq("id", ticketId)
-    .maybeSingle();
-  if (ticket) {
-    const packageSnapshot =
-      isEscalationPackageEnabled() && ticket.organization_id
-        ? await snapshotEscalationPackage(
-            admin,
-            ticketId,
-            ticket.organization_id
-          )
-        : null;
-    await notifyEmployeesOfHandoff(ticket.organization_id, {
-      id: ticketId,
-      issue_title: ticket.issue_title,
-      priority: ticket.priority,
-      human_response_due_at: ticket.human_response_due_at,
-      diagnosis: packageSnapshot
-        ? summarizeEscalationPackage(packageSnapshot)
-        : undefined,
-    });
-  }
+  await completeUserHandoff(ticketId);
   revalidatePath(`/tickets/${ticketId}`);
   return { success: true };
 }

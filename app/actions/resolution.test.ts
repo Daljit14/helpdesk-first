@@ -9,7 +9,9 @@ const mocks = vi.hoisted(() => ({
   getCurrentUser: vi.fn(),
   createClient: vi.fn(),
   isResolutionTrackingEnabled: vi.fn(),
+  isTicketWorkflowEnabled: vi.fn(),
   recordAnalyticsEvent: vi.fn(),
+  completeUserHandoff: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/user", () => ({
@@ -20,14 +22,19 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 vi.mock("@/lib/admin/flags", () => ({
   isResolutionTrackingEnabled: mocks.isResolutionTrackingEnabled,
+  isTicketWorkflowEnabled: mocks.isTicketWorkflowEnabled,
 }));
 vi.mock("@/lib/analytics/events", () => ({
   recordAnalyticsEvent: mocks.recordAnalyticsEvent,
+}));
+vi.mock("@/lib/tickets/handoff", () => ({
+  completeUserHandoff: mocks.completeUserHandoff,
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
 afterEach(() => {
   vi.clearAllMocks();
+  mocks.isTicketWorkflowEnabled.mockReturnValue(false);
 });
 
 const user = { id: "user-1" };
@@ -92,6 +99,50 @@ describe("resolution actions", () => {
       ticket: ticketId,
       reason: "Still broken",
     });
+  });
+
+  test("routes guide escalation through the workflow handoff", async () => {
+    mocks.isResolutionTrackingEnabled.mockReturnValue(true);
+    mocks.isTicketWorkflowEnabled.mockReturnValue(true);
+    mocks.getCurrentUser.mockResolvedValue(user);
+    const rpc = vi.fn().mockResolvedValue({ error: null });
+    mocks.createClient.mockResolvedValue({ rpc });
+
+    await expect(escalateTicket(ticketId, "  Still broken  ")).resolves.toEqual(
+      {
+        success: true,
+      }
+    );
+
+    expect(rpc).toHaveBeenNthCalledWith(1, "escalate_ticket", {
+      ticket: ticketId,
+      reason: "Still broken",
+    });
+    expect(rpc).toHaveBeenNthCalledWith(2, "handoff_ticket", {
+      ticket: ticketId,
+      reason: "Still broken",
+      handoff: "user_requested_human",
+    });
+    expect(mocks.completeUserHandoff).toHaveBeenCalledWith(ticketId);
+  });
+
+  test("does not call the workflow handoff when its flag is off", async () => {
+    mocks.isResolutionTrackingEnabled.mockReturnValue(true);
+    mocks.isTicketWorkflowEnabled.mockReturnValue(false);
+    mocks.getCurrentUser.mockResolvedValue(user);
+    const rpc = vi.fn().mockResolvedValue({ error: null });
+    mocks.createClient.mockResolvedValue({ rpc });
+
+    await expect(escalateTicket(ticketId, "Still broken")).resolves.toEqual({
+      success: true,
+    });
+
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(rpc).toHaveBeenCalledWith("escalate_ticket", {
+      ticket: ticketId,
+      reason: "Still broken",
+    });
+    expect(mocks.completeUserHandoff).not.toHaveBeenCalled();
   });
 
   test("rejects invalid UUIDs", async () => {

@@ -1,13 +1,18 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { requireAdminPage } from "@/lib/admin/auth";
-import { isKnowledgeGovernanceEnabled } from "@/lib/admin/flags";
+import {
+  isKnowledgeGovernanceEnabled,
+  isKnowledgeLearningEnabled,
+} from "@/lib/admin/flags";
 import {
   listGuideRevisions,
   listGuides,
   type GuideRevision,
 } from "@/lib/knowledge/governance";
 import { KnowledgeTable } from "@/components/admin/knowledge-table";
+import { KnowledgeDrafts } from "@/components/admin/knowledge-drafts";
+import { listKnowledgeDrafts } from "@/lib/knowledge/learning";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   getAiModel,
@@ -48,6 +53,9 @@ export default async function KnowledgePage({
       ])
     )
   ) as Record<string, GuideRevision[]>;
+  const drafts = isKnowledgeLearningEnabled()
+    ? await listKnowledgeDrafts(session.organizationId)
+    : [];
   return (
     <section className="flex flex-1 flex-col px-4 py-10 sm:px-6 lg:px-8">
       <div className="mx-auto w-full max-w-7xl">
@@ -77,6 +85,12 @@ export default async function KnowledgePage({
           canWrite={session.role === "org_admin"}
           revisions={revisions}
         />
+        {isKnowledgeLearningEnabled() && (
+          <KnowledgeDrafts
+            drafts={drafts}
+            canWrite={session.role === "org_admin"}
+          />
+        )}
       </div>
     </section>
   );

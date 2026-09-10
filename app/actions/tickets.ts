@@ -29,6 +29,7 @@ import { resolveOrganizationForUser } from "@/lib/org/membership";
 import { event } from "@/lib/tickets/events";
 import { triageWorkflowTicket } from "@/lib/tickets/triage";
 import { completeUserHandoff } from "@/lib/tickets/handoff";
+import { createKnowledgeDraftForTicket } from "@/lib/knowledge/learning";
 
 type Result = { error: string } | { success: true; ticketId?: string };
 const limiter = new MemoryRateLimiter({
@@ -281,6 +282,13 @@ export async function verifyTicket(
     if (ticket) {
       await notifyRequester("ticket.resolved", ticket);
       await notifyAssignedStaff("ticket.resolved", ticket);
+      if (ticket.organization_id) {
+        await createKnowledgeDraftForTicket(
+          createAdminClient(),
+          ticketId,
+          ticket.organization_id
+        );
+      }
     }
   }
   revalidatePath(`/tickets/${ticketId}`);

@@ -32,6 +32,8 @@ import {
   snapshotEscalationPackage,
   summarizeEscalationPackage,
 } from "@/lib/investigation/escalation";
+import { createKnowledgeDraftForTicket } from "@/lib/knowledge/learning";
+import { credentialPattern } from "@/lib/tickets/scrub";
 
 type Result = { error: string } | { success: true };
 const id = z.string().uuid();
@@ -397,9 +399,6 @@ const actionSchema = z
   })
   .strict();
 
-const credentialPattern =
-  /password\s*[:=]|passwd|\botp\b|\btoken\s*[:=]|bearer\s+[a-z0-9]|begin (rsa |ec )?private key|mfa code/i;
-
 function scrubParameters(parameters: Record<string, string>) {
   return Object.fromEntries(
     Object.entries(parameters).map(([key, value]) => [
@@ -463,6 +462,13 @@ export async function submitResolution(
     verification_requested_at: isUserConfirmed ? now : null,
   });
   if (result.error) return { error: "Unable to save resolution." };
+  if (!isUserConfirmed) {
+    await createKnowledgeDraftForTicket(
+      createAdminClient(),
+      ticketId,
+      found.session.organizationId
+    );
+  }
   await addPublicComment(ticketId, parsed.data.userExplanation);
   await writeEvent(
     found.session,

@@ -23,12 +23,39 @@ const draft = {
     platform: "Windows",
     attemptedGuide: null,
   },
+  article: {
+    title: "Network issue",
+    problemSummary: "The wireless connection drops.",
+    symptoms: ["No connection"],
+    platforms: ["Windows"],
+    rootCause: "The adapter was disabled.",
+    preconditions: [],
+    steps: [{ text: "Enable the adapter.", risk: "safe" as const }],
+    verification: ["Reconnect to Wi-Fi."],
+    escalationConditions: ["The issue returns."],
+    prevention: ["Keep drivers updated."],
+    sources: [{ type: "guide" as const, reference: "no-internet" }],
+    confidence: 0.8,
+    securityReviewRequired: false,
+  },
   confirmation: "user_confirmed" as const,
   status: "draft" as const,
   reviewNote: null,
+  rejectionReason: null,
+  reviewerInstructions: null,
+  regenerationCount: 0,
+  securityReviewRequired: false,
+  failureReason: null,
+  redactionSummary: {},
+  similarSlugs: [],
+  modelProvider: "deterministic",
+  modelVersion: "1",
+  promptVersion: "learned-article-v1",
+  generatedAt: "2026-01-01T00:00:00Z",
   reviewedBy: null,
   reviewedAt: null,
   createdGuideId: null,
+  publishedRevisionId: null,
   createdAt: "2026-01-01T00:00:00Z",
   updatedAt: "2026-01-01T00:00:00Z",
 };
@@ -44,21 +71,39 @@ describe("KnowledgeDrafts", () => {
     expect(
       screen.getByText(/1 awaiting review · 1 knowledge gaps/)
     ).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Approve as new guide" })
+    ).toBeNull();
   });
 
-  test("approves a draft with its note", async () => {
+  test("approves a draft", async () => {
     review.mockResolvedValue({ success: true });
     render(<KnowledgeDrafts drafts={[draft]} canWrite />);
-    fireEvent.change(screen.getByRole("textbox"), {
-      target: { value: "Approved after review" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Approve as new guide" })
+    );
     await vi.waitFor(() =>
       expect(review).toHaveBeenCalledWith({
         draftId: draft.id,
-        status: "approved",
-        note: "Approved after review",
+        decision: "approve_new",
+      })
+    );
+  });
+
+  test("rejects a draft with a required reason", async () => {
+    review.mockResolvedValue({ success: true });
+    render(<KnowledgeDrafts drafts={[draft]} canWrite />);
+    fireEvent.click(screen.getByRole("button", { name: "Reject" }));
+    const reason = screen.getByRole("textbox", { name: /rejection reason/i });
+    fireEvent.change(reason, {
+      target: { value: "Contains unsafe guidance." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Confirm rejection" }));
+    await vi.waitFor(() =>
+      expect(review).toHaveBeenCalledWith({
+        draftId: draft.id,
+        decision: "reject",
+        reason: "Contains unsafe guidance.",
       })
     );
   });

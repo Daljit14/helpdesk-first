@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { platforms } from "@/lib/helpdesk-data";
 import { CATEGORIES, ISSUES } from "@/lib/issues";
 import {
   diagnosticQuestions,
@@ -7,7 +8,7 @@ import {
   type AiProvider,
   type DiagnosticQuestion,
 } from "./types";
-import { getSafeResponseLimit } from "./safety-policy";
+import { getSafeResponseLimit, validateAndCoerceOutput } from "./safety-policy";
 
 export type CatalogEntry = {
   slug: string;
@@ -265,6 +266,28 @@ export class AnthropicAiProvider implements AiProvider {
     if (!result) {
       this.emit("invalid", started);
       throw new Error("Anthropic tool result was invalid.");
+    }
+    const rawHypotheses =
+      toolUse.input &&
+      typeof toolUse.input === "object" &&
+      !Array.isArray(toolUse.input) &&
+      Array.isArray((toolUse.input as { hypotheses?: unknown }).hypotheses)
+        ? (toolUse.input as { hypotheses: unknown[] }).hypotheses
+        : [];
+    const validated = validateAndCoerceOutput(
+      result,
+      (this.catalog ?? buildCatalog()).map((entry) => entry.slug),
+      diagnosticQuestions,
+      platforms
+    );
+    if (
+      rawHypotheses.length > 0 &&
+      validated &&
+      !validated.hypotheses?.length
+    ) {
+      console.warn("AI hypotheses dropped by validation", {
+        count: rawHypotheses.length,
+      });
     }
     const usage = (
       payload as {

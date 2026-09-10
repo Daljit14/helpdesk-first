@@ -1,7 +1,7 @@
 import { getAiModel, getAiProviderKind } from "@/lib/ai/config";
 import { processAiIntake, type IntakeResult } from "@/lib/ai/intake";
-import type { AiIntakeInput, AiProvider } from "@/lib/ai/types";
-import { ISSUES } from "@/lib/issues";
+import type { AiIntakeInput, AiProvider, Hypothesis } from "@/lib/ai/types";
+import { ISSUES, type Issue } from "@/lib/issues";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isInvestigationEnabled } from "./config";
 import {
@@ -28,6 +28,38 @@ export type InvestigationTurnInput = {
 export type InvestigationTurnResult = IntakeResult & {
   turnId?: number;
 };
+
+export function fallbackHypothesis(
+  issue: Issue,
+  input: AiIntakeInput,
+  confidence: number | undefined
+): Hypothesis {
+  const normalizedInput = [
+    input.message,
+    ...(input.previousAnswers ?? []).map(({ answer }) => answer),
+  ]
+    .join(" ")
+    .toLowerCase();
+  const evidence = issue.symptoms
+    .filter((symptom) => normalizedInput.includes(symptom.toLowerCase()))
+    .slice(0, 3);
+  const fallbackEvidence =
+    evidence.length > 0
+      ? evidence
+      : [
+          `Assistant matched approved guide "${issue.title.slice(
+            0,
+            120 - 'Assistant matched approved guide "'.length - 1
+          )}"`,
+        ];
+
+  return {
+    cause: issue.title,
+    confidence: Math.min(Math.max(confidence ?? 0.5, 0.35), 0.95),
+    evidence: fallbackEvidence,
+    guideSlug: issue.id,
+  };
+}
 
 async function persistTurn(
   params: InvestigationTurnInput,
@@ -97,9 +129,17 @@ export async function runInvestigationTurn(
       (candidate) => candidate.id === result.output.matchedIssueSlug
     );
     if (issue) {
+      if ((output.hypotheses ?? []).length === 0) {
+        output = {
+          ...output,
+          hypotheses: [
+            fallbackHypothesis(issue, params.input, result.output.confidence),
+          ],
+        };
+      }
       const nextSteps = deriveNextSteps(issue, failedSteps, audience);
       const withheldSteps = deriveWithheldSteps(issue, audience);
-      output = { ...result.output, nextSteps, withheldSteps };
+      output = { ...output, nextSteps, withheldSteps };
       if (nextSteps.length === 0) {
         output = {
           decision: "escalate",

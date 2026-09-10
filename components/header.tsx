@@ -46,6 +46,7 @@ export function Header({ user }: { user?: User | null }) {
                     aria-current={pathname === "/" ? "page" : undefined}
                     className={cn(
                       "rounded-full px-3 py-2 transition-colors hover:text-primary",
+                      uiV2 && "text-foreground",
                       pathname === "/" && "bg-primary/10 text-primary"
                     )}
                   >
@@ -58,6 +59,7 @@ export function Header({ user }: { user?: User | null }) {
                     aria-current={pathname === "/browse" ? "page" : undefined}
                     className={cn(
                       "rounded-full px-3 py-2 transition-colors hover:text-primary",
+                      uiV2 && "text-foreground",
                       pathname === "/browse" && "bg-primary/10 text-primary"
                     )}
                   >
@@ -72,6 +74,7 @@ export function Header({ user }: { user?: User | null }) {
                   aria-current={pathname === "/" ? "page" : undefined}
                   className={cn(
                     "rounded-full px-3 py-2 transition-colors hover:text-primary",
+                    uiV2 && "text-foreground",
                     pathname === "/" && "bg-primary/10 text-primary"
                   )}
                 >
@@ -86,6 +89,7 @@ export function Header({ user }: { user?: User | null }) {
                   aria-current={pathname === "/assistant" ? "page" : undefined}
                   className={cn(
                     "rounded-full px-3 py-2 transition-colors hover:text-primary",
+                    uiV2 && "text-foreground",
                     pathname === "/assistant" && "bg-primary/10 text-primary"
                   )}
                 >
@@ -100,6 +104,7 @@ export function Header({ user }: { user?: User | null }) {
                   aria-current={pathname === "/bookmarks" ? "page" : undefined}
                   className={cn(
                     "rounded-full px-3 py-2 transition-colors hover:text-primary",
+                    uiV2 && "text-foreground",
                     pathname === "/bookmarks" && "bg-primary/10 text-primary"
                   )}
                 >
@@ -114,6 +119,7 @@ export function Header({ user }: { user?: User | null }) {
                   aria-current={pathname === "/tickets" ? "page" : undefined}
                   className={cn(
                     "rounded-full px-3 py-2 transition-colors hover:text-primary",
+                    uiV2 && "text-foreground",
                     pathname === "/tickets" && "bg-primary/10 text-primary"
                   )}
                 >
@@ -147,7 +153,10 @@ export function Header({ user }: { user?: User | null }) {
           ) : (
             <Link
               href="/login"
-              className={cn(buttonVariants({ variant: "default", size: "sm" }))}
+              className={cn(
+                buttonVariants({ variant: "default", size: "sm" }),
+                uiV2 && "text-[var(--primary-foreground)] transition-none"
+              )}
             >
               Log in
             </Link>

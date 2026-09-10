@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
 vi.mock("./dispatch", () => ({ dispatchPending: vi.fn() }));
 vi.mock("@/lib/admin/flags", () => ({ isNotificationsEnabled: vi.fn() }));
+vi.mock("next/server", () => ({ after: vi.fn() }));
 
 afterEach(() => vi.clearAllMocks());
 
@@ -34,7 +35,13 @@ describe("enqueueNotification", () => {
   test("writes outbox rows and dispatches", async () => {
     const { isNotificationsEnabled } = await import("@/lib/admin/flags");
     const { dispatchPending } = await import("./dispatch");
+    const { after } = await import("next/server");
     vi.mocked(isNotificationsEnabled).mockReturnValue(true);
+    vi.mocked(dispatchPending).mockResolvedValue({
+      sent: 0,
+      failed: 0,
+      dead: 0,
+    });
     const builder = makeBuilder([
       { user_id: "u1", email_enabled: true, push_enabled: true },
     ]);
@@ -65,6 +72,11 @@ describe("enqueueNotification", () => {
       ],
       { onConflict: "dedupe_key", ignoreDuplicates: true }
     );
+    expect(after).toHaveBeenCalledOnce();
+    const callback = vi.mocked(after).mock.calls[0]?.[0];
+    expect(callback).toBeTypeOf("function");
+    const result = (callback as () => Promise<unknown>)();
+    expect(result).toBeInstanceOf(Promise);
     expect(dispatchPending).toHaveBeenCalledWith({ ticketId: "t1" });
   });
 

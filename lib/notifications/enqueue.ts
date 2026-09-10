@@ -57,9 +57,7 @@ export async function enqueueNotification(input: Input): Promise<void> {
         .upsert(rows, { onConflict: "dedupe_key", ignoreDuplicates: true });
     }
     try {
-      after(
-        () => void dispatchPending({ ticketId: input.ticketId ?? undefined })
-      );
+      after(() => dispatchPending({ ticketId: input.ticketId ?? undefined }));
     } catch {
       void dispatchPending({ ticketId: input.ticketId ?? undefined });
     }

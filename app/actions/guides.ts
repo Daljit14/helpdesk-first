@@ -212,7 +212,7 @@ export async function submitTicket(
       platform: null,
     });
   try {
-    after(() => void recordTicketAnalytics());
+    after(() => recordTicketAnalytics());
   } catch {
     void recordTicketAnalytics();
   }

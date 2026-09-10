@@ -4,6 +4,8 @@ import { isSecureAttachmentsEnabled } from "@/lib/admin/flags";
 import { getAttachmentPolicy } from "@/lib/attachments/policy";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { AttachmentPolicyForm } from "@/components/admin/attachment-policy-form";
+import { isUiV2Enabled } from "@/lib/ui-v2";
+import { AdminBreadcrumbs } from "@/components/admin/v2/breadcrumbs";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -28,6 +30,9 @@ export default async function AdminAttachmentsPage() {
   return (
     <section className="flex flex-1 flex-col px-4 py-10 sm:px-6 lg:px-8">
       <div className="mx-auto w-full max-w-5xl">
+        {isUiV2Enabled() && (
+          <AdminBreadcrumbs items={[{ label: "Attachments" }]} />
+        )}
         <p className="text-sm text-muted-foreground">Administration</p>
         <h1 className="mt-2 text-3xl font-bold">Attachment policy</h1>
         <p className="mt-2 text-sm text-muted-foreground">

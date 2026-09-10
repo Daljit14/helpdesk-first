@@ -11,6 +11,7 @@ import {
 } from "@/lib/admin/flags";
 import { notifyOverdueTickets } from "@/lib/tickets/notify";
 import { getOrganizationPolicy } from "@/lib/admin/policies";
+import { isUiV2Enabled } from "@/lib/ui-v2";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -32,6 +33,7 @@ export default async function OperationsPage() {
       resolutionTrackingEnabled={isResolutionTrackingEnabled()}
       workflowEnabled={isTicketWorkflowEnabled()}
       organizationPolicy={organizationPolicy}
+      uiV2={isUiV2Enabled()}
     />
   );
 }

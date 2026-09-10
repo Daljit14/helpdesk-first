@@ -2,8 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { RefreshCw } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Clock,
+  Circle,
+  RefreshCw,
+  RotateCcw,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type {
@@ -88,6 +95,27 @@ function statusTone(status: string) {
   }
 }
 
+function statusIcon(status: string) {
+  if (status === "Resolved" || status === "Closed") return CheckCircle2;
+  if (status === "Reopened") return RotateCcw;
+  if (status === "Needs Human") return AlertTriangle;
+  if (status === "Waiting" || status === "Waiting for User") return Clock;
+  return Circle;
+}
+
+function statusToken(status: string) {
+  if (status === "Resolved" || status === "Closed") {
+    return "bg-[var(--status-success)]/20";
+  }
+  if (status === "Needs Human" || status === "Reopened") {
+    return "bg-[var(--status-warning)]/20";
+  }
+  if (status === "Waiting" || status === "Waiting for User") {
+    return "bg-[var(--status-info)]/20";
+  }
+  return "bg-muted";
+}
+
 function priorityTone(priority: string) {
   switch (priority) {
     case "Urgent":
@@ -113,10 +141,109 @@ function makeQuery(filters: AdminFilters) {
 function TicketTable({
   tickets,
   now,
+  uiV2,
 }: {
   tickets: AdminOperationsTicket[];
   now: number;
+  uiV2: boolean;
 }) {
+  if (uiV2) {
+    return (
+      <>
+        <div className="hidden overflow-x-auto md:block">
+          <table className="w-full min-w-[900px] text-left text-sm">
+            <thead className="bg-muted">
+              <tr>
+                {["Ticket #", "Issue title", "Status", "Agent", "SLA"].map(
+                  (heading) => (
+                    <th key={heading} className="px-4 py-3 font-semibold">
+                      {heading}
+                    </th>
+                  )
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              {tickets.map((ticket) => {
+                const Icon = statusIcon(ticket.status);
+                return (
+                  <tr
+                    key={ticket.ticketUuid}
+                    className="border-t border-border"
+                  >
+                    <td className="px-4 py-3 font-mono">
+                      <Link
+                        href={`/admin/tickets/${ticket.ticketUuid}`}
+                        className="underline underline-offset-4"
+                      >
+                        {ticket.ticketId}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3">{ticket.issueTitle}</td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`v2-badge ${statusToken(ticket.status)}`}
+                      >
+                        <Icon className="h-3.5 w-3.5" aria-hidden />
+                        {ticket.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      {ticket.assignedAgent || "Unassigned"}
+                    </td>
+                    <td className="px-4 py-3">
+                      {ticket.slaState}
+                      {!["Resolved", "Closed"].includes(ticket.status) &&
+                        formatSlaCountdown(
+                          ticket.humanResponseDueAt ?? null,
+                          new Date(now)
+                        )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <div className="space-y-3 md:hidden">
+          {tickets.map((ticket) => {
+            const Icon = statusIcon(ticket.status);
+            return (
+              <article
+                key={ticket.ticketUuid}
+                className="border-b border-border p-4"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <Link
+                    href={`/admin/tickets/${ticket.ticketUuid}`}
+                    className="font-mono text-sm underline underline-offset-4"
+                  >
+                    {ticket.ticketId}
+                  </Link>
+                  <span className={`v2-badge ${statusToken(ticket.status)}`}>
+                    <Icon className="h-3.5 w-3.5" aria-hidden />
+                    {ticket.status}
+                  </span>
+                </div>
+                <h3 className="mt-2 font-medium">{ticket.issueTitle}</h3>
+                <dl className="mt-3 grid grid-cols-2 gap-2 text-sm text-muted-foreground">
+                  <div>
+                    <dt className="font-medium text-foreground">Agent</dt>
+                    <dd>{ticket.assignedAgent || "Unassigned"}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-medium text-foreground">SLA</dt>
+                    <dd>{ticket.slaState}</dd>
+                  </div>
+                </dl>
+              </article>
+            );
+          })}
+        </div>
+      </>
+    );
+  }
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[1100px] text-left text-sm">
@@ -212,13 +339,16 @@ export function AdminDashboard({
   resolutionTrackingEnabled = false,
   workflowEnabled = false,
   organizationPolicy,
+  uiV2 = false,
 }: {
   initialSnapshot: OperationsData;
   resolutionTrackingEnabled?: boolean;
   workflowEnabled?: boolean;
   organizationPolicy?: OrganizationPolicy;
+  uiV2?: boolean;
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const initialTime = Date.parse(initialSnapshot.generatedAt);
   const [snapshot, setSnapshot] = useState(initialSnapshot);
   const [filters, setFilters] = useState(initialSnapshot.filters);
@@ -226,9 +356,17 @@ export function AdminDashboard({
   const [now, setNow] = useState(initialTime);
   const [status, setStatus] = useState<RefreshStatus>("idle");
   const [error, setError] = useState<string | null>(null);
+  const referenceFilter = searchParams.get("ref")?.trim().toLowerCase() ?? "";
   const [policyEnabled, setPolicyEnabled] = useState(
     organizationPolicy?.allowVerificationException ?? false
   );
+  const FilterContainer = uiV2 ? "details" : "div";
+  const activeFilterCount = Object.entries(filters).filter(
+    ([key, value]) =>
+      !["page", "pageSize", "from", "to"].includes(key) &&
+      value !== undefined &&
+      value !== ""
+  ).length;
   const refresh = useCallback(
     async (nextFilters = filters) => {
       setStatus("refreshing");
@@ -301,6 +439,13 @@ export function AdminDashboard({
     1,
     Math.ceil(snapshot.tickets.total / snapshot.tickets.pageSize)
   );
+  const visibleTickets = referenceFilter
+    ? snapshot.tickets.rows.filter((ticket) =>
+        `${ticket.ticketId} ${ticket.issueTitle}`
+          .toLowerCase()
+          .includes(referenceFilter)
+      )
+    : snapshot.tickets.rows;
   const updateFilter = (key: keyof AdminFilters, value: string | number) => {
     const next = { ...filters, [key]: value, page: 1 };
     setFilters(next);
@@ -435,7 +580,10 @@ export function AdminDashboard({
           </section>
         )}
 
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
+        <div
+          id={uiV2 ? "analytics" : undefined}
+          className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4"
+        >
           {metricLabels.map(([key, label]) => (
             <div key={key} className={`glass p-4 ${metricTone(key)}`}>
               <p className="text-sm text-muted-foreground">{label}</p>
@@ -647,7 +795,53 @@ export function AdminDashboard({
         <section id="tickets" className="glass-strong overflow-hidden">
           <div className="border-b border-border p-5">
             <h2 className="font-semibold">Tickets</h2>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {uiV2 && (
+              <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
+                {[
+                  ["Needs Human", "needs_human"],
+                  ["Unassigned", "unassigned"],
+                  ["Assigned to Me", "assigned_to_me"],
+                  ["AI Reviewing", "ai_working"],
+                  ["AI Resolving", "ai_working"],
+                  ["In Progress", "In Progress"],
+                  ["Waiting for User", "waiting"],
+                  ["Pending Verification", "Pending Verification"],
+                  ["SLA At Risk", "sla_breached"],
+                  ["Resolved", "resolved"],
+                  ["Reopened", "reopened"],
+                ].map(([label, value]) => (
+                  <button
+                    key={label}
+                    type="button"
+                    className="v2-touch shrink-0 rounded-full border border-border px-3 py-2 text-sm hover:bg-muted"
+                    onClick={() =>
+                      updateFilter(
+                        value === "In Progress" ||
+                          value === "Pending Verification"
+                          ? "status"
+                          : "queue",
+                        value
+                      )
+                    }
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+            <FilterContainer
+              className={`mt-4 grid gap-3 ${
+                uiV2
+                  ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 [&_input]:w-full [&_input]:min-w-0 [&_select]:w-full [&_select]:min-w-0"
+                  : ""
+              }`}
+              {...(uiV2 ? { open: true } : {})}
+            >
+              {uiV2 && (
+                <summary className="v2-touch col-span-full cursor-pointer list-none rounded-xl border border-border px-3 py-2 font-medium md:hidden">
+                  Filters ({activeFilterCount} active)
+                </summary>
+              )}
               <select
                 aria-label="Status"
                 value={filters.status ?? ""}
@@ -867,19 +1061,19 @@ export function AdminDashboard({
                 <option value="breached">Breached</option>
                 <option value="closed">Closed</option>
               </select>
-            </div>
+            </FilterContainer>
           </div>
           {status === "refreshing" && (
             <div className="p-5 text-sm text-muted-foreground">
               Loading operations data…
             </div>
           )}
-          {snapshot.tickets.rows.length === 0 && status !== "refreshing" ? (
+          {visibleTickets.length === 0 && status !== "refreshing" ? (
             <p className="p-8 text-center text-muted-foreground">
               No tickets match these filters
             </p>
           ) : (
-            <TicketTable tickets={snapshot.tickets.rows} now={now} />
+            <TicketTable tickets={visibleTickets} now={now} uiV2={uiV2} />
           )}
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border p-4">
             <span className="text-sm text-muted-foreground">

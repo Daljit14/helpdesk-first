@@ -2,6 +2,8 @@ import { notFound } from "next/navigation";
 import { requireAdminPage } from "@/lib/admin/auth";
 import { getNotificationOutbox } from "@/app/actions/notifications";
 import { NotificationOutbox } from "@/components/admin/notification-outbox";
+import { isUiV2Enabled } from "@/lib/ui-v2";
+import { AdminBreadcrumbs } from "@/components/admin/v2/breadcrumbs";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +14,9 @@ export default async function NotificationsPage() {
   if (!rows) notFound();
   return (
     <main className="mx-auto w-full max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+      {isUiV2Enabled() && (
+        <AdminBreadcrumbs items={[{ label: "Notifications" }]} />
+      )}
       <h1 className="text-3xl font-bold">Notifications</h1>
       <p className="mt-2 text-muted-foreground">
         Pending, sent, and dead outbox notifications.

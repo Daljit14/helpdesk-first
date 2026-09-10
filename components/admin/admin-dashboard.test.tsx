@@ -11,6 +11,7 @@ import type { OperationsData } from "@/lib/admin/operations-data";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 function snapshot(withResolution = false): OperationsData {

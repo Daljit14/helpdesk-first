@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   notifyEmployeesOfHandoff: vi.fn(),
   notifyRequester: vi.fn(),
   notifyAssignedStaff: vi.fn(),
+  createKnowledgeDraftForTicket: vi.fn(),
   isTicketWorkflowEnabled: vi.fn(() => true),
   isUserPortalEnabled: vi.fn(() => true),
 }));
@@ -32,6 +33,9 @@ vi.mock("@/lib/tickets/notify", () => ({
   notifyEmployeesOfHandoff: mocks.notifyEmployeesOfHandoff,
   notifyRequester: mocks.notifyRequester,
   notifyAssignedStaff: mocks.notifyAssignedStaff,
+}));
+vi.mock("@/lib/knowledge/learning", () => ({
+  createKnowledgeDraftForTicket: mocks.createKnowledgeDraftForTicket,
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next/server", () => ({
@@ -202,6 +206,22 @@ describe("workflow ticket actions", () => {
       ticket: ticketId,
       confirmed: true,
     });
+    expect(mocks.createKnowledgeDraftForTicket).toHaveBeenCalledWith(
+      expect.anything(),
+      ticketId,
+      "org-1"
+    );
+  });
+
+  test("does not create a learning draft when verification is rejected", async () => {
+    mocks.getCurrentUser.mockResolvedValue({ id: "verify-user" });
+    const rpc = vi.fn().mockResolvedValue({ error: null });
+    mocks.createClient.mockResolvedValue({ rpc });
+
+    await expect(verifyTicket(ticketId, false)).resolves.toEqual({
+      success: true,
+    });
+    expect(mocks.createKnowledgeDraftForTicket).not.toHaveBeenCalled();
   });
 
   test("portal actions are unavailable when the portal flag is off", async () => {

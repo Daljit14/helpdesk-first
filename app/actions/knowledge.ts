@@ -3,11 +3,15 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getAdminSession, recordAudit } from "@/lib/admin/auth";
-import { isKnowledgeGovernanceEnabled } from "@/lib/admin/flags";
+import {
+  isKnowledgeGovernanceEnabled,
+  isKnowledgeLearningEnabled,
+} from "@/lib/admin/flags";
 import {
   transitionGuide,
   updateGuideMetadata,
 } from "@/lib/knowledge/governance";
+import { reviewKnowledgeDraft as reviewDraft } from "@/lib/knowledge/learning";
 import { MemoryRateLimiter } from "@/lib/ai/rate-limit";
 
 const limiter = new MemoryRateLimiter({ windowMs: 60_000, maxRequests: 30 });
@@ -24,6 +28,11 @@ const metadataSchema = z.object({
   expiresAt: z.string().datetime().or(z.literal("")).optional(),
   riskTier: z.enum(["low", "medium", "high"]).optional(),
   supportedPlatforms: z.array(z.string().max(30)).max(8).optional(),
+});
+const draftReviewSchema = z.object({
+  draftId: z.string().uuid(),
+  status: z.enum(["approved", "rejected"]),
+  note: z.string().trim().max(1000).optional(),
 });
 
 export async function transitionKnowledgeGuide(
@@ -70,6 +79,33 @@ export async function updateKnowledgeGuideMetadata(
       "knowledge.metadata_update",
       parsed.data.guideId
     );
+    revalidatePath("/admin/knowledge");
+  }
+  return result;
+}
+
+export async function reviewKnowledgeDraft(
+  input: unknown
+): Promise<{ error: string } | { success: true }> {
+  if (!isKnowledgeGovernanceEnabled() || !isKnowledgeLearningEnabled()) {
+    return { error: "Not available." };
+  }
+  const session = await getAdminSession();
+  if (!session || session.role !== "org_admin") {
+    return { error: "Not authorized." };
+  }
+  if (!(await limiter.check(`knowledge:${session.userId}`)).allowed) {
+    return { error: "Too many requests. Please try again later." };
+  }
+  const parsed = draftReviewSchema.safeParse(input);
+  if (!parsed.success) return { error: "Invalid draft review." };
+  const result = await reviewDraft({
+    ...parsed.data,
+    organizationId: session.organizationId,
+    actorId: session.userId,
+  });
+  if ("success" in result) {
+    await recordAudit(session, "knowledge.draft_review", parsed.data.draftId);
     revalidatePath("/admin/knowledge");
   }
   return result;

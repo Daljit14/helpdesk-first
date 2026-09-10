@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   notifyRequester: vi.fn(),
   notifyAssignedStaff: vi.fn(),
   getOrganizationPolicy: vi.fn(),
+  createKnowledgeDraftForTicket: vi.fn(),
 }));
 
 vi.mock("@/lib/admin/auth", async () => {
@@ -38,6 +39,9 @@ vi.mock("@/lib/tickets/notify", () => ({
 }));
 vi.mock("@/lib/admin/policies", () => ({
   getOrganizationPolicy: mocks.getOrganizationPolicy,
+}));
+vi.mock("@/lib/knowledge/learning", () => ({
+  createKnowledgeDraftForTicket: mocks.createKnowledgeDraftForTicket,
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
@@ -218,6 +222,7 @@ describe("admin workflow actions", () => {
     expect(updates).not.toContainEqual(
       expect.objectContaining({ status: "Resolved" })
     );
+    expect(mocks.createKnowledgeDraftForTicket).not.toHaveBeenCalled();
   });
 
   test("clears verification exception when an admin reopens a resolved ticket", async () => {
@@ -322,6 +327,11 @@ describe("admin workflow actions", () => {
     expect(events).toEqual([
       expect.objectContaining({ event_type: "verification.exception" }),
     ]);
+    expect(mocks.createKnowledgeDraftForTicket).toHaveBeenCalledWith(
+      expect.anything(),
+      ticketId,
+      session.organizationId
+    );
   });
 
   test("rejects manual resolved status", async () => {

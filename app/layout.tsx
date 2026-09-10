@@ -10,6 +10,7 @@ import { InstallPrompt } from "@/components/install-prompt";
 import { getCurrentUser } from "@/lib/supabase/user";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { AnalyticsTracker } from "@/components/analytics-tracker";
+import { isUiV2Enabled } from "@/lib/ui-v2";
 
 const spaceGrotesk = Space_Grotesk({
   variable: "--font-space-grotesk",
@@ -44,6 +45,7 @@ export default async function RootLayout({
     <html
       lang="en"
       className={`${spaceGrotesk.variable} ${ibmPlexMono.variable} h-full antialiased dark`}
+      data-ui={isUiV2Enabled() ? "v2" : undefined}
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col bg-background text-foreground font-sans">

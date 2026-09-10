@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { requireAdminPage } from "@/lib/admin/auth";
 import {
   isKnowledgeGovernanceEnabled,
+  isKnowledgeHealthEnabled,
   isKnowledgeLearningEnabled,
 } from "@/lib/admin/flags";
 import {
@@ -12,7 +13,9 @@ import {
 } from "@/lib/knowledge/governance";
 import { KnowledgeTable } from "@/components/admin/knowledge-table";
 import { KnowledgeDrafts } from "@/components/admin/knowledge-drafts";
+import { KnowledgeHealth } from "@/components/admin/knowledge-health";
 import { listKnowledgeDrafts } from "@/lib/knowledge/learning";
+import { listKnowledgeHealthFindings } from "@/lib/knowledge/health";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   getAiModel,
@@ -56,6 +59,9 @@ export default async function KnowledgePage({
   const drafts = isKnowledgeLearningEnabled()
     ? await listKnowledgeDrafts(session.organizationId)
     : [];
+  const healthFindings = isKnowledgeHealthEnabled()
+    ? await listKnowledgeHealthFindings(session.organizationId)
+    : [];
   return (
     <section className="flex flex-1 flex-col px-4 py-10 sm:px-6 lg:px-8">
       <div className="mx-auto w-full max-w-7xl">
@@ -88,6 +94,12 @@ export default async function KnowledgePage({
         {isKnowledgeLearningEnabled() && (
           <KnowledgeDrafts
             drafts={drafts}
+            canWrite={session.role === "org_admin"}
+          />
+        )}
+        {isKnowledgeHealthEnabled() && (
+          <KnowledgeHealth
+            findings={healthFindings}
             canWrite={session.role === "org_admin"}
           />
         )}

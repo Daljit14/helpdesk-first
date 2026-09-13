@@ -346,7 +346,6 @@ export function AdminShell({
           <div
             className="fixed inset-0 z-50 bg-black/40 lg:hidden"
             onClick={() => setDrawerOpen(false)}
-            aria-hidden
           >
             <aside
               ref={drawerRef}

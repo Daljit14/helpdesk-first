@@ -25,6 +25,22 @@ function first(value: string | string[] | undefined) {
   return Array.isArray(value) ? (value[0] ?? "") : (value ?? "");
 }
 
+export function parseAssistantParams(params: SearchParams) {
+  const initialProblem = first(params.q);
+  const platformParam = first(params.platform);
+  const initialPlatform = platforms.includes(platformParam as Platform)
+    ? (platformParam as Platform)
+    : null;
+  const intent = first(params.intent);
+  return {
+    initialProblem,
+    initialPlatform,
+    intent,
+    attach: first(params.attach) === "1",
+    autoStart: Boolean(initialProblem) && intent === "solve",
+  };
+}
+
 export default async function AssistantPage({
   searchParams,
 }: {
@@ -32,13 +48,8 @@ export default async function AssistantPage({
 }) {
   const user = await getCurrentUser();
   const params = await searchParams;
-  const initialProblem = first(params.q);
-  const platformParam = first(params.platform);
-  const initialPlatform = platforms.includes(platformParam as Platform)
-    ? (platformParam as Platform)
-    : null;
-  const intent = first(params.intent);
-  const attach = first(params.attach) === "1";
+  const { initialProblem, initialPlatform, intent, attach, autoStart } =
+    parseAssistantParams(params);
   const flags = {
     resolutionTrackingEnabled:
       isResolutionTrackingEnabled() || isTicketWorkflowEnabled(),
@@ -62,7 +73,7 @@ export default async function AssistantPage({
             initialPlatform={initialPlatform}
             intent={intent}
             attach={attach}
-            autoStart={Boolean(initialProblem) && intent === "solve"}
+            autoStart={autoStart}
           />
         ) : (
           <AiAssistant {...flags} />

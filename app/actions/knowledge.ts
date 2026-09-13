@@ -29,11 +29,39 @@ const metadataSchema = z.object({
   riskTier: z.enum(["low", "medium", "high"]).optional(),
   supportedPlatforms: z.array(z.string().max(30)).max(8).optional(),
 });
-const draftReviewSchema = z.object({
-  draftId: z.string().uuid(),
-  status: z.enum(["approved", "rejected"]),
-  note: z.string().trim().max(1000).optional(),
-});
+const draftId = z.string().uuid();
+const note = z.string().trim().max(1000).optional();
+const draftReviewSchema = z.discriminatedUnion("decision", [
+  z.object({ draftId, decision: z.literal("approve_new"), note }),
+  z.object({
+    draftId,
+    decision: z.literal("approve_revision"),
+    targetSlug: z.string().trim().min(1).max(120),
+    note,
+  }),
+  z.object({ draftId, decision: z.literal("security_review"), note }),
+  z.object({
+    draftId,
+    decision: z.literal("reject"),
+    reason: z.string().trim().min(1).max(1000),
+  }),
+  z.object({
+    draftId,
+    decision: z.literal("regenerate"),
+    instructions: z.string().trim().min(1).max(1000),
+  }),
+  z.object({
+    draftId,
+    decision: z.literal("edit"),
+    edits: z.object({
+      title: z.string().trim().max(160).optional(),
+      rootCause: z.string().trim().max(600).optional(),
+      symptoms: z.array(z.string().trim().min(1).max(300)).max(8).optional(),
+      steps: z.array(z.string().trim().min(1).max(400)).max(12).optional(),
+    }),
+  }),
+  z.object({ draftId, decision: z.literal("discard") }),
+]);
 
 export async function transitionKnowledgeGuide(
   input: unknown
@@ -105,7 +133,11 @@ export async function reviewKnowledgeDraft(
     actorId: session.userId,
   });
   if ("success" in result) {
-    await recordAudit(session, "knowledge.draft_review", parsed.data.draftId);
+    await recordAudit(
+      session,
+      `knowledge.draft_${parsed.data.decision}`,
+      parsed.data.draftId
+    );
     revalidatePath("/admin/knowledge");
   }
   return result;

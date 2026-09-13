@@ -10,6 +10,7 @@ describe("sendEmail", () => {
   });
 
   test("returns permanent error when key is missing", async () => {
+    delete process.env.BREVO_API_KEY;
     const result = await sendEmail({
       to: "test@example.com",
       subject: "hi",

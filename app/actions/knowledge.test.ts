@@ -117,38 +117,76 @@ describe("knowledge actions", () => {
     );
   });
 
-  test("reviews learning drafts only for org admins when both flags are on", async () => {
+  test("reviews learning drafts and audits the decision for org admins", async () => {
     reviewDraft.mockResolvedValue({ success: true });
     await expect(
       reviewKnowledgeDraft({
         draftId: validId,
-        status: "approved",
+        decision: "approve_new",
         note: " Looks good ",
       })
     ).resolves.toEqual({ success: true });
     expect(reviewDraft).toHaveBeenCalledWith({
       draftId: validId,
-      status: "approved",
+      decision: "approve_new",
       note: "Looks good",
       organizationId: admin.organizationId,
       actorId: admin.userId,
     });
     expect(recordAudit).toHaveBeenCalledWith(
       admin,
-      "knowledge.draft_review",
+      "knowledge.draft_approve_new",
       validId
     );
   });
 
-  test("returns unavailable when learning is disabled and denies support agents", async () => {
+  test("denies support agents for every draft decision", async () => {
+    getAdminSession.mockResolvedValue({ ...admin, role: "support_agent" });
+    const decisions = [
+      { decision: "approve_new" },
+      { decision: "approve_revision", targetSlug: "no-internet" },
+      { decision: "security_review" },
+      { decision: "reject", reason: "Not suitable." },
+      { decision: "regenerate", instructions: "Try again." },
+      { decision: "edit", edits: { title: "Edited" } },
+      { decision: "discard" },
+    ] as const;
+    for (const decision of decisions) {
+      await expect(
+        reviewKnowledgeDraft({ draftId: validId, ...decision })
+      ).resolves.toEqual({ error: "Not authorized." });
+    }
+    expect(reviewDraft).not.toHaveBeenCalled();
+  });
+
+  test("denies requesters and unauthenticated users", async () => {
+    getAdminSession.mockResolvedValueOnce(null);
+    await expect(
+      reviewKnowledgeDraft({ draftId: validId, decision: "approve_new" })
+    ).resolves.toEqual({ error: "Not authorized." });
+    getAdminSession.mockResolvedValueOnce({
+      ...admin,
+      role: "requester",
+    });
+    await expect(
+      reviewKnowledgeDraft({ draftId: validId, decision: "approve_new" })
+    ).resolves.toEqual({ error: "Not authorized." });
+  });
+
+  test("rejects invalid draft decision payloads", async () => {
+    await expect(
+      reviewKnowledgeDraft({ draftId: validId, decision: "not-a-decision" })
+    ).resolves.toEqual({ error: "Invalid draft review." });
+    await expect(
+      reviewKnowledgeDraft({ draftId: validId, decision: "reject", reason: "" })
+    ).resolves.toEqual({ error: "Invalid draft review." });
+    expect(reviewDraft).not.toHaveBeenCalled();
+  });
+
+  test("returns unavailable when learning is disabled", async () => {
     learningEnabled.mockReturnValue(false);
     await expect(
-      reviewKnowledgeDraft({ draftId: validId, status: "approved" })
+      reviewKnowledgeDraft({ draftId: validId, decision: "approve_new" })
     ).resolves.toEqual({ error: "Not available." });
-    learningEnabled.mockReturnValue(true);
-    getAdminSession.mockResolvedValueOnce({ ...admin, role: "support_agent" });
-    await expect(
-      reviewKnowledgeDraft({ draftId: validId, status: "approved" })
-    ).resolves.toEqual({ error: "Not authorized." });
   });
 });

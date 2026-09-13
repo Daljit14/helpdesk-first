@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import Link from "next/link";
 import { Bot, Loader2, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -15,8 +15,11 @@ import {
 import { type Platform } from "@/lib/helpdesk-data";
 import type { AiIntakeOutput } from "@/lib/ai/types";
 import { diagnosticQuestions } from "@/lib/ai/types";
+import { recordStepOutcome } from "@/app/actions/tickets";
 import { useAssistantIntake } from "@/components/ai-assistant-logic";
-import { SAFE_USE_WARNING } from "@/lib/ui-copy";
+import { SAFE_USE_WARNING, toTicketPlatform } from "@/lib/ui-copy";
+
+type StepOutcome = "worked" | "failed" | "could_not_perform";
 
 const progress = [
   "Understanding",
@@ -32,6 +35,7 @@ export function AssistantWorkspace({
   intent,
   attach = false,
   autoStart = false,
+  resolutionTrackingEnabled = false,
   workflowEnabled = false,
   signedIn = false,
   stepPolicyEnabled = false,
@@ -52,8 +56,45 @@ export function AssistantWorkspace({
     autoStart,
   });
   const [attachmentName, setAttachmentName] = useState<string | null>(null);
+  const [outcomes, setOutcomes] = useState<Record<string, StepOutcome>>(() => {
+    if (typeof window === "undefined") return {};
+    try {
+      const saved = window.sessionStorage.getItem("hf-v2-outcomes");
+      return saved ? (JSON.parse(saved) as Record<string, StepOutcome>) : {};
+    } catch {
+      return {};
+    }
+  });
+  const [ticketId, setTicketId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionPending, setActionPending] = useState(false);
+  const [composerHeight, setComposerHeight] = useState(0);
   const autoStarted = useRef(false);
+  const composerRef = useRef<HTMLDivElement>(null);
   const ticketIntent = intent === "ticket" || intent === "human";
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem("hf-v2-outcomes", JSON.stringify(outcomes));
+    } catch {}
+  }, [outcomes]);
+
+  useEffect(() => {
+    const composer = composerRef.current;
+    if (!composer) return;
+    const updateHeight = () =>
+      setComposerHeight(composer.getBoundingClientRect().height);
+    updateHeight();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(composer);
+    return () => observer.disconnect();
+  }, [
+    ticketIntent,
+    attachmentName,
+    intake.platform,
+    intake.previousAnswers.length,
+  ]);
 
   useEffect(() => {
     if (!attach) return;
@@ -80,22 +121,68 @@ export function AssistantWorkspace({
   }, [autoStart, initialPlatform, initialProblem, intake, ticketIntent]);
 
   const sendToSupport = async () => {
-    await intake.handleSendToSupport();
+    setActionError(null);
+    setActionPending(true);
+    try {
+      const result = await intake.handleSendToSupport(ticketMessage);
+      if ("error" in result)
+        setActionError(result.error ?? "Unable to submit ticket.");
+    } catch {
+      setActionError("Unable to submit ticket.");
+    } finally {
+      setActionPending(false);
+    }
   };
 
   const output = intake.currentOutput;
   const matchedIssue = output?.matchedIssueSlug
     ? getIssueBySlug(output.matchedIssueSlug)
     : null;
-  const offeredSteps = useMemo(() => {
+  const policySteps = useMemo(() => {
     if (!matchedIssue) return [];
     const policies = getIssueStepPolicies(matchedIssue);
-    return (
-      stepPolicyEnabled
-        ? policies.filter((step) => isOfferable(step.risk, "requester"))
-        : policies
-    ).slice(0, 5);
+    return stepPolicyEnabled
+      ? policies.filter((step) => isOfferable(step.risk, "requester"))
+      : policies;
   }, [matchedIssue, stepPolicyEnabled]);
+  const triedSteps = useMemo(
+    () =>
+      policySteps.filter((step) =>
+        ["failed", "could_not_perform"].includes(
+          outcomes[`${matchedIssue?.id}:${step.stepIndex}`]
+        )
+      ),
+    [matchedIssue?.id, outcomes, policySteps]
+  );
+  const offeredSteps = useMemo(
+    () =>
+      policySteps
+        .filter(
+          (step) =>
+            !["failed", "could_not_perform"].includes(
+              outcomes[`${matchedIssue?.id}:${step.stepIndex}`]
+            )
+        )
+        .slice(0, 5),
+    [matchedIssue?.id, outcomes, policySteps]
+  );
+  const allStepsFailed =
+    policySteps.length > 0 &&
+    policySteps.every((step) =>
+      ["failed", "could_not_perform"].includes(
+        outcomes[`${matchedIssue?.id}:${step.stepIndex}`]
+      )
+    );
+  const ticketMessage =
+    triedSteps.length && matchedIssue
+      ? `${intake.problem}\n\nSteps tried from "${matchedIssue.title}":\n${triedSteps
+          .map(
+            (step) =>
+              `- ${step.text}: ${outcomes[`${matchedIssue.id}:${step.stepIndex}`]}`
+          )
+          .join("\n")}`
+      : undefined;
+  const loginHref = loginLink(intake.problem, intake.platform, intent);
   const withheld =
     Boolean(output?.withheldSteps?.length) ||
     Boolean(
@@ -109,6 +196,56 @@ export function AssistantWorkspace({
   const guideHref = matchedIssue
     ? `/issues/${matchedIssue.id}/guide?platform=${encodeURIComponent(output?.detectedPlatform ?? intake.platform ?? "Other")}`
     : intake.searchHref();
+
+  const handleStartGuide = async (event: MouseEvent<HTMLAnchorElement>) => {
+    if (!resolutionTrackingEnabled || !signedIn || !matchedIssue) return;
+    event.preventDefault();
+    setActionError(null);
+    setActionPending(true);
+    try {
+      const result = await intake.startAiTicket({
+        issueId: matchedIssue.id,
+        platform: toTicketPlatform(
+          output?.detectedPlatform ?? intake.platform ?? "Other"
+        ),
+        message: intake.problem,
+        diagnosticAnswers: intake.previousAnswers,
+      });
+      if ("ticketId" in result && result.ticketId) {
+        setTicketId(result.ticketId);
+        intake.router.push(`${guideHref}&ticket=${result.ticketId}`);
+      } else if ("error" in result) {
+        setActionError(result.error ?? "Unable to start the approved guide.");
+      }
+    } catch {
+      setActionError("Unable to start the approved guide.");
+    } finally {
+      setActionPending(false);
+    }
+  };
+
+  const handleOutcome = async (stepIndex: number, outcome: StepOutcome) => {
+    if (!matchedIssue) return;
+    const key = `${matchedIssue.id}:${stepIndex}`;
+    setOutcomes((current) => ({ ...current, [key]: outcome }));
+    setActionError(null);
+    if (!ticketId) return;
+    setActionPending(true);
+    try {
+      const result = await recordStepOutcome(
+        ticketId,
+        matchedIssue.id,
+        stepIndex,
+        outcome
+      );
+      if ("error" in result)
+        setActionError(result.error ?? "Unable to record step outcome.");
+    } catch {
+      setActionError("Unable to record step outcome.");
+    } finally {
+      setActionPending(false);
+    }
+  };
 
   return (
     <div className="mx-auto flex min-h-[calc(100dvh-10rem)] w-full max-w-3xl flex-col">
@@ -148,7 +285,12 @@ export function AssistantWorkspace({
         })}
       </ol>
 
-      <div className="flex-1 space-y-5 pb-48">
+      <div
+        className="flex-1 space-y-5"
+        style={{
+          paddingBottom: composerHeight ? `${composerHeight + 24}px` : "12rem",
+        }}
+      >
         {initialProblem && <Message side="user" text={initialProblem} />}
         {ticketIntent ? (
           <div className="space-y-4">
@@ -164,12 +306,16 @@ export function AssistantWorkspace({
                 {initialProblem}
               </p>
               {workflowEnabled && signedIn ? (
-                <Button className="mt-4" onClick={() => void sendToSupport()}>
+                <Button
+                  className="mt-4"
+                  onClick={() => void sendToSupport()}
+                  disabled={actionPending}
+                >
                   Send to a support person
                 </Button>
               ) : workflowEnabled ? (
                 <Link
-                  href={`/login?next=${encodeURIComponent(`/assistant?q=${initialProblem}&intent=${intent}`)}`}
+                  href={loginHref}
                   className={cn(buttonVariants({ variant: "default" }), "mt-4")}
                 >
                   Log in to send this to a support person
@@ -179,6 +325,7 @@ export function AssistantWorkspace({
                   Ticket creation is not available right now.
                 </p>
               )}
+              {actionError && <ActionError error={actionError} />}
             </section>
           </div>
         ) : (
@@ -205,15 +352,32 @@ export function AssistantWorkspace({
                 workflowEnabled={workflowEnabled}
                 onSend={sendToSupport}
                 searchHref={intake.searchHref()}
+                loginHref={loginHref}
+                actionError={actionError}
+                actionPending={actionPending}
               />
             )}
             {output?.decision === "match" && (
               <Match
                 output={output}
                 guideHref={guideHref}
+                guideTitle={matchedIssue?.title ?? "Approved support guide"}
                 steps={offeredSteps}
+                triedSteps={triedSteps}
+                outcomes={outcomes}
                 withheld={withheld}
                 stepPolicyEnabled={stepPolicyEnabled}
+                actionError={actionError}
+                actionPending={actionPending}
+                allStepsFailed={allStepsFailed}
+                onOutcome={handleOutcome}
+                onStartGuide={handleStartGuide}
+                onSend={sendToSupport}
+                signedIn={signedIn}
+                workflowEnabled={workflowEnabled}
+                searchHref={intake.searchHref()}
+                loginHref={loginHref}
+                ticketId={ticketId}
               />
             )}
             {intake.error && (
@@ -242,7 +406,10 @@ export function AssistantWorkspace({
       </div>
 
       {!ticketIntent && (
-        <div className="sticky bottom-0 mt-8 border-t border-border bg-background/95 pt-4 [padding-bottom:env(safe-area-inset-bottom)]">
+        <div
+          ref={composerRef}
+          className="sticky bottom-0 mt-8 border-t border-border bg-background/95 pt-4 [padding-bottom:env(safe-area-inset-bottom)]"
+        >
           <div className="mb-3 flex flex-wrap gap-2">
             {intake.platform && (
               <button
@@ -323,12 +490,13 @@ export function AssistantWorkspace({
                 variant="outline"
                 className="shrink-0"
                 onClick={() => void sendToSupport()}
+                disabled={actionPending}
               >
                 I want a person
               </Button>
             ) : workflowEnabled ? (
               <Link
-                href="/login?next=/assistant"
+                href={loginHref}
                 className={cn(
                   buttonVariants({ variant: "outline" }),
                   "shrink-0"
@@ -338,6 +506,7 @@ export function AssistantWorkspace({
               </Link>
             ) : null}
           </div>
+          {actionError && <ActionError error={actionError} />}
         </div>
       )}
     </div>
@@ -378,16 +547,45 @@ function clarificationText(output: AiIntakeOutput) {
 function Match({
   output,
   guideHref,
+  guideTitle,
   steps,
+  triedSteps,
+  outcomes,
   withheld,
   stepPolicyEnabled,
+  actionError,
+  actionPending,
+  allStepsFailed,
+  onOutcome,
+  onStartGuide,
+  onSend,
+  signedIn,
+  workflowEnabled,
+  searchHref,
+  loginHref,
+  ticketId,
 }: {
   output: AiIntakeOutput;
   guideHref: string;
+  guideTitle: string;
   steps: ReturnType<typeof getIssueStepPolicies>;
+  triedSteps: ReturnType<typeof getIssueStepPolicies>;
+  outcomes: Record<string, StepOutcome>;
   withheld: boolean;
   stepPolicyEnabled: boolean;
+  actionError: string | null;
+  actionPending: boolean;
+  allStepsFailed: boolean;
+  onOutcome: (stepIndex: number, outcome: StepOutcome) => void;
+  onStartGuide: (event: MouseEvent<HTMLAnchorElement>) => void;
+  onSend: () => Promise<void>;
+  signedIn: boolean;
+  workflowEnabled: boolean;
+  searchHref: string;
+  loginHref: string;
+  ticketId: string | null;
 }) {
+  const matchedGuideTitle = output.citation?.title ?? guideTitle;
   return (
     <section className="space-y-5 rounded-2xl border border-border bg-card p-5">
       <Message
@@ -422,17 +620,15 @@ function Match({
           </div>
         </div>
       )}
-      {output.citation && (
-        <div>
-          <h2 className="font-semibold">Sources</h2>
-          <Link
-            className="mt-1 inline-block underline underline-offset-4"
-            href={output.citation.url ?? guideHref}
-          >
-            {output.citation.title}
-          </Link>
-        </div>
-      )}
+      <div>
+        <h2 className="font-semibold">Sources</h2>
+        <Link
+          className="mt-1 inline-block underline underline-offset-4"
+          href={output.citation?.url ?? guideHref}
+        >
+          {matchedGuideTitle}
+        </Link>
+      </div>
       {steps.length > 0 && (
         <div>
           <h2 className="font-semibold">Suggested steps</h2>
@@ -446,18 +642,35 @@ function Match({
                   <span className="text-sm">{step.text}</span>
                   <span className="v2-badge">{riskLabel(step.risk)}</span>
                 </div>
+                {outcomes[`${output.matchedIssueSlug}:${step.stepIndex}`] && (
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Outcome:{" "}
+                    {outcomes[`${output.matchedIssueSlug}:${step.stepIndex}`]}
+                  </p>
+                )}
                 <div className="mt-2 flex flex-wrap gap-2">
-                  {["Worked", "Did not work", "Cannot complete"].map(
-                    (label) => (
-                      <Link
-                        key={label}
-                        href={guideHref}
-                        className="rounded-lg border border-border px-2 py-1 text-xs"
-                      >
-                        {label}
-                      </Link>
-                    )
-                  )}
+                  {(
+                    [
+                      ["Worked", "worked"],
+                      ["Did not work", "failed"],
+                      ["Cannot complete", "could_not_perform"],
+                    ] as const
+                  ).map(([label, outcome]) => (
+                    <button
+                      key={label}
+                      type="button"
+                      aria-pressed={
+                        outcomes[
+                          `${output.matchedIssueSlug}:${step.stepIndex}`
+                        ] === outcome
+                      }
+                      disabled={actionPending}
+                      onClick={() => void onOutcome(step.stepIndex, outcome)}
+                      className="rounded-lg border border-border px-2 py-1 text-xs"
+                    >
+                      {label}
+                    </button>
+                  ))}
                 </div>
               </div>
             ))}
@@ -469,12 +682,64 @@ function Match({
           )}
         </div>
       )}
+      {triedSteps.length > 0 && (
+        <details className="rounded-xl border border-border p-3">
+          <summary className="cursor-pointer font-medium">
+            Already tried
+          </summary>
+          <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
+            {triedSteps.map((step) => (
+              <li key={`${step.stepIndex}-${step.text}`}>
+                <span>{step.text}</span>
+                <span className="ml-2">
+                  Outcome:{" "}
+                  {outcomes[`${output.matchedIssueSlug}:${step.stepIndex}`]}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+      {steps.some(
+        (step) =>
+          outcomes[`${output.matchedIssueSlug}:${step.stepIndex}`] === "worked"
+      ) && (
+        <div className="rounded-xl border border-border bg-muted p-4">
+          <p className="font-medium">
+            That step may have resolved the problem.
+          </p>
+          {ticketId && (
+            <Link
+              href={`/tickets/${ticketId}`}
+              className="mt-2 inline-block underline underline-offset-4"
+            >
+              Review and confirm resolution
+            </Link>
+          )}
+        </div>
+      )}
+      {allStepsFailed && (
+        <Escalation
+          output={output}
+          signedIn={signedIn}
+          workflowEnabled={workflowEnabled}
+          onSend={onSend}
+          searchHref={searchHref}
+          loginHref={loginHref}
+          actionError={actionError}
+          actionPending={actionPending}
+          prominent
+        />
+      )}
       <Link
         href={guideHref}
+        onClick={onStartGuide}
+        aria-disabled={actionPending || undefined}
         className={cn(buttonVariants({ variant: "default" }))}
       >
         Start approved guide
       </Link>
+      {actionError && !allStepsFailed && <ActionError error={actionError} />}
     </section>
   );
 }
@@ -485,15 +750,33 @@ function Escalation({
   workflowEnabled,
   onSend,
   searchHref,
+  loginHref,
+  actionError,
+  actionPending,
+  prominent = false,
 }: {
   output: AiIntakeOutput;
   signedIn: boolean;
   workflowEnabled: boolean;
   onSend: () => Promise<void>;
   searchHref: string;
+  loginHref: string;
+  actionError: string | null;
+  actionPending: boolean;
+  prominent?: boolean;
 }) {
   return (
-    <section className="rounded-2xl border border-border bg-card p-5">
+    <section
+      className={cn(
+        "rounded-2xl border border-border bg-card p-5",
+        prominent && "border-foreground ring-2 ring-foreground/20"
+      )}
+    >
+      {prominent && (
+        <h2 className="mb-3 text-lg font-semibold">
+          Create a support ticket with this history
+        </h2>
+      )}
       <Message
         side="assistant"
         text={
@@ -503,12 +786,14 @@ function Escalation({
       />
       <div className="mt-4 flex flex-wrap gap-3">
         {workflowEnabled && signedIn ? (
-          <Button onClick={() => void onSend()}>
-            Send to a support person
+          <Button onClick={() => void onSend()} disabled={actionPending}>
+            {prominent
+              ? "Create a support ticket with this history"
+              : "Send to a support person"}
           </Button>
         ) : workflowEnabled ? (
           <Link
-            href="/login?next=/assistant"
+            href={loginHref}
             className={cn(buttonVariants({ variant: "default" }))}
           >
             Log in to send this to a support person
@@ -521,6 +806,25 @@ function Escalation({
           Search support guides
         </Link>
       </div>
+      {actionError && <ActionError error={actionError} />}
     </section>
   );
+}
+
+function ActionError({ error }: { error: string }) {
+  return (
+    <div role="alert" className="mt-3 rounded-xl border border-destructive p-3">
+      {error}
+    </div>
+  );
+}
+
+function loginLink(
+  problem: string,
+  platform: Platform | null,
+  intent: string | undefined
+) {
+  const next = new URLSearchParams({ q: problem, intent: intent ?? "human" });
+  if (platform) next.set("platform", platform);
+  return `/login?next=${encodeURIComponent(`/assistant?${next.toString()}`)}`;
 }

@@ -102,15 +102,51 @@ test.describe("UI v2 numbered coverage", () => {
   test("5 ticket-from-failed-solution sends a signed-in requester to support", async ({
     page,
   }) => {
-    test.skip(!requesterReady, "Set USER_E2E_EMAIL and USER_E2E_PASSWORD.");
-    await signInRequester(page);
-    await page.goto("/assistant?q=wifi+keeps+dropping&intent=ticket");
+    await page.route("**/api/ai/intake", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          status: "ok",
+          output: {
+            decision: "match",
+            matchedIssueSlug: "wifi-disconnecting",
+            detectedPlatform: "Mac",
+            explanation: "This approved guide matches your symptoms.",
+          },
+        }),
+      });
+    });
+    await page.goto(
+      "/assistant?q=wifi+keeps+dropping&platform=Mac&intent=solve"
+    );
     await expect(
-      page.getByRole("heading", { name: "Send this problem to your IT team" })
+      page.getByRole("heading", { name: "Suggested steps" })
     ).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: "Send to a support person" })
-    ).toBeVisible();
+    const failedStep = page
+      .getByRole("button", { name: "Did not work" })
+      .first();
+    const offeredStepCount = await page
+      .getByRole("button", { name: "Did not work" })
+      .count();
+    await failedStep.click();
+    await expect(page.getByText("Already tried")).toBeVisible();
+    await page.getByText("Already tried").click();
+    await expect(page.getByText(/Outcome: failed/)).toBeVisible();
+    await expect
+      .poll(() => page.getByRole("button", { name: "Did not work" }).count())
+      .toBeLessThan(offeredStepCount);
+
+    if (requesterReady) {
+      await signInRequester(page);
+      await page.goto("/assistant?q=wifi+keeps+dropping&intent=ticket");
+      await expect(
+        page.getByRole("heading", { name: "Send this problem to your IT team" })
+      ).toBeVisible();
+      await expect(
+        page.getByRole("button", { name: "Send to a support person" })
+      ).toBeVisible();
+    }
   });
 
   test("6 upload-attachment shows the selected file metadata", async ({

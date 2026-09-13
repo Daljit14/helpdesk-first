@@ -29,7 +29,9 @@ describe("HomeStart", () => {
     expect(toTicketPlatform("Windows")).toBe("Windows");
     expect(toTicketPlatform("iOS")).toBe("iOS");
     expect(toTicketPlatform("Android")).toBe("Android");
-    expect(toTicketPlatform("Linux")).toBe("Other");
+    expect(toTicketPlatform("Linux")).toBe("Linux");
+    expect(toTicketPlatform("macOS")).toBe("macOS");
+    expect(toTicketPlatform("junk")).toBe("Other");
   });
 
   it("renders the three platform options", () => {

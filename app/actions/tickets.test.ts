@@ -59,6 +59,7 @@ function setupAdmin() {
   const updates: unknown[] = [];
   const events: unknown[] = [];
   const comments: unknown[] = [];
+  const inserts: unknown[] = [];
   const chain = {
     select: vi.fn(() => chain),
     eq: vi.fn(() => chain),
@@ -71,7 +72,10 @@ function setupAdmin() {
   };
   const tickets = {
     select: vi.fn(() => chain),
-    insert: vi.fn(() => chain),
+    insert: vi.fn((value: unknown) => {
+      inserts.push(value);
+      return chain;
+    }),
     update: vi.fn((value: unknown) => {
       updates.push(value);
       return chain;
@@ -93,7 +97,7 @@ function setupAdmin() {
       return insertTable([]);
     }),
   });
-  return { updates, events, comments };
+  return { updates, events, comments, inserts };
 }
 
 afterEach(() => {
@@ -103,6 +107,36 @@ afterEach(() => {
 });
 
 describe("workflow ticket actions", () => {
+  test("accepts catalog Mac and normalizes it for ticket persistence", async () => {
+    mocks.getCurrentUser.mockResolvedValue(user);
+    mocks.processAiIntake.mockResolvedValue({
+      status: "success",
+      output: { decision: "escalate", escalationReason: "Needs support." },
+    });
+    const { inserts } = setupAdmin();
+
+    await expect(
+      createWorkflowTicket({
+        message: "My Mac cannot connect",
+        platform: "Mac",
+      })
+    ).resolves.toEqual({ success: true, ticketId });
+    expect(inserts[0]).toEqual(expect.objectContaining({ platform: "macOS" }));
+  });
+
+  test("rejects unsupported ticket platform values", async () => {
+    mocks.getCurrentUser.mockResolvedValue(user);
+    const { inserts } = setupAdmin();
+
+    await expect(
+      createWorkflowTicket({
+        message: "My device cannot connect",
+        platform: "junk",
+      })
+    ).resolves.toEqual({ error: "Invalid ticket details." });
+    expect(inserts).toHaveLength(0);
+  });
+
   test("creates a low-risk AI ticket and offers the matched solution", async () => {
     mocks.getCurrentUser.mockResolvedValue(user);
     mocks.processAiIntake.mockResolvedValue({

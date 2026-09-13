@@ -17,7 +17,7 @@ import type { AiIntakeOutput } from "@/lib/ai/types";
 import { diagnosticQuestions } from "@/lib/ai/types";
 import { recordStepOutcome } from "@/app/actions/tickets";
 import { useAssistantIntake } from "@/components/ai-assistant-logic";
-import { SAFE_USE_WARNING, toTicketPlatform } from "@/lib/ui-copy";
+import { SAFE_USE_WARNING } from "@/lib/ui-copy";
 
 type StepOutcome = "worked" | "failed" | "could_not_perform";
 
@@ -205,9 +205,7 @@ export function AssistantWorkspace({
     try {
       const result = await intake.startAiTicket({
         issueId: matchedIssue.id,
-        platform: toTicketPlatform(
-          output?.detectedPlatform ?? intake.platform ?? "Other"
-        ),
+        platform: output?.detectedPlatform ?? intake.platform ?? "Other",
         message: intake.problem,
         diagnosticAnswers: intake.previousAnswers,
       });

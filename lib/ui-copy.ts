@@ -6,6 +6,8 @@ export function toTicketPlatform(device: string): string {
     case "Mac":
       return "macOS";
     case "Windows":
+    case "macOS":
+    case "Linux":
     case "iOS":
     case "Android":
       return device;

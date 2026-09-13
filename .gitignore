@@ -76,6 +76,7 @@ web_modules/
 
 # Next.js build output
 .next
+.next-v2
 out
 
 # Nuxt.js build / generate output
@@ -152,4 +153,3 @@ next-env.d.ts
 .prettiercache
 playwright-report/
 test-results/
-

@@ -60,7 +60,7 @@ export function TicketPortalActions({
                 type="button"
                 disabled={isPending}
                 onClick={() => run(() => confirmTicketResolved(ticketId))}
-                className="rounded-full bg-gradient-to-b from-primary to-primary/85 px-5 py-2 text-primary-foreground shadow-md shadow-primary/25 disabled:opacity-60"
+                className="v2-touch rounded-xl bg-primary px-5 py-2 text-primary-foreground shadow-md disabled:opacity-60"
               >
                 This fixed it
               </button>
@@ -125,7 +125,7 @@ export function TicketPortalActions({
                     onClick={() =>
                       run(() => reopenTicketByUser(ticketId, reopenReason))
                     }
-                    className="rounded-full bg-gradient-to-b from-primary to-primary/85 px-5 py-2 text-primary-foreground shadow-md shadow-primary/25 disabled:opacity-60"
+                    className="v2-touch rounded-xl bg-primary px-5 py-2 text-primary-foreground shadow-md disabled:opacity-60"
                   >
                     Submit reopen request
                   </button>
@@ -192,7 +192,7 @@ export function TicketPortalActions({
               <button
                 type="submit"
                 disabled={isPending}
-                className="rounded-full bg-gradient-to-b from-primary to-primary/85 px-5 py-2 text-primary-foreground shadow-md shadow-primary/25 disabled:opacity-60"
+                className="v2-touch rounded-xl bg-primary px-5 py-2 text-primary-foreground shadow-md disabled:opacity-60"
               >
                 Submit rating
               </button>

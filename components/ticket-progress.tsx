@@ -1,5 +1,5 @@
 import { progressStage } from "@/lib/tickets/user-status";
-import { Check } from "lucide-react";
+import { CheckCircle2, Circle, Clock } from "lucide-react";
 
 const stages = [
   "Submitted",
@@ -44,18 +44,18 @@ export function TicketProgress({
               <span
                 className={`z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${
                   complete
-                    ? "bg-primary text-primary-foreground"
+                    ? "bg-[var(--status-success)] text-[var(--status-success-foreground)]"
                     : current
-                      ? "border border-primary text-foreground ring-2 ring-primary"
+                      ? "border border-[var(--status-info)] text-foreground ring-2 ring-[var(--ring)]"
                       : "border border-border text-muted-foreground"
                 }`}
               >
                 {complete ? (
-                  <Check className="h-4 w-4" />
+                  <CheckCircle2 className="h-4 w-4" />
                 ) : current ? (
-                  <span className="h-2 w-2 animate-pulse rounded-full bg-primary" />
+                  <Clock className="h-4 w-4" aria-label="Current stage" />
                 ) : (
-                  index + 1
+                  <Circle className="h-4 w-4" aria-hidden />
                 )}
               </span>
               <span className="z-10 pt-1 text-xs font-medium sm:pt-2 sm:text-center">

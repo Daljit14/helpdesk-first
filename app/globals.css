@@ -174,6 +174,24 @@ body::before {
   }
 }
 
+@layer components {
+  .v2-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    border: 1px solid var(--border);
+    border-radius: 9999px;
+    padding: 0.25rem 0.625rem;
+    font-size: 0.75rem;
+    line-height: 1rem;
+  }
+
+  .v2-touch {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+}
+
 :root {
   --background: oklch(0.975 0.008 260);
   --foreground: oklch(0.145 0 0);
@@ -207,6 +225,23 @@ body::before {
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+  --status-success: oklch(0.72 0.12 145);
+  --status-success-foreground: oklch(0.2 0.04 145);
+  --status-warning: oklch(0.82 0.12 85);
+  --status-warning-foreground: oklch(0.24 0.05 85);
+  --status-danger: oklch(0.68 0.12 25);
+  --status-danger-foreground: oklch(0.25 0.05 25);
+  --status-info: oklch(0.72 0 0);
+  --status-info-foreground: oklch(0.2 0 0);
+  --risk-safe: var(--status-success);
+  --risk-caution: var(--status-warning);
+  --risk-approval: var(--status-warning);
+  --risk-specialist: var(--status-danger);
+  --risk-denied: var(--status-danger);
+  --shadow-sm: 0 1px 3px rgb(0 0 0 / 0.12);
+  --shadow-md: 0 8px 24px rgb(0 0 0 / 0.16);
+  --hover: oklch(0.96 0 0);
+  --focus: var(--ring);
 }
 
 .dark {
@@ -233,6 +268,155 @@ body::before {
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
+  --status-success: oklch(0.65 0.12 145);
+  --status-success-foreground: oklch(0.96 0.02 145);
+  --status-warning: oklch(0.72 0.12 85);
+  --status-warning-foreground: oklch(0.98 0.02 85);
+  --status-danger: oklch(0.62 0.12 25);
+  --status-danger-foreground: oklch(0.98 0.02 25);
+  --status-info: oklch(0.62 0 0);
+  --status-info-foreground: oklch(0.98 0 0);
+  --risk-safe: var(--status-success);
+  --risk-caution: var(--status-warning);
+  --risk-approval: var(--status-warning);
+  --risk-specialist: var(--status-danger);
+  --risk-denied: var(--status-danger);
+  --shadow-sm: 0 1px 3px rgb(0 0 0 / 0.35);
+  --shadow-md: 0 8px 24px rgb(0 0 0 / 0.45);
+  --hover: oklch(0.16 0 0);
+  --focus: var(--ring);
+}
+
+html[data-ui="v2"],
+html[data-ui="v2"].light {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.13 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.13 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.13 0 0);
+  --primary: oklch(0.13 0 0);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.96 0 0);
+  --secondary-foreground: oklch(0.13 0 0);
+  --muted: oklch(0.96 0 0);
+  --muted-foreground: oklch(0.45 0 0);
+  --accent: oklch(0.94 0 0);
+  --accent-foreground: oklch(0.13 0 0);
+  --border: oklch(0.87 0 0);
+  --input: oklch(0.87 0 0);
+  --ring: oklch(0.13 0 0);
+  --sidebar: oklch(1 0 0);
+  --sidebar-foreground: oklch(0.13 0 0);
+  --sidebar-primary: oklch(0.13 0 0);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.94 0 0);
+  --sidebar-accent-foreground: oklch(0.13 0 0);
+  --sidebar-border: oklch(0.87 0 0);
+  --sidebar-ring: oklch(0.13 0 0);
+  --chart-1: oklch(0.2 0 0);
+  --chart-2: oklch(0.35 0 0);
+  --chart-3: oklch(0.5 0 0);
+  --chart-4: oklch(0.65 0 0);
+  --chart-5: oklch(0.8 0 0);
+  --shadow-sm: 0 1px 3px rgb(0 0 0 / 0.12);
+  --shadow-md: 0 8px 24px rgb(0 0 0 / 0.16);
+  --hover: oklch(0.96 0 0);
+  --focus: var(--ring);
+  --status-success: oklch(0.7 0.08 145);
+  --status-success-foreground: oklch(0.2 0.04 145);
+  --status-warning: oklch(0.76 0.08 85);
+  --status-warning-foreground: oklch(0.24 0.05 85);
+  --status-danger: oklch(0.62 0.1 25);
+  --status-danger-foreground: oklch(0.22 0.04 25);
+  --status-info: oklch(0.68 0 0);
+  --status-info-foreground: oklch(0.2 0 0);
+  --risk-safe: var(--status-success);
+  --risk-caution: var(--status-warning);
+  --risk-approval: var(--status-warning);
+  --risk-specialist: var(--status-danger);
+  --risk-denied: var(--status-danger);
+}
+
+html[data-ui="v2"].dark {
+  --background: oklch(0.08 0 0);
+  --foreground: oklch(0.98 0 0);
+  --card: oklch(0.12 0 0);
+  --card-foreground: oklch(0.98 0 0);
+  --popover: oklch(0.12 0 0);
+  --popover-foreground: oklch(0.98 0 0);
+  --primary: oklch(0.98 0 0);
+  --primary-foreground: oklch(0.08 0 0);
+  --secondary: oklch(0.18 0 0);
+  --secondary-foreground: oklch(0.98 0 0);
+  --muted: oklch(0.18 0 0);
+  --muted-foreground: oklch(0.72 0 0);
+  --accent: oklch(0.18 0 0);
+  --accent-foreground: oklch(0.98 0 0);
+  --border: oklch(0.28 0 0);
+  --input: oklch(0.28 0 0);
+  --ring: oklch(0.98 0 0);
+  --sidebar: oklch(0.12 0 0);
+  --sidebar-foreground: oklch(0.98 0 0);
+  --sidebar-primary: oklch(0.98 0 0);
+  --sidebar-primary-foreground: oklch(0.08 0 0);
+  --sidebar-accent: oklch(0.18 0 0);
+  --sidebar-accent-foreground: oklch(0.98 0 0);
+  --sidebar-border: oklch(0.28 0 0);
+  --sidebar-ring: oklch(0.98 0 0);
+  --chart-1: oklch(0.2 0 0);
+  --chart-2: oklch(0.35 0 0);
+  --chart-3: oklch(0.5 0 0);
+  --chart-4: oklch(0.65 0 0);
+  --chart-5: oklch(0.8 0 0);
+  --hover: oklch(0.16 0 0);
+  --focus: var(--ring);
+  --status-success: oklch(0.66 0.08 145);
+  --status-success-foreground: oklch(0.98 0.02 145);
+  --status-warning: oklch(0.72 0.08 85);
+  --status-warning-foreground: oklch(0.98 0.02 85);
+  --status-danger: oklch(0.62 0.08 25);
+  --status-danger-foreground: oklch(0.98 0.02 25);
+  --status-info: oklch(0.62 0 0);
+  --status-info-foreground: oklch(0.98 0 0);
+  --risk-safe: var(--status-success);
+  --risk-caution: var(--status-warning);
+  --risk-approval: var(--status-warning);
+  --risk-specialist: var(--status-danger);
+  --risk-denied: var(--status-danger);
+}
+
+html[data-ui="v2"] body::before {
+  display: none;
+}
+
+html[data-ui="v2"] .glass,
+html[data-ui="v2"] .glass-strong,
+html[data-ui="v2"] .glass-pill,
+html[data-ui="v2"] .glass--solid,
+html[data-ui="v2"] .glass-pill--solid,
+html[data-ui="v2"] .glass-interactive {
+  background: var(--card);
+  border: 1px solid var(--border);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: var(--shadow-sm);
+}
+
+html[data-ui="v2"] *:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-ui="v2"] *,
+  html[data-ui="v2"] *::before,
+  html[data-ui="v2"] *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 @layer base {

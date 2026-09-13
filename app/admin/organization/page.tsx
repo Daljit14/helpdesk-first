@@ -4,6 +4,8 @@ import { OrganizationPanel } from "@/components/admin/organization-panel";
 import { requireAdminPage } from "@/lib/admin/auth";
 import { getOrganizationPolicy } from "@/lib/admin/policies";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isUiV2Enabled } from "@/lib/ui-v2";
+import { AdminBreadcrumbs } from "@/components/admin/v2/breadcrumbs";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -48,6 +50,9 @@ export default async function OrganizationPage() {
   return (
     <section className="flex flex-1 flex-col px-4 py-10 sm:px-6 lg:px-8">
       <div className="mx-auto w-full max-w-5xl">
+        {isUiV2Enabled() && (
+          <AdminBreadcrumbs items={[{ label: "Organization" }]} />
+        )}
         <p className="text-sm text-muted-foreground">Administration</p>
         <h1 className="mt-2 text-3xl font-bold">Organization</h1>
         <div className="mt-6">

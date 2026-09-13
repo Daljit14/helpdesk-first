@@ -15,6 +15,7 @@ export function Header({ user }: { user?: User | null }) {
   const pathname = usePathname();
   const { theme, toggleTheme } = useTheme();
   const [open, setOpen] = useState(false);
+  const uiV2 = process.env.NEXT_PUBLIC_UI_V2_ENABLED === "true";
 
   if (pathname?.startsWith("/admin")) return null;
 
@@ -25,24 +26,62 @@ export function Header({ user }: { user?: User | null }) {
           href="/"
           className="flex items-center gap-2 whitespace-nowrap text-base font-semibold tracking-tight sm:text-lg"
         >
-          <Headset className="h-5 w-5 text-indigo-500" aria-hidden />
+          <Headset
+            className={cn(
+              "h-5 w-5",
+              uiV2 ? "text-foreground" : "text-indigo-500"
+            )}
+            aria-hidden
+          />
           <span>HelpDesk First</span>
         </Link>
 
         <nav aria-label="Primary" className="hidden md:block">
           <ul className="flex items-center gap-2 text-sm font-medium">
-            <li>
-              <Link
-                href="/"
-                aria-current={pathname === "/" ? "page" : undefined}
-                className={cn(
-                  "rounded-full px-3 py-2 transition-colors hover:text-primary",
-                  pathname === "/" && "bg-primary/10 text-primary"
-                )}
-              >
-                Guides
-              </Link>
-            </li>
+            {uiV2 ? (
+              <>
+                <li>
+                  <Link
+                    href="/"
+                    aria-current={pathname === "/" ? "page" : undefined}
+                    className={cn(
+                      "rounded-full px-3 py-2 transition-colors hover:text-primary",
+                      uiV2 && "text-foreground",
+                      pathname === "/" && "bg-primary/10 text-primary"
+                    )}
+                  >
+                    Start
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/browse"
+                    aria-current={pathname === "/browse" ? "page" : undefined}
+                    className={cn(
+                      "rounded-full px-3 py-2 transition-colors hover:text-primary",
+                      uiV2 && "text-foreground",
+                      pathname === "/browse" && "bg-primary/10 text-primary"
+                    )}
+                  >
+                    Browse solutions
+                  </Link>
+                </li>
+              </>
+            ) : (
+              <li>
+                <Link
+                  href="/"
+                  aria-current={pathname === "/" ? "page" : undefined}
+                  className={cn(
+                    "rounded-full px-3 py-2 transition-colors hover:text-primary",
+                    uiV2 && "text-foreground",
+                    pathname === "/" && "bg-primary/10 text-primary"
+                  )}
+                >
+                  Guides
+                </Link>
+              </li>
+            )}
             {process.env.NEXT_PUBLIC_AI_ENABLED === "true" && (
               <li>
                 <Link
@@ -50,6 +89,7 @@ export function Header({ user }: { user?: User | null }) {
                   aria-current={pathname === "/assistant" ? "page" : undefined}
                   className={cn(
                     "rounded-full px-3 py-2 transition-colors hover:text-primary",
+                    uiV2 && "text-foreground",
                     pathname === "/assistant" && "bg-primary/10 text-primary"
                   )}
                 >
@@ -57,13 +97,14 @@ export function Header({ user }: { user?: User | null }) {
                 </Link>
               </li>
             )}
-            {user && (
+            {user && !uiV2 && (
               <li>
                 <Link
                   href="/bookmarks"
                   aria-current={pathname === "/bookmarks" ? "page" : undefined}
                   className={cn(
                     "rounded-full px-3 py-2 transition-colors hover:text-primary",
+                    uiV2 && "text-foreground",
                     pathname === "/bookmarks" && "bg-primary/10 text-primary"
                   )}
                 >
@@ -78,6 +119,7 @@ export function Header({ user }: { user?: User | null }) {
                   aria-current={pathname === "/tickets" ? "page" : undefined}
                   className={cn(
                     "rounded-full px-3 py-2 transition-colors hover:text-primary",
+                    uiV2 && "text-foreground",
                     pathname === "/tickets" && "bg-primary/10 text-primary"
                   )}
                 >
@@ -111,7 +153,10 @@ export function Header({ user }: { user?: User | null }) {
           ) : (
             <Link
               href="/login"
-              className={cn(buttonVariants({ variant: "default", size: "sm" }))}
+              className={cn(
+                buttonVariants({ variant: "default", size: "sm" }),
+                uiV2 && "text-[var(--primary-foreground)] transition-none"
+              )}
             >
               Log in
             </Link>
@@ -134,15 +179,38 @@ export function Header({ user }: { user?: User | null }) {
         <div className="glass glass--solid mx-4 mt-2 md:hidden">
           <nav aria-label="Mobile" className="mx-auto max-w-6xl px-5 py-3">
             <ul className="flex flex-col gap-1 text-sm font-medium">
-              <li>
-                <Link
-                  href="/"
-                  className="block rounded-2xl px-3 py-3"
-                  onClick={() => setOpen(false)}
-                >
-                  Guides
-                </Link>
-              </li>
+              {uiV2 ? (
+                <>
+                  <li>
+                    <Link
+                      href="/"
+                      className="block rounded-2xl px-3 py-3"
+                      onClick={() => setOpen(false)}
+                    >
+                      Start
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      href="/browse"
+                      className="block rounded-2xl px-3 py-3"
+                      onClick={() => setOpen(false)}
+                    >
+                      Browse solutions
+                    </Link>
+                  </li>
+                </>
+              ) : (
+                <li>
+                  <Link
+                    href="/"
+                    className="block rounded-2xl px-3 py-3"
+                    onClick={() => setOpen(false)}
+                  >
+                    Guides
+                  </Link>
+                </li>
+              )}
               {process.env.NEXT_PUBLIC_AI_ENABLED === "true" && (
                 <li>
                   <Link
@@ -154,7 +222,7 @@ export function Header({ user }: { user?: User | null }) {
                   </Link>
                 </li>
               )}
-              {user && (
+              {user && !uiV2 && (
                 <li>
                   <Link
                     href="/bookmarks"

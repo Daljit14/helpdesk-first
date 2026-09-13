@@ -1,5 +1,8 @@
 import { HomePage } from "@/components/home-page";
 import { platforms, type Platform } from "@/lib/helpdesk-data";
+import { HomeStart } from "@/components/v2/home-start";
+import { isUiV2Enabled } from "@/lib/ui-v2";
+import { getCurrentUser } from "@/lib/supabase/user";
 
 type PageSearchParams = {
   [key: string]: string | string[] | undefined;
@@ -24,6 +27,11 @@ export default async function Home({
   searchParams: Promise<PageSearchParams>;
 }) {
   const params = await searchParams;
+
+  if (isUiV2Enabled()) {
+    const user = await getCurrentUser();
+    return <HomeStart signedIn={Boolean(user)} />;
+  }
 
   return (
     <HomePage

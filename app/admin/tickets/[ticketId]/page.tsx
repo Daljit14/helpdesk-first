@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Lock, MessageSquare } from "lucide-react";
 import { TicketUpdateForm } from "@/components/admin/ticket-update-form";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAudit, requireAdminPage } from "@/lib/admin/auth";
@@ -37,6 +38,8 @@ import {
 import { loadEscalationInputs } from "@/lib/investigation/escalation-load";
 import { EscalationPackageCard } from "@/components/escalation-package";
 import { formatHandoffReason } from "@/lib/tickets/routing";
+import { isUiV2Enabled } from "@/lib/ui-v2";
+import { AdminBreadcrumbs } from "@/components/admin/v2/breadcrumbs";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -172,6 +175,7 @@ export default async function AdminTicketPage({
 }) {
   const { ticketId } = await params;
   const session = await requireAdminPage(`/admin/tickets/${ticketId}`);
+  const uiV2 = isUiV2Enabled();
   const uuid =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
       ticketId
@@ -359,11 +363,58 @@ export default async function AdminTicketPage({
   return (
     <section className="flex flex-1 flex-col px-4 py-10 sm:px-6 lg:px-8">
       <div className="mx-auto w-full max-w-7xl">
+        {uiV2 && (
+          <AdminBreadcrumbs
+            items={[
+              { label: "Operations", href: "/admin/operations" },
+              { label: "Ticket queue", href: "/admin/operations#tickets" },
+              { label: toTicketId(ticket.id) },
+            ]}
+          />
+        )}
         <p className="font-mono text-sm text-muted-foreground">
           {toTicketId(ticket.id)}
         </p>
         <h1 className="mt-2 text-3xl font-bold">{ticket.issue_title}</h1>
-        <div className="glass mt-6 grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-3">
+        {uiV2 && (
+          <nav
+            aria-label="Ticket sections"
+            className="mt-6 overflow-x-auto rounded-2xl border border-border bg-card p-4 lg:sticky lg:top-24 lg:z-10"
+          >
+            <ol className="flex min-w-max gap-4 text-sm lg:flex-wrap">
+              {[
+                ["User problem", "user-problem"],
+                ["Device and platform", "device-platform"],
+                ["Investigation and evidence", "investigation"],
+                ["Diagnosis package", "diagnosis"],
+                ["Likely causes and confidence", "classification"],
+                ["Questions and answers", "questions"],
+                ["Steps attempted and outcomes", "step-outcomes"],
+                ["Withheld/restricted steps", "restricted-steps"],
+                ["Public conversation", "public-conversation"],
+                ["Internal notes", "internal-notes"],
+                ["Attachments", "attachments"],
+                ["Tools and actions used", "tools-actions"],
+                ["Assignment and SLA", "assignment-sla"],
+                ["Resolution and verification", "resolution"],
+                ["Activity timeline", "timeline"],
+              ].map(([label, id], index) => (
+                <li key={id}>
+                  <a
+                    href={`#${id}`}
+                    className="underline-offset-4 hover:underline"
+                  >
+                    {index + 1}. {label}
+                  </a>
+                </li>
+              ))}
+            </ol>
+          </nav>
+        )}
+        <div
+          id={uiV2 ? "assignment-sla" : undefined}
+          className="glass mt-6 grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-3"
+        >
           <p className="flex items-center gap-2">
             <span>Status:</span>
             <span
@@ -392,7 +443,7 @@ export default async function AdminTicketPage({
         </div>
         <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
           <div className="min-w-0 space-y-6">
-            <div className="glass p-5">
+            <div id={uiV2 ? "user-problem" : undefined} className="glass p-5">
               <h2 className="font-semibold">Description</h2>
               <p className="mt-3 whitespace-pre-wrap text-muted-foreground">
                 {ticket.message}
@@ -408,23 +459,42 @@ export default async function AdminTicketPage({
                 </a>
               )}
             </div>
-            {secureAttachmentsEnabled && (
-              <AttachmentList
-                attachments={secureAttachments}
-                adminControls={Object.fromEntries(
-                  secureAttachments.map((attachment) => [
-                    attachment.id,
-                    <AdminAttachmentControls
-                      key={`controls-${attachment.id}`}
-                      attachment={attachment}
-                    />,
-                  ])
-                )}
-              />
-            )}
+            {secureAttachmentsEnabled &&
+              (uiV2 ? (
+                <div id="attachments">
+                  <AttachmentList
+                    attachments={secureAttachments}
+                    adminControls={Object.fromEntries(
+                      secureAttachments.map((attachment) => [
+                        attachment.id,
+                        <AdminAttachmentControls
+                          key={`controls-${attachment.id}`}
+                          attachment={attachment}
+                        />,
+                      ])
+                    )}
+                  />
+                </div>
+              ) : (
+                <AttachmentList
+                  attachments={secureAttachments}
+                  adminControls={Object.fromEntries(
+                    secureAttachments.map((attachment) => [
+                      attachment.id,
+                      <AdminAttachmentControls
+                        key={`controls-${attachment.id}`}
+                        attachment={attachment}
+                      />,
+                    ])
+                  )}
+                />
+              ))}
             {workflowEnabled && (
               <>
-                <div className="glass grid gap-4 p-5 sm:grid-cols-2">
+                <div
+                  id={uiV2 ? "classification" : undefined}
+                  className="glass grid gap-4 p-5 sm:grid-cols-2"
+                >
                   <h2 className="font-semibold sm:col-span-2">
                     AI classification
                   </h2>
@@ -444,7 +514,10 @@ export default async function AdminTicketPage({
                   <p>
                     Diagnostic questions asked: {ticket.ai_question_count ?? 0}
                   </p>
-                  <p className="sm:col-span-2">
+                  <p
+                    id={uiV2 ? "questions" : undefined}
+                    className="sm:col-span-2"
+                  >
                     Diagnostic answers:{" "}
                     {Array.isArray(ticket.diagnostic_answers) &&
                     ticket.diagnostic_answers.length === 0
@@ -452,19 +525,46 @@ export default async function AdminTicketPage({
                       : JSON.stringify(ticket.diagnostic_answers ?? [])}
                   </p>
                 </div>
-                {escalationPackage && (
-                  <EscalationPackageCard
-                    pkg={escalationPackage}
-                    snapshotAt={escalationSnapshotAt}
-                  />
+                {escalationPackage &&
+                  (uiV2 ? (
+                    <div id="diagnosis">
+                      <EscalationPackageCard
+                        pkg={escalationPackage}
+                        snapshotAt={escalationSnapshotAt}
+                      />
+                    </div>
+                  ) : (
+                    <EscalationPackageCard
+                      pkg={escalationPackage}
+                      snapshotAt={escalationSnapshotAt}
+                    />
+                  ))}
+                {investigation &&
+                  (uiV2 ? (
+                    <div id="investigation">
+                      <TicketInvestigation
+                        investigation={investigation.investigation}
+                        turns={investigation.turns}
+                      />
+                    </div>
+                  ) : (
+                    <TicketInvestigation
+                      investigation={investigation.investigation}
+                      turns={investigation.turns}
+                    />
+                  ))}
+                {uiV2 && (
+                  <div id="restricted-steps" className="glass p-5">
+                    <h2 className="font-semibold">Withheld/restricted steps</h2>
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      No restricted steps are recorded for this ticket.
+                    </p>
+                  </div>
                 )}
-                {investigation && (
-                  <TicketInvestigation
-                    investigation={investigation.investigation}
-                    turns={investigation.turns}
-                  />
-                )}
-                <div className="glass p-5">
+                <div
+                  id={uiV2 ? "step-outcomes" : undefined}
+                  className="glass p-5"
+                >
                   <h2 className="font-semibold">Step outcomes</h2>
                   <ul className="mt-3 space-y-2 text-sm">
                     {(stepOutcomes ?? []).length === 0 ? (
@@ -481,8 +581,20 @@ export default async function AdminTicketPage({
                     )}
                   </ul>
                 </div>
-                <div className="glass p-5">
-                  <h2 className="font-semibold">Conversation</h2>
+                <div
+                  id={uiV2 ? "public-conversation" : undefined}
+                  className="glass p-5"
+                >
+                  <h2
+                    className={
+                      uiV2
+                        ? "flex items-center gap-2 font-semibold"
+                        : "font-semibold"
+                    }
+                  >
+                    {uiV2 && <MessageSquare className="h-4 w-4" aria-hidden />}
+                    Conversation
+                  </h2>
                   <div className="mt-3 space-y-3">
                     {(comments ?? [])
                       .filter((comment) => comment.visibility === "public")
@@ -497,14 +609,46 @@ export default async function AdminTicketPage({
                       ))}
                   </div>
                 </div>
-                <div className="glass border-amber-500/30 bg-amber-500/10 p-5">
+                <div
+                  id={uiV2 ? "internal-notes" : undefined}
+                  className={`glass ${
+                    uiV2
+                      ? "border-dashed border-border bg-muted/30 p-5"
+                      : "border-amber-500/30 bg-amber-500/10 p-5"
+                  }`}
+                  aria-describedby={
+                    uiV2 ? "internal-notes-description" : undefined
+                  }
+                >
                   <div className="flex items-center justify-between gap-3">
-                    <h2 className="font-semibold">Internal notes</h2>
-                    <span className="glass-pill bg-amber-500/15 px-3 py-1 text-xs text-amber-800 dark:text-amber-200">
+                    <h2
+                      className={
+                        uiV2
+                          ? "flex items-center gap-2 font-semibold"
+                          : "font-semibold"
+                      }
+                    >
+                      {uiV2 && <Lock className="h-4 w-4" aria-hidden />}
+                      Internal notes
+                    </h2>
+                    <span
+                      className={
+                        uiV2
+                          ? "glass-pill px-3 py-1 text-xs"
+                          : "glass-pill bg-amber-500/15 px-3 py-1 text-xs text-amber-800 dark:text-amber-200"
+                      }
+                    >
                       Private — staff only
                     </span>
                   </div>
-                  <p className="mt-1 text-sm text-amber-800 dark:text-amber-200">
+                  <p
+                    id={uiV2 ? "internal-notes-description" : undefined}
+                    className={
+                      uiV2
+                        ? "mt-1 text-sm text-muted-foreground"
+                        : "mt-1 text-sm text-amber-800 dark:text-amber-200"
+                    }
+                  >
                     Internal — not visible to user
                   </p>
                   <div className="mt-3 space-y-3">
@@ -520,7 +664,10 @@ export default async function AdminTicketPage({
                       ))}
                   </div>
                 </div>
-                <div className="glass p-5">
+                <div
+                  id={uiV2 ? "tools-actions" : undefined}
+                  className="glass p-5"
+                >
                   <h2 className="font-semibold">System activity</h2>
                   <ul className="mt-3 space-y-2 text-sm">
                     {(workflowEvents ?? []).map((event) => (
@@ -560,7 +707,7 @@ export default async function AdminTicketPage({
               </>
             )}
             {resolutionTrackingEnabled && (
-              <div className="glass p-5">
+              <div id={uiV2 ? "resolution" : undefined} className="glass p-5">
                 <h2 className="font-semibold">Resolution</h2>
                 {exceptionDetails && (
                   <div className="glass-pill mt-3 inline-flex flex-col items-start gap-1 px-3 py-2 text-sm">
@@ -624,7 +771,7 @@ export default async function AdminTicketPage({
                 </dl>
               </div>
             )}
-            <div className="glass p-5">
+            <div id={uiV2 ? "timeline" : undefined} className="glass p-5">
               <h2 className="font-semibold">Timeline</h2>
               <ol className="mt-4 space-y-3">
                 {(events ?? []).map((event, index) => (

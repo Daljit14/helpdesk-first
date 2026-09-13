@@ -1,5 +1,16 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const sharedEnv = {
+  HELP_DESK_AI_ENABLED: "true",
+  NEXT_PUBLIC_AI_ENABLED: "true",
+  HELP_DESK_AI_RATE_LIMIT_PROVIDER: "memory",
+  HELP_DESK_AI_RATE_LIMIT_MAX: "10000",
+  HELP_DESK_ADMIN_DASHBOARD_ENABLED: "true",
+  HELP_DESK_RESOLUTION_TRACKING_ENABLED: "true",
+  HELP_DESK_SSO_GOOGLE_ENABLED: "true",
+  HELP_DESK_SSO_MICROSOFT_ENABLED: "true",
+};
+
 export default defineConfig({
   testDir: "./tests/e2e",
   fullyParallel: true,
@@ -14,26 +25,62 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
+      testIgnore: /v2\/.*\.spec\.ts/,
       use: { ...devices["Desktop Chrome"] },
     },
     {
       name: "mobile-chrome",
+      testIgnore: /v2\/.*\.spec\.ts/,
       use: { ...devices["Pixel 7"] },
     },
-  ],
-  webServer: {
-    command: "npm run dev",
-    env: {
-      HELP_DESK_AI_ENABLED: "true",
-      NEXT_PUBLIC_AI_ENABLED: "true",
-      HELP_DESK_AI_RATE_LIMIT_PROVIDER: "memory",
-      HELP_DESK_AI_RATE_LIMIT_MAX: "10000",
-      HELP_DESK_ADMIN_DASHBOARD_ENABLED: "true",
-      HELP_DESK_RESOLUTION_TRACKING_ENABLED: "true",
-      HELP_DESK_SSO_GOOGLE_ENABLED: "true",
-      HELP_DESK_SSO_MICROSOFT_ENABLED: "true",
+    {
+      name: "v2-chromium",
+      testMatch: [
+        /v2\/.*\.spec\.ts/,
+        /tickets-portal\.spec\.ts/,
+        /attachments\.spec\.ts/,
+      ],
+      use: { ...devices["Desktop Chrome"], baseURL: "http://localhost:3100" },
     },
-    url: "http://localhost:3000",
-    reuseExistingServer: !process.env.CI,
-  },
+    {
+      name: "v2-mobile",
+      testMatch: [
+        /v2\/.*\.spec\.ts/,
+        /tickets-portal\.spec\.ts/,
+        /attachments\.spec\.ts/,
+      ],
+      use: { ...devices["Pixel 7"], baseURL: "http://localhost:3100" },
+    },
+    {
+      name: "v2-webkit",
+      testMatch: [
+        /v2\/.*\.spec\.ts/,
+        /tickets-portal\.spec\.ts/,
+        /attachments\.spec\.ts/,
+      ],
+      testIgnore: process.env.PLAYWRIGHT_WEBKIT === "true" ? undefined : /.*/,
+      use: {
+        ...devices["Desktop Safari"],
+        baseURL: "http://localhost:3100",
+      },
+    },
+  ],
+  webServer: [
+    {
+      command: "npm run dev",
+      env: sharedEnv,
+      url: "http://localhost:3000",
+      reuseExistingServer: !process.env.CI,
+    },
+    {
+      command: "HELP_DESK_NEXT_DIST_DIR=.next-v2 npm run dev -- --port 3100",
+      env: {
+        ...sharedEnv,
+        HELP_DESK_NEXT_DIST_DIR: ".next-v2",
+        NEXT_PUBLIC_UI_V2_ENABLED: "true",
+      },
+      url: "http://localhost:3100",
+      reuseExistingServer: !process.env.CI,
+    },
+  ],
 });

@@ -8,17 +8,22 @@ import {
   isKnowledgeGovernanceEnabled,
   isSecureAttachmentsEnabled,
 } from "@/lib/admin/flags";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { AdminShell } from "@/components/admin/v2/admin-shell";
+import { buildDepartments } from "@/components/admin/v2/departments";
+import { isUiV2Enabled } from "@/lib/ui-v2";
 
 export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default async function AdminLayout({
+function LegacyAdminLayout({
   children,
+  session,
 }: {
   children: React.ReactNode;
+  session: Awaited<ReturnType<typeof getAdminSession>>;
 }) {
-  const session = await getAdminSession();
   return (
     <div className="flex min-h-full flex-1 flex-col">
       <header className="sticky top-3 z-40 px-4">
@@ -100,5 +105,48 @@ export default async function AdminLayout({
       </header>
       {children}
     </div>
+  );
+}
+
+export default async function AdminLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const session = await getAdminSession();
+  if (!isUiV2Enabled() || !session) {
+    return <LegacyAdminLayout session={session}>{children}</LegacyAdminLayout>;
+  }
+
+  const admin = createAdminClient();
+  const [{ data: organization }, notificationResult] = await Promise.all([
+    admin
+      .from("organizations")
+      .select("name")
+      .eq("id", session.organizationId)
+      .maybeSingle(),
+    admin
+      .from("notification_outbox")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", session.organizationId)
+      .in("status", ["failed", "dead"]),
+  ]);
+  const departments = buildDepartments(session, {
+    knowledgeGovernanceEnabled: isKnowledgeGovernanceEnabled(),
+    secureAttachmentsEnabled: isSecureAttachmentsEnabled(),
+  });
+
+  return (
+    <AdminShell
+      departments={departments}
+      organizationName={organization?.name ?? "Organization"}
+      roleLabel={adminRoleLabel(session.role, session.isPlatformAdmin)}
+      isPlatformAdmin={session.isPlatformAdmin}
+      pendingNotifications={
+        notificationResult.error ? 0 : (notificationResult.count ?? 0)
+      }
+    >
+      {children}
+    </AdminShell>
   );
 }

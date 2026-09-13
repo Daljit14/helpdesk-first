@@ -2,7 +2,6 @@
 
 import { FormEvent, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -24,10 +23,8 @@ import {
   type AiIntakeOutput,
   type DiagnosticAnswer,
 } from "@/lib/ai/types";
-import { startAiTicket } from "@/app/actions/resolution";
-import { createWorkflowTicket } from "@/app/actions/tickets";
-
-const MAX_QUESTIONS = 3;
+import { SAFE_USE_WARNING } from "@/lib/ui-copy";
+import { useAssistantIntake } from "@/components/ai-assistant-logic";
 
 export function AiAssistant({
   resolutionTrackingEnabled = false,
@@ -40,187 +37,53 @@ export function AiAssistant({
   signedIn?: boolean;
   stepPolicyEnabled?: boolean;
 }) {
-  const router = useRouter();
-  const [problem, setProblem] = useState("");
-  const [platform, setPlatform] = useState<Platform | null>(null);
-  const [previousAnswers, setPreviousAnswers] = useState<DiagnosticAnswer[]>(
-    []
-  );
-  const [currentOutput, setCurrentOutput] = useState<AiIntakeOutput | null>(
-    null
-  );
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [started, setStarted] = useState(false);
-  const [diagnosticAnswer, setDiagnosticAnswer] = useState("");
+  const {
+    problem,
+    setProblem,
+    platform,
+    setPlatform,
+    previousAnswers,
+    currentOutput,
+    loading,
+    error,
+    started,
+    diagnosticAnswer,
+    setDiagnosticAnswer,
+    restart,
+    handleStart: startIntake,
+    handleSubmitPlatform: submitPlatform,
+    handleSubmitAnswer: submitAnswer,
+    handleRejectMatch,
+    handleSendToSupport,
+    searchHref,
+    startAiTicket,
+    router,
+  } = useAssistantIntake({});
 
   const statusRef = useRef<HTMLDivElement>(null);
 
-  async function submitIntake(
-    nextProblem = problem,
-    nextPlatform = platform,
-    nextAnswers = previousAnswers,
-    isFirstSubmission = false
-  ) {
-    if (isFirstSubmission) {
-      void fetch("/api/analytics/event", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: "assistant_start",
-          path: "/assistant",
-          platform: nextPlatform,
-        }),
-        keepalive: true,
-      }).catch(() => {});
-    }
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await fetch("/api/ai/intake", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: nextProblem,
-          platform: nextPlatform,
-          previousAnswers: nextAnswers,
-        }),
-      });
-
-      const data = (await response.json()) as {
-        status: string;
-        output?: AiIntakeOutput;
-        reason?: string;
-      };
-
-      if (response.status === 503 || data.status === "unavailable") {
-        setError(
-          data.reason ?? "The support assistant is not available right now."
-        );
-      } else if (data.status === "escalate") {
-        setCurrentOutput({
-          decision: "escalate",
-          escalationReason:
-            data.reason ??
-            "This request cannot be handled by the support assistant.",
-        });
-      } else if (data.status === "ok" && data.output) {
-        setCurrentOutput(data.output);
-      } else {
-        setError("Something went wrong. Please try the search page.");
-      }
-    } catch {
-      setError(
-        "The support assistant is not responding. Please use the search page."
-      );
-    } finally {
-      setLoading(false);
-      setTimeout(() => statusRef.current?.focus(), 0);
-    }
-  }
-
   function handleStart(event: FormEvent) {
     event.preventDefault();
-    if (!problem.trim()) return;
-    setStarted(true);
-    void submitIntake(problem.trim(), null, [], true);
+    startIntake(problem);
   }
 
   function handleSubmitPlatform(event: FormEvent) {
     event.preventDefault();
     if (!platform) return;
-    const answers: DiagnosticAnswer[] = [
-      ...previousAnswers,
-      { questionId: "which-platform", answer: platform },
-    ];
-    setPreviousAnswers(answers);
-    void submitIntake(problem, platform, answers);
+    submitPlatform(platform);
   }
 
   function handleSubmitAnswer(questionId: string, event: FormEvent) {
     event.preventDefault();
     if (!diagnosticAnswer.trim()) return;
-    const answers: DiagnosticAnswer[] = [
-      ...previousAnswers,
-      { questionId, answer: diagnosticAnswer.trim() },
-    ];
-    setPreviousAnswers(answers);
-    setDiagnosticAnswer("");
-    void submitIntake(problem, platform, answers);
-  }
-
-  function handleRejectMatch() {
-    void fetch("/api/analytics/event", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        type: "ai_recommendation_rejected",
-        path: "/assistant",
-      }),
-      keepalive: true,
-    }).catch(() => {});
-    const rejectedSlug =
-      currentOutput?.decision === "match"
-        ? currentOutput.matchedIssueSlug
-        : undefined;
-    const previousSuggestions = (currentOutput?.suggestedIssueSlugs ?? [])
-      .filter((slug) => slug !== rejectedSlug)
-      .filter((slug) => getIssueBySlug(slug));
-    const fallbackSuggestions = filterIssues({
-      query: problem,
-      platform,
-    })
-      .map((issue) => issue.id)
-      .filter((slug) => slug !== rejectedSlug);
-
-    setCurrentOutput({
-      decision: "escalate",
-      escalationReason:
-        "That guide wasn't the right fit. Here are the closest approved guides for what you described.",
-      suggestedIssueSlugs: (previousSuggestions.length
-        ? previousSuggestions
-        : fallbackSuggestions
-      ).slice(0, 3),
-    });
-  }
-
-  function handleRestart() {
-    setProblem("");
-    setPlatform(null);
-    setPreviousAnswers([]);
-    setCurrentOutput(null);
-    setError(null);
-    setStarted(false);
-    setDiagnosticAnswer("");
-  }
-
-  async function handleSendToSupport() {
-    const result = await createWorkflowTicket({
-      message: problem,
-      platform: platform ?? "Other",
-      diagnosticAnswers: previousAnswers,
-    });
-    if ("ticketId" in result && result.ticketId) {
-      router.push(`/tickets/${result.ticketId}`);
-      return {};
-    }
-    return {
-      error: "error" in result ? result.error : "Unable to submit ticket.",
-    };
-  }
-
-  function searchHref() {
-    const params = new URLSearchParams();
-    if (problem) params.set("q", problem);
-    if (platform) params.set("platform", platform);
-    return params.toString() ? `/?${params.toString()}` : "/";
+    submitAnswer(questionId, diagnosticAnswer);
   }
 
   if (error) {
     return (
       <UnavailableView
         error={error}
-        onRestart={handleRestart}
+        onRestart={restart}
         searchHref={searchHref()}
         problem={problem}
         platform={platform}
@@ -247,10 +110,7 @@ export function AiAssistant({
       <div className="glass mt-4 border-l-4 border-amber-500 bg-amber-50/60 p-4 text-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
         <div className="flex items-start gap-2">
           <Shield className="mt-0.5 h-5 w-5 flex-shrink-0" aria-hidden="true" />
-          <p className="text-sm">
-            Do not enter passwords, security codes, recovery keys, serial
-            numbers, or any personal or company-confidential information.
-          </p>
+          <p className="text-sm">{SAFE_USE_WARNING}</p>
         </div>
       </div>
 
@@ -291,6 +151,7 @@ export function AiAssistant({
             signedIn={signedIn}
             problem={problem}
             previousAnswers={previousAnswers}
+            startAiTicket={startAiTicket}
             onStartTicket={(href) => router.push(href)}
           />
         ) : currentOutput?.decision === "escalate" ? (
@@ -298,7 +159,7 @@ export function AiAssistant({
             reason={currentOutput.escalationReason ?? ""}
             suggestedIssueSlugs={currentOutput.suggestedIssueSlugs}
             searchHref={searchHref()}
-            onRestart={handleRestart}
+            onRestart={restart}
             workflowEnabled={workflowEnabled}
             signedIn={signedIn}
             stepPolicyEnabled={stepPolicyEnabled}
@@ -335,7 +196,7 @@ export function AiAssistant({
         <div className="mt-8">
           <button
             type="button"
-            onClick={handleRestart}
+            onClick={restart}
             className="text-sm text-muted-foreground underline hover:text-foreground"
           >
             Start over
@@ -440,7 +301,7 @@ function ClarifyView({
         {question.text}
       </label>
       <p className="text-sm text-muted-foreground" aria-live="polite">
-        Question {previousAnswers.length + 1} of {MAX_QUESTIONS}
+        Question {previousAnswers.length + 1} of 3
       </p>
       <textarea
         id="diagnostic-answer"
@@ -467,6 +328,7 @@ function MatchView({
   signedIn,
   problem,
   previousAnswers,
+  startAiTicket,
   onStartTicket,
 }: {
   output: AiIntakeOutput;
@@ -477,6 +339,7 @@ function MatchView({
   signedIn: boolean;
   problem: string;
   previousAnswers: DiagnosticAnswer[];
+  startAiTicket: typeof import("@/app/actions/resolution").startAiTicket;
   onStartTicket: (href: string) => void;
 }) {
   const effectivePlatform = output.detectedPlatform ?? platform ?? "Other";

@@ -20,6 +20,11 @@ import { useAssistantIntake } from "@/components/ai-assistant-logic";
 import { SAFE_USE_WARNING } from "@/lib/ui-copy";
 
 type StepOutcome = "worked" | "failed" | "could_not_perform";
+const OUTCOME_LABELS: Record<StepOutcome, string> = {
+  worked: "Worked",
+  failed: "Did not work",
+  could_not_perform: "Cannot complete",
+};
 
 const progress = [
   "Understanding",
@@ -178,7 +183,7 @@ export function AssistantWorkspace({
       ? `${intake.problem}\n\nSteps tried from "${matchedIssue.title}":\n${triedSteps
           .map(
             (step) =>
-              `- ${step.text}: ${outcomes[`${matchedIssue.id}:${step.stepIndex}`]}`
+              `- ${step.text}: ${OUTCOME_LABELS[outcomes[`${matchedIssue.id}:${step.stepIndex}`]]}`
           )
           .join("\n")}`
       : undefined;
@@ -643,7 +648,11 @@ function Match({
                 {outcomes[`${output.matchedIssueSlug}:${step.stepIndex}`] && (
                   <p className="mt-2 text-sm text-muted-foreground">
                     Outcome:{" "}
-                    {outcomes[`${output.matchedIssueSlug}:${step.stepIndex}`]}
+                    {
+                      OUTCOME_LABELS[
+                        outcomes[`${output.matchedIssueSlug}:${step.stepIndex}`]
+                      ]
+                    }
                   </p>
                 )}
                 <div className="mt-2 flex flex-wrap gap-2">
@@ -691,7 +700,11 @@ function Match({
                 <span>{step.text}</span>
                 <span className="ml-2">
                   Outcome:{" "}
-                  {outcomes[`${output.matchedIssueSlug}:${step.stepIndex}`]}
+                  {
+                    OUTCOME_LABELS[
+                      outcomes[`${output.matchedIssueSlug}:${step.stepIndex}`]
+                    ]
+                  }
                 </span>
               </li>
             ))}

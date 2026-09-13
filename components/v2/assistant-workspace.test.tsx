@@ -103,7 +103,7 @@ describe("AssistantWorkspace", () => {
       expect(screen.queryByText("Suggested steps")).not.toBeInTheDocument();
     });
     expect(screen.getByText("Already tried")).toBeInTheDocument();
-    expect(screen.getByText(/Outcome: failed/)).toBeInTheDocument();
+    expect(screen.getByText(/Outcome: Did not work/)).toBeInTheDocument();
     expect(
       JSON.parse(sessionStorage.getItem("hf-v2-outcomes") ?? "{}")
     ).toEqual({
@@ -151,7 +151,7 @@ describe("AssistantWorkspace", () => {
 
     await waitFor(() => {
       expect(worked).toHaveAttribute("aria-pressed", "true");
-      expect(screen.getByText("Outcome: worked")).toBeInTheDocument();
+      expect(screen.getByText("Outcome: Worked")).toBeInTheDocument();
       expect(
         screen.getByText("That step may have resolved the problem.")
       ).toBeInTheDocument();

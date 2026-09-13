@@ -73,8 +73,12 @@ export default defineConfig({
       reuseExistingServer: !process.env.CI,
     },
     {
-      command: "NEXT_PUBLIC_UI_V2_ENABLED=true npm run dev -- --port 3100",
-      env: { ...sharedEnv, NEXT_PUBLIC_UI_V2_ENABLED: "true" },
+      command: "HELP_DESK_NEXT_DIST_DIR=.next-v2 npm run dev -- --port 3100",
+      env: {
+        ...sharedEnv,
+        HELP_DESK_NEXT_DIST_DIR: ".next-v2",
+        NEXT_PUBLIC_UI_V2_ENABLED: "true",
+      },
       url: "http://localhost:3100",
       reuseExistingServer: !process.env.CI,
     },

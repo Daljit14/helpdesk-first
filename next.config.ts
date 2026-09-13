@@ -2,8 +2,7 @@ import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
 
 const nextConfig: NextConfig = {
-  distDir:
-    process.env.NEXT_PUBLIC_UI_V2_ENABLED === "true" ? ".next-v2" : ".next",
+  distDir: process.env.HELP_DESK_NEXT_DIST_DIR || ".next",
 };
 
 export default process.env.SENTRY_AUTH_TOKEN

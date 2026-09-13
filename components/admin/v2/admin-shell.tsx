@@ -20,7 +20,7 @@ import {
   BarChart3,
 } from "lucide-react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { adminLogout } from "@/app/actions/admin-auth";
 import { AdminThemeToggle } from "@/components/admin/admin-theme-toggle";
@@ -46,7 +46,31 @@ function DepartmentIcon({ name }: { name: string }) {
   return <Icon className="h-4 w-4 shrink-0" aria-hidden />;
 }
 
-function departmentForPath(pathname: string, departments: Department[]) {
+export function departmentForPath(
+  pathname: string,
+  searchParams: { get(name: string): string | null },
+  departments: Department[]
+) {
+  if (pathname.startsWith("/admin/tickets")) {
+    return (
+      departments.find((department) => department.id === "ticket-queue") ??
+      departments[0]
+    );
+  }
+  const queue = searchParams.get("queue");
+  if (pathname === "/admin/operations" && queue === "ai_working") {
+    return (
+      departments.find((department) => department.id === "ai-investigations") ??
+      departments[0]
+    );
+  }
+  if (pathname === "/admin/operations" && queue === "needs_human") {
+    return (
+      departments.find(
+        (department) => department.id === "capability-matching"
+      ) ?? departments[0]
+    );
+  }
   return (
     departments.find((department) => {
       const path = department.href.split("?")[0].split("#")[0];
@@ -74,6 +98,7 @@ export function AdminShell({
   pendingNotifications: number;
 }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const hamburgerRef = useRef<HTMLButtonElement>(null);
   const drawerRef = useRef<HTMLElement>(null);
@@ -81,7 +106,7 @@ export function AdminShell({
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [ticketSearch, setTicketSearch] = useState("");
-  const current = departmentForPath(pathname, departments);
+  const current = departmentForPath(pathname, searchParams, departments);
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
     if (!needle) return departments;

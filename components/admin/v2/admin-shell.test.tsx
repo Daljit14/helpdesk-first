@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { AdminShell } from "./admin-shell";
+import { AdminShell, departmentForPath } from "./admin-shell";
 import type { Department } from "./departments";
 
 const push = vi.fn();
@@ -22,6 +22,7 @@ vi.mock("next/link", () => ({
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/admin/operations",
+  useSearchParams: () => new URLSearchParams(),
   useRouter: () => ({ push }),
 }));
 
@@ -41,6 +42,30 @@ const departments: Department[] = [
     icon: "activity",
     available: true,
     keywords: ["dashboard", "metrics"],
+  },
+  {
+    id: "ticket-queue",
+    label: "Ticket Queue",
+    href: "/admin/operations#tickets",
+    icon: "ticket",
+    available: true,
+    keywords: ["tickets", "queue"],
+  },
+  {
+    id: "ai-investigations",
+    label: "AI Investigations",
+    href: "/admin/operations?queue=ai_working",
+    icon: "brain",
+    available: true,
+    keywords: ["investigation"],
+  },
+  {
+    id: "capability-matching",
+    label: "Capability Matching",
+    href: "/admin/operations?queue=needs_human",
+    icon: "users",
+    available: true,
+    keywords: ["assign"],
   },
   {
     id: "knowledge",
@@ -81,6 +106,21 @@ afterEach(() => {
 });
 
 describe("AdminShell", () => {
+  it.each([
+    ["/admin/tickets", "", "ticket-queue"],
+    ["/admin/tickets/ticket-123", "", "ticket-queue"],
+    ["/admin/operations", "ai_working", "ai-investigations"],
+    ["/admin/operations", "needs_human", "capability-matching"],
+  ])("resolves %s with queue=%s to %s", (pathname, queue, expectedId) => {
+    expect(
+      departmentForPath(
+        pathname,
+        new URLSearchParams(queue ? { queue } : {}),
+        departments
+      ).id
+    ).toBe(expectedId);
+  });
+
   it("renders departments, active state, planned state, and notification indicator", () => {
     renderShell();
     expect(

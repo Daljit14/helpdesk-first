@@ -11,6 +11,7 @@ import {
 } from "@/lib/ai/types";
 import { startAiTicket } from "@/app/actions/resolution";
 import { createWorkflowTicket } from "@/app/actions/tickets";
+import { toTicketPlatform } from "@/lib/ui-copy";
 
 const MAX_QUESTIONS = 3;
 
@@ -144,20 +145,23 @@ export function useAssistantIntake({
     setDiagnosticAnswer("");
   }, []);
 
-  const handleSendToSupport = useCallback(async () => {
-    const result = await createWorkflowTicket({
-      message: problem,
-      platform: platform ?? "Other",
-      diagnosticAnswers: previousAnswers,
-    });
-    if ("ticketId" in result && result.ticketId) {
-      router.push(`/tickets/${result.ticketId}`);
-      return {};
-    }
-    return {
-      error: "error" in result ? result.error : "Unable to submit ticket.",
-    };
-  }, [platform, previousAnswers, problem, router]);
+  const handleSendToSupport = useCallback(
+    async (messageOverride?: string) => {
+      const result = await createWorkflowTicket({
+        message: messageOverride ?? problem,
+        platform: toTicketPlatform(platform ?? "Other"),
+        diagnosticAnswers: previousAnswers,
+      });
+      if ("ticketId" in result && result.ticketId) {
+        router.push(`/tickets/${result.ticketId}`);
+        return {};
+      }
+      return {
+        error: "error" in result ? result.error : "Unable to submit ticket.",
+      };
+    },
+    [platform, previousAnswers, problem, router]
+  );
 
   const handleStart = useCallback(
     (nextProblem: string) => {

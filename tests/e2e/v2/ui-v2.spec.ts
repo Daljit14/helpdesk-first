@@ -132,7 +132,7 @@ test.describe("UI v2 numbered coverage", () => {
     await failedStep.click();
     await expect(page.getByText("Already tried")).toBeVisible();
     await page.getByText("Already tried").click();
-    await expect(page.getByText(/Outcome: failed/)).toBeVisible();
+    await expect(page.getByText(/Outcome: Did not work/)).toBeVisible();
     await expect
       .poll(() => page.getByRole("button", { name: "Did not work" }).count())
       .toBeLessThan(offeredStepCount);

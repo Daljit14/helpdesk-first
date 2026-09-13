@@ -23,6 +23,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/supabase/user";
 import { platforms } from "@/lib/helpdesk-data";
+import { toTicketPlatform } from "@/lib/ui-copy";
 import { MemoryRateLimiter } from "@/lib/ai/rate-limit";
 import { attachTicketAttachments } from "@/lib/attachments/server";
 import { resolveOrganizationForUser } from "@/lib/org/membership";
@@ -61,7 +62,13 @@ export async function createWorkflowTicket(input: unknown): Promise<Result> {
   const user = await authorized("create");
   if (!user) return { error: "Not authorized." };
   const parsed = inputSchema.safeParse(input);
-  if (!parsed.success || !platforms.includes(parsed.data.platform as never)) {
+  if (
+    !parsed.success ||
+    !(
+      platforms.includes(parsed.data.platform as never) ||
+      toTicketPlatform(parsed.data.platform) === parsed.data.platform
+    )
+  ) {
     return { error: "Invalid ticket details." };
   }
   const issue = parsed.data.issueId
@@ -85,7 +92,7 @@ export async function createWorkflowTicket(input: unknown): Promise<Result> {
       issue_id: issue?.id ?? "workflow-intake",
       issue_title: issue?.title ?? "IT support request",
       category: issue?.category ?? "Other",
-      platform: parsed.data.platform,
+      platform: toTicketPlatform(parsed.data.platform),
       message: parsed.data.message,
       diagnostic_answers: parsed.data.diagnosticAnswers,
       attachment_path:

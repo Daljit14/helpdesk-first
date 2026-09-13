@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { HomeStart } from "./home-start";
+import { toTicketPlatform } from "@/lib/ui-copy";
 
 vi.mock("next/link", () => ({
   default: ({
@@ -23,6 +24,16 @@ afterEach(() => {
 });
 
 describe("HomeStart", () => {
+  it("normalizes catalog devices for ticket persistence", () => {
+    expect(toTicketPlatform("Mac")).toBe("macOS");
+    expect(toTicketPlatform("Windows")).toBe("Windows");
+    expect(toTicketPlatform("iOS")).toBe("iOS");
+    expect(toTicketPlatform("Android")).toBe("Android");
+    expect(toTicketPlatform("Linux")).toBe("Linux");
+    expect(toTicketPlatform("macOS")).toBe("macOS");
+    expect(toTicketPlatform("junk")).toBe("Other");
+  });
+
   it("renders the three platform options", () => {
     render(<HomeStart />);
     expect(

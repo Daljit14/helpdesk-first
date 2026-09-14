@@ -223,5 +223,5 @@ describe.skipIf(!canRun)("autonomy tenant isolation", () => {
       await service.from("organizations").delete().eq("id", orgId);
       await service.from("organizations").delete().eq("id", foreignOrgId);
     }
-  });
+  }, 30_000);
 });

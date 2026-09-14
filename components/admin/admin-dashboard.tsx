@@ -749,7 +749,7 @@ export function AdminDashboard({
                 <span>
                   <i
                     className={`mr-1 inline-block h-2 w-2 ${
-                      uiV2 ? "bg-foreground" : "bg-blue-500"
+                      uiV2 ? "bg-foreground/60" : "bg-blue-500"
                     }`}
                   />
                   Agent solved
@@ -757,7 +757,7 @@ export function AdminDashboard({
                 <span>
                   <i
                     className={`mr-1 inline-block h-2 w-2 ${
-                      uiV2 ? "bg-foreground" : "bg-orange-500"
+                      uiV2 ? "bg-foreground/30" : "bg-orange-500"
                     }`}
                   />
                   Escalated
@@ -785,13 +785,15 @@ export function AdminDashboard({
                           }}
                         />
                         <div
-                          className={uiV2 ? "bg-foreground" : "bg-blue-500"}
+                          className={uiV2 ? "bg-foreground/60" : "bg-blue-500"}
                           style={{
                             width: `${(point.agentSolved / width) * 100}%`,
                           }}
                         />
                         <div
-                          className={uiV2 ? "bg-foreground" : "bg-orange-500"}
+                          className={
+                            uiV2 ? "bg-foreground/30" : "bg-orange-500"
+                          }
                           style={{
                             width: `${(point.escalated / width) * 100}%`,
                           }}

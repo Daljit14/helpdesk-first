@@ -148,7 +148,7 @@ export function useAssistantIntake({
     async (messageOverride?: string) => {
       const result = await createWorkflowTicket({
         message: messageOverride ?? problem,
-        platform: platform ?? "Other",
+        platform: platform ?? currentOutput?.detectedPlatform ?? "Other",
         diagnosticAnswers: previousAnswers,
       });
       if ("ticketId" in result && result.ticketId) {
@@ -159,7 +159,13 @@ export function useAssistantIntake({
         error: "error" in result ? result.error : "Unable to submit ticket.",
       };
     },
-    [platform, previousAnswers, problem, router]
+    [
+      currentOutput?.detectedPlatform,
+      platform,
+      previousAnswers,
+      problem,
+      router,
+    ]
   );
 
   const handleStart = useCallback(

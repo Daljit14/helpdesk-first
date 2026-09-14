@@ -491,11 +491,13 @@ export function AdminDashboard({
           <div className="flex flex-wrap items-center gap-3">
             <span
               className={
-                freshness === "LIVE"
-                  ? "text-emerald-600 dark:text-emerald-400"
-                  : freshness === "DELAYED"
-                    ? "text-amber-600 dark:text-amber-400"
-                    : "text-destructive"
+                uiV2
+                  ? "text-foreground"
+                  : freshness === "LIVE"
+                    ? "text-emerald-600 dark:text-emerald-400"
+                    : freshness === "DELAYED"
+                      ? "text-amber-600 dark:text-amber-400"
+                      : "text-destructive"
               }
             >
               {freshness === "LIVE" ? "✓ " : ""}
@@ -737,15 +739,27 @@ export function AdminDashboard({
             >
               <div className="flex items-center gap-4 text-xs text-muted-foreground">
                 <span>
-                  <i className="mr-1 inline-block h-2 w-2 bg-emerald-500" />
+                  <i
+                    className={`mr-1 inline-block h-2 w-2 ${
+                      uiV2 ? "bg-foreground" : "bg-emerald-500"
+                    }`}
+                  />
                   AI solved
                 </span>
                 <span>
-                  <i className="mr-1 inline-block h-2 w-2 bg-blue-500" />
+                  <i
+                    className={`mr-1 inline-block h-2 w-2 ${
+                      uiV2 ? "bg-foreground/60" : "bg-blue-500"
+                    }`}
+                  />
                   Agent solved
                 </span>
                 <span>
-                  <i className="mr-1 inline-block h-2 w-2 bg-orange-500" />
+                  <i
+                    className={`mr-1 inline-block h-2 w-2 ${
+                      uiV2 ? "bg-foreground/30" : "bg-orange-500"
+                    }`}
+                  />
                   Escalated
                 </span>
               </div>
@@ -765,19 +779,21 @@ export function AdminDashboard({
                       </span>
                       <div className="flex h-5 flex-1 overflow-hidden rounded-full bg-muted">
                         <div
-                          className="bg-emerald-500"
+                          className={uiV2 ? "bg-foreground" : "bg-emerald-500"}
                           style={{
                             width: `${(point.aiSolved / width) * 100}%`,
                           }}
                         />
                         <div
-                          className="bg-blue-500"
+                          className={uiV2 ? "bg-foreground/60" : "bg-blue-500"}
                           style={{
                             width: `${(point.agentSolved / width) * 100}%`,
                           }}
                         />
                         <div
-                          className="bg-orange-500"
+                          className={
+                            uiV2 ? "bg-foreground/30" : "bg-orange-500"
+                          }
                           style={{
                             width: `${(point.escalated / width) * 100}%`,
                           }}

@@ -33,6 +33,7 @@ export function TicketUpdateForm({
   resolutionTrackingEnabled = false,
   resolutionSummary = "",
   workflowEnabled = false,
+  uiV2 = false,
 }: {
   ticketId: string;
   status: string;
@@ -41,6 +42,7 @@ export function TicketUpdateForm({
   resolutionTrackingEnabled?: boolean;
   resolutionSummary?: string;
   workflowEnabled?: boolean;
+  uiV2?: boolean;
 }) {
   const [state, action, pending] = useActionState<UpdateTicketState, FormData>(
     updateTicket,
@@ -67,8 +69,13 @@ export function TicketUpdateForm({
       {state?.success && (
         <p
           role="status"
-          className="mt-4 rounded-2xl bg-emerald-500/10 p-3 text-emerald-700 dark:text-emerald-300"
+          className={
+            uiV2
+              ? "mt-4 rounded-2xl border border-border bg-muted p-3 text-foreground"
+              : "mt-4 rounded-2xl bg-emerald-500/10 p-3 text-emerald-700 dark:text-emerald-300"
+          }
         >
+          {uiV2 && <span aria-hidden="true">✓ </span>}
           {state.success}
         </p>
       )}

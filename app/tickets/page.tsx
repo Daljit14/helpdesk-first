@@ -13,6 +13,7 @@ import {
   isUserPortalEnabled,
 } from "@/lib/admin/flags";
 import { createClient } from "@/lib/supabase/server";
+import { isUiV2Enabled } from "@/lib/ui-v2";
 
 export const metadata: Metadata = {
   title: "Tickets",
@@ -22,6 +23,7 @@ export default async function TicketsPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login?next=/tickets");
   const portalEnabled = isTicketWorkflowEnabled() && isUserPortalEnabled();
+  const uiV2 = isUiV2Enabled();
   const tickets = await getTickets(user.id, portalEnabled);
   const preferences = await getNotificationPreferences();
   const secureAttachmentsEnabled = isSecureAttachmentsEnabled();
@@ -66,7 +68,11 @@ export default async function TicketsPage() {
         {portalEnabled && (
           <Link
             href="/assistant"
-            className="glass-pill mb-2 inline-block bg-primary px-5 py-2 text-primary-foreground"
+            className={
+              uiV2
+                ? "glass-pill mb-2 inline-block bg-foreground px-5 py-2 text-background"
+                : "glass-pill mb-2 inline-block bg-primary px-5 py-2 text-primary-foreground"
+            }
           >
             New ticket
           </Link>

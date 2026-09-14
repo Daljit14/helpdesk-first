@@ -89,6 +89,41 @@ describe("AiAssistant escalation", () => {
     ).toHaveAttribute("href", "/login?next=/assistant");
   });
 
+  test("uses the detected platform when no platform chip was selected", async () => {
+    mockEscalation({
+      status: "ok",
+      output: {
+        decision: "escalate",
+        escalationReason: "Contact your IT team",
+        detectedPlatform: "Mac",
+      },
+    });
+    mocks.createWorkflowTicket.mockResolvedValue({
+      success: true,
+      ticketId: "ticket-123",
+    });
+    render(<AiAssistant workflowEnabled signedIn />);
+
+    fireEvent.change(
+      screen.getByLabelText("What problem are you experiencing?"),
+      { target: { value: "Wi-Fi keeps dropping on my Mac" } }
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Send to a support person",
+      })
+    );
+
+    await vi.waitFor(() =>
+      expect(mocks.createWorkflowTicket).toHaveBeenCalledWith({
+        message: "Wi-Fi keeps dropping on my Mac",
+        platform: "Mac",
+        diagnosticAnswers: [],
+      })
+    );
+  });
+
   test("renders grounded suggestions for an escalation", async () => {
     mockEscalation({
       status: "ok",

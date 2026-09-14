@@ -81,4 +81,23 @@ describe("TicketUpdateForm", () => {
     expect(screen.getByLabelText("Assigned agent")).toHaveValue("Agent Two");
     expect(screen.getByRole("status")).toHaveTextContent("Ticket updated.");
   });
+
+  test("uses a neutral success banner in v2", () => {
+    actionState = { success: "Ticket updated." };
+    render(
+      <TicketUpdateForm
+        ticketId="00000000-0000-4000-8000-000000000001"
+        status="New"
+        priority="Normal"
+        assignedAgent=""
+        uiV2
+      />
+    );
+
+    expect(screen.getByRole("status")).toHaveClass(
+      "bg-muted",
+      "text-foreground"
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("✓ Ticket updated.");
+  });
 });

@@ -26,6 +26,7 @@ type HomePageProps = {
   initialQuery?: string;
   initialCategory?: string | null;
   initialPlatform?: Platform | null;
+  basePath?: string;
 };
 
 function platformFromParam(value: string | null): Platform | null {
@@ -43,6 +44,7 @@ export function HomePage({
   initialQuery = "",
   initialCategory = null,
   initialPlatform = null,
+  basePath = "/",
 }: HomePageProps) {
   const router = useRouter();
   const isFirstRender = useRef(true);
@@ -95,10 +97,10 @@ export function HomePage({
       if (nextCategory) params.set("category", nextCategory);
       if (nextPlatform) params.set("platform", nextPlatform);
       const search = params.toString();
-      const href = search ? `/?${search}` : "/";
+      const href = search ? `${basePath}?${search}` : basePath;
       router.replace(href, { scroll: false });
     },
-    [router]
+    [basePath, router]
   );
 
   useEffect(() => {
@@ -154,7 +156,7 @@ export function HomePage({
     setQuery("");
     setCategoryId(null);
     setPlatform(null);
-    router.replace("/", { scroll: false });
+    router.replace(basePath, { scroll: false });
   }
 
   return (

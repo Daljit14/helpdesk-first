@@ -418,7 +418,11 @@ export default async function AdminTicketPage({
           <p className="flex items-center gap-2">
             <span>Status:</span>
             <span
-              className={`glass-pill px-2 py-1 text-xs ${statusTone(status)}`}
+              className={
+                uiV2
+                  ? "v2-badge bg-muted text-foreground"
+                  : `glass-pill px-2 py-1 text-xs ${statusTone(status)}`
+              }
             >
               {status}
             </span>
@@ -797,6 +801,7 @@ export default async function AdminTicketPage({
               resolutionTrackingEnabled={resolutionTrackingEnabled}
               resolutionSummary={ticket.resolution_summary ?? ""}
               workflowEnabled={workflowEnabled}
+              uiV2={uiV2}
             />
             {workflowEnabled && (
               <TicketWorkflowActions

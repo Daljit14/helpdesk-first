@@ -102,6 +102,31 @@ describe("AdminDashboard", () => {
     expect(screen.getByText("No resolution activity.")).toBeInTheDocument();
   });
 
+  test("uses neutral v2 freshness and resolution chart colors", () => {
+    const data = snapshot(true);
+    data.resolution!.daily = [
+      {
+        day: "2025-01-01",
+        created: 4,
+        aiSolved: 1,
+        agentSolved: 2,
+        escalated: 1,
+      },
+    ];
+    render(
+      <AdminDashboard initialSnapshot={data} resolutionTrackingEnabled uiV2 />
+    );
+
+    expect(screen.getByText(/LIVE/)).toHaveClass("text-foreground");
+    const chart = screen.getByRole("img", {
+      name: "Fourteen day resolution tracking chart",
+    });
+    expect(chart.querySelector(".bg-foreground")).not.toBeNull();
+    expect(chart.querySelector(".bg-emerald-500")).toBeNull();
+    expect(chart.querySelector(".bg-blue-500")).toBeNull();
+    expect(chart.querySelector(".bg-orange-500")).toBeNull();
+  });
+
   test("renders the breached SLA state for an overdue ticket", () => {
     render(
       <AdminDashboard

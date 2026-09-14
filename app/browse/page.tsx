@@ -42,6 +42,7 @@ export default async function BrowsePage({
         initialQuery={first(params.q)}
         initialCategory={first(params.category) || null}
         initialPlatform={platform(params.platform)}
+        basePath="/browse"
       />
     </div>
   );

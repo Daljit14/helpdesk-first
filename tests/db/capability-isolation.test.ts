@@ -112,6 +112,9 @@ describe.skipIf(!canRun)("capability tenant isolation", () => {
               version: 1,
               input_schema: { type: "object" },
               checksum: "test-a",
+              risk_level: "safe",
+              consent: "none",
+              max_runtime_ms: 5000,
               expected_result: "read",
               verification: "read",
               rollback: "none",
@@ -121,6 +124,9 @@ describe.skipIf(!canRun)("capability tenant isolation", () => {
               version: 1,
               input_schema: { type: "object" },
               checksum: "test-b",
+              risk_level: "safe",
+              consent: "none",
+              max_runtime_ms: 5000,
               expected_result: "read",
               verification: "read",
               rollback: "none",
@@ -154,10 +160,20 @@ describe.skipIf(!canRun)("capability tenant isolation", () => {
         ).error
       ).toBeNull();
       expect(
-        (await client.from("capabilities").select("id")).data
+        (
+          await client
+            .from("capabilities")
+            .select("id")
+            .in("id", [capabilityId, foreignCapabilityId])
+        ).data
       ).toHaveLength(2);
       expect(
-        (await client.from("capability_versions").select("capability_id")).data
+        (
+          await client
+            .from("capability_versions")
+            .select("capability_id")
+            .in("capability_id", [capabilityId, foreignCapabilityId])
+        ).data
       ).toHaveLength(2);
       expect(
         (

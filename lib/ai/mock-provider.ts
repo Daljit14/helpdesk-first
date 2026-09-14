@@ -3,6 +3,7 @@ import type { Platform } from "@/lib/helpdesk-data";
 import type { AiIntakeInput, AiIntakeOutput, AiProvider } from "./types";
 import { diagnosticQuestions } from "./types";
 import { getSafeResponseLimit, isPasswordRecovery } from "./safety-policy";
+import { detectPlatform } from "./detect-platform";
 import { filterIssues } from "@/lib/search";
 
 const MATCH_SCORE_THRESHOLD = 1.5;
@@ -583,27 +584,6 @@ function buildCombinedText(input: AiIntakeInput): string {
     parts.push(answer.answer);
   }
   return parts.join(" ").toLowerCase();
-}
-
-function detectPlatform(text: string): Platform | null {
-  const normalized = text
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, " ")
-    .replace(/\s+/g, " ");
-
-  if (/\bwindows\b|\bwin10\b|\bwin11\b|\bpc\b(?!\s*phone)/i.test(normalized)) {
-    return "Windows";
-  }
-  if (/\bmac\b|\bmacbook\b|\bmacos\b|\bos\s?x\b|\bapple\b/i.test(normalized)) {
-    return "Mac";
-  }
-  if (/\biphone\b|\bios\b|\bipad\b/i.test(normalized)) return "iOS";
-  if (/\bandroid\b/i.test(normalized)) return "Android";
-  if (/\bmobile\b|\bphone\b/i.test(normalized)) return null;
-  if (/\bother\b|\blinux\b|\bchromebook\b/i.test(normalized)) {
-    return "Other";
-  }
-  return null;
 }
 
 type ScoredIssue = {

@@ -162,6 +162,44 @@ describe("resolution orchestrator", () => {
     );
   });
 
+  test("manual pause preserves the prior status and resumes it", async () => {
+    const runs = makeQuery({
+      single: { data: { ...run, status: "paused" }, error: null },
+    });
+    const events = makeQuery({});
+    const admin = makeAdmin({
+      resolution_runs: runs,
+      resolution_events: events,
+    });
+    await transitionRun(
+      admin as never,
+      { ...run, status: "investigating" },
+      "paused",
+      {
+        actor: "staff-1",
+        detail: { reason: "staff pause" },
+      }
+    );
+    expect(runs.update).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        status: "paused",
+        previous_status: "investigating",
+      })
+    );
+
+    await transitionRun(
+      admin as never,
+      { ...run, status: "paused", previous_status: "investigating" },
+      "investigating",
+      { actor: "staff-1" }
+    );
+    expect(runs.update).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ status: "investigating" })
+    );
+  });
+
   test("deadline escalation updates the ticket with organization scope", async () => {
     const expired = {
       ...run,
@@ -234,6 +272,25 @@ describe("resolution orchestrator", () => {
     expect(summary).toEqual({ processed: 1, paused: 0, escalated: 1 });
     expect(tickets.update).toHaveBeenCalledWith(
       expect.objectContaining({ handoff_reason: "planner_not_available" })
+    );
+  });
+
+  test("worker escalates failed runs with run_failed", async () => {
+    const runs = makeQuery({
+      data: [{ ...run, status: "failed" }],
+      single: { data: { ...run, status: "escalated" }, error: null },
+    });
+    const tickets = makeQuery({});
+    const events = makeQuery({});
+    const admin = makeAdmin({
+      resolution_runs: runs,
+      tickets,
+      resolution_events: events,
+    });
+    const summary = await processDueRuns(admin as never);
+    expect(summary).toEqual({ processed: 1, paused: 0, escalated: 1 });
+    expect(tickets.update).toHaveBeenCalledWith(
+      expect.objectContaining({ handoff_reason: "run_failed" })
     );
   });
 

@@ -43,7 +43,7 @@ export const TRANSITIONS: Record<RunStatus, readonly RunStatus[]> = {
   rolling_back: ["escalated", "failed", "paused"],
   escalated: [],
   failed: ["escalated", "queued", "paused"],
-  paused: [...resumableStatuses, "paused", "escalated"],
+  paused: [...resumableStatuses, "escalated"],
 };
 
 export function canTransition(from: RunStatus, to: RunStatus): boolean {

@@ -31,7 +31,9 @@ describe("autonomy state machine", () => {
 
   test("every non-terminal state can pause or escalate", () => {
     for (const status of RUN_STATUSES.filter((value) => !isTerminal(value))) {
-      expect(canTransition(status, "paused")).toBe(true);
+      if (status !== "paused") {
+        expect(canTransition(status, "paused")).toBe(true);
+      }
       expect(canTransition(status, "escalated")).toBe(true);
     }
   });

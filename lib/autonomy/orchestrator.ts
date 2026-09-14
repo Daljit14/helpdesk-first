@@ -230,10 +230,12 @@ export async function transitionRun(
     return escalateRun(admin, run, "limits_exceeded");
   }
   assertTransition(run.status, to);
-  const updated = await updateRun(admin, run, {
+  const patch: Record<string, unknown> = {
     status: to,
     completed_at: isTerminal(to) ? new Date().toISOString() : null,
-  });
+  };
+  if (to === "paused") patch.previous_status = run.status;
+  const updated = await updateRun(admin, run, patch);
   await writeRunEvent(admin, {
     organization_id: run.organization_id,
     run_id: run.id,
@@ -304,8 +306,14 @@ export async function processDueRuns(
       });
       continue;
     }
-    if (["investigating", "planning", "policy_check"].includes(run.status)) {
-      if (await escalateRun(admin, run, "planner_not_available")) {
+    if (
+      ["investigating", "planning", "policy_check", "failed"].includes(
+        run.status
+      )
+    ) {
+      const reason =
+        run.status === "failed" ? "run_failed" : "planner_not_available";
+      if (await escalateRun(admin, run, reason)) {
         summary.escalated += 1;
       }
     }

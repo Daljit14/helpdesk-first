@@ -1,8 +1,7 @@
 import type { EvidenceRecord } from "@/lib/evidence/types";
-import type { CapabilityDefinition } from "../capabilities/types";
 import type {
+  CapabilityDefinition,
   CapabilityPlatform,
-  CapabilitySideEffects,
 } from "../capabilities/types";
 import type { DeviceOwnership, PolicyActorRole, PolicyInput } from "./types";
 
@@ -76,7 +75,7 @@ export function buildPolicyInput({
       id: capability.id,
       version: capability.version,
       riskLevel: capability.riskLevel,
-      sideEffects: capability.sideEffects as CapabilitySideEffects,
+      sideEffects: capability.sideEffects,
       consent: capability.consent,
       orgPolicyRequirements: [...capability.orgPolicyRequirements],
       platforms: [...capability.platforms],

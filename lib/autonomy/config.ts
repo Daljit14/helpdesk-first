@@ -15,6 +15,10 @@ export function isAutonomyEnabled(): boolean {
   return process.env.HELP_DESK_AUTONOMY_ENABLED === "true";
 }
 
+export function isPolicyEngineEnabled(): boolean {
+  return process.env.HELP_DESK_POLICY_ENGINE_ENABLED === "true";
+}
+
 export function getAutonomyMode(): AutonomyMode {
   return process.env.HELP_DESK_AUTONOMY_MODE === "execute"
     ? "execute"

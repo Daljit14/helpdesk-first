@@ -294,6 +294,23 @@ Provider failure never weakens policy: missing or invalid evidence maps to the
 most restrictive branch it can reach (`specialist_only`/`deny`), never to
 `allow_automatic`.
 
+Implementation (PR #66): `lib/autonomy/policy/engine.ts` contains the pure
+decision function, with contracts in `types.ts`, input assembly in
+`build-input.ts`, persistence in `record.ts`, and public exports in
+`index.ts`. Reason codes include `kill_switch_active`,
+`circuit_breaker_open`, `capability_not_enabled_for_org`,
+`parameters_invalid`, `capability_risk_denied`, `capability_risk_specialist`,
+`capability_risk_approval`, `capability_risk_caution`,
+`confidence_below_threshold`, `evidence_not_sufficient`,
+`evidence_missing`, `external_write_on_byod_device`,
+`external_write_on_unknown_device`, and `org_policy_missing:*`.
+Technician consent active on an approval branch becomes
+`allow_automatic` with `technician_consent_active`; user consent active on a
+user-consent branch becomes `allow_automatic` with `user_consent_active`.
+Additional hard-deny reasons beyond the list above are invalid parameters,
+missing organization policy grants, unsupported platforms, and a requester
+requesting a technician-consent capability.
+
 ## 8. Evidence and root-cause engine (PR #64) and planner/executor (PR #67)
 
 ### 8.1 Evidence model (extends `ticket_investigations.context/hypotheses`)

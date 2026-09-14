@@ -1,0 +1,154 @@
+import type { StepRisk } from "@/lib/investigation/policy";
+import {
+  POLICY_VERSION,
+  type PolicyDecision,
+  type PolicyDecisionValue,
+  type PolicyInput,
+} from "./types";
+
+export const AUTOMATIC_CONFIDENCE_THRESHOLD = 0.8;
+
+const PROHIBITED_CATEGORIES = new Set([
+  "credentials",
+  "password",
+  "mfa",
+  "malware",
+  "security_incident",
+  "data_loss",
+  "data_recovery",
+  "destructive",
+  "unsupported",
+]);
+
+export function auditLabelFor(decision: PolicyDecisionValue): string {
+  switch (decision) {
+    case "allow_automatic":
+      return "Safe";
+    case "require_user_consent":
+      return "Caution";
+    case "require_technician_approval":
+      return "Approval";
+    case "specialist_only":
+      return "Specialist";
+    case "deny":
+      return "Denied";
+  }
+}
+
+export function userLabelFor(decision: PolicyDecisionValue): string {
+  return decision === "allow_automatic" ? "Safe" : "Confirm first";
+}
+
+function finish(
+  decision: PolicyDecisionValue,
+  reasons: string[]
+): PolicyDecision {
+  return {
+    decision,
+    reasons,
+    policyVersion: POLICY_VERSION,
+    auditLabel: auditLabelFor(decision),
+    userLabel: userLabelFor(decision),
+  };
+}
+
+function riskAtLeast(risk: StepRisk, floor: StepRisk): boolean {
+  const order: StepRisk[] = [
+    "safe",
+    "caution",
+    "approval",
+    "specialist",
+    "denied",
+  ];
+  return order.indexOf(risk) >= order.indexOf(floor);
+}
+
+export function decidePolicy(input: PolicyInput): PolicyDecision {
+  const { capability: cap, organization: org, sensitivity } = input;
+  const reasons: string[] = [];
+
+  // 1. Hard stops → deny.
+  if (input.killSwitchActive) reasons.push("kill_switch_active");
+  if (input.breakerOpen) reasons.push("circuit_breaker_open");
+  if (!org.capabilityEnabled) reasons.push("capability_not_enabled_for_org");
+  if (!input.parametersValid) reasons.push("parameters_invalid");
+  if (cap.riskLevel === "denied") reasons.push("capability_risk_denied");
+  if (
+    input.ticketCategory &&
+    PROHIBITED_CATEGORIES.has(input.ticketCategory.toLowerCase())
+  )
+    reasons.push(`prohibited_category:${input.ticketCategory.toLowerCase()}`);
+  for (const requirement of cap.orgPolicyRequirements) {
+    if (!org.grantedPolicies.includes(requirement))
+      reasons.push(`org_policy_missing:${requirement}`);
+  }
+  if (
+    input.platform &&
+    !cap.platforms.includes("any") &&
+    !cap.platforms.includes(input.platform)
+  )
+    reasons.push(`platform_unsupported:${input.platform}`);
+  if (input.actorRole === "requester" && cap.consent === "technician")
+    reasons.push("technician_consent_capability_requested_by_requester");
+  if (reasons.length > 0) return finish("deny", reasons);
+
+  // 2. Specialist-only.
+  if (cap.riskLevel === "specialist")
+    reasons.push("capability_risk_specialist");
+  if (sensitivity.credentialsDetected) reasons.push("credentials_detected");
+  if (sensitivity.securityIncident) reasons.push("security_incident_flag");
+  if (sensitivity.studentData && cap.sideEffects !== "read_only")
+    reasons.push("student_data_with_write");
+  if (input.evidenceQuality === "missing" && cap.sideEffects !== "read_only")
+    reasons.push("evidence_missing");
+  if (reasons.length > 0) return finish("specialist_only", reasons);
+
+  // 3. Technician approval.
+  if (cap.riskLevel === "approval") reasons.push("capability_risk_approval");
+  if (cap.consent === "technician")
+    reasons.push("capability_requires_technician_consent");
+  if (
+    cap.sideEffects === "external_write" &&
+    input.deviceOwnership !== "org_managed"
+  )
+    reasons.push(`external_write_on_${input.deviceOwnership}_device`);
+  if (org.requireApprovalFor.includes(cap.id))
+    reasons.push("org_requires_approval_for_capability");
+  if (sensitivity.piiDetected && cap.sideEffects === "external_write")
+    reasons.push("pii_with_external_write");
+  if (reasons.length > 0) {
+    if (input.consent.technician) {
+      return finish("allow_automatic", [
+        ...reasons,
+        "technician_consent_active",
+      ]);
+    }
+    return finish("require_technician_approval", reasons);
+  }
+
+  // 4. User consent.
+  if (riskAtLeast(cap.riskLevel, "caution"))
+    reasons.push("capability_risk_caution");
+  if (cap.consent === "user") reasons.push("capability_requires_user_consent");
+  if (
+    input.confidence === null ||
+    input.confidence < AUTOMATIC_CONFIDENCE_THRESHOLD
+  )
+    reasons.push("confidence_below_threshold");
+  if (input.evidenceQuality !== "sufficient")
+    reasons.push("evidence_not_sufficient");
+  if (input.priorFailedAttempts >= 1) reasons.push("prior_failed_attempts");
+  if (reasons.length > 0) {
+    if (input.consent.user) {
+      return finish("allow_automatic", [...reasons, "user_consent_active"]);
+    }
+    return finish("require_user_consent", reasons);
+  }
+
+  // 5. Automatic.
+  return finish("allow_automatic", [
+    "capability_risk_safe",
+    "confidence_at_or_above_threshold",
+    "evidence_sufficient",
+  ]);
+}

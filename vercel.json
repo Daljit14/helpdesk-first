@@ -15,6 +15,10 @@
     {
       "path": "/api/cron/knowledge-learning",
       "schedule": "45 3 * * *"
+    },
+    {
+      "path": "/api/cron/resolution-runs",
+      "schedule": "15 4 * * *"
     }
   ]
 }

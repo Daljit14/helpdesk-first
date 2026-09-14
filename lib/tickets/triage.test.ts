@@ -8,6 +8,9 @@ const mocks = vi.hoisted(() => ({
   notifyRequester: vi.fn(),
   isEscalationPackageEnabled: vi.fn(),
   snapshotEscalationPackage: vi.fn(),
+  isAutonomyEnabled: vi.fn(),
+  startRun: vi.fn(),
+  runInvestigationTurn: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/admin", () => ({
@@ -27,6 +30,15 @@ vi.mock("@/lib/investigation/config", () => ({
   isInvestigationEnabled: () => false,
   isEscalationPackageEnabled: mocks.isEscalationPackageEnabled,
 }));
+vi.mock("@/lib/investigation/engine", () => ({
+  runInvestigationTurn: mocks.runInvestigationTurn,
+}));
+vi.mock("@/lib/autonomy/config", () => ({
+  isAutonomyEnabled: mocks.isAutonomyEnabled,
+}));
+vi.mock("@/lib/autonomy/orchestrator", () => ({
+  startRun: mocks.startRun,
+}));
 vi.mock("@/lib/investigation/escalation", () => ({
   snapshotEscalationPackage: mocks.snapshotEscalationPackage,
   summarizeEscalationPackage: () => "Diagnosis summary",
@@ -43,6 +55,11 @@ describe("triageWorkflowTicket", () => {
     mocks.notifyRequester.mockResolvedValue(undefined);
     mocks.isEscalationPackageEnabled.mockReturnValue(false);
     mocks.snapshotEscalationPackage.mockResolvedValue(null);
+    mocks.isAutonomyEnabled.mockReturnValue(false);
+    mocks.startRun.mockResolvedValue({ run: {}, created: true });
+    mocks.runInvestigationTurn.mockRejectedValue(
+      new Error("provider unavailable")
+    );
   });
 
   it("escalates when automatic triage fails", async () => {
@@ -155,5 +172,71 @@ describe("triageWorkflowTicket", () => {
     });
 
     expect(mocks.snapshotEscalationPackage).not.toHaveBeenCalled();
+  });
+
+  it("does not start an autonomy run when the flag is off", async () => {
+    const chain = {
+      update: vi.fn(() => chain),
+      eq: vi.fn(() => chain),
+    };
+    mocks.createAdminClient.mockReturnValue({
+      from: vi.fn((table: string) =>
+        table === "tickets"
+          ? chain
+          : { insert: vi.fn(async () => ({ error: null })) }
+      ),
+    });
+    await triageWorkflowTicket({
+      ticketId: "ticket-1",
+      organizationId: "org-1",
+      userId: "user-1",
+      issue: null,
+      message: "Needs support",
+      platform: "Windows",
+      diagnosticAnswers: [],
+      due: "2026-01-01T00:00:00.000Z",
+    });
+    expect(mocks.startRun).not.toHaveBeenCalled();
+  });
+
+  it("starts one autonomy run for an AI-owned ticket when enabled", async () => {
+    mocks.isAutonomyEnabled.mockReturnValue(true);
+    mocks.runInvestigationTurn.mockResolvedValue({
+      status: "success",
+      output: {
+        decision: "match",
+        confidence: 0.9,
+        matchedIssueSlug: "wifi-disconnecting",
+      },
+    });
+    const chain = {
+      update: vi.fn(() => chain),
+      eq: vi.fn(() => chain),
+    };
+    mocks.createAdminClient.mockReturnValue({
+      from: vi.fn((table: string) => {
+        if (table === "tickets") return chain;
+        return { insert: vi.fn(async () => ({ error: null })) };
+      }),
+    });
+    await triageWorkflowTicket({
+      ticketId: "ticket-1",
+      organizationId: "org-1",
+      userId: "user-1",
+      issue: null,
+      message: "Wi-Fi keeps disconnecting",
+      platform: "Windows",
+      diagnosticAnswers: [],
+      due: "2026-01-01T00:00:00.000Z",
+    });
+    expect(mocks.startRun).toHaveBeenCalledOnce();
+    expect(mocks.startRun).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        ticketId: "ticket-1",
+        organizationId: "org-1",
+        initiatedBy: "ai",
+      })
+    );
   });
 });

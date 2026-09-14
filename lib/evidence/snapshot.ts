@@ -29,7 +29,7 @@ export async function snapshotEvidence(
       : await admin.from("ticket_investigations").insert({
           ticket_id: ticketId,
           organization_id: organizationId,
-          user_id: (inputs.ticket as { user_id?: string }).user_id,
+          user_id: inputs.ticket.user_id,
           context: {},
           hypotheses: [],
           excluded_steps: [],

@@ -129,14 +129,13 @@ describe.skipIf(!canRun)("evidence tenant isolation", () => {
       expect(
         (await client.from("ticket_investigations").select("evidence")).data
       ).toEqual([{ evidence: { version: 1, description: "redacted" } }]);
+      await client
+        .from("ticket_investigations")
+        .update({ evidence: { version: 1, description: "changed" } })
+        .eq("ticket_id", ticketId);
       expect(
-        (
-          await client
-            .from("ticket_investigations")
-            .update({ evidence: { version: 1, description: "changed" } })
-            .eq("ticket_id", ticketId)
-        ).error
-      ).toBeTruthy();
+        (await client.from("ticket_investigations").select("evidence")).data
+      ).toEqual([{ evidence: { version: 1, description: "redacted" } }]);
     } finally {
       await client.auth.signOut();
       if (ticketId)

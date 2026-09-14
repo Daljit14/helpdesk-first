@@ -27,27 +27,37 @@ export async function loadFailedSteps(
 
 export async function loadInvestigation(
   client: InvestigationClient,
-  ticketId: string
+  ticketId: string,
+  organizationId?: string
 ): Promise<{
   investigation: InvestigationRow;
   turns: InvestigationTurnRow[];
 } | null> {
   try {
-    const investigation = await client
+    let investigationQuery = client
       .from("ticket_investigations")
       .select(
-        "ticket_id,organization_id,user_id,context,hypotheses,excluded_steps,status,escalation_package,escalation_package_at,created_at,updated_at"
+        "ticket_id,organization_id,user_id,context,hypotheses,excluded_steps,asked_question_ids,status,escalation_package,escalation_package_at,created_at,updated_at"
       )
-      .eq("ticket_id", ticketId)
-      .maybeSingle();
+      .eq("ticket_id", ticketId);
+    if (organizationId) {
+      investigationQuery = investigationQuery.eq(
+        "organization_id",
+        organizationId
+      );
+    }
+    const investigation = await investigationQuery.maybeSingle();
     if (investigation.error) throw investigation.error;
     if (!investigation.data) return null;
 
-    const turns = await client
+    let turnsQuery = client
       .from("ticket_investigation_turns")
       .select("*")
-      .eq("ticket_id", ticketId)
-      .order("created_at", { ascending: false });
+      .eq("ticket_id", ticketId);
+    if (organizationId) {
+      turnsQuery = turnsQuery.eq("organization_id", organizationId);
+    }
+    const turns = await turnsQuery.order("created_at", { ascending: false });
     if (turns.error) throw turns.error;
     return {
       investigation: investigation.data as InvestigationRow,

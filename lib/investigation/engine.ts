@@ -1,6 +1,7 @@
 import { getAiModel, getAiProviderKind } from "@/lib/ai/config";
 import { processAiIntake, type IntakeResult } from "@/lib/ai/intake";
 import type { AiIntakeInput, AiProvider, Hypothesis } from "@/lib/ai/types";
+import { isEvidenceEngineEnabled } from "@/lib/admin/flags";
 import { ISSUES, type Issue } from "@/lib/issues";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isInvestigationEnabled } from "./config";
@@ -10,6 +11,11 @@ import {
   deriveWithheldSteps,
 } from "./steps";
 import type { Audience } from "./policy";
+import {
+  filterUnaskedQuestions,
+  mergeAskedQuestionIds,
+} from "@/lib/evidence/questions";
+import { snapshotEvidence } from "@/lib/evidence/snapshot";
 
 type InvestigationClient = ReturnType<typeof createAdminClient>;
 
@@ -64,7 +70,8 @@ export function fallbackHypothesis(
 async function persistTurn(
   params: InvestigationTurnInput,
   result: Extract<IntakeResult, { status: "success" }>,
-  failedSteps: NonNullable<AiIntakeInput["failedSteps"]>
+  failedSteps: NonNullable<AiIntakeInput["failedSteps"]>,
+  askedQuestionIds: string[] = []
 ): Promise<number | undefined> {
   if (!params.ticketId || !params.userId) return undefined;
   const admin = params.admin ?? createAdminClient();
@@ -81,6 +88,14 @@ async function persistTurn(
         context: params.input.context ?? {},
         hypotheses: output.hypotheses ?? [],
         excluded_steps: failedSteps,
+        ...(isEvidenceEngineEnabled()
+          ? {
+              asked_question_ids: mergeAskedQuestionIds(
+                askedQuestionIds,
+                output.diagnosticQuestionIds ?? []
+              ),
+            }
+          : {}),
         status,
       },
       { onConflict: "ticket_id" }
@@ -124,6 +139,49 @@ export async function runInvestigationTurn(
   const failedSteps = params.input.failedSteps ?? [];
   const audience = params.audience ?? "requester";
   let output = result.output;
+  let askedQuestionIds: string[] = [];
+  const evidenceAdmin =
+    params.admin ?? (isEvidenceEngineEnabled() ? createAdminClient() : null);
+  if (isEvidenceEngineEnabled() && params.ticketId && evidenceAdmin) {
+    try {
+      let query = evidenceAdmin
+        .from("ticket_investigations")
+        .select("asked_question_ids")
+        .eq("ticket_id", params.ticketId);
+      if (params.organizationId) {
+        query = query.eq("organization_id", params.organizationId);
+      }
+      const existing = await query.maybeSingle();
+      if (!existing.error && Array.isArray(existing.data?.asked_question_ids)) {
+        askedQuestionIds = existing.data.asked_question_ids.filter(
+          (id: unknown): id is string => typeof id === "string"
+        );
+      }
+    } catch (error) {
+      console.error("Failed to load asked diagnostic questions.", error);
+    }
+    askedQuestionIds = mergeAskedQuestionIds(
+      askedQuestionIds,
+      params.input.previousAnswers?.map(({ questionId }) => questionId) ?? []
+    );
+    output = {
+      ...output,
+      diagnosticQuestionIds: filterUnaskedQuestions(
+        output.diagnosticQuestionIds ?? [],
+        askedQuestionIds
+      ),
+    };
+    if (
+      output.decision === "clarify" &&
+      (output.diagnosticQuestionIds?.length ?? 0) === 0
+    ) {
+      output = {
+        ...output,
+        decision: "escalate",
+        escalationReason: "No new diagnostic questions remain.",
+      };
+    }
+  }
   if (result.output.matchedIssueSlug) {
     const issue = ISSUES.find(
       (candidate) => candidate.id === result.output.matchedIssueSlug
@@ -176,7 +234,19 @@ export async function runInvestigationTurn(
     params.persist ?? (isInvestigationEnabled() && Boolean(params.ticketId));
   if (!persist) return nextResult;
   try {
-    const turnId = await persistTurn(params, nextResult, failedSteps);
+    const turnId = await persistTurn(
+      params,
+      nextResult,
+      failedSteps,
+      askedQuestionIds
+    );
+    if (isEvidenceEngineEnabled() && params.ticketId && params.organizationId) {
+      await snapshotEvidence(
+        evidenceAdmin ?? createAdminClient(),
+        params.ticketId,
+        params.organizationId
+      );
+    }
     return { ...nextResult, turnId };
   } catch (error) {
     console.error("Failed to persist investigation turn.", error);

@@ -8,6 +8,8 @@ import type { InvestigationRow, InvestigationTurnRow } from "./types";
 import { loadEscalationInputs } from "./escalation-load";
 import type { createAdminClient } from "@/lib/supabase/admin";
 import { formatHandoffReason } from "@/lib/tickets/routing";
+import { isEvidenceEngineEnabled } from "@/lib/admin/flags";
+import { snapshotEvidence } from "@/lib/evidence/snapshot";
 
 export type EscalationPackage = {
   version: 1;
@@ -354,6 +356,9 @@ export async function snapshotEscalationPackage(
       { onConflict: "ticket_id" }
     );
     if (result.error) throw result.error;
+    if (isEvidenceEngineEnabled()) {
+      await snapshotEvidence(admin, ticketId, organizationId);
+    }
     return pkg;
   } catch (error) {
     console.error("Failed to snapshot escalation package.", error);

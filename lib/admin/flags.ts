@@ -52,3 +52,7 @@ export function isStepPolicyEnabled(): boolean {
 export function isEscalationPackageEnabled(): boolean {
   return process.env.HELP_DESK_ESCALATION_PACKAGE_ENABLED === "true";
 }
+
+export function isEvidenceEngineEnabled(): boolean {
+  return process.env.HELP_DESK_EVIDENCE_ENGINE_ENABLED === "true";
+}

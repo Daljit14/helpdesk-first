@@ -1,5 +1,7 @@
 import { isEscalationPackageEnabled } from "@/lib/investigation/config";
 import { snapshotEscalationPackage } from "@/lib/investigation/escalation";
+import { isEvidenceEngineEnabled } from "@/lib/admin/flags";
+import { snapshotEvidence } from "@/lib/evidence/snapshot";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { event } from "@/lib/tickets/events";
 import { assertTransition, isTerminal, type RunStatus } from "./state-machine";
@@ -304,6 +306,25 @@ export async function processDueRuns(
       await transitionRun(admin, run, "investigating", {
         actor: "orchestrator",
       });
+      if (isEvidenceEngineEnabled()) {
+        const evidence = await snapshotEvidence(
+          admin,
+          run.ticket_id,
+          run.organization_id
+        );
+        await writeRunEvent(admin, {
+          organization_id: run.organization_id,
+          run_id: run.id,
+          ticket_id: run.ticket_id,
+          kind: "evidence.snapshot",
+          actor: "orchestrator",
+          detail: {
+            hypotheses: evidence?.hypotheses.length ?? 0,
+            topConfidence: evidence?.hypotheses[0]?.confidence ?? null,
+            missingInformation: evidence?.missingInformation ?? [],
+          },
+        });
+      }
       continue;
     }
     if (

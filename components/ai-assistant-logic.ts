@@ -152,7 +152,7 @@ export function useAssistantIntake({
         platform:
           platform ??
           currentOutput?.detectedPlatform ??
-          detectPlatform(messageOverride ?? problem) ??
+          detectPlatform(problem) ??
           "Other",
         diagnosticAnswers: previousAnswers,
       });

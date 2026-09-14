@@ -1,4 +1,6 @@
 import { createConfiguredAiProvider } from "@/lib/ai/provider-factory";
+import { isAutonomyEnabled } from "@/lib/autonomy/config";
+import { startRun } from "@/lib/autonomy/orchestrator";
 import { loadFailedSteps } from "@/lib/investigation/load";
 import { runInvestigationTurn } from "@/lib/investigation/engine";
 import {
@@ -128,6 +130,13 @@ export async function triageWorkflowTicket(params: {
       await event(ticketId, organizationId, "ai.assigned", "ai", null, {
         issueId: decision.issueId,
       });
+      if (isAutonomyEnabled() && organizationId) {
+        await startRun(admin, {
+          ticketId,
+          organizationId,
+          initiatedBy: "ai",
+        }).catch(() => undefined);
+      }
       await event(ticketId, organizationId, "ai.solution_offered", "ai", null);
       await admin.from("ticket_comments").insert({
         ticket_id: ticketId,

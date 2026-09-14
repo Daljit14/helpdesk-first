@@ -2,6 +2,11 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 import { ISSUES } from "@/lib/issues";
 import { fallbackHypothesis, runInvestigationTurn } from "./engine";
 
+const mocks = vi.hoisted(() => ({ snapshotEvidence: vi.fn() }));
+vi.mock("@/lib/evidence/snapshot", () => ({
+  snapshotEvidence: mocks.snapshotEvidence,
+}));
+
 function provider() {
   return {
     classify: vi.fn(async () => ({
@@ -46,7 +51,7 @@ function providerWithHypothesis(issueSlug: string) {
   };
 }
 
-function database() {
+function database(askedQuestionIds: string[] = []) {
   const rows: Record<string, unknown>[] = [];
   const chain = {
     upsert: vi.fn((row: Record<string, unknown>) => {
@@ -58,6 +63,11 @@ function database() {
       return chain;
     }),
     select: vi.fn(() => chain),
+    eq: vi.fn(() => chain),
+    maybeSingle: vi.fn(async () => ({
+      data: { asked_question_ids: askedQuestionIds },
+      error: null,
+    })),
     single: vi.fn(async () => ({ data: { id: 1 }, error: null })),
   };
   return {
@@ -68,6 +78,8 @@ function database() {
 
 describe("runInvestigationTurn", () => {
   beforeEach(() => {
+    vi.unstubAllEnvs();
+    vi.clearAllMocks();
     vi.stubEnv("HELP_DESK_AI_ENABLED", "true");
     vi.stubEnv("HELP_DESK_AI_PROVIDER", "mock");
   });
@@ -217,6 +229,62 @@ describe("runInvestigationTurn", () => {
     expect(db.rows).toHaveLength(2);
     expect(db.rows.every((row) => !("message" in row))).toBe(true);
     expect(db.rows[1]).toHaveProperty("withheld_steps");
+  });
+
+  test("filters repeated diagnostic questions and merges asked ids when evidence is enabled", async () => {
+    vi.stubEnv("HELP_DESK_EVIDENCE_ENGINE_ENABLED", "true");
+    const db = database(["which-platform"]);
+    const result = await runInvestigationTurn({
+      input: { message: "need help", platform: "Windows" },
+      provider: {
+        classify: vi.fn(async () => ({
+          decision: "clarify" as const,
+          diagnosticQuestionIds: ["which-platform", "where-happens"],
+        })),
+      },
+      allowedSlugs: [],
+      ticketId: "ticket-id",
+      organizationId: "org-id",
+      userId: "user-id",
+      persist: true,
+      admin: db.client as never,
+    });
+    expect(result.status).toBe("success");
+    if (result.status === "success") {
+      expect(result.output.diagnosticQuestionIds).toEqual(["where-happens"]);
+    }
+    expect(db.rows[0]?.asked_question_ids).toEqual([
+      "which-platform",
+      "where-happens",
+    ]);
+    expect(mocks.snapshotEvidence).toHaveBeenCalled();
+  });
+
+  test("escalates a clarification when no new diagnostic questions remain", async () => {
+    vi.stubEnv("HELP_DESK_EVIDENCE_ENGINE_ENABLED", "true");
+    const db = database(["which-platform"]);
+    const result = await runInvestigationTurn({
+      input: { message: "need help", platform: "Windows" },
+      provider: {
+        classify: vi.fn(async () => ({
+          decision: "clarify" as const,
+          diagnosticQuestionIds: ["which-platform"],
+        })),
+      },
+      allowedSlugs: [],
+      ticketId: "ticket-id",
+      organizationId: "org-id",
+      userId: "user-id",
+      persist: false,
+      admin: db.client as never,
+    });
+    expect(result.status).toBe("success");
+    if (result.status === "success") {
+      expect(result.output.decision).toBe("escalate");
+      expect(result.output.escalationReason).toBe(
+        "No new diagnostic questions remain."
+      );
+    }
   });
 
   test("withholds approval steps for requesters and includes them for staff", async () => {

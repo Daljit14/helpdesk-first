@@ -11,11 +11,13 @@ const mocks = vi.hoisted(() => ({
   createKnowledgeDraftForTicket: vi.fn(),
   isTicketWorkflowEnabled: vi.fn(() => true),
   isUserPortalEnabled: vi.fn(() => true),
+  isEvidenceEngineEnabled: vi.fn(() => false),
 }));
 
 vi.mock("@/lib/admin/flags", () => ({
   isTicketWorkflowEnabled: mocks.isTicketWorkflowEnabled,
   isUserPortalEnabled: mocks.isUserPortalEnabled,
+  isEvidenceEngineEnabled: mocks.isEvidenceEngineEnabled,
   isSecureAttachmentsEnabled: vi.fn(() => false),
 }));
 vi.mock("@/lib/supabase/user", () => ({

@@ -7,6 +7,7 @@ export type InvestigationRow = {
   context: InvestigationContext;
   hypotheses: Hypothesis[];
   excluded_steps: StepRef[];
+  asked_question_ids?: string[];
   status: "open" | "escalated" | "resolved";
   escalation_package: import("./escalation").EscalationPackage | null;
   escalation_package_at: string | null;

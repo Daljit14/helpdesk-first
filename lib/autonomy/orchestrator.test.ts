@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   event: vi.fn(),
   isEscalationPackageEnabled: vi.fn(),
   snapshotEscalationPackage: vi.fn(),
+  snapshotEvidence: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/admin", () => ({
@@ -20,6 +21,9 @@ vi.mock("@/lib/investigation/config", () => ({
 }));
 vi.mock("@/lib/investigation/escalation", () => ({
   snapshotEscalationPackage: mocks.snapshotEscalationPackage,
+}));
+vi.mock("@/lib/evidence/snapshot", () => ({
+  snapshotEvidence: mocks.snapshotEvidence,
 }));
 
 import {
@@ -85,6 +89,7 @@ describe("resolution orchestrator", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubEnv("HELP_DESK_AUTONOMY_ENABLED", "true");
+    vi.stubEnv("HELP_DESK_EVIDENCE_ENGINE_ENABLED", "false");
     mocks.readKillSwitches.mockResolvedValue({
       global: false,
       organization: false,
@@ -95,6 +100,7 @@ describe("resolution orchestrator", () => {
     mocks.isEscalationPackageEnabled.mockReturnValue(false);
     mocks.event.mockResolvedValue(undefined);
     mocks.snapshotEscalationPackage.mockResolvedValue(null);
+    mocks.snapshotEvidence.mockResolvedValue(null);
   });
 
   test("returns the active run on duplicate start", async () => {
@@ -272,6 +278,38 @@ describe("resolution orchestrator", () => {
     expect(summary).toEqual({ processed: 1, paused: 0, escalated: 1 });
     expect(tickets.update).toHaveBeenCalledWith(
       expect.objectContaining({ handoff_reason: "planner_not_available" })
+    );
+  });
+
+  test("worker snapshots evidence when a queued run starts", async () => {
+    vi.stubEnv("HELP_DESK_EVIDENCE_ENGINE_ENABLED", "true");
+    const runs = makeQuery({ data: [{ ...run, status: "queued" }] });
+    const events = makeQuery({});
+    const admin = makeAdmin({
+      resolution_runs: runs,
+      resolution_events: events,
+    });
+    mocks.snapshotEvidence.mockResolvedValue({
+      hypotheses: [{ confidence: 0.72 }],
+      missingInformation: ["platform"],
+    });
+
+    await processDueRuns(admin as never);
+
+    expect(mocks.snapshotEvidence).toHaveBeenCalledWith(
+      admin,
+      "ticket-1",
+      "org-1"
+    );
+    expect(events.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "evidence.snapshot",
+        detail: {
+          hypotheses: 1,
+          topConfidence: 0.72,
+          missingInformation: ["platform"],
+        },
+      })
     );
   });
 

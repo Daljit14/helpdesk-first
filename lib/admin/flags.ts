@@ -56,3 +56,7 @@ export function isEscalationPackageEnabled(): boolean {
 export function isEvidenceEngineEnabled(): boolean {
   return process.env.HELP_DESK_EVIDENCE_ENGINE_ENABLED === "true";
 }
+
+export function isCapabilityRegistryEnabled(): boolean {
+  return process.env.HELP_DESK_CAPABILITY_REGISTRY_ENABLED === "true";
+}

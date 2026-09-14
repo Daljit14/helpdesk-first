@@ -124,6 +124,42 @@ describe("AiAssistant escalation", () => {
     );
   });
 
+  test("detects a typed Mac platform when no chip was selected", async () => {
+    mockEscalation({
+      status: "ok",
+      output: {
+        decision: "escalate",
+        escalationReason: "Contact your IT team",
+      },
+    });
+    mocks.createWorkflowTicket.mockResolvedValue({
+      success: true,
+      ticketId: "ticket-123",
+    });
+    render(<AiAssistant workflowEnabled signedIn />);
+
+    fireEvent.change(
+      screen.getByLabelText("What problem are you experiencing?"),
+      {
+        target: { value: "External monitor not detected on my Mac" },
+      }
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Send to a support person",
+      })
+    );
+
+    await vi.waitFor(() =>
+      expect(mocks.createWorkflowTicket).toHaveBeenCalledWith({
+        message: "External monitor not detected on my Mac",
+        platform: "Mac",
+        diagnosticAnswers: [],
+      })
+    );
+  });
+
   test("renders grounded suggestions for an escalation", async () => {
     mockEscalation({
       status: "ok",

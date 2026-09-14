@@ -11,6 +11,7 @@ import {
 } from "@/lib/ai/types";
 import { startAiTicket } from "@/app/actions/resolution";
 import { createWorkflowTicket } from "@/app/actions/tickets";
+import { detectPlatform } from "@/lib/ai/detect-platform";
 
 const MAX_QUESTIONS = 3;
 
@@ -148,7 +149,11 @@ export function useAssistantIntake({
     async (messageOverride?: string) => {
       const result = await createWorkflowTicket({
         message: messageOverride ?? problem,
-        platform: platform ?? currentOutput?.detectedPlatform ?? "Other",
+        platform:
+          platform ??
+          currentOutput?.detectedPlatform ??
+          detectPlatform(messageOverride ?? problem) ??
+          "Other",
         diagnosticAnswers: previousAnswers,
       });
       if ("ticketId" in result && result.ticketId) {

@@ -78,11 +78,13 @@ export default async function TicketsPage() {
           </Link>
         )}
         {preferences && (
-          <NotificationPreferencesCard
-            userId={preferences.userId}
-            emailEnabled={preferences.emailEnabled}
-            pushEnabled={preferences.pushEnabled}
-          />
+          <div id="notifications">
+            <NotificationPreferencesCard
+              userId={preferences.userId}
+              emailEnabled={preferences.emailEnabled}
+              pushEnabled={preferences.pushEnabled}
+            />
+          </div>
         )}
         <div className="mt-6">
           <TicketsTable

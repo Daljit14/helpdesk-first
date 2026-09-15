@@ -56,9 +56,6 @@ export function Footer({ signedIn = false }: { signedIn?: boolean }) {
               Ask the assistant
             </Link>
             <Link className={linkClassName} href="/tickets">
-              Submit a ticket
-            </Link>
-            <Link className={linkClassName} href="/tickets">
               My tickets
             </Link>
             <Link className={linkClassName} href="/bookmarks">
@@ -83,10 +80,10 @@ export function Footer({ signedIn = false }: { signedIn?: boolean }) {
             <p className={headingClassName}>Account</p>
             {signedIn ? (
               <>
-                <Link className={linkClassName} href="/tickets">
-                  My tickets
+                <Link className={linkClassName} href="/assistant">
+                  New ticket
                 </Link>
-                <Link className={linkClassName} href="/tickets">
+                <Link className={linkClassName} href="/tickets#notifications">
                   Notification settings
                 </Link>
               </>

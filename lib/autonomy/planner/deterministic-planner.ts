@@ -1,4 +1,5 @@
-import type { PlannerOutput } from "./schema";
+import type { PlannerOutput } from "../guardrails/planner-output";
+import { getCapability } from "../capabilities/registry";
 import type { Planner, PlannerInput } from "./types";
 
 const NOTIFICATION_PATTERN =
@@ -32,18 +33,27 @@ export class DeterministicPlanner implements Planner {
       return match ?? null;
     };
     const ticketId = input.ticket.id;
+    const evidenceIds = (input.evidence?.confirmedFacts ?? [])
+      .map((fact) => fact.id)
+      .concat(
+        (input.evidence?.hypotheses ?? []).map((hypothesis) => hypothesis.id)
+      )
+      .slice(0, 10);
+    const safeEvidenceIds = evidenceIds.length > 0 ? evidenceIds : ["ticket"];
+    const diagnosis = (summary: string) => ({
+      summary,
+      confidence: input.evidence?.hypotheses[0]?.confidence ?? 0,
+      evidenceIds: safeEvidenceIds,
+    });
     const escalate = (reason: string): PlannerOutput => {
-      const capability = allowed("escalate_with_evidence");
-      if (capability) {
-        return {
-          diagnosis: "No safe automatic capability applies; escalating.",
-          capabilityId: capability.id,
-          capabilityVersion: capability.version,
-          parameters: { ticketId, reason },
-          expectedEvidence: ["Ticket is handed to the IT team with evidence."],
-        };
-      }
-      return { decision: "escalate", reason };
+      return {
+        ticketId,
+        diagnosis: diagnosis(
+          "No safe automatic capability applies; escalating."
+        ),
+        decision: "escalate",
+        reason,
+      };
     };
 
     const evidence = input.evidence;
@@ -63,21 +73,33 @@ export class DeterministicPlanner implements Planner {
       const retry = allowed("retry_failed_notification");
       if (retry && failedNotificationId) {
         return {
-          diagnosis: "Likely notification delivery failure.",
-          capabilityId: retry.id,
-          capabilityVersion: retry.version,
-          parameters: { ticketId, notificationId: failedNotificationId },
-          expectedEvidence: ["Outbox status becomes sent."],
+          ticketId,
+          diagnosis: diagnosis("Likely notification delivery failure."),
+          decision: "propose_action",
+          capability: {
+            id: retry.id,
+            version: retry.version,
+            parameters: { ticketId, notificationId: failedNotificationId },
+          },
+          verificationMethod:
+            getCapability(retry.id, retry.version)?.verification ??
+            "verification_pending",
         };
       }
       const status = allowed("check_helpdesk_service_status");
       if (status) {
         return {
-          diagnosis: "Possible platform-side notification outage.",
-          capabilityId: status.id,
-          capabilityVersion: status.version,
-          parameters: { ticketId },
-          expectedEvidence: ["Service status response captured."],
+          ticketId,
+          diagnosis: diagnosis("Possible platform-side notification outage."),
+          decision: "propose_action",
+          capability: {
+            id: status.id,
+            version: status.version,
+            parameters: { ticketId },
+          },
+          verificationMethod:
+            getCapability(status.id, status.version)?.verification ??
+            "verification_pending",
         };
       }
     }
@@ -86,14 +108,22 @@ export class DeterministicPlanner implements Planner {
       const ask = allowed("ask_diagnostic_question");
       if (ask) {
         return {
-          diagnosis: "Investigation needs one more diagnostic answer.",
-          capabilityId: ask.id,
-          capabilityVersion: ask.version,
-          parameters: {
-            ticketId,
-            questionId: slug(evidence.missingInformation[0]),
+          ticketId,
+          diagnosis: diagnosis(
+            "Investigation needs one more diagnostic answer."
+          ),
+          decision: "propose_action",
+          capability: {
+            id: ask.id,
+            version: ask.version,
+            parameters: {
+              ticketId,
+              questionId: slug(evidence.missingInformation[0]),
+            },
           },
-          expectedEvidence: ["Diagnostic answer is recorded."],
+          verificationMethod:
+            getCapability(ask.id, ask.version)?.verification ??
+            "verification_pending",
         };
       }
     }
@@ -104,11 +134,17 @@ export class DeterministicPlanner implements Planner {
         (left, right) => right.confidence - left.confidence
       )[0];
       return {
-        diagnosis: "Approved knowledge may cover the likely cause.",
-        capabilityId: search.id,
-        capabilityVersion: search.version,
-        parameters: { ticketId, query: top.cause.slice(0, 200) },
-        expectedEvidence: ["Approved guides matching the cause are listed."],
+        ticketId,
+        diagnosis: diagnosis("Approved knowledge may cover the likely cause."),
+        decision: "propose_action",
+        capability: {
+          id: search.id,
+          version: search.version,
+          parameters: { ticketId, query: top.cause.slice(0, 200) },
+        },
+        verificationMethod:
+          getCapability(search.id, search.version)?.verification ??
+          "verification_pending",
       };
     }
 

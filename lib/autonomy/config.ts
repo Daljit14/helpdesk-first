@@ -16,6 +16,14 @@ export function isAutonomyEnabled(): boolean {
   return process.env.HELP_DESK_AUTONOMY_ENABLED === "true";
 }
 
+export function isAutonomousExecutionEnabled(): boolean {
+  return process.env.HELP_DESK_AUTONOMOUS_EXECUTION_ENABLED === "true";
+}
+
+export function guardrailsEnforced(): boolean {
+  return process.env.HELP_DESK_GUARDRAILS_ENFORCED !== "false";
+}
+
 export function isPolicyEngineEnabled(): boolean {
   return process.env.HELP_DESK_POLICY_ENGINE_ENABLED === "true";
 }
@@ -39,6 +47,13 @@ export function isAutonomyAlertsEnabled(): boolean {
 export function isCapabilityDisabledByEnv(capabilityId: string): boolean {
   const key = `HELP_DESK_CAP_${capabilityId.toUpperCase()}_ENABLED`;
   return process.env[key] === "false";
+}
+
+export function isProviderDisabledByEnv(provider: string): boolean {
+  return (
+    process.env[`HELP_DESK_PROVIDER_${provider.toUpperCase()}_ENABLED`] ===
+    "false"
+  );
 }
 
 export function getPlannerMode(): PlannerMode {
@@ -95,6 +110,36 @@ export function getAutonomyLimits() {
       30 * 60_000,
       1_000,
       24 * 60 * 60_000
+    ),
+    maxConcurrentPerOrg: boundedNumber(
+      "HELP_DESK_AUTONOMY_MAX_CONCURRENT_PER_ORG",
+      2,
+      1,
+      20
+    ),
+    maxRunsPerUserPerDay: boundedNumber(
+      "HELP_DESK_AUTONOMY_MAX_RUNS_PER_USER_PER_DAY",
+      5,
+      1,
+      100
+    ),
+    maxRunsPerOrgPerDay: boundedNumber(
+      "HELP_DESK_AUTONOMY_MAX_RUNS_PER_ORG_PER_DAY",
+      50,
+      1,
+      5_000
+    ),
+    maxPlannerInputChars: boundedNumber(
+      "HELP_DESK_AUTONOMY_MAX_PLANNER_INPUT_CHARS",
+      8_000,
+      1_000,
+      50_000
+    ),
+    maxProviderCallsPerRun: boundedNumber(
+      "HELP_DESK_AUTONOMY_MAX_PROVIDER_CALLS_PER_RUN",
+      3,
+      1,
+      10
     ),
   };
 }

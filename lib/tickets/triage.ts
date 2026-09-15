@@ -131,11 +131,21 @@ export async function triageWorkflowTicket(params: {
         issueId: decision.issueId,
       });
       if (isAutonomyEnabled() && organizationId) {
-        await startRun(admin, {
+        const autonomyRun = await startRun(admin, {
           ticketId,
           organizationId,
           initiatedBy: "ai",
         }).catch(() => undefined);
+        if (autonomyRun && "error" in autonomyRun) {
+          await event(
+            ticketId,
+            organizationId,
+            "guardrail.rate_limited",
+            "ai",
+            null,
+            { reasonCode: autonomyRun.error }
+          );
+        }
       }
       await event(ticketId, organizationId, "ai.solution_offered", "ai", null);
       await admin.from("ticket_comments").insert({

@@ -398,6 +398,21 @@ privileged API.** Handlers accept only the typed, validated parameter object.
 
 ## 9. Independent verification engine (PR #68)
 
+### Implementation (PR #71)
+
+Guardrail enforcement is implemented in `lib/autonomy/guardrails/`, with
+input redaction, strict planner v2 validation, policy conflict handling,
+approval binding, a single execution gateway, kill switches, breakers,
+verification gates, audit provenance, and security alerts. Autonomous
+execution remains disabled by default. The non-applied migration is
+`supabase/autonomy-guardrails.sql`.
+
+Resolution follows `verifying → verified → resolved`; the verification engine
+never sets `user_confirmed` itself. Database and TypeScript gates require a
+passed `verification_results` row for AI-owned resolution. Rollback remains
+deferred to the rollback controls introduced in PR #69 and later guardrail
+hardening.
+
 A ticket is resolved only when the original problem is tested again by a
 component independent of the executor.
 
@@ -573,6 +588,8 @@ Release gates (all must hold on the benchmark and in shadow production data):
 | `HELP_DESK_AUTONOMY_BREAKER_COOLDOWN_MS`   | PR #69 persisted breaker cooldown        |
 | `HELP_DESK_CAP_<CAPABILITY_ID>_ENABLED`    | PR #69 per-capability environment switch |
 | `HELP_DESK_RESOLUTION_CENTER_ENABLED`      | PR #70 admin UI                          |
+| `HELP_DESK_AUTONOMOUS_EXECUTION_ENABLED`   | PR #71 autonomous execution              |
+| `HELP_DESK_GUARDRAILS_ENFORCED`            | PR #71 fail-closed guardrails            |
 
 Existing switches (`HELP_DESK_AI_ENABLED`, `HELP_DESK_AI_PROVIDER`,
 investigation/step-policy/escalation flags) are preserved unchanged.

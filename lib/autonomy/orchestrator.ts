@@ -8,22 +8,35 @@ import { assertTransition, isTerminal, type RunStatus } from "./state-machine";
 import {
   getAutonomyLimits,
   getPlannerMode,
+  getPlannerProvider,
   isAutonomyEnabled,
   isVerificationEngineEnabled,
   isPlannerEnabled,
 } from "./config";
 import { readKillSwitches } from "./kill-switches";
-import { listEnabledCapabilities } from "./capabilities/enablement";
-import { getCapability, inputSchemaJson } from "./capabilities/registry";
+import {
+  isCapabilityEnabled,
+  listEnabledCapabilities,
+} from "./capabilities/enablement";
+import {
+  getCapability,
+  inputSchemaJson,
+  listCapabilities,
+} from "./capabilities/registry";
 import { evaluatePlanPolicy, executePlan } from "./executor/execute";
 import { resumeAfterApproval } from "./executor/resume";
 import { recordPolicyDecision } from "./policy/record";
-import { parsePlannerOutput } from "./planner/schema";
 import { selectPlanner } from "./planner/select";
+import { DeterministicPlanner } from "./planner/deterministic-planner";
 import { verifyRun } from "./verification/engine";
 import { redactAuditDetail } from "./audit/redact";
 import { auditVersions, initiatedBy } from "./audit/versions";
 import { alertSecurityEvent } from "./alerts";
+import { guardModelInput, type UntrustedField } from "./guardrails/input";
+import {
+  validatePlannerOutput,
+  type PlannerOutput,
+} from "./guardrails/planner-output";
 
 export type OrchestratorAdmin = ReturnType<typeof createAdminClient>;
 
@@ -48,6 +61,25 @@ export type ResolutionRun = {
   updated_at: string;
   completed_at: string | null;
 };
+
+async function optionalTicketRows(
+  admin: OrchestratorAdmin,
+  table: "ticket_attachments" | "ticket_comments" | "ticket_system_events",
+  selection: string,
+  organizationId: string,
+  ticketId: string
+): Promise<unknown[]> {
+  try {
+    const result = await admin
+      .from(table)
+      .select(selection)
+      .eq("organization_id", organizationId)
+      .eq("ticket_id", ticketId);
+    return (result.data ?? []) as unknown[];
+  } catch {
+    return [];
+  }
+}
 
 export function resolutionStepPosition(
   attempts: number,
@@ -123,12 +155,123 @@ async function planRun(
   if (!planning) return null;
   const ticketResult = await admin
     .from("tickets")
-    .select("id,category,platform,diagnostic_answers")
+    .select("id,issue_title,message,category,platform,diagnostic_answers")
     .eq("id", run.ticket_id)
     .eq("organization_id", run.organization_id)
     .maybeSingle();
   if (ticketResult.error || !ticketResult.data) {
     return escalateRun(admin, planning, "ticket_not_found");
+  }
+  const [attachments, comments, events] = await Promise.all([
+    optionalTicketRows(
+      admin,
+      "ticket_attachments",
+      "id,original_name,declared_mime,status,scan_verdict",
+      run.organization_id,
+      run.ticket_id
+    ),
+    optionalTicketRows(
+      admin,
+      "ticket_comments",
+      "message",
+      run.organization_id,
+      run.ticket_id
+    ),
+    optionalTicketRows(
+      admin,
+      "ticket_system_events",
+      "event_type,detail",
+      run.organization_id,
+      run.ticket_id
+    ),
+  ]);
+  const fields: UntrustedField[] = [];
+  const ticket = ticketResult.data as {
+    issue_title?: string | null;
+    message?: string | null;
+    diagnostic_answers?: unknown;
+  };
+  if (ticket.issue_title) {
+    fields.push({ source: "ticket.title", text: ticket.issue_title });
+  }
+  if (ticket.message) {
+    fields.push({ source: "ticket.description", text: ticket.message });
+  }
+  if (Array.isArray(ticket.diagnostic_answers)) {
+    for (const answer of ticket.diagnostic_answers) {
+      if (
+        answer &&
+        typeof answer === "object" &&
+        "answer" in answer &&
+        typeof answer.answer === "string"
+      ) {
+        fields.push({ source: "diagnostic.answer", text: answer.answer });
+      }
+    }
+  }
+  for (const attachment of attachments) {
+    const row = attachment as {
+      id: string;
+      original_name: string;
+      declared_mime: string | null;
+      status: string;
+      scan_verdict: string | null;
+    };
+    fields.push({
+      source: "attachment.filename",
+      text: row.original_name,
+    });
+    fields.push({
+      source: "attachment.metadata",
+      text: JSON.stringify({
+        mime: row.declared_mime,
+        status: row.status,
+        verdict: row.scan_verdict,
+      }),
+    });
+  }
+  for (const comment of comments) {
+    const message = (comment as { message?: unknown }).message;
+    if (typeof message === "string")
+      fields.push({ source: "comment", text: message });
+  }
+  for (const event of events) {
+    const row = event as { event_type?: unknown; detail?: unknown };
+    fields.push({
+      source: "event",
+      text: JSON.stringify({ type: row.event_type, detail: row.detail }),
+    });
+  }
+  const guardedInput = guardModelInput(fields, {
+    maxChars: getAutonomyLimits().maxPlannerInputChars,
+  });
+  if (guardedInput.redactions > 0) {
+    await writeRunEvent(admin, {
+      organization_id: run.organization_id,
+      run_id: run.id,
+      ticket_id: run.ticket_id,
+      kind: "guardrail.input_redacted",
+      actor: "orchestrator",
+      detail: { redactions: guardedInput.redactions },
+    });
+  }
+  if (guardedInput.findings.length > 0) {
+    await writeRunEvent(admin, {
+      organization_id: run.organization_id,
+      run_id: run.id,
+      ticket_id: run.ticket_id,
+      kind: "guardrail.prompt_injection_detected",
+      actor: "orchestrator",
+      detail: {
+        findings: guardedInput.findings.map(({ category, source }) => ({
+          category,
+          source,
+        })),
+      },
+    });
+  }
+  if (guardedInput.blocked) {
+    return escalateRun(admin, planning, "guardrail_blocked");
   }
   const failedNotification = await admin
     .from("notification_outbox")
@@ -171,16 +314,61 @@ async function planRun(
             version: capability.version,
             description: capability.description,
             inputSchemaJson: inputSchemaJson(capability),
+            verification: capability.verification,
           },
         ]
       : [];
   });
-  const planner = selectPlanner();
+  const providerCalls = await admin
+    .from("resolution_events")
+    .select("id")
+    .eq("organization_id", run.organization_id)
+    .eq("run_id", run.id)
+    .in("kind", ["plan.received", "plan.rejected"]);
+  if (
+    !providerCalls.error &&
+    (providerCalls.data?.length ?? 0) >=
+      getAutonomyLimits().maxProviderCallsPerRun
+  ) {
+    await writeRunEvent(admin, {
+      organization_id: run.organization_id,
+      run_id: run.id,
+      ticket_id: run.ticket_id,
+      kind: "guardrail.rate_limited",
+      actor: "orchestrator",
+      detail: {
+        reasonCode: "provider_limit",
+        limit: getAutonomyLimits().maxProviderCallsPerRun,
+      },
+    });
+    return escalateRun(admin, planning, "provider_limit");
+  }
+  const providerSwitches = await readKillSwitches(
+    admin,
+    run.organization_id,
+    undefined,
+    getPlannerProvider()
+  );
+  if (providerSwitches.provider) {
+    await writeRunEvent(admin, {
+      organization_id: run.organization_id,
+      run_id: run.id,
+      ticket_id: run.ticket_id,
+      kind: "guardrail.kill_switch_blocked",
+      actor: "orchestrator",
+      detail: { scope: "provider", provider: getPlannerProvider() },
+    });
+  }
+  const planner =
+    providerSwitches.provider && getPlannerProvider() !== "deterministic"
+      ? new DeterministicPlanner()
+      : selectPlanner();
   let raw: unknown;
   try {
     raw = await planner.plan(
       {
         evidence,
+        untrustedContext: guardedInput.fields,
         ticket: {
           id: run.ticket_id,
           category: ticketResult.data.category ?? null,
@@ -195,20 +383,119 @@ async function planRun(
       AbortSignal.timeout(30_000)
     );
   } catch {
+    const noAction = {
+      ticketId: run.ticket_id,
+      diagnosis: {
+        summary: "Planner provider unavailable.",
+        confidence: 0,
+        evidenceIds: ["ticket"],
+      },
+      decision: "no_action" as const,
+      reason: "provider_unavailable",
+    };
+    await admin.from("resolution_steps").insert({
+      organization_id: run.organization_id,
+      run_id: run.id,
+      kind: "plan",
+      position: resolutionStepPosition(run.attempts, "plan"),
+      status: "done",
+      detail: {
+        plan: noAction,
+        planner: planner.id,
+        plannerVersion: planner.version,
+        plannerProvider: getPlannerProvider(),
+      },
+    });
+    await writeRunEvent(admin, {
+      organization_id: run.organization_id,
+      run_id: run.id,
+      ticket_id: run.ticket_id,
+      kind: "plan.no_action",
+      actor: "orchestrator",
+      detail: { reason: "provider_unavailable" },
+    });
     return escalateRun(admin, planning, "provider_unavailable");
   }
-  const parsed = parsePlannerOutput(raw);
-  if (!parsed.ok) {
+  await writeRunEvent(admin, {
+    organization_id: run.organization_id,
+    run_id: run.id,
+    ticket_id: run.ticket_id,
+    kind: "plan.received",
+    actor: "orchestrator",
+    detail: { planner: planner.id, plannerVersion: planner.version },
+  });
+  const candidate =
+    typeof raw === "string"
+      ? (() => {
+          try {
+            return JSON.parse(raw) as unknown;
+          } catch {
+            return null;
+          }
+        })()
+      : raw;
+  const candidateRecord =
+    candidate && typeof candidate === "object"
+      ? (candidate as Record<string, unknown>)
+      : null;
+  const candidateCapability =
+    candidateRecord &&
+    candidateRecord.capability &&
+    typeof candidateRecord.capability === "object"
+      ? (candidateRecord.capability as Record<string, unknown>)
+      : null;
+  const candidateId =
+    typeof candidateCapability?.id === "string" ? candidateCapability.id : "";
+  const candidateVersion =
+    typeof candidateCapability?.version === "number"
+      ? candidateCapability.version
+      : 0;
+  const capability = candidateId
+    ? getCapability(candidateId, candidateVersion)
+    : null;
+  const knownCapability = candidateId
+    ? listCapabilities().some(({ id }) => id === candidateId)
+    : false;
+  const validation = validatePlannerOutput(raw, {
+    runTicketId: run.ticket_id,
+    evidenceIds: [
+      "ticket",
+      ...(evidence?.confirmedFacts.map((fact) => fact.id) ?? []),
+      ...(evidence?.hypotheses.map((hypothesis) => hypothesis.id) ?? []),
+    ],
+    capability,
+    capabilityIdKnown: knownCapability,
+    orgEnabled: capability
+      ? await isCapabilityEnabled(admin, {
+          organizationId: run.organization_id,
+          id: capability.id,
+          version: capability.version,
+        })
+      : false,
+  });
+  if (!validation.ok) {
     await writeRunEvent(admin, {
       organization_id: run.organization_id,
       run_id: run.id,
       ticket_id: run.ticket_id,
       kind: "plan.rejected",
       actor: "orchestrator",
-      detail: { issues: parsed.issues },
+      detail: { issues: validation.issues },
+    });
+    await writeRunEvent(admin, {
+      organization_id: run.organization_id,
+      run_id: run.id,
+      ticket_id: run.ticket_id,
+      kind: "guardrail.output_rejected",
+      actor: "orchestrator",
+      detail: { code: validation.code, issueCount: validation.issues.length },
     });
     return escalateRun(admin, planning, "plan_rejected");
   }
+  const parsed: { ok: true; value: PlannerOutput } = {
+    ok: true,
+    value: validation.plan,
+  };
   const planStep = await admin
     .from("resolution_steps")
     .insert({
@@ -221,6 +508,7 @@ async function planRun(
         plan: parsed.value,
         planner: planner.id,
         plannerVersion: planner.version,
+        plannerProvider: getPlannerProvider(),
       },
     })
     .select("id")
@@ -280,8 +568,38 @@ export async function startRun(
     organizationId: string;
     initiatedBy: string;
   }
-): Promise<{ run: ResolutionRun; created: boolean }> {
+): Promise<
+  | { run: ResolutionRun; created: boolean }
+  | { error: "rate_limited"; run: null; created: false }
+> {
   const limits = getAutonomyLimits();
+  const startOfDay = new Date();
+  startOfDay.setUTCHours(0, 0, 0, 0);
+  const countRuns = async (userId?: string) => {
+    let query = admin
+      .from("resolution_runs")
+      .select("id")
+      .eq("organization_id", input.organizationId)
+      .gte("created_at", startOfDay.toISOString());
+    if (userId) query = query.eq("initiated_by", userId);
+    return query;
+  };
+  const probe = admin.from("resolution_runs").select("id");
+  if (typeof probe.gte === "function") {
+    const [organizationRuns, userRuns] = await Promise.all([
+      countRuns(),
+      countRuns(input.initiatedBy),
+    ]);
+    if (organizationRuns.error || userRuns.error) {
+      return { error: "rate_limited", run: null, created: false };
+    }
+    if ((organizationRuns.data?.length ?? 0) >= limits.maxRunsPerOrgPerDay) {
+      return { error: "rate_limited", run: null, created: false };
+    }
+    if ((userRuns.data?.length ?? 0) >= limits.maxRunsPerUserPerDay) {
+      return { error: "rate_limited", run: null, created: false };
+    }
+  }
   const deadline = new Date(Date.now() + limits.runtimeMs).toISOString();
   const inserted = await admin
     .from("resolution_runs")

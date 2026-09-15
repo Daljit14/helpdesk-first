@@ -1,10 +1,12 @@
 import type { EvidenceRecord } from "@/lib/evidence/types";
+import type { GuardedField } from "../guardrails/input";
 
 export type AllowedCapability = {
   id: string;
   version: number;
   description: string;
   inputSchemaJson: unknown;
+  verification?: string;
 };
 
 export type PriorAttempt = {
@@ -15,6 +17,7 @@ export type PriorAttempt = {
 
 export type PlannerInput = {
   evidence: EvidenceRecord | null;
+  untrustedContext?: GuardedField[];
   ticket: {
     id: string;
     category: string | null;

@@ -141,6 +141,15 @@ export function getCapability(
   return CAPABILITIES.find((c) => c.id === id && c.version === version) ?? null;
 }
 
+export function capabilityStatus(
+  capability: CapabilityDefinition | null,
+  now = new Date()
+): "active" | "expired" | "unknown" {
+  if (!capability) return "unknown";
+  const review = new Date(`${capability.reviewDate}T23:59:59.999Z`);
+  return review.getTime() < now.getTime() ? "expired" : "active";
+}
+
 export function validateCapabilityInput(
   id: string,
   version: number,

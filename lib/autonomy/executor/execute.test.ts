@@ -43,6 +43,7 @@ vi.mock("@/lib/admin/flags", () => ({
 
 import { executePlan, verifyExecution } from "./execute";
 import { assertTransition } from "../state-machine";
+import { parameterHash } from "../guardrails/hash";
 
 const run = {
   id: "run-1",
@@ -66,16 +67,30 @@ const run = {
   completed_at: null,
 };
 
+type AdminOptions = {
+  approval?: Record<string, unknown> | null;
+  ticketUserId?: string;
+};
+
 function admin(
   baseRun: Omit<typeof run, "status"> & {
     status: "planning" | "awaiting_consent";
-  } = run
+  } = run,
+  options: AdminOptions = {}
 ) {
+  const inserts: Array<{ table: string; value: unknown }> = [];
+  const updates: Array<{ table: string; value: unknown }> = [];
   const query = (table: string) => {
+    let updated = false;
     const state = {
       data:
         table === "tickets"
-          ? { platform: "Windows", category: null }
+          ? {
+              platform: "Windows",
+              category: null,
+              organization_id: baseRun.organization_id,
+              user_id: options.ticketUserId,
+            }
           : table === "resolution_steps"
             ? { id: "step-1", detail: {} }
             : table === "resolution_runs"
@@ -84,11 +99,16 @@ function admin(
                   status: "executing",
                   attempts: 1,
                 }
-              : table === "capability_executions"
-                ? null
-                : table === "organization_autonomy_policies"
+              : table === "notification_outbox"
+                ? {
+                    id: "00000000-0000-4000-8000-000000000002",
+                    organization_id: baseRun.organization_id,
+                  }
+                : table === "capability_executions"
                   ? null
-                  : null,
+                  : table === "organization_autonomy_policies"
+                    ? null
+                    : null,
       error: null,
     };
     const chain: Record<string, (...args: unknown[]) => unknown> = {};
@@ -101,10 +121,31 @@ function admin(
       "limit",
       "insert",
       "update",
+      "is",
     ]) {
-      chain[name] = () => chain;
+      chain[name] = (value: unknown) => {
+        if (name === "insert") inserts.push({ table, value });
+        if (name === "update") {
+          updated = true;
+          updates.push({ table, value });
+        }
+        return chain;
+      };
     }
-    chain.maybeSingle = async () => state;
+    chain.maybeSingle = async () => {
+      if (table === "approval_requests" && options.approval) {
+        return {
+          data: updated
+            ? {
+                ...options.approval,
+                consumed_at: new Date().toISOString(),
+              }
+            : options.approval,
+          error: null,
+        };
+      }
+      return state;
+    };
     chain.single = async () => ({
       data:
         table === "capability_executions"
@@ -115,31 +156,46 @@ function admin(
       error: null,
     });
     chain.then = ((resolve: (value: unknown) => unknown) =>
-      Promise.resolve({ data: [], error: null }).then(resolve)) as (
-      ...args: unknown[]
-    ) => unknown;
+      Promise.resolve({
+        data:
+          table === "approval_requests" && options.approval
+            ? [options.approval]
+            : [],
+        error: null,
+      }).then(resolve)) as (...args: unknown[]) => unknown;
     return chain;
   };
   return {
     from: vi.fn((table: string) => query(table)),
+    inserts,
+    updates,
   };
 }
 
 const plan = {
-  diagnosis: "A matching approved guide may help.",
-  capabilityId: "search_approved_knowledge",
-  capabilityVersion: 1,
-  parameters: {
-    ticketId: "00000000-0000-4000-8000-000000000001",
-    query: "display issue",
+  ticketId: "00000000-0000-4000-8000-000000000001",
+  diagnosis: {
+    summary: "A matching approved guide may help.",
+    confidence: 0.9,
+    evidenceIds: ["ticket"],
   },
-  expectedEvidence: ["Matching guide is listed."],
+  decision: "propose_action",
+  capability: {
+    id: "search_approved_knowledge",
+    version: 1,
+    parameters: {
+      ticketId: "00000000-0000-4000-8000-000000000001",
+      query: "display issue",
+    },
+  },
+  verificationMethod: "none",
 };
 
 describe("executePlan", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubEnv("HELP_DESK_AUTONOMY_ENABLED", "true");
+    vi.stubEnv("HELP_DESK_AUTONOMOUS_EXECUTION_ENABLED", "true");
     vi.stubEnv("HELP_DESK_CAPABILITY_REGISTRY_ENABLED", "true");
     vi.stubEnv("HELP_DESK_CAP_SEARCH_APPROVED_KNOWLEDGE_ENABLED", "true");
     mocks.isCapabilityEnabled.mockResolvedValue(true);
@@ -199,10 +255,238 @@ describe("executePlan", () => {
     );
   });
 
+  test("creates a fully bound approval for a fresh consent decision", async () => {
+    mocks.decidePolicy.mockReturnValue({
+      decision: "require_user_consent",
+      reasons: ["capability_requires_user_consent"],
+      policyVersion: "test",
+      auditLabel: "Approval required",
+      userLabel: "Approval required",
+      consentSatisfied: false,
+    });
+    const consentPlan = {
+      ...plan,
+      capability: {
+        id: "resend_ticket_notification",
+        version: 1,
+        parameters: {
+          ticketId: run.ticket_id,
+          notificationId: "00000000-0000-4000-8000-000000000002",
+        },
+      },
+    };
+    const client = admin();
+    const result = await executePlan(client as never, run, consentPlan);
+    const approval = client.inserts.find(
+      (entry) => entry.table === "approval_requests"
+    );
+    expect(result?.status).toBe("awaiting_consent");
+    expect(approval?.value).toEqual(
+      expect.objectContaining({
+        organization_id: run.organization_id,
+        run_id: run.id,
+        ticket_id: run.ticket_id,
+        capability_id: "resend_ticket_notification",
+        capability_version: 1,
+        parameter_hash: parameterHash({
+          capabilityId: "resend_ticket_notification",
+          version: 1,
+          parameters: consentPlan.capability.parameters,
+        }),
+        step_id: "step-1",
+        risk_level: "caution",
+        requested_by: "orchestrator",
+        type: "user_consent",
+        status: "requested",
+      })
+    );
+    expect(approval?.value).toEqual(
+      expect.objectContaining({
+        nonce: expect.any(String),
+        expires_at: expect.any(String),
+      })
+    );
+    expect(
+      new Date(
+        (approval?.value as Record<string, unknown>).expires_at as string
+      ).getTime()
+    ).toBeGreaterThan(Date.now());
+  });
+
+  test("consumes bound granted consent and executes once", async () => {
+    const consentPlan = {
+      ...plan,
+      capability: {
+        id: "resend_ticket_notification",
+        version: 1,
+        parameters: {
+          ticketId: run.ticket_id,
+          notificationId: "00000000-0000-4000-8000-000000000002",
+        },
+      },
+    };
+    mocks.decidePolicy.mockReturnValue({
+      decision: "require_user_consent",
+      reasons: ["capability_requires_user_consent"],
+      policyVersion: "test",
+      auditLabel: "Approval required",
+      userLabel: "Approval required",
+      consentSatisfied: false,
+    });
+    const approval = {
+      id: "approval-1",
+      organization_id: run.organization_id,
+      run_id: run.id,
+      ticket_id: run.ticket_id,
+      type: "user_consent",
+      status: "granted",
+      expires_at: new Date(Date.now() + 60_000).toISOString(),
+      capability_id: "resend_ticket_notification",
+      capability_version: 1,
+      parameter_hash: parameterHash({
+        capabilityId: "resend_ticket_notification",
+        version: 1,
+        parameters: consentPlan.capability.parameters,
+      }),
+      risk_level: "caution",
+      consumed_at: null,
+      decided_by_user_id: "user-1",
+    };
+    const client = admin(run, { approval, ticketUserId: "user-1" });
+    const handler = { run: vi.fn(async () => ({ ok: true, output: {} })) };
+    mocks.getHandler.mockReturnValue(handler);
+    const result = await executePlan(client as never, run, consentPlan, {
+      actor: "user-1",
+      consent: { type: "user_consent", userId: "user-1" },
+    });
+    expect(result?.status).toBe("verifying");
+    expect(handler.run).toHaveBeenCalledTimes(1);
+    expect(
+      client.inserts.some(
+        (entry) =>
+          entry.table === "approval_requests" &&
+          (entry.value as Record<string, unknown>).status === "requested"
+      )
+    ).toBe(false);
+    expect(
+      client.updates.some(
+        (entry) =>
+          entry.table === "approval_requests" &&
+          "consumed_at" in (entry.value as Record<string, unknown>)
+      )
+    ).toBe(true);
+  });
+
+  test("escalates changed parameters before invoking the handler", async () => {
+    const consentPlan = {
+      ...plan,
+      capability: {
+        id: "resend_ticket_notification",
+        version: 1,
+        parameters: {
+          ticketId: run.ticket_id,
+          notificationId: "00000000-0000-4000-8000-000000000003",
+        },
+      },
+    };
+    mocks.decidePolicy.mockReturnValue({
+      decision: "require_user_consent",
+      reasons: ["capability_requires_user_consent"],
+      policyVersion: "test",
+      auditLabel: "Approval required",
+      userLabel: "Approval required",
+      consentSatisfied: false,
+    });
+    const approval = {
+      id: "approval-1",
+      organization_id: run.organization_id,
+      run_id: run.id,
+      ticket_id: run.ticket_id,
+      type: "user_consent",
+      status: "granted",
+      expires_at: new Date(Date.now() + 60_000).toISOString(),
+      capability_id: "resend_ticket_notification",
+      capability_version: 1,
+      parameter_hash: parameterHash({
+        capabilityId: "resend_ticket_notification",
+        version: 1,
+        parameters: {
+          ticketId: run.ticket_id,
+          notificationId: "00000000-0000-4000-8000-000000000002",
+        },
+      }),
+      risk_level: "caution",
+      consumed_at: null,
+      decided_by_user_id: "user-1",
+    };
+    const client = admin(run, { approval, ticketUserId: "user-1" });
+    const handler = { run: vi.fn(async () => ({ ok: true, output: {} })) };
+    mocks.getHandler.mockReturnValue(handler);
+    const result = await executePlan(client as never, run, consentPlan, {
+      actor: "user-1",
+      consent: { type: "user_consent", userId: "user-1" },
+    });
+    expect(result?.status).toBe("escalated");
+    expect(handler.run).not.toHaveBeenCalled();
+  });
+
+  test("escalates consumed consent without invoking the handler", async () => {
+    const consentPlan = {
+      ...plan,
+      capability: {
+        id: "resend_ticket_notification",
+        version: 1,
+        parameters: {
+          ticketId: run.ticket_id,
+          notificationId: "00000000-0000-4000-8000-000000000002",
+        },
+      },
+    };
+    mocks.decidePolicy.mockReturnValue({
+      decision: "require_user_consent",
+      reasons: ["capability_requires_user_consent"],
+      policyVersion: "test",
+      auditLabel: "Approval required",
+      userLabel: "Approval required",
+      consentSatisfied: false,
+    });
+    const approval = {
+      id: "approval-1",
+      organization_id: run.organization_id,
+      run_id: run.id,
+      ticket_id: run.ticket_id,
+      type: "user_consent",
+      status: "granted",
+      expires_at: new Date(Date.now() + 60_000).toISOString(),
+      capability_id: "resend_ticket_notification",
+      capability_version: 1,
+      parameter_hash: parameterHash({
+        capabilityId: "resend_ticket_notification",
+        version: 1,
+        parameters: consentPlan.capability.parameters,
+      }),
+      risk_level: "caution",
+      consumed_at: new Date().toISOString(),
+      decided_by_user_id: "user-1",
+    };
+    const client = admin(run, { approval, ticketUserId: "user-1" });
+    const handler = { run: vi.fn(async () => ({ ok: true, output: {} })) };
+    mocks.getHandler.mockReturnValue(handler);
+    const result = await executePlan(client as never, run, consentPlan, {
+      actor: "user-1",
+      consent: { type: "user_consent", userId: "user-1" },
+    });
+    expect(result?.status).toBe("escalated");
+    expect(handler.run).not.toHaveBeenCalled();
+  });
+
   test("rejects shell-string parameters before invoking a handler", async () => {
     const result = await executePlan(admin() as never, run, {
       ...plan,
-      parameters: { ticketId: run.ticket_id, query: "run powershell" },
+      capability: {
+        ...plan.capability,
+        parameters: { ticketId: run.ticket_id, query: "run powershell" },
+      },
     });
     expect(result?.status).toBe("escalated");
     expect(mocks.getHandler).not.toHaveBeenCalled();

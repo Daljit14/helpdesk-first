@@ -21,6 +21,7 @@ export type BuildPolicyInputParams = {
     grantedPolicies: string[];
     requireApprovalFor: string[];
   };
+  capabilityStatus?: PolicyInput["capabilityStatus"];
   studentData?: boolean;
   securityIncident?: boolean;
 };
@@ -53,6 +54,25 @@ function evidenceQualityFor(
   return "sufficient";
 }
 
+function conflictingEvidenceFor(
+  evidence: EvidenceRecord | null | undefined
+): boolean {
+  if (!evidence) return false;
+  const record = evidence as EvidenceRecord & {
+    contradictions?: unknown[];
+  };
+  if (
+    Array.isArray(record.contradictions) &&
+    record.contradictions.length > 0
+  ) {
+    return true;
+  }
+  return evidence.hypotheses.some(
+    (hypothesis) =>
+      hypothesis.supporting.length > 0 && hypothesis.rejecting.length > 0
+  );
+}
+
 export function buildPolicyInput({
   capability,
   capabilityEnabled,
@@ -66,6 +86,7 @@ export function buildPolicyInput({
   priorFailedAttempts,
   parametersValid,
   orgPolicy,
+  capabilityStatus,
   studentData = false,
   securityIncident = false,
 }: BuildPolicyInputParams): PolicyInput {
@@ -105,5 +126,7 @@ export function buildPolicyInput({
     },
     killSwitchActive: killSwitches.anyActive,
     breakerOpen: breaker.open,
+    conflictingEvidence: conflictingEvidenceFor(evidence),
+    capabilityStatus: capabilityStatus ?? "active",
   };
 }

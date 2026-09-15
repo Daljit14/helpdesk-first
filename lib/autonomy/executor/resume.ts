@@ -2,6 +2,7 @@ import type { HandlerAdmin } from "./handlers/types";
 import type { ResolutionRun } from "../orchestrator";
 import { executePlan, type ExecutePlanDeps } from "./execute";
 import { escalateRun } from "../orchestrator";
+import { getCapability } from "../capabilities/registry";
 
 export async function resumeAfterApproval(
   admin: HandlerAdmin,
@@ -25,9 +26,12 @@ export async function resumeAfterApproval(
   }
   const approval = await admin
     .from("approval_requests")
-    .select("status,expires_at")
+    .select(
+      "status,expires_at,capability_id,capability_version,parameter_hash,risk_level,decided_by_user_id"
+    )
     .eq("run_id", run.id)
     .eq("organization_id", run.organization_id)
+    .eq("ticket_id", run.ticket_id)
     .eq("step_id", step.data.id)
     .order("created_at", { ascending: false })
     .limit(1)
@@ -43,6 +47,8 @@ export async function resumeAfterApproval(
       .from("approval_requests")
       .update({ status: "expired" })
       .eq("organization_id", run.organization_id)
+      .eq("run_id", run.id)
+      .eq("ticket_id", run.ticket_id)
       .eq("step_id", step.data.id)
       .eq("status", "requested");
     return escalateRun(admin, run, "approval_expired");
@@ -58,8 +64,21 @@ export async function resumeAfterApproval(
   }
   const plan = step.data.detail?.plan;
   if (!plan) return escalateRun(admin, run, "approval_expired");
+  const capabilityId =
+    typeof plan.capability?.id === "string" ? plan.capability.id : "";
+  const capabilityVersion =
+    typeof plan.capability?.version === "number" ? plan.capability.version : 0;
+  const capability = getCapability(capabilityId, capabilityVersion);
+  if (!capability) return escalateRun(admin, run, "capability_unknown");
   return executePlan(admin, run, plan, {
     ...deps,
     stepId: step.data.id,
+    consent: {
+      type:
+        run.status === "awaiting_consent"
+          ? "user_consent"
+          : "technician_approval",
+      userId: deps.actor ?? run.initiated_by,
+    },
   });
 }

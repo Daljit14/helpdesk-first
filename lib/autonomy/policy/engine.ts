@@ -49,6 +49,7 @@ function finish(
     policyVersion: POLICY_VERSION,
     auditLabel: auditLabelFor(decision),
     userLabel: userLabelFor(decision),
+    consentSatisfied: false,
   };
 }
 
@@ -70,6 +71,15 @@ export function decidePolicy(input: PolicyInput): PolicyDecision {
   // 1. Hard stops → deny.
   if (input.killSwitchActive) reasons.push("kill_switch_active");
   if (input.breakerOpen) reasons.push("circuit_breaker_open");
+  if (input.capabilityStatus === "unknown") reasons.push("capability_unknown");
+  if (input.capabilityStatus === "expired") reasons.push("capability_expired");
+  if (input.capabilityStatus === "disabled")
+    reasons.push("capability_disabled");
+  if (input.capabilityStatus && input.capabilityStatus !== "active") {
+    if (!reasons.includes(`capability_${input.capabilityStatus}`)) {
+      reasons.push(`capability_${input.capabilityStatus}`);
+    }
+  }
   if (!org.capabilityEnabled) reasons.push("capability_not_enabled_for_org");
   if (!input.parametersValid) reasons.push("parameters_invalid");
   if (cap.riskLevel === "denied") reasons.push("capability_risk_denied");
@@ -82,12 +92,11 @@ export function decidePolicy(input: PolicyInput): PolicyDecision {
     if (!org.grantedPolicies.includes(requirement))
       reasons.push(`org_policy_missing:${requirement}`);
   }
-  if (
-    input.platform &&
-    !cap.platforms.includes("any") &&
-    !cap.platforms.includes(input.platform)
-  )
-    reasons.push(`platform_unsupported:${input.platform}`);
+  if (!cap.platforms.includes("any")) {
+    if (!input.platform) reasons.push("platform_unsupported:unknown");
+    else if (!cap.platforms.includes(input.platform))
+      reasons.push(`platform_unsupported:${input.platform}`);
+  }
   if (input.actorRole === "requester" && cap.consent === "technician")
     reasons.push("technician_consent_capability_requested_by_requester");
   if (reasons.length > 0) return finish("deny", reasons);
@@ -103,6 +112,10 @@ export function decidePolicy(input: PolicyInput): PolicyDecision {
     reasons.push("evidence_missing");
   if (reasons.length > 0) return finish("specialist_only", reasons);
 
+  if (input.conflictingEvidence) {
+    return finish("require_user_consent", ["evidence_conflicting"]);
+  }
+
   // 3. Technician approval.
   if (cap.riskLevel === "approval") reasons.push("capability_risk_approval");
   if (cap.consent === "technician")
@@ -117,7 +130,7 @@ export function decidePolicy(input: PolicyInput): PolicyDecision {
   if (sensitivity.piiDetected && cap.sideEffects === "external_write")
     reasons.push("pii_with_external_write");
   if (reasons.length > 0) {
-    if (input.consent.technician) {
+    if (input.consent.technician && !org.requireApprovalFor.includes(cap.id)) {
       return finish("allow_automatic", [
         ...reasons,
         "technician_consent_active",

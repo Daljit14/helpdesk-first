@@ -30,6 +30,8 @@ const TOKEN_PATTERN =
   /\b(?:sk-[A-Za-z0-9_-]{12,}|ghp_[A-Za-z0-9]{20,}|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)\b/g;
 const ATTACHMENT_INJECTION =
   /\b(?:ignore previous|system:|assistant:|you must|run the following)\b/i;
+const UNSAFE_REQUEST =
+  /\b(?:bypass|disable|remove malware|bios|shell|powershell|delete files|turn off antivirus)\b/i;
 const BLOCKED_CATEGORIES = new Set([
   "prompt-injection",
   "malware",
@@ -95,6 +97,9 @@ export function guardModelInput(
     const safety = checkTextSafety(field.text);
     if (!safety.allowed && safety.category) {
       findings.push({ category: safety.category, source: field.source });
+    }
+    if (UNSAFE_REQUEST.test(field.text)) {
+      findings.push({ category: "destructive-action", source: field.source });
     }
     if (
       (field.source === "attachment.filename" ||

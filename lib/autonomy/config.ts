@@ -44,6 +44,10 @@ export function isAutonomyAlertsEnabled(): boolean {
   return process.env.HELP_DESK_AUTONOMY_ALERTS_ENABLED === "true";
 }
 
+export function isShadowModeEnabled(): boolean {
+  return process.env.HELP_DESK_SHADOW_MODE_ENABLED === "true";
+}
+
 export function isCapabilityDisabledByEnv(capabilityId: string): boolean {
   const key = `HELP_DESK_CAP_${capabilityId.toUpperCase()}_ENABLED`;
   return process.env[key] === "false";

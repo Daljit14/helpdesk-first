@@ -40,6 +40,9 @@ jobs:
       - name: Unit tests
         run: npm run test
 
+      - name: Autonomy evaluation
+        run: npm run eval:autonomy
+
       - name: Build
         run: npm run build
 

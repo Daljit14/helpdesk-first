@@ -547,18 +547,18 @@ median time to verified, cost per verified run, and capability execution /
 verification counts. The feature is disabled by default with
 `HELP_DESK_RESOLUTION_CENTER_ENABLED=false`.
 
-## 13. Evaluation, shadow mode and release gates (PR #71)
+## 13. Versioned benchmark, release gates and shadow review (PR #72)
 
-Versioned benchmark under `tests/autonomy-eval/` covering every supported
+Versioned benchmark under `lib/autonomy/eval/benchmark/` covering every supported
 category plus adversarial sets: prompt injection in descriptions/attachments,
 poisoned attachments, unsafe requests (§4), unsupported platforms, ambiguous
 reports, tenant-isolation attacks (foreign ids in parameters), replayed
 execution requests, provider timeouts and malformed outputs, repeated and
 conflicting evidence, rollback and kill-switch behaviour.
 
-Shadow mode: `HELP_DESK_AUTONOMY_MODE=shadow` runs investigate → plan →
-policy and records decisions but **never executes**; decisions are compared to
-reviewed expected outcomes.
+Shadow mode is controlled by `HELP_DESK_SHADOW_MODE_ENABLED=false` and runs
+investigate → plan → policy while persisting redacted, versioned decisions.
+It is disabled by default and **never executes** capabilities.
 
 Release gates (all must hold on the benchmark and in shadow production data):
 
@@ -573,23 +573,24 @@ Release gates (all must hold on the benchmark and in shadow production data):
 
 ## 14. Feature flags (all default **off**)
 
-| Flag                                       | Scope                                    |
-| ------------------------------------------ | ---------------------------------------- |
-| `HELP_DESK_AUTONOMY_ENABLED`               | Orchestrator + cron (global)             |
-| `HELP_DESK_AUTONOMY_MODE`                  | `shadow` (default) / `execute`           |
-| `HELP_DESK_AUTONOMY_ORG_ALLOWLIST`         | Comma-separated org ids for pilot        |
-| `HELP_DESK_AUTONOMY_DAILY_EXECUTION_LIMIT` | Global daily cap (pilot default 20)      |
-| `HELP_DESK_CAP_<CAPABILITY_ID>_ENABLED`    | One per capability                       |
-| `HELP_DESK_EVIDENCE_ENGINE_ENABLED`        | PR #64 evidence model                    |
-| `HELP_DESK_POLICY_ENGINE_ENABLED`          | PR #66 (falls back to 5B.2 step policy)  |
-| `HELP_DESK_VERIFICATION_ENGINE_ENABLED`    | PR #68                                   |
-| `HELP_DESK_ROLLBACK_ENABLED`               | PR #69 compensating rollback             |
-| `HELP_DESK_AUTONOMY_ALERTS_ENABLED`        | PR #69 security alerts                   |
-| `HELP_DESK_AUTONOMY_BREAKER_COOLDOWN_MS`   | PR #69 persisted breaker cooldown        |
-| `HELP_DESK_CAP_<CAPABILITY_ID>_ENABLED`    | PR #69 per-capability environment switch |
-| `HELP_DESK_RESOLUTION_CENTER_ENABLED`      | PR #70 admin UI                          |
-| `HELP_DESK_AUTONOMOUS_EXECUTION_ENABLED`   | PR #71 autonomous execution              |
-| `HELP_DESK_GUARDRAILS_ENFORCED`            | PR #71 fail-closed guardrails            |
+| Flag                                       | Scope                                        |
+| ------------------------------------------ | -------------------------------------------- |
+| `HELP_DESK_AUTONOMY_ENABLED`               | Orchestrator + cron (global)                 |
+| `HELP_DESK_AUTONOMY_MODE`                  | `shadow` (default) / `execute`               |
+| `HELP_DESK_AUTONOMY_ORG_ALLOWLIST`         | Comma-separated org ids for pilot            |
+| `HELP_DESK_AUTONOMY_DAILY_EXECUTION_LIMIT` | Global daily cap (pilot default 20)          |
+| `HELP_DESK_CAP_<CAPABILITY_ID>_ENABLED`    | One per capability                           |
+| `HELP_DESK_EVIDENCE_ENGINE_ENABLED`        | PR #64 evidence model                        |
+| `HELP_DESK_POLICY_ENGINE_ENABLED`          | PR #66 (falls back to 5B.2 step policy)      |
+| `HELP_DESK_VERIFICATION_ENGINE_ENABLED`    | PR #68                                       |
+| `HELP_DESK_ROLLBACK_ENABLED`               | PR #69 compensating rollback                 |
+| `HELP_DESK_AUTONOMY_ALERTS_ENABLED`        | PR #69 security alerts                       |
+| `HELP_DESK_SHADOW_MODE_ENABLED`            | PR #72 versioned benchmark and shadow review |
+| `HELP_DESK_AUTONOMY_BREAKER_COOLDOWN_MS`   | PR #69 persisted breaker cooldown            |
+| `HELP_DESK_CAP_<CAPABILITY_ID>_ENABLED`    | PR #69 per-capability environment switch     |
+| `HELP_DESK_RESOLUTION_CENTER_ENABLED`      | PR #70 admin UI                              |
+| `HELP_DESK_AUTONOMOUS_EXECUTION_ENABLED`   | PR #71 autonomous execution                  |
+| `HELP_DESK_GUARDRAILS_ENFORCED`            | PR #71 fail-closed guardrails                |
 
 Existing switches (`HELP_DESK_AI_ENABLED`, `HELP_DESK_AI_PROVIDER`,
 investigation/step-policy/escalation flags) are preserved unchanged.

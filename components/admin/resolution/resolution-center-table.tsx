@@ -91,6 +91,12 @@ export function ResolutionCenterTable({
         >
           Shadow review
         </Link>
+        <Link
+          href="/admin/resolution/pilot"
+          className="v2-touch rounded-full border border-border px-3 py-2 text-sm hover:bg-muted"
+        >
+          Pilot
+        </Link>
       </div>
       {runs.length === 0 ? (
         <div className="glass p-8 text-center">

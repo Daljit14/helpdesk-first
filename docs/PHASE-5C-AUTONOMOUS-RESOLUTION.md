@@ -628,7 +628,10 @@ events). No general remote control, ever.
 | #69 | Rollback, switches, audit, alerts      | Immutability triggers; switch flips honoured mid-run                        |
 | #70 | AI Resolution Center                   | Admin UI with metrics + Pause/Take over/Escalate; axe + mobile              |
 | #71 | Benchmark + shadow mode                | All §13 gates green                                                         |
-| #72 | Pilot                                  | Weekly review cadence documented; metrics dashboard live                    |
+| #71 | Guardrail enforcement                  | Fail-closed guardrails and consent binding                                  |
+| #72 | Versioned benchmark + shadow mode      | All §13 gates green; review workflow live                                   |
+| #73 | Shadow review fixes                    | Review metrics, surfaced errors, and read-only staff behavior               |
+| #74 | Controlled pilot                       | Allow-lists, daily limits, mandatory review, auto-pause, consent prompt     |
 
 ## 18. Immediate production cleanup (done before this PR)
 

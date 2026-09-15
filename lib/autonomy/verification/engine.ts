@@ -7,6 +7,8 @@ import { redactAuditDetail } from "../audit/redact";
 import { auditVersions, initiatedBy } from "../audit/versions";
 import { rollbackExecution } from "../rollback";
 import { getVerifier } from "./verifiers";
+import { createPilotReview } from "../pilot-review";
+import { isAutonomousExecutionEnabled } from "../config";
 import type {
   VerificationOutcome,
   VerifierAdmin,
@@ -203,6 +205,26 @@ async function resolveRun(
     to_status: "resolved",
     detail: { resolvedAt },
   });
+  if (isAutonomousExecutionEnabled()) {
+    const execution = await admin
+      .from("capability_executions")
+      .select("capability_id,capability_version")
+      .eq("organization_id", run.organization_id)
+      .eq("run_id", run.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const capability =
+      execution.data &&
+      typeof execution.data.capability_id === "string" &&
+      typeof execution.data.capability_version === "number"
+        ? getCapability(
+            execution.data.capability_id,
+            execution.data.capability_version
+          )
+        : null;
+    await createPilotReview(admin, resolved, capability);
+  }
   return resolved;
 }
 

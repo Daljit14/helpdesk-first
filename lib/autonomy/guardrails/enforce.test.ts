@@ -16,6 +16,10 @@ describe("guardrail configuration", () => {
     expect(() => assertGuardrailsEnforced()).not.toThrow();
     vi.stubEnv("HELP_DESK_AUTONOMOUS_EXECUTION_ENABLED", "true");
     vi.stubEnv("HELP_DESK_GUARDRAILS_ENFORCED", "true");
+    vi.stubEnv(
+      "HELP_DESK_AUTONOMY_ORG_ALLOWLIST",
+      "00000000-0000-4000-8000-000000000001"
+    );
     expect(() => assertGuardrailsEnforced()).not.toThrow();
   });
 });

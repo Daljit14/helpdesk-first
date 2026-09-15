@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   readBreakerState: vi.fn(),
   recordBreakerOutcome: vi.fn(),
   readKillSwitches: vi.fn(),
+  setKillSwitch: vi.fn(),
   isCapabilityEnabled: vi.fn(),
   getHandler: vi.fn(),
   verifyConsent: vi.fn(),
@@ -19,6 +20,7 @@ vi.mock("../breaker", () => ({
 }));
 vi.mock("../kill-switches", () => ({
   readKillSwitches: mocks.readKillSwitches,
+  setKillSwitch: mocks.setKillSwitch,
 }));
 vi.mock("../capabilities/enablement", () => ({
   isCapabilityEnabled: mocks.isCapabilityEnabled,
@@ -91,7 +93,7 @@ function makeAdmin(
       selection = String(value);
       return chain;
     };
-    for (const name of ["eq", "in", "order", "limit", "is", "update"]) {
+    for (const name of ["eq", "in", "order", "limit", "is", "gte", "update"]) {
       chain[name] = () => chain;
     }
     chain.insert = () => chain;
@@ -184,6 +186,7 @@ describe("executeThroughGateway", () => {
     vi.clearAllMocks();
     vi.stubEnv("HELP_DESK_AUTONOMOUS_EXECUTION_ENABLED", "true");
     vi.stubEnv("HELP_DESK_GUARDRAILS_ENFORCED", "true");
+    vi.stubEnv("HELP_DESK_AUTONOMY_ORG_ALLOWLIST", "org-1");
     mocks.readKillSwitches.mockResolvedValue({
       global: false,
       organization: false,

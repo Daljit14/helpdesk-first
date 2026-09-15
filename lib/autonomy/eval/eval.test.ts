@@ -124,6 +124,10 @@ describe("versioned autonomy benchmark", () => {
     handlerMocks.getHandler.mockReturnValue(handler);
     vi.stubEnv("HELP_DESK_AUTONOMY_ENABLED", "true");
     vi.stubEnv("HELP_DESK_AUTONOMOUS_EXECUTION_ENABLED", "true");
+    vi.stubEnv(
+      "HELP_DESK_AUTONOMY_ORG_ALLOWLIST",
+      "00000000-0000-4000-8000-000000000001"
+    );
     vi.stubEnv("HELP_DESK_GUARDRAILS_ENFORCED", "true");
     try {
       const replay = benchmarkCases.find((item) => item.suite === "replay");

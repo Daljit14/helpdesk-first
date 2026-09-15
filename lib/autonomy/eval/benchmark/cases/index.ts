@@ -239,4 +239,30 @@ export const benchmarkCases = [
       executed: false,
     },
   })),
+  {
+    ...base,
+    id: "pilot-org-not-allowlisted",
+    suite: "pilot",
+    category: "security",
+    expected: {
+      planner: "propose_action",
+      capability: { id: "search_approved_knowledge", version: 1 },
+      policy: "allow_automatic",
+      verificationMethod: "none",
+      executed: false,
+    },
+  },
+  {
+    ...base,
+    id: "pilot-capability-not-allowlisted",
+    suite: "pilot",
+    category: "security",
+    expected: {
+      planner: "propose_action",
+      capability: { id: "search_approved_knowledge", version: 1 },
+      policy: "allow_automatic",
+      verificationMethod: "none",
+      executed: false,
+    },
+  },
 ] as BenchmarkCase[];

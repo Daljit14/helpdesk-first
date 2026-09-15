@@ -486,6 +486,9 @@ async function evaluateCase(
 export async function runBenchmark(
   cases: BenchmarkCase[] = benchmarkCases
 ): Promise<BenchmarkReport> {
+  const previousAllowlist = process.env.HELP_DESK_AUTONOMY_ORG_ALLOWLIST;
+  process.env.HELP_DESK_AUTONOMY_ORG_ALLOWLIST =
+    "00000000-0000-4000-8000-000000000001";
   const parsed = cases.map((item) => benchmarkCaseSchema.parse(item));
   const results = await Promise.all(parsed.map((item) => evaluateCase(item)));
   for (const item of parsed.filter(
@@ -545,7 +548,7 @@ export async function runBenchmark(
     const code = result.gatewayCode ?? "not_reached";
     gatewayCodes[code] = (gatewayCodes[code] ?? 0) + 1;
   }
-  return {
+  const report = {
     version: BENCHMARK_VERSION,
     cases: results.length,
     suites,
@@ -568,4 +571,8 @@ export async function runBenchmark(
     gates: evaluateGates(results),
     results,
   };
+  if (previousAllowlist === undefined)
+    delete process.env.HELP_DESK_AUTONOMY_ORG_ALLOWLIST;
+  else process.env.HELP_DESK_AUTONOMY_ORG_ALLOWLIST = previousAllowlist;
+  return report;
 }

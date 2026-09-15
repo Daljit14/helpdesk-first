@@ -12,7 +12,9 @@ import { getHandler } from "../executor/handlers";
 import type { HandlerAdmin } from "../executor/handlers/types";
 import { transitionRun, type ResolutionRun } from "../orchestrator";
 import { redactAuditDetail } from "../audit/redact";
-import { assertGuardrailsEnforced } from "./enforce";
+import { assertGuardrailsEnforced, PilotConfigurationError } from "./enforce";
+import { checkPilotEligibility } from "../pilot";
+import { tripPilotPause } from "../pilot-review";
 import type { PlannerPlanV2 } from "./planner-output";
 import { parameterHash } from "./hash";
 import { verifyConsent } from "./consent";
@@ -85,8 +87,14 @@ export async function executeThroughGateway(
 ): Promise<GatewayResult> {
   try {
     assertGuardrailsEnforced();
-  } catch {
-    return deny(admin, req, "guardrails_not_enforced");
+  } catch (error) {
+    return deny(
+      admin,
+      req,
+      error instanceof PilotConfigurationError
+        ? "pilot_not_configured"
+        : "guardrails_not_enforced"
+    );
   }
   if (!isAutonomousExecutionEnabled()) {
     return deny(admin, req, "execution_disabled");
@@ -146,7 +154,31 @@ export async function executeThroughGateway(
     new Date()
   );
   if (breaker.open) {
+    await tripPilotPause(admin, req.run.organization_id, "breaker", req.run);
     return deny(admin, req, "breaker_open", "guardrail.breaker_open");
+  }
+  const pilot = await checkPilotEligibility(admin, {
+    organizationId: req.run.organization_id,
+    capability: req.capability,
+  });
+  if (!pilot.ok) {
+    const rateLimited =
+      pilot.code === "pilot_daily_limit" ||
+      pilot.code === "pilot_org_daily_limit";
+    if (rateLimited && pilot.code === "pilot_daily_limit") {
+      await tripPilotPause(
+        admin,
+        req.run.organization_id,
+        "daily_limit",
+        req.run
+      );
+    }
+    return deny(
+      admin,
+      req,
+      pilot.code,
+      rateLimited ? "guardrail.rate_limited" : "guardrail.policy_denied"
+    );
   }
   const ticket = await admin
     .from("tickets")

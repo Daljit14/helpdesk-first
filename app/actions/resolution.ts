@@ -23,14 +23,15 @@ export async function respondToAiConsent(
 ): Promise<{ success: true } | ResolutionActionResult> {
   const user = await getCurrentUser();
   if (!user) return { error: "Not authorized." };
-  const request = await createAdminClient()
+  const admin = createAdminClient();
+  const request = await admin
     .from("approval_requests")
     .select("id,organization_id,run_id,ticket_id,type,status,expires_at")
     .eq("id", requestId)
     .maybeSingle();
   if (request.error || !request.data || request.data.type !== "user_consent")
     return { error: "Consent request not found." };
-  const ticket = await createAdminClient()
+  const ticket = await admin
     .from("tickets")
     .select("user_id,organization_id")
     .eq("id", request.data.ticket_id)
@@ -50,7 +51,6 @@ export async function respondToAiConsent(
   ) {
     return { error: "This consent request has expired." };
   }
-  const admin = createAdminClient();
   const updated = await admin
     .from("approval_requests")
     .update({
@@ -66,17 +66,14 @@ export async function respondToAiConsent(
     .maybeSingle();
   if (updated.error || !updated.data)
     return { error: "Consent request is no longer available." };
-  if (decision === "grant") {
-    const run = await admin
-      .from("resolution_runs")
-      .select("*")
-      .eq("id", request.data.run_id)
-      .eq("organization_id", request.data.organization_id)
-      .eq("ticket_id", request.data.ticket_id)
-      .maybeSingle();
-    if (run.data)
-      await resumeAfterApproval(admin, run.data, { actor: user.id });
-  }
+  const run = await admin
+    .from("resolution_runs")
+    .select("*")
+    .eq("id", request.data.run_id)
+    .eq("organization_id", request.data.organization_id)
+    .eq("ticket_id", request.data.ticket_id)
+    .maybeSingle();
+  if (run.data) await resumeAfterApproval(admin, run.data, { actor: user.id });
   revalidatePath(`/tickets/${request.data.ticket_id}`);
   return { success: true };
 }

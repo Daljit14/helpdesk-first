@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { assertGuardrailsEnforced } from "./enforce";
+import { assertGuardrailsEnforced, PilotConfigurationError } from "./enforce";
 
 describe("guardrail configuration", () => {
   afterEach(() => vi.unstubAllEnvs());
@@ -21,5 +21,11 @@ describe("guardrail configuration", () => {
       "00000000-0000-4000-8000-000000000001"
     );
     expect(() => assertGuardrailsEnforced()).not.toThrow();
+  });
+
+  test("fails closed when execution is enabled without a pilot organization", () => {
+    vi.stubEnv("HELP_DESK_AUTONOMOUS_EXECUTION_ENABLED", "true");
+    vi.stubEnv("HELP_DESK_GUARDRAILS_ENFORCED", "true");
+    expect(() => assertGuardrailsEnforced()).toThrow(PilotConfigurationError);
   });
 });

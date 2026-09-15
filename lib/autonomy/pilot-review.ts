@@ -63,9 +63,8 @@ export async function reviewPilotResolution(
   if (updated.error) return { ok: false, error: updated.error.message };
   const run = {
     id: current.data.run_id,
-    organization_id: input.organizationId,
     ticket_id: current.data.ticket_id,
-  } as ResolutionRun;
+  };
   if (input.status === "unsafe")
     await tripPilotPause(admin, input.organizationId, "unsafe_review", run);
   await writeRunEvent(admin, {
@@ -107,9 +106,8 @@ export async function handleAutonomousReopen(
       if (age <= 24 * 60 * 60 * 1000) {
         await tripPilotPause(admin, input.organizationId, "reopen_within_24h", {
           id: row.run_id,
-          organization_id: input.organizationId,
           ticket_id: input.ticketId,
-        } as ResolutionRun);
+        });
       }
     }
   } catch (error) {
@@ -121,7 +119,7 @@ export async function tripPilotPause(
   admin: PilotAdmin,
   organizationId: string,
   trigger: "unsafe_review" | "reopen_within_24h" | "daily_limit" | "breaker",
-  run?: ResolutionRun
+  run?: Pick<ResolutionRun, "id" | "ticket_id">
 ): Promise<void> {
   await setKillSwitch(admin, {
     scope: "organization",

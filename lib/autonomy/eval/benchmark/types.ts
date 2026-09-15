@@ -79,6 +79,7 @@ export const benchmarkCaseSchema = z
         "timeout",
         "malformed_json",
         "extra_fields",
+        "executable_content",
         "foreign_ids",
         "unavailable",
       ])

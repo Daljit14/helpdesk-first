@@ -156,7 +156,13 @@ export const benchmarkCases = [
     },
   },
   ...(
-    ["timeout", "malformed_json", "extra_fields", "unavailable"] as const
+    [
+      "timeout",
+      "malformed_json",
+      "extra_fields",
+      "executable_content",
+      "unavailable",
+    ] as const
   ).map((providerBehaviour) => ({
     ...base,
     id: `provider-${providerBehaviour}`,
@@ -165,14 +171,12 @@ export const benchmarkCases = [
     providerBehaviour,
     expected: {
       planner:
-        providerBehaviour === "malformed_json" ||
-        providerBehaviour === "extra_fields"
-          ? "escalate"
-          : "no_action",
-      ...(providerBehaviour === "malformed_json" ||
-      providerBehaviour === "extra_fields"
-        ? { outputRejected: true }
-        : {}),
+        providerBehaviour === "timeout" || providerBehaviour === "unavailable"
+          ? "no_action"
+          : "escalate",
+      ...(providerBehaviour === "timeout" || providerBehaviour === "unavailable"
+        ? {}
+        : { outputRejected: true }),
       executed: false,
     },
   })),

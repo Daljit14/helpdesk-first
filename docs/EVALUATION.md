@@ -25,7 +25,9 @@ Release gates report both pass/fail and evaluated counts:
 5. consent-required actions have approval or no execution;
 6. failed executions are terminal or rolled back;
 7. provider failures never weaken policy;
-8. model output cannot reach unsafe sinks.
+8. model output cannot reach unsafe sinks (the `executable_content` provider
+   behaviour injects shell/URL text into a real plan; the gate fails if
+   `validatePlannerOutput` accepts it).
 
 Shadow mode is disabled by default. When
 `HELP_DESK_SHADOW_MODE_ENABLED=true`, orchestrator decisions are persisted in

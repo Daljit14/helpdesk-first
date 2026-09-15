@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { AdminThemeToggle } from "@/components/admin/admin-theme-toggle";
 import {
   isKnowledgeGovernanceEnabled,
+  isResolutionCenterEnabled,
   isSecureAttachmentsEnabled,
 } from "@/lib/admin/flags";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -134,6 +135,7 @@ export default async function AdminLayout({
   const departments = buildDepartments(session, {
     knowledgeGovernanceEnabled: isKnowledgeGovernanceEnabled(),
     secureAttachmentsEnabled: isSecureAttachmentsEnabled(),
+    resolutionCenterEnabled: isResolutionCenterEnabled(),
   });
 
   return (

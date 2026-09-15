@@ -512,6 +512,26 @@ existing notification outbox to org admins.
 Ticket resolution by humans is never affected by autonomy failures (same
 "never reverse the ticket" rule as 5B.4).
 
+### 12.1 AI Resolution Center (PR #70)
+
+The flag-gated admin Resolution Center provides organization-scoped list and
+detail pages for AI-owned runs. It summarizes assignment, resolution,
+verification, reopen, cost, and capability metrics and shows diagnosis,
+evidence, policy decisions, approvals, executions, verification, rollback,
+and event history.
+
+Staff controls are deliberately limited to pausing AI, resuming a paused run
+(organization admins), taking over the ticket, and escalating to human
+support. No control can resolve a run directly; resolution still requires the
+independent verification and requester-confirmation guards above.
+
+The metrics include AI-assigned runs, automatically resolved runs,
+user-assisted runs, escalations, verification failures, rollbacks, reopen
+rate, a documented false-resolution proxy (reopened resolved tickets),
+median time to verified, cost per verified run, and capability execution /
+verification counts. The feature is disabled by default with
+`HELP_DESK_RESOLUTION_CENTER_ENABLED=false`.
+
 ## 13. Evaluation, shadow mode and release gates (PR #71)
 
 Versioned benchmark under `tests/autonomy-eval/` covering every supported

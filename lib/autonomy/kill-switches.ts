@@ -1,5 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isAutonomyEnabled } from "./config";
+import { isAutonomyEnabled, isCapabilityDisabledByEnv } from "./config";
 
 type KillSwitchAdmin = ReturnType<typeof createAdminClient>;
 
@@ -31,6 +31,10 @@ export async function readKillSwitches(
   if (capabilityId) {
     clauses.push(`and(scope.eq.capability,scope_id.eq.${capabilityId})`);
   }
+  const capabilityByEnv = capabilityId
+    ? isCapabilityDisabledByEnv(capabilityId)
+    : false;
+  if (capabilityByEnv) reasons.push("capability_env_disabled");
 
   try {
     const { data, error } = await admin
@@ -42,7 +46,8 @@ export async function readKillSwitches(
     const rows = (data ?? []) as KillSwitchRow[];
     const global = globalByEnv || rows.some((row) => row.scope === "global");
     const organization = rows.some((row) => row.scope === "organization");
-    const capability = rows.some((row) => row.scope === "capability");
+    const capability =
+      capabilityByEnv || rows.some((row) => row.scope === "capability");
     for (const row of rows) {
       if (row.reason) reasons.push(row.reason);
     }
@@ -57,9 +62,68 @@ export async function readKillSwitches(
     return {
       global: true,
       organization: false,
-      capability: false,
+      capability: capabilityByEnv,
       anyActive: true,
-      reasons: ["switch_read_failed"],
+      reasons: [
+        "switch_read_failed",
+        ...(capabilityByEnv ? ["capability_env_disabled"] : []),
+      ],
+    };
+  }
+}
+
+export type SetKillSwitchInput = {
+  scope: "global" | "organization" | "capability";
+  scopeId: string | null;
+  enabled: boolean;
+  reason?: string | null;
+  setBy: string | null;
+  organizationId: string | null;
+};
+
+export async function setKillSwitch(
+  admin: KillSwitchAdmin,
+  input: SetKillSwitchInput
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    let query = admin
+      .from("ai_kill_switches")
+      .select("id")
+      .eq("scope", input.scope);
+    if (input.scopeId === null) query = query.is("scope_id", null);
+    else query = query.eq("scope_id", input.scopeId);
+    if (input.scope === "organization" && input.organizationId) {
+      query = query.eq("organization_id", input.organizationId);
+    }
+    const existing = await query.maybeSingle();
+    if (existing.error) return { ok: false, error: existing.error.message };
+    const values = {
+      organization_id: input.organizationId,
+      scope: input.scope,
+      scope_id: input.scopeId,
+      enabled: input.enabled,
+      reason: input.reason ?? null,
+      set_by: input.setBy,
+      set_at: new Date().toISOString(),
+    };
+    if (existing.data?.id) {
+      const updated = await admin
+        .from("ai_kill_switches")
+        .update(values)
+        .eq("id", existing.data.id);
+      return updated.error
+        ? { ok: false, error: updated.error.message }
+        : { ok: true };
+    }
+    const inserted = await admin.from("ai_kill_switches").insert(values);
+    return inserted.error
+      ? { ok: false, error: inserted.error.message }
+      : { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      error:
+        error instanceof Error ? error.message : "kill switch write failed",
     };
   }
 }

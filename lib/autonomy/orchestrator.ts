@@ -21,6 +21,9 @@ import { recordPolicyDecision } from "./policy/record";
 import { parsePlannerOutput } from "./planner/schema";
 import { selectPlanner } from "./planner/select";
 import { verifyRun } from "./verification/engine";
+import { redactAuditDetail } from "./audit/redact";
+import { auditVersions, initiatedBy } from "./audit/versions";
+import { alertSecurityEvent } from "./alerts";
 
 export type OrchestratorAdmin = ReturnType<typeof createAdminClient>;
 
@@ -85,7 +88,9 @@ export async function writeRunEvent(
     actor: input.actor,
     from_status: input.from_status ?? null,
     to_status: input.to_status ?? null,
-    detail: input.detail ?? {},
+    detail: redactAuditDetail(input.detail ?? {}),
+    initiated_by: initiatedBy(input.actor),
+    versions: auditVersions(),
   });
 }
 
@@ -400,6 +405,13 @@ export async function transitionRun(
       actor: input.actor,
       from_status: run.status,
       to_status: "paused",
+      detail: { reasons: switches.reasons },
+    });
+    await alertSecurityEvent(admin, {
+      organizationId: run.organization_id,
+      ticketId: run.ticket_id,
+      runId: run.id,
+      kind: "security.kill_switch",
       detail: { reasons: switches.reasons },
     });
     return paused;

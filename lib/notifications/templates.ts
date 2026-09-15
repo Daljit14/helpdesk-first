@@ -82,6 +82,10 @@ export function buildNotification(
       subject = "Ticket resolution SLA overdue";
       message = `${title} is overdue for resolution.`;
       break;
+    case "security.autonomy_alert":
+      subject = "AI autonomy security alert";
+      message = `${title} triggered the autonomy security event ${context.status ?? "unknown"}.`;
+      break;
   }
 
   if (context.status) message += ` Current status: ${context.status}.`;

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { readKillSwitches } from "./kill-switches";
+import { readKillSwitches, setKillSwitch } from "./kill-switches";
 
 const { from } = vi.hoisted(() => ({
   from: vi.fn(),
@@ -63,5 +63,47 @@ describe("autonomy kill switches", () => {
       anyActive: true,
       reasons: ["switch_read_failed"],
     });
+  });
+
+  test("capability environment override is reported as active", async () => {
+    vi.stubEnv("HELP_DESK_AUTONOMY_ENABLED", "true");
+    vi.stubEnv("HELP_DESK_CAP_RESET_ENABLED", "false");
+    const admin = adminWith({ data: [], error: null });
+    await expect(
+      readKillSwitches(admin as never, "org-1", "reset")
+    ).resolves.toMatchObject({
+      capability: true,
+      reasons: ["capability_env_disabled"],
+    });
+  });
+
+  test("setKillSwitch selects then updates expression-indexed scope rows", async () => {
+    const query = {
+      select: vi.fn(() => query),
+      eq: vi.fn(() => query),
+      is: vi.fn(() => query),
+      maybeSingle: vi.fn(async () => ({
+        data: { id: "switch-1" },
+        error: null,
+      })),
+      update: vi.fn(() => query),
+      insert: vi.fn(() => query),
+      then: (resolve: (value: unknown) => unknown) =>
+        Promise.resolve({ data: null, error: null }).then(resolve),
+    };
+    const admin = { from: vi.fn(() => query) };
+    await expect(
+      setKillSwitch(admin as never, {
+        scope: "organization",
+        scopeId: "org-1",
+        organizationId: "org-1",
+        enabled: false,
+        reason: "maintenance",
+        setBy: "staff:1",
+      })
+    ).resolves.toEqual({ ok: true });
+    expect(query.update).toHaveBeenCalledWith(
+      expect.objectContaining({ enabled: false, organization_id: "org-1" })
+    );
   });
 });

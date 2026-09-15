@@ -459,6 +459,13 @@ capability supports it, then `escalated` with the full Diagnosis package.
 - **Internal notes** are excluded from planner input by default.
 - **Attachments**: never raw bytes to the provider; only scanner-clean, extracted, size-bounded text.
 - **Audit**: `resolution_events`, `policy_decisions`, `capability_executions`, `verification_results`, `rollback_runs` are insert-only with immutability triggers. Every row records `initiated_by` (`ai|user:<id>|staff:<id>|cron`) and `model/prompt/capability/policy` versions.
+- **Immutable provenance** (PR #69): autonomy writes stamp `initiated_by` and
+  planner/model/prompt/capability/policy/verifier versions. Event details,
+  execution results, policy inputs, verification evidence, and rollback output
+  are redacted before persistence with bounded depth and key counts.
+- **Rollback audit**: supported compensating actions are recorded in
+  `rollback_runs` with `started`, `succeeded`, or `failed` events. Unsupported
+  strategies are recorded explicitly rather than silently skipped.
 - **Retention**: run tables follow ticket retention; redacted evidence is kept with the ticket; provider telemetry stays in `ai_provider_calls`. Deleting a ticket cascades runs but audit rows are retained (org-scoped) for the org's configured period.
 - **No training**: private ticket content is never used to train an external model automatically (existing 5B.4 rule, restated).
 
@@ -478,6 +485,20 @@ takes effect before the next action. Denied or suspicious execution attempts
 (schema violation, cross-tenant id, unknown capability, replayed idempotency
 key) emit `resolution_events` of kind `security.*` and an alert through the
 existing notification outbox to org admins.
+
+### 11.1 Implementation (PR #69)
+
+- `lib/autonomy/rollback/{types,handlers,engine,index}.ts` provides the
+  allow-listed compensating rollback registry and execution path.
+- Objective verification failure with rollback enabled follows
+  `verifying → rolling_back → escalated`; rollback never resolves a run.
+- `capability_breakers` persists per-organization, per-capability state and
+  transitions from `open` to `half_open` after cooldown. Kill-switch reads
+  remain fail-closed, and capability environment overrides are honored.
+- Security events are best-effort alerts to organization admins through the
+  notification outbox. Resolution Center controls remain deferred to PR #70,
+  and endpoint-agent control remains deferred to the later secure endpoint
+  phase.
 
 ## 12. AI/provider outage behaviour
 
@@ -517,17 +538,21 @@ Release gates (all must hold on the benchmark and in shadow production data):
 
 ## 14. Feature flags (all default **off**)
 
-| Flag                                       | Scope                                   |
-| ------------------------------------------ | --------------------------------------- |
-| `HELP_DESK_AUTONOMY_ENABLED`               | Orchestrator + cron (global)            |
-| `HELP_DESK_AUTONOMY_MODE`                  | `shadow` (default) / `execute`          |
-| `HELP_DESK_AUTONOMY_ORG_ALLOWLIST`         | Comma-separated org ids for pilot       |
-| `HELP_DESK_AUTONOMY_DAILY_EXECUTION_LIMIT` | Global daily cap (pilot default 20)     |
-| `HELP_DESK_CAP_<CAPABILITY_ID>_ENABLED`    | One per capability                      |
-| `HELP_DESK_EVIDENCE_ENGINE_ENABLED`        | PR #64 evidence model                   |
-| `HELP_DESK_POLICY_ENGINE_ENABLED`          | PR #66 (falls back to 5B.2 step policy) |
-| `HELP_DESK_VERIFICATION_ENGINE_ENABLED`    | PR #68                                  |
-| `HELP_DESK_RESOLUTION_CENTER_ENABLED`      | PR #70 admin UI                         |
+| Flag                                       | Scope                                    |
+| ------------------------------------------ | ---------------------------------------- |
+| `HELP_DESK_AUTONOMY_ENABLED`               | Orchestrator + cron (global)             |
+| `HELP_DESK_AUTONOMY_MODE`                  | `shadow` (default) / `execute`           |
+| `HELP_DESK_AUTONOMY_ORG_ALLOWLIST`         | Comma-separated org ids for pilot        |
+| `HELP_DESK_AUTONOMY_DAILY_EXECUTION_LIMIT` | Global daily cap (pilot default 20)      |
+| `HELP_DESK_CAP_<CAPABILITY_ID>_ENABLED`    | One per capability                       |
+| `HELP_DESK_EVIDENCE_ENGINE_ENABLED`        | PR #64 evidence model                    |
+| `HELP_DESK_POLICY_ENGINE_ENABLED`          | PR #66 (falls back to 5B.2 step policy)  |
+| `HELP_DESK_VERIFICATION_ENGINE_ENABLED`    | PR #68                                   |
+| `HELP_DESK_ROLLBACK_ENABLED`               | PR #69 compensating rollback             |
+| `HELP_DESK_AUTONOMY_ALERTS_ENABLED`        | PR #69 security alerts                   |
+| `HELP_DESK_AUTONOMY_BREAKER_COOLDOWN_MS`   | PR #69 persisted breaker cooldown        |
+| `HELP_DESK_CAP_<CAPABILITY_ID>_ENABLED`    | PR #69 per-capability environment switch |
+| `HELP_DESK_RESOLUTION_CENTER_ENABLED`      | PR #70 admin UI                          |
 
 Existing switches (`HELP_DESK_AI_ENABLED`, `HELP_DESK_AI_PROVIDER`,
 investigation/step-policy/escalation flags) are preserved unchanged.

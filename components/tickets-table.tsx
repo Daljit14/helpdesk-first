@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -19,6 +20,20 @@ import {
 } from "@/lib/tickets/user-status";
 
 type TicketWithAttachments = Ticket & { attachmentCount?: number };
+type TicketFilter = "all" | "open" | "resolved" | "closed";
+
+const ticketFilters: Array<{ id: TicketFilter; label: string }> = [
+  { id: "all", label: "All" },
+  { id: "open", label: "Open" },
+  { id: "resolved", label: "Resolved" },
+  { id: "closed", label: "Closed" },
+];
+
+function parseFilter(value: string | null): TicketFilter {
+  return ticketFilters.some((filter) => filter.id === value)
+    ? (value as TicketFilter)
+    : "all";
+}
 
 function StatusIcon({ label }: { label: string }) {
   const normalized = label.toLowerCase();
@@ -47,6 +62,25 @@ export function TicketsTable({
 }) {
   const [tickets, setTickets] = useState(initialTickets);
   const [live, setLive] = useState(false);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [filter, setFilter] = useState<TicketFilter>(() =>
+    parseFilter(searchParams.get("filter"))
+  );
+  const [showAllPrevious, setShowAllPrevious] = useState(false);
+
+  function selectFilter(nextFilter: TicketFilter) {
+    setFilter(nextFilter);
+    setShowAllPrevious(false);
+    const params = new URLSearchParams(searchParams.toString());
+    if (nextFilter === "all") params.delete("filter");
+    else params.set("filter", nextFilter);
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, {
+      scroll: false,
+    });
+  }
 
   useEffect(() => {
     const supabase = createClient();
@@ -152,18 +186,48 @@ export function TicketsTable({
           data-live={live ? "connected" : "fallback"}
           className="mt-8 space-y-6"
         >
-          <PortalTicketSection
-            heading="Open tickets"
-            tickets={[]}
-            secureAttachmentsEnabled={secureAttachmentsEnabled}
-            testId="tickets-open"
-          />
-          <PortalTicketSection
-            heading="Previous tickets"
-            tickets={[]}
-            secureAttachmentsEnabled={secureAttachmentsEnabled}
-            testId="tickets-previous"
-          />
+          <div className="flex flex-wrap gap-2" aria-label="Ticket filters">
+            {ticketFilters.map((ticketFilter) => (
+              <button
+                key={ticketFilter.id}
+                type="button"
+                className="glass-pill px-3 py-1.5 text-sm transition hover:bg-muted aria-pressed:bg-foreground aria-pressed:text-background aria-pressed:hover:bg-foreground"
+                aria-pressed={filter === ticketFilter.id}
+                onClick={() => selectFilter(ticketFilter.id)}
+              >
+                {ticketFilter.label} 0
+              </button>
+            ))}
+          </div>
+          {filter === "all" ? (
+            <>
+              <PortalTicketSection
+                heading="Open tickets"
+                tickets={[]}
+                secureAttachmentsEnabled={secureAttachmentsEnabled}
+                testId="tickets-open"
+              />
+              <PortalTicketSection
+                heading="Previous tickets"
+                tickets={[]}
+                secureAttachmentsEnabled={secureAttachmentsEnabled}
+                testId="tickets-previous"
+              />
+            </>
+          ) : (
+            <PortalTicketSection
+              heading={
+                filter === "open"
+                  ? "Open tickets"
+                  : filter === "resolved"
+                    ? "Resolved tickets"
+                    : "Closed tickets"
+              }
+              tickets={[]}
+              secureAttachmentsEnabled={secureAttachmentsEnabled}
+              testId={filter === "open" ? "tickets-open" : "tickets-previous"}
+            />
+          )}
         </div>
       );
     }
@@ -194,23 +258,84 @@ export function TicketsTable({
         previous: [] as TicketWithAttachments[],
       }
     );
+    const resolvedTickets = groups.previous.filter(
+      (ticket) => describeTicketStatus(ticket.status).label === "Resolved"
+    );
+    const closedTickets = groups.previous.filter(
+      (ticket) => describeTicketStatus(ticket.status).label === "Closed"
+    );
+    const filterGroups: Record<
+      TicketFilter,
+      { heading: string; tickets: TicketWithAttachments[] }
+    > = {
+      all: { heading: "Open tickets", tickets: groups.open },
+      open: { heading: "Open tickets", tickets: groups.open },
+      resolved: { heading: "Resolved tickets", tickets: resolvedTickets },
+      closed: { heading: "Closed tickets", tickets: closedTickets },
+    };
+    const selectedGroup = filterGroups[filter];
+    const previousTickets =
+      filter === "all" && !showAllPrevious
+        ? groups.previous.slice(0, 3)
+        : groups.previous;
+    const counts: Record<TicketFilter, number> = {
+      all: tickets.length,
+      open: groups.open.length,
+      resolved: resolvedTickets.length,
+      closed: closedTickets.length,
+    };
     return (
       <div
         data-live={live ? "connected" : "fallback"}
         className="mt-8 space-y-6"
       >
-        <PortalTicketSection
-          heading="Open tickets"
-          tickets={groups.open}
-          secureAttachmentsEnabled={secureAttachmentsEnabled}
-          testId="tickets-open"
-        />
-        <PortalTicketSection
-          heading="Previous tickets"
-          tickets={groups.previous}
-          secureAttachmentsEnabled={secureAttachmentsEnabled}
-          testId="tickets-previous"
-        />
+        <div className="flex flex-wrap gap-2" aria-label="Ticket filters">
+          {ticketFilters.map((ticketFilter) => (
+            <button
+              key={ticketFilter.id}
+              type="button"
+              className="glass-pill px-3 py-1.5 text-sm transition hover:bg-muted aria-pressed:bg-foreground aria-pressed:text-background aria-pressed:hover:bg-foreground"
+              aria-pressed={filter === ticketFilter.id}
+              onClick={() => selectFilter(ticketFilter.id)}
+            >
+              {ticketFilter.label} {counts[ticketFilter.id]}
+            </button>
+          ))}
+        </div>
+        {filter === "all" ? (
+          <>
+            <PortalTicketSection
+              heading="Open tickets"
+              tickets={groups.open}
+              secureAttachmentsEnabled={secureAttachmentsEnabled}
+              testId="tickets-open"
+            />
+            <PortalTicketSection
+              heading="Previous tickets"
+              tickets={previousTickets}
+              secureAttachmentsEnabled={secureAttachmentsEnabled}
+              testId="tickets-previous"
+            />
+            {groups.previous.length > 3 && (
+              <button
+                type="button"
+                className="text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground"
+                onClick={() => setShowAllPrevious((current) => !current)}
+              >
+                {showAllPrevious
+                  ? "Show fewer"
+                  : `Show ${groups.previous.length - 3} more`}
+              </button>
+            )}
+          </>
+        ) : (
+          <PortalTicketSection
+            heading={selectedGroup.heading}
+            tickets={selectedGroup.tickets}
+            secureAttachmentsEnabled={secureAttachmentsEnabled}
+            testId={filter === "open" ? "tickets-open" : "tickets-previous"}
+          />
+        )}
       </div>
     );
   }

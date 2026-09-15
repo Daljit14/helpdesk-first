@@ -85,6 +85,7 @@ export function HomePage({
   }, [query, categoryId, platform]);
 
   const hasActiveFilters = Boolean(query || categoryId || platform);
+  const browseNeedsFilter = basePath === "/browse" && !hasActiveFilters;
 
   const replaceUrl = useCallback(
     (
@@ -276,42 +277,51 @@ export function HomePage({
           />
         </div>
 
-        <div className="mt-8 flex flex-col items-center justify-between gap-4 sm:flex-row">
-          <p className="text-sm text-muted-foreground" aria-live="polite">
-            <span className="font-semibold text-foreground">
-              {matchingCount}
-            </span>{" "}
-            matching {matchingCount === 1 ? "problem" : "problems"}
+        {browseNeedsFilter ? (
+          <p className="mt-8 text-center text-sm text-muted-foreground">
+            Pick a category or platform, or search above, to see matching
+            guides.
           </p>
-          {hasActiveFilters && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={clearFilters}
-            >
-              <X className="mr-2 h-4 w-4" />
-              Clear all filters
-            </Button>
-          )}
-        </div>
+        ) : (
+          <>
+            <div className="mt-8 flex flex-col items-center justify-between gap-4 sm:flex-row">
+              <p className="text-sm text-muted-foreground" aria-live="polite">
+                <span className="font-semibold text-foreground">
+                  {matchingCount}
+                </span>{" "}
+                matching {matchingCount === 1 ? "problem" : "problems"}
+              </p>
+              {hasActiveFilters && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearFilters}
+                >
+                  <X className="mr-2 h-4 w-4" />
+                  Clear all filters
+                </Button>
+              )}
+            </div>
 
-        <div
-          ref={resultsRef}
-          tabIndex={-1}
-          aria-label="Search results"
-          className="mt-6 outline-none"
-        >
-          <IssueList
-            query={query}
-            categoryId={categoryId}
-            platform={platform}
-            backParams={backParams}
-          />
-          <div ref={resultsEndRef} aria-hidden="true" />
-        </div>
-        {matchingCount > 0 && (
-          <ResultsNav topRef={resultsRef} bottomRef={resultsEndRef} />
+            <div
+              ref={resultsRef}
+              tabIndex={-1}
+              aria-label="Search results"
+              className="mt-6 outline-none"
+            >
+              <IssueList
+                query={query}
+                categoryId={categoryId}
+                platform={platform}
+                backParams={backParams}
+              />
+              <div ref={resultsEndRef} aria-hidden="true" />
+            </div>
+            {matchingCount > 0 && (
+              <ResultsNav topRef={resultsRef} bottomRef={resultsEndRef} />
+            )}
+          </>
         )}
       </div>
     </section>

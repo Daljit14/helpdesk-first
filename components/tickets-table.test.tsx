@@ -11,6 +11,8 @@ import { TicketsTable } from "./tickets-table";
 const mocks = vi.hoisted(() => ({
   createClient: vi.fn(),
   removeChannel: vi.fn(),
+  replace: vi.fn(),
+  search: "",
 }));
 
 vi.mock("@/lib/supabase/client", () => ({
@@ -18,6 +20,11 @@ vi.mock("@/lib/supabase/client", () => ({
 }));
 vi.mock("@/lib/supabase/storage", () => ({
   getTicketAttachmentUrl: vi.fn(),
+}));
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/tickets",
+  useRouter: () => ({ replace: mocks.replace }),
+  useSearchParams: () => new URLSearchParams(mocks.search),
 }));
 
 const initialTicket = {
@@ -66,6 +73,7 @@ describe("TicketsTable", () => {
     cleanup();
     vi.useRealTimers();
     vi.clearAllMocks();
+    mocks.search = "";
   });
 
   test("refreshes tickets on the polling interval after realtime failure", async () => {
@@ -121,6 +129,67 @@ describe("TicketsTable", () => {
     expect(screen.getByTestId("tickets-previous")).toBeInTheDocument();
     expect(screen.getByText("Action needed")).toBeInTheDocument();
     expect(screen.getByText("Suggested fix ready")).toBeInTheDocument();
+  });
+
+  test("renders filter chips with counts and filters to resolved tickets", () => {
+    render(
+      <TicketsTable
+        initialTickets={[
+          initialTicket,
+          {
+            ...initialTicket,
+            id: "ticket-2",
+            status: "Resolved",
+            issue_title: "Resolved printer issue",
+          },
+          {
+            ...initialTicket,
+            id: "ticket-3",
+            status: "Closed",
+            issue_title: "Closed VPN issue",
+          },
+        ]}
+        userId="user-1"
+        portalEnabled
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "All 3" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Resolved 1" })
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Resolved 1" }));
+
+    expect(screen.queryByTestId("tickets-open")).not.toBeInTheDocument();
+    expect(screen.getByText("Resolved printer issue")).toBeInTheDocument();
+    expect(screen.queryByText("Closed VPN issue")).not.toBeInTheDocument();
+    expect(mocks.replace).toHaveBeenCalledWith("/tickets?filter=resolved", {
+      scroll: false,
+    });
+  });
+
+  test("collapses previous tickets and reveals the remainder", () => {
+    render(
+      <TicketsTable
+        initialTickets={[
+          initialTicket,
+          ...[1, 2, 3, 4].map((index) => ({
+            ...initialTicket,
+            id: `ticket-${index + 1}`,
+            status: "Resolved",
+            issue_title: `Resolved issue ${index}`,
+          })),
+        ]}
+        userId="user-1"
+        portalEnabled
+      />
+    );
+
+    expect(screen.getByText("Resolved issue 1")).toBeInTheDocument();
+    expect(screen.getByText("Resolved issue 3")).toBeInTheDocument();
+    expect(screen.queryByText("Resolved issue 4")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Show 1 more" }));
+    expect(screen.getByText("Resolved issue 4")).toBeInTheDocument();
   });
 
   test("links tickets to their detail page and keeps a guide link", () => {

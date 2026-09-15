@@ -35,6 +35,7 @@ import { assertGuardrailsEnforced } from "../guardrails/enforce";
 import { executeThroughGateway } from "../guardrails/gateway";
 import type { PlannerPlanV2 } from "../guardrails/planner-output";
 import { parameterHash } from "../guardrails/hash";
+import { readBoundConsent } from "../guardrails/consent";
 
 type PlanStep = { id: string; detail?: Record<string, unknown> };
 
@@ -47,6 +48,10 @@ export type ExecutePlanDeps = {
     executionId: string | null;
   }) => Promise<{ outcome: "pending" }>;
   escalate?: (reason: string) => Promise<ResolutionRun | null>;
+  consent?: {
+    type: "user_consent" | "technician_approval";
+    userId: string;
+  };
 };
 
 export async function verifyExecution(input: {
@@ -216,39 +221,6 @@ async function escalate(
   return updated;
 }
 
-async function policyConsent(
-  admin: HandlerAdmin,
-  organizationId: string,
-  stepId: string
-): Promise<{ user: boolean; technician: boolean }> {
-  const result = await admin
-    .from("approval_requests")
-    .select("type,status,expires_at")
-    .eq("organization_id", organizationId)
-    .eq("step_id", stepId)
-    .eq("status", "granted")
-    .order("created_at", { ascending: false })
-    .limit(10);
-  const now = Date.now();
-  const rows = (result.data ?? []) as {
-    type: string;
-    status: string;
-    expires_at: string | null;
-  }[];
-  return {
-    user: rows.some(
-      (row) =>
-        row.type === "user_consent" &&
-        (!row.expires_at || new Date(row.expires_at).getTime() > now)
-    ),
-    technician: rows.some(
-      (row) =>
-        row.type === "technician_approval" &&
-        (!row.expires_at || new Date(row.expires_at).getTime() > now)
-    ),
-  };
-}
-
 async function failedAttempts(
   admin: HandlerAdmin,
   run: ResolutionRun,
@@ -346,6 +318,7 @@ async function executeHandler(
         version,
         parameters: params,
       }),
+      consent: deps.consent,
     },
     actor: deps.actor ?? "orchestrator",
     idempotencyKey: buildIdempotencyKey({
@@ -444,7 +417,16 @@ export async function evaluatePlanPolicy(
     actorRole: "system",
     platform: capabilityPlatform(ticket.platform),
     ticketCategory: ticket.category,
-    consent: await policyConsent(admin, run.organization_id, stepId),
+    consent: await readBoundConsent(admin, run, {
+      stepId,
+      capabilityId: capability.id,
+      version: capability.version,
+      parameterHash: parameterHash({
+        capabilityId: capability.id,
+        version: capability.version,
+        parameters: plan.capability.parameters,
+      }),
+    }),
     priorFailedAttempts: attempts.prior,
     parametersValid: true,
     orgPolicy: await readOrgPolicy(admin, run.organization_id),
@@ -525,7 +507,14 @@ export async function executePlan(
     }
     return escalate(admin, run, evaluated.reason, deps);
   }
-  const { capability, input: policyInput, decision } = evaluated;
+  const { capability, input: policyInput } = evaluated;
+  let decision = evaluated.decision;
+  if (deps.consent && capability.consent !== "none") {
+    decision = decidePolicy({
+      ...policyInput,
+      consent: { user: false, technician: false },
+    });
+  }
   const planningRun =
     run.status === "planning"
       ? await transitionRun(admin, run, "policy_check", {

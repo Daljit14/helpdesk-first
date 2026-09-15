@@ -73,6 +73,16 @@ The supplied `supabase/autonomy-guardrails.sql` migration is intentionally not
 applied by development agents. Apply it after merge through the normal schema
 review process.
 
+## Verification report
+
+| Check                                      | Result                     |
+| ------------------------------------------ | -------------------------- |
+| `npx vitest run lib/autonomy app/api/cron` | 38 files, 215 tests passed |
+| `npm run lint`                             | Passed                     |
+| `npm run typecheck`                        | Passed                     |
+| `npm run format:check`                     | Passed                     |
+| `npm run build`                            | Passed                     |
+
 ## Roadmap
 
 PR #71 guardrails is followed by #72 benchmark/shadow, #73 controlled pilot,

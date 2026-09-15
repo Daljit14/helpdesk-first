@@ -192,6 +192,20 @@ export function validatePlannerOutput(
       issues: ["capability is not registered"],
     };
   }
+  if (plan.capability.id !== capability.id) {
+    return {
+      ok: false,
+      code: "capability_unknown",
+      issues: ["capability id is not registered"],
+    };
+  }
+  if (plan.capability.version !== capability.version) {
+    return {
+      ok: false,
+      code: "capability_version_invalid",
+      issues: ["capability version is not registered"],
+    };
+  }
   if (!context.orgEnabled) {
     return {
       ok: false,

@@ -7,13 +7,22 @@ vi.mock("@/lib/supabase/admin", () => ({
 }));
 import {
   computeResolutionMetrics,
+  getGuardrailAggregate,
   getResolutionCenterOverview,
   getResolutionRunDetail,
 } from "./resolution-center";
 
 const createQuery = (data: unknown[] | null) => {
   const query: Record<string, unknown> = {};
-  for (const method of ["select", "eq", "gte", "order", "in"]) {
+  for (const method of [
+    "select",
+    "eq",
+    "gte",
+    "order",
+    "in",
+    "like",
+    "limit",
+  ]) {
     query[method] = vi.fn(() => query);
   }
   query.maybeSingle = vi.fn(async () => ({
@@ -214,5 +223,41 @@ describe("Resolution Center organization boundaries", () => {
     for (const query of queries.values()) {
       expect(query.eq).toHaveBeenCalledWith("organization_id", "org-1");
     }
+  });
+
+  test("platform aggregate reads only guardrail counts", async () => {
+    const query = createQuery([
+      {
+        kind: "guardrail.execution_allowed",
+        detail: { reasonCode: "allowed" },
+      },
+      {
+        kind: "guardrail.policy_denied",
+        detail: { reasonCode: "policy_denied" },
+      },
+    ]);
+    supabaseMocks.createAdminClient.mockReturnValue({
+      from: vi.fn(() => query),
+    });
+    await expect(
+      getGuardrailAggregate({
+        userId: "platform-1",
+        email: "platform@example.com",
+        role: "org_admin",
+        organizationId: "org-1",
+        displayName: null,
+        isPlatformAdmin: true,
+      })
+    ).resolves.toEqual({
+      allowed: 1,
+      blocked: 1,
+      injectionDetections: 0,
+      providerFailures: 0,
+      killSwitchEvents: 0,
+    });
+    expect(query.select).toHaveBeenCalledWith("kind,detail");
+    expect(query.select).not.toHaveBeenCalledWith(
+      expect.stringContaining("ticket_id")
+    );
   });
 });

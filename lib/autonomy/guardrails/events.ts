@@ -1,5 +1,6 @@
 import type { createAdminClient } from "@/lib/supabase/admin";
 import { auditVersions } from "../audit/versions";
+import { redactAuditDetail } from "../audit/redact";
 import { GUARDRAIL_VERSION } from "./version";
 import { writeRunEvent, type ResolutionRun } from "../orchestrator";
 
@@ -43,7 +44,7 @@ export async function writeGuardrailEvent(
     kind: input.kind,
     actor: input.actor,
     detail: {
-      ...(input.detail ?? {}),
+      ...redactAuditDetail(input.detail ?? {}),
       reasonCode: input.reasonCode,
       guardrailVersion: GUARDRAIL_VERSION,
       policyVersion: auditVersions(input.capability).policy,

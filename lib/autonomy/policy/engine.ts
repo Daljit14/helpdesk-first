@@ -49,6 +49,7 @@ function finish(
     policyVersion: POLICY_VERSION,
     auditLabel: auditLabelFor(decision),
     userLabel: userLabelFor(decision),
+    consentSatisfied: false,
   };
 }
 

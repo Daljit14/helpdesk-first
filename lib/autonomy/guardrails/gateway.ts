@@ -15,12 +15,16 @@ import { redactAuditDetail } from "../audit/redact";
 import { assertGuardrailsEnforced } from "./enforce";
 import type { PlannerPlanV2 } from "./planner-output";
 import { parameterHash } from "./hash";
+import { verifyConsent } from "./consent";
 
 export type GatewayRequest = {
   run: ResolutionRun;
   plan: PlannerPlanV2;
   capability: CapabilityDefinition;
-  policy: PolicyDecision & { parameterHash?: string };
+  policy: PolicyDecision & {
+    parameterHash?: string;
+    consent?: { type: "user_consent" | "technician_approval"; userId: string };
+  };
   actor: string;
   idempotencyKey: string;
   stepId: string;
@@ -87,10 +91,38 @@ export async function executeThroughGateway(
   if (!isAutonomousExecutionEnabled()) {
     return deny(admin, req, "execution_disabled");
   }
+  if (req.run.status !== "executing") {
+    return deny(admin, req, "invalid_run_state", "guardrail.policy_denied");
+  }
+  const step = await admin
+    .from("resolution_steps")
+    .select("detail")
+    .eq("organization_id", req.run.organization_id)
+    .eq("run_id", req.run.id)
+    .eq("id", req.stepId)
+    .maybeSingle();
+  const planStep = await admin
+    .from("resolution_steps")
+    .select("detail")
+    .eq("organization_id", req.run.organization_id)
+    .eq("run_id", req.run.id)
+    .eq("kind", "plan")
+    .order("position", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const stepDetail = planStep.data?.detail ?? step.data?.detail ?? null;
+  const plannerProvider =
+    stepDetail &&
+    typeof stepDetail === "object" &&
+    !Array.isArray(stepDetail) &&
+    typeof (stepDetail as Record<string, unknown>).plannerProvider === "string"
+      ? ((stepDetail as Record<string, unknown>).plannerProvider as string)
+      : undefined;
   const switches = await readKillSwitches(
     admin,
     req.run.organization_id,
-    req.capability.id
+    req.capability.id,
+    plannerProvider
   );
   if (switches.anyActive) {
     await alertSecurityEvent(admin, {
@@ -163,10 +195,11 @@ export async function executeThroughGateway(
     return deny(admin, req, "parameters_changed", "guardrail.policy_denied");
   }
   if (req.run.attempts >= getAutonomyLimits().maxAttempts) {
-    return deny(admin, req, "attempts_exhausted", "guardrail.policy_denied");
+    return deny(admin, req, "attempts_exhausted", "guardrail.rate_limited");
   }
-  if (req.run.cost_cents >= req.run.budget_cents) {
-    return deny(admin, req, "budget_exhausted", "guardrail.policy_denied");
+  const estimatedCost = req.capability.estimatedCostCents ?? 1;
+  if (req.run.cost_cents + estimatedCost > req.run.budget_cents) {
+    return deny(admin, req, "budget_exhausted", "guardrail.rate_limited");
   }
   const executing = await admin
     .from("resolution_runs")
@@ -176,7 +209,28 @@ export async function executeThroughGateway(
   if (
     (executing.data ?? []).length >= getAutonomyLimits().maxConcurrentPerOrg
   ) {
-    return deny(admin, req, "concurrency_limit", "guardrail.policy_denied");
+    return deny(admin, req, "concurrency_limit", "guardrail.rate_limited");
+  }
+  const failures = await admin
+    .from("capability_executions")
+    .select("parameters,status")
+    .eq("organization_id", req.run.organization_id)
+    .eq("run_id", req.run.id)
+    .eq("capability_id", req.capability.id)
+    .eq("capability_version", req.capability.version)
+    .in("status", ["failed", "timed_out"]);
+  const repeatedFailure = (failures.data ?? []).some((row) => {
+    const parameters = row.parameters;
+    return (
+      parameterHash({
+        capabilityId: req.capability.id,
+        version: req.capability.version,
+        parameters,
+      }) === computedHash
+    );
+  });
+  if (repeatedFailure) {
+    return deny(admin, req, "repeated_failure", "guardrail.rate_limited");
   }
   const key =
     req.idempotencyKey ||
@@ -231,6 +285,38 @@ export async function executeThroughGateway(
       "capability_unknown",
       "guardrail.capability_unknown"
     );
+  }
+  if (
+    req.capability.consent !== "none" &&
+    (req.policy.decision === "allow_automatic" ||
+      req.policy.consentSatisfied !== false)
+  ) {
+    return deny(admin, req, "consent_missing", "guardrail.consent_rejected");
+  }
+  if (
+    req.policy.decision === "require_user_consent" ||
+    req.policy.decision === "require_technician_approval"
+  ) {
+    const expectedType =
+      req.policy.decision === "require_user_consent"
+        ? "user_consent"
+        : "technician_approval";
+    if (!req.policy.consent || req.policy.consent.type !== expectedType) {
+      return deny(admin, req, "consent_missing", "guardrail.consent_rejected");
+    }
+    const consumed = await verifyConsent(admin, req.run, {
+      type: expectedType,
+      userId: req.policy.consent.userId,
+      organizationId: req.run.organization_id,
+      ticketId: req.run.ticket_id,
+      capabilityId: req.capability.id,
+      capabilityVersion: req.capability.version,
+      parameterHash: computedHash,
+      riskLevel: req.capability.riskLevel,
+    });
+    if (!consumed.ok) {
+      return deny(admin, req, consumed.code, "guardrail.consent_rejected");
+    }
   }
   const started = Date.now();
   await guardrailEvent(
@@ -302,7 +388,7 @@ export async function executeThroughGateway(
     .from("resolution_runs")
     .update({
       attempts: req.run.attempts + 1,
-      cost_cents: req.run.cost_cents + 1,
+      cost_cents: req.run.cost_cents + estimatedCost,
     })
     .eq("id", req.run.id)
     .eq("organization_id", req.run.organization_id)
@@ -311,7 +397,7 @@ export async function executeThroughGateway(
   const updatedRun = (nextRun.data ?? {
     ...req.run,
     attempts: req.run.attempts + 1,
-    cost_cents: req.run.cost_cents + 1,
+    cost_cents: req.run.cost_cents + estimatedCost,
   }) as ResolutionRun;
   if (status !== "succeeded") {
     return {

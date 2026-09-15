@@ -403,6 +403,7 @@ async function planRun(
         plan: noAction,
         planner: planner.id,
         plannerVersion: planner.version,
+        plannerProvider: getPlannerProvider(),
       },
     });
     await writeRunEvent(admin, {
@@ -507,6 +508,7 @@ async function planRun(
         plan: parsed.value,
         planner: planner.id,
         plannerVersion: planner.version,
+        plannerProvider: getPlannerProvider(),
       },
     })
     .select("id")

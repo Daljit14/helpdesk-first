@@ -28,6 +28,49 @@ export type ConsentResult =
         | "consent_parameters_changed";
     };
 
+export async function readBoundConsent(
+  admin: Admin,
+  run: ResolutionRun,
+  expected: {
+    stepId: string;
+    capabilityId: string;
+    version: number;
+    parameterHash: string;
+  }
+): Promise<{ user: boolean; technician: boolean }> {
+  const result = await admin
+    .from("approval_requests")
+    .select(
+      "type,status,expires_at,capability_id,capability_version,parameter_hash"
+    )
+    .eq("organization_id", run.organization_id)
+    .eq("run_id", run.id)
+    .eq("ticket_id", run.ticket_id)
+    .eq("step_id", expected.stepId)
+    .eq("status", "granted")
+    .eq("capability_id", expected.capabilityId)
+    .eq("capability_version", expected.version)
+    .eq("parameter_hash", expected.parameterHash);
+  if (result.error) return { user: false, technician: false };
+  const now = Date.now();
+  const rows = (result.data ?? []) as {
+    type: string;
+    expires_at: string | null;
+  }[];
+  return {
+    user: rows.some(
+      (row) =>
+        row.type === "user_consent" &&
+        (!row.expires_at || new Date(row.expires_at).getTime() > now)
+    ),
+    technician: rows.some(
+      (row) =>
+        row.type === "technician_approval" &&
+        (!row.expires_at || new Date(row.expires_at).getTime() > now)
+    ),
+  };
+}
+
 export async function verifyConsent(
   admin: Admin,
   run: ResolutionRun,

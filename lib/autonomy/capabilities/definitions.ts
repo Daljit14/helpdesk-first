@@ -15,6 +15,7 @@ const common = {
   platforms: ["any"],
   owner: OWNER,
   reviewDate: REVIEW_DATE,
+  estimatedCostCents: 1,
 } satisfies Partial<CapabilityDefinition>;
 
 export const searchApprovedKnowledge: CapabilityDefinition = {

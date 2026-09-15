@@ -7,8 +7,13 @@ const MAX_STRING = 500;
 function redactString(value: string): string {
   return redactForLearning(value, MAX_STRING)
     .text.replace(/\b(?:sk|pk)_[A-Za-z0-9_-]{6,}\b/gi, "[token removed]")
+    .replace(/\b\d{4}(?:[ -]\d{4}){3}\b/g, "[card removed]")
     .replace(
-      /\b(?:token|secret|password|api[_-]?key)\s*[:=]\s*\S+/gi,
+      /\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g,
+      "[jwt removed]"
+    )
+    .replace(
+      /\b(?:token|secret|password|api[_-]?key)\s*(?:is|was|[:=])\s*\S+/gi,
       "[token removed]"
     );
 }

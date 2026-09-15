@@ -71,6 +71,7 @@ export type PolicyDecision = {
   policyVersion: string;
   auditLabel: string;
   userLabel: string;
+  consentSatisfied?: boolean;
 };
 
 export function isMoreRestrictive(

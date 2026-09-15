@@ -12,8 +12,71 @@ import {
   isTicketWorkflowEnabled,
 } from "@/lib/admin/flags";
 import { completeUserHandoff } from "@/lib/tickets/handoff";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { resumeAfterApproval } from "@/lib/autonomy/executor/resume";
 
 type ResolutionActionResult = { error: string };
+
+export async function respondToAiConsent(
+  requestId: string,
+  decision: "grant" | "deny"
+): Promise<{ success: true } | ResolutionActionResult> {
+  const user = await getCurrentUser();
+  if (!user) return { error: "Not authorized." };
+  const admin = createAdminClient();
+  const request = await admin
+    .from("approval_requests")
+    .select("id,organization_id,run_id,ticket_id,type,status,expires_at")
+    .eq("id", requestId)
+    .maybeSingle();
+  if (request.error || !request.data || request.data.type !== "user_consent")
+    return { error: "Consent request not found." };
+  const ticket = await admin
+    .from("tickets")
+    .select("user_id,organization_id")
+    .eq("id", request.data.ticket_id)
+    .eq("organization_id", request.data.organization_id)
+    .maybeSingle();
+  if (
+    ticket.error ||
+    ticket.data?.user_id !== user.id ||
+    ticket.data.organization_id !== request.data.organization_id
+  ) {
+    return { error: "Consent request not found." };
+  }
+  if (
+    request.data.status !== "requested" ||
+    (request.data.expires_at &&
+      new Date(request.data.expires_at).getTime() <= Date.now())
+  ) {
+    return { error: "This consent request has expired." };
+  }
+  const updated = await admin
+    .from("approval_requests")
+    .update({
+      status: decision === "grant" ? "granted" : "denied",
+      decided_by: user.id,
+      decided_by_user_id: user.id,
+      decided_at: new Date().toISOString(),
+    })
+    .eq("id", request.data.id)
+    .eq("organization_id", request.data.organization_id)
+    .eq("status", "requested")
+    .select("id")
+    .maybeSingle();
+  if (updated.error || !updated.data)
+    return { error: "Consent request is no longer available." };
+  const run = await admin
+    .from("resolution_runs")
+    .select("*")
+    .eq("id", request.data.run_id)
+    .eq("organization_id", request.data.organization_id)
+    .eq("ticket_id", request.data.ticket_id)
+    .maybeSingle();
+  if (run.data) await resumeAfterApproval(admin, run.data, { actor: user.id });
+  revalidatePath(`/tickets/${request.data.ticket_id}`);
+  return { success: true };
+}
 
 function canonicalPlatform(raw: string): string | null {
   const value = normalizePlatform(raw === "Mac" ? "macOS" : raw);

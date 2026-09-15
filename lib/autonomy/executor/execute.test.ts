@@ -196,6 +196,11 @@ describe("executePlan", () => {
     vi.clearAllMocks();
     vi.stubEnv("HELP_DESK_AUTONOMY_ENABLED", "true");
     vi.stubEnv("HELP_DESK_AUTONOMOUS_EXECUTION_ENABLED", "true");
+    vi.stubEnv("HELP_DESK_AUTONOMY_ORG_ALLOWLIST", "org-1");
+    vi.stubEnv(
+      "HELP_DESK_PILOT_CAPABILITY_ALLOWLIST",
+      "search_approved_knowledge,resend_ticket_notification"
+    );
     vi.stubEnv("HELP_DESK_CAPABILITY_REGISTRY_ENABLED", "true");
     vi.stubEnv("HELP_DESK_CAP_SEARCH_APPROVED_KNOWLEDGE_ENABLED", "true");
     mocks.isCapabilityEnabled.mockResolvedValue(true);

@@ -2,17 +2,20 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 import {
   confirmTicketResolved,
   escalateTicket,
+  respondToAiConsent,
   startAiTicket,
 } from "./resolution";
 
 const mocks = vi.hoisted(() => ({
   getCurrentUser: vi.fn(),
   createClient: vi.fn(),
+  createAdminClient: vi.fn(),
   isResolutionTrackingEnabled: vi.fn(),
   isTicketWorkflowEnabled: vi.fn(),
   recordAnalyticsEvent: vi.fn(),
   completeUserHandoff: vi.fn(),
   createWorkflowTicket: vi.fn(),
+  resumeAfterApproval: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/user", () => ({
@@ -20,6 +23,9 @@ vi.mock("@/lib/supabase/user", () => ({
 }));
 vi.mock("@/lib/supabase/server", () => ({
   createClient: mocks.createClient,
+}));
+vi.mock("@/lib/supabase/admin", () => ({
+  createAdminClient: mocks.createAdminClient,
 }));
 vi.mock("@/lib/admin/flags", () => ({
   isResolutionTrackingEnabled: mocks.isResolutionTrackingEnabled,
@@ -33,6 +39,9 @@ vi.mock("@/lib/tickets/handoff", () => ({
 }));
 vi.mock("@/app/actions/tickets", () => ({
   createWorkflowTicket: mocks.createWorkflowTicket,
+}));
+vi.mock("@/lib/autonomy/executor/resume", () => ({
+  resumeAfterApproval: mocks.resumeAfterApproval,
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
@@ -51,7 +60,136 @@ afterEach(() => {
 const user = { id: "user-1" };
 const ticketId = "00000000-0000-4000-8000-000000000001";
 
+function consentAdmin(
+  options: {
+    request?: Record<string, unknown> | null;
+    ticket?: Record<string, unknown> | null;
+    run?: Record<string, unknown> | null;
+  } = {}
+) {
+  const from = vi.fn((table: string) => {
+    const chain: Record<string, (...args: unknown[]) => unknown> = {};
+    let updated = false;
+    for (const method of ["select", "eq", "update"]) {
+      chain[method] = () => {
+        if (method === "update") updated = true;
+        return chain;
+      };
+    }
+    chain.maybeSingle = async () => {
+      if (table === "approval_requests")
+        return {
+          data: updated ? { id: "request-1" } : (options.request ?? null),
+          error: null,
+        };
+      if (table === "tickets")
+        return { data: options.ticket ?? null, error: null };
+      return { data: options.run ?? null, error: null };
+    };
+    return chain;
+  });
+  return { from };
+}
+
 describe("resolution actions", () => {
+  test("rejects unauthenticated consent responses", async () => {
+    mocks.getCurrentUser.mockResolvedValue(null);
+    await expect(respondToAiConsent("request-1", "grant")).resolves.toEqual({
+      error: "Not authorized.",
+    });
+    expect(mocks.createAdminClient).not.toHaveBeenCalled();
+  });
+
+  test("rejects consent responses from the wrong ticket owner", async () => {
+    mocks.getCurrentUser.mockResolvedValue(user);
+    mocks.createAdminClient.mockReturnValue(
+      consentAdmin({
+        request: {
+          id: "request-1",
+          organization_id: "org-1",
+          run_id: "run-1",
+          ticket_id: ticketId,
+          type: "user_consent",
+          status: "requested",
+          expires_at: new Date(Date.now() + 60_000).toISOString(),
+        },
+        ticket: { user_id: "other-user", organization_id: "org-1" },
+      })
+    );
+    await expect(respondToAiConsent("request-1", "grant")).resolves.toEqual({
+      error: "Consent request not found.",
+    });
+  });
+
+  test("rejects expired consent requests", async () => {
+    mocks.getCurrentUser.mockResolvedValue(user);
+    mocks.createAdminClient.mockReturnValue(
+      consentAdmin({
+        request: {
+          id: "request-1",
+          organization_id: "org-1",
+          run_id: "run-1",
+          ticket_id: ticketId,
+          type: "user_consent",
+          status: "requested",
+          expires_at: new Date(Date.now() - 60_000).toISOString(),
+        },
+        ticket: { user_id: user.id, organization_id: "org-1" },
+      })
+    );
+    await expect(respondToAiConsent("request-1", "grant")).resolves.toEqual({
+      error: "This consent request has expired.",
+    });
+  });
+
+  test("denies consent and resumes the run so it escalates", async () => {
+    mocks.getCurrentUser.mockResolvedValue(user);
+    const admin = consentAdmin({
+      request: {
+        id: "request-1",
+        organization_id: "org-1",
+        run_id: "run-1",
+        ticket_id: ticketId,
+        type: "user_consent",
+        status: "requested",
+        expires_at: new Date(Date.now() + 60_000).toISOString(),
+      },
+      ticket: { user_id: user.id, organization_id: "org-1" },
+      run: { id: "run-1", status: "awaiting_consent" },
+    });
+    mocks.createAdminClient.mockReturnValue(admin);
+    await expect(respondToAiConsent("request-1", "deny")).resolves.toEqual({
+      success: true,
+    });
+    expect(mocks.resumeAfterApproval).toHaveBeenCalledWith(
+      admin,
+      { id: "run-1", status: "awaiting_consent" },
+      { actor: user.id }
+    );
+  });
+
+  test("grants consent and resumes the bound run", async () => {
+    mocks.getCurrentUser.mockResolvedValue(user);
+    const admin = consentAdmin({
+      request: {
+        id: "request-1",
+        organization_id: "org-1",
+        run_id: "run-1",
+        ticket_id: ticketId,
+        type: "user_consent",
+        status: "requested",
+        expires_at: new Date(Date.now() + 60_000).toISOString(),
+      },
+      ticket: { user_id: user.id, organization_id: "org-1" },
+      run: { id: "run-1", status: "awaiting_consent" },
+    });
+    mocks.createAdminClient.mockReturnValue(admin);
+    await expect(respondToAiConsent("request-1", "grant")).resolves.toEqual({
+      success: true,
+    });
+    expect(mocks.resumeAfterApproval).toHaveBeenCalledTimes(1);
+  });
+
   test("rejects when the flag is off", async () => {
     mocks.isResolutionTrackingEnabled.mockReturnValue(false);
     await expect(

@@ -1,6 +1,7 @@
 import type { AdminSession } from "./auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { RunStatus } from "@/lib/autonomy/state-machine";
+import { getPilotLimits } from "@/lib/autonomy/config";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -90,6 +91,21 @@ export type ShadowMetrics = {
   falseAllowRate: number;
   plannerLatencyMs: number;
   plannerCostCents: number;
+};
+
+export type PilotReview = {
+  id: string;
+  organizationId: string;
+  runId: string;
+  ticketId: string;
+  capabilityId: string | null;
+  capabilityVersion: number | null;
+  resolvedAt: string;
+  reviewStatus: "pending" | "confirmed" | "incorrect" | "unsafe";
+  reviewSource: "admin" | "reopen";
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  reviewNote: string | null;
 };
 
 function shadowRow(row: Record<string, unknown>): ShadowDecision {
@@ -230,6 +246,160 @@ export async function getShadowAggregate(session: AdminSession): Promise<{
     reviewed: rows.filter((row) => row.review_status !== "unreviewed").length,
     unsafe: rows.filter((row) => row.review_status === "unsafe").length,
   };
+}
+
+function pilotReview(row: Record<string, unknown>): PilotReview {
+  return {
+    id: String(row.id),
+    organizationId: String(row.organization_id),
+    runId: String(row.run_id),
+    ticketId: String(row.ticket_id),
+    capabilityId:
+      typeof row.capability_id === "string" ? row.capability_id : null,
+    capabilityVersion:
+      typeof row.capability_version === "number"
+        ? row.capability_version
+        : null,
+    resolvedAt: String(row.resolved_at),
+    reviewStatus:
+      row.review_status === "confirmed" ||
+      row.review_status === "incorrect" ||
+      row.review_status === "unsafe"
+        ? row.review_status
+        : "pending",
+    reviewSource: row.review_source === "reopen" ? "reopen" : "admin",
+    reviewedBy: typeof row.reviewed_by === "string" ? row.reviewed_by : null,
+    reviewedAt: typeof row.reviewed_at === "string" ? row.reviewed_at : null,
+    reviewNote: typeof row.review_note === "string" ? row.review_note : null,
+  };
+}
+
+export async function getPilotOverview(session: AdminSession): Promise<{
+  paused: boolean;
+  pauseReason: string | null;
+  executionsToday: number;
+  limits: { globalDaily: number; orgDaily: number };
+  verificationPassRate: number;
+  reopenRate: number;
+  reviews: PilotReview[];
+  reviewCounts: Record<PilotReview["reviewStatus"], number>;
+  perCapability: { id: string; count: number }[];
+  error: string | null;
+}> {
+  const admin = createAdminClient();
+  const start = new Date(
+    Date.UTC(
+      new Date().getUTCFullYear(),
+      new Date().getUTCMonth(),
+      new Date().getUTCDate()
+    )
+  ).toISOString();
+  const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
+  try {
+    const [switchResult, executions, reviewsResult, verifications] =
+      await Promise.all([
+        admin
+          .from("ai_kill_switches")
+          .select("enabled,reason")
+          .eq("scope", "organization")
+          .eq("scope_id", session.organizationId)
+          .eq("organization_id", session.organizationId)
+          .maybeSingle(),
+        admin
+          .from("capability_executions")
+          .select("capability_id")
+          .eq("organization_id", session.organizationId)
+          .gte("created_at", start),
+        admin
+          .from("pilot_reviews")
+          .select("*")
+          .eq("organization_id", session.organizationId)
+          .order("resolved_at", { ascending: false })
+          .limit(200),
+        admin
+          .from("verification_results")
+          .select("outcome")
+          .eq("organization_id", session.organizationId)
+          .gte("created_at", since),
+      ]);
+    if (
+      switchResult.error ||
+      executions.error ||
+      reviewsResult.error ||
+      verifications.error
+    )
+      throw (
+        switchResult.error ??
+        executions.error ??
+        reviewsResult.error ??
+        verifications.error
+      );
+    const reviews = (
+      (reviewsResult.data ?? []) as Record<string, unknown>[]
+    ).map(pilotReview);
+    const counts = {
+      pending: reviews.filter((row) => row.reviewStatus === "pending").length,
+      confirmed: reviews.filter((row) => row.reviewStatus === "confirmed")
+        .length,
+      incorrect: reviews.filter((row) => row.reviewStatus === "incorrect")
+        .length,
+      unsafe: reviews.filter((row) => row.reviewStatus === "unsafe").length,
+    };
+    const verificationRows = (verifications.data ?? []) as {
+      outcome?: string;
+    }[];
+    const total = verificationRows.length;
+    const passed = verificationRows.filter(
+      (row) => row.outcome === "passed"
+    ).length;
+    const capabilityCounts = new Map<string, number>();
+    for (const row of (executions.data ?? []) as { capability_id?: string }[]) {
+      if (row.capability_id)
+        capabilityCounts.set(
+          row.capability_id,
+          (capabilityCounts.get(row.capability_id) ?? 0) + 1
+        );
+    }
+    const reopenTotal = reviews.filter(
+      (row) => row.reviewSource === "reopen"
+    ).length;
+    return {
+      paused:
+        switchResult.data?.enabled === true &&
+        typeof switchResult.data.reason === "string" &&
+        switchResult.data.reason.startsWith("pilot_auto_pause:"),
+      pauseReason:
+        switchResult.data?.enabled === true &&
+        typeof switchResult.data.reason === "string" &&
+        switchResult.data.reason.startsWith("pilot_auto_pause:")
+          ? switchResult.data.reason
+          : null,
+      executionsToday: (executions.data ?? []).length,
+      limits: getPilotLimits(),
+      verificationPassRate: total ? passed / total : 0,
+      reopenRate: reviews.length ? reopenTotal / reviews.length : 0,
+      reviews,
+      reviewCounts: counts,
+      perCapability: [...capabilityCounts.entries()].map(([id, count]) => ({
+        id,
+        count,
+      })),
+      error: null,
+    };
+  } catch (error) {
+    return {
+      paused: false,
+      pauseReason: null,
+      executionsToday: 0,
+      limits: getPilotLimits(),
+      verificationPassRate: 0,
+      reopenRate: 0,
+      reviews: [],
+      reviewCounts: { pending: 0, confirmed: 0, incorrect: 0, unsafe: 0 },
+      perCapability: [],
+      error: error instanceof Error ? error.message : "Pilot data unavailable.",
+    };
+  }
 }
 
 type RawRun = {

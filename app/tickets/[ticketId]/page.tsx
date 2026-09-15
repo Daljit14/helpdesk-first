@@ -27,6 +27,7 @@ import { getIssueBySlug } from "@/lib/search";
 import { getIssueSteps } from "@/lib/steps";
 import { TicketProgress } from "@/components/ticket-progress";
 import { TicketInvestigation } from "@/components/ticket-investigation";
+import { TicketConsentPrompt } from "@/components/ticket-consent-prompt";
 import { loadInvestigation } from "@/lib/investigation/load";
 import {
   Bot,
@@ -40,6 +41,7 @@ import {
 
 type TicketDetail = {
   id: string;
+  organization_id?: string;
   issue_title: string;
   message: string;
   status: string;
@@ -171,7 +173,7 @@ export default async function TicketPage({
     redirect(`/login?next=${encodeURIComponent(`/tickets/${ticketId}`)}`);
   const supabase = await createClient();
   const ticketSelect = portalEnabled
-    ? "id,issue_title,message,status,platform,created_at,handoff_reason,resolver_type,ai_recommended_issue_id,diagnostic_answers,attachment_path,satisfaction_rating,satisfaction_comment,resolved_at,closed_at,updated_at,assigned_agent_id,human_response_due_at,first_human_response_at"
+    ? "id,organization_id,issue_title,message,status,platform,created_at,handoff_reason,resolver_type,ai_recommended_issue_id,diagnostic_answers,attachment_path,satisfaction_rating,satisfaction_comment,resolved_at,closed_at,updated_at,assigned_agent_id,human_response_due_at,first_human_response_at"
     : "id,issue_title,message,status,platform,created_at,handoff_reason,ai_recommended_issue_id";
   const { data: rawTicket } = await supabase
     .from("tickets")
@@ -205,6 +207,19 @@ export default async function TicketPage({
     isInvestigationEnabled() && portalEnabled
       ? await loadInvestigation(supabase, ticketId)
       : null;
+  const consentRequest = portalEnabled
+    ? await createAdminClient()
+        .from("approval_requests")
+        .select("id,capability_id,capability_version,risk_level,expires_at")
+        .eq("organization_id", ticket.organization_id ?? "")
+        .eq("ticket_id", ticketId)
+        .eq("type", "user_consent")
+        .eq("status", "requested")
+        .gt("expires_at", new Date().toISOString())
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+    : { data: null };
   const citation = ticket.ai_recommended_issue_id
     ? await getCitation(ticket.ai_recommended_issue_id, null)
     : null;
@@ -372,6 +387,19 @@ export default async function TicketPage({
         )}
         {portalEnabled && (
           <>
+            {consentRequest.data &&
+              typeof consentRequest.data.capability_id === "string" &&
+              typeof consentRequest.data.capability_version === "number" && (
+                <TicketConsentPrompt
+                  request={{
+                    id: consentRequest.data.id,
+                    capabilityId: consentRequest.data.capability_id,
+                    capabilityVersion: consentRequest.data.capability_version,
+                    riskLevel: consentRequest.data.risk_level ?? "unknown",
+                    expiresAt: consentRequest.data.expires_at,
+                  }}
+                />
+              )}
             <TicketPortalActions
               ticketId={ticket.id}
               status={ticket.status}

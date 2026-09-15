@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   readBreakerState: vi.fn(),
   recordBreakerOutcome: vi.fn(),
   readKillSwitches: vi.fn(),
+  setKillSwitch: vi.fn(),
   isCapabilityEnabled: vi.fn(),
   getHandler: vi.fn(),
   verifyConsent: vi.fn(),
@@ -19,6 +20,7 @@ vi.mock("../breaker", () => ({
 }));
 vi.mock("../kill-switches", () => ({
   readKillSwitches: mocks.readKillSwitches,
+  setKillSwitch: mocks.setKillSwitch,
 }));
 vi.mock("../capabilities/enablement", () => ({
   isCapabilityEnabled: mocks.isCapabilityEnabled,
@@ -68,13 +70,17 @@ function makeAdmin(
     executions?: { parameters: unknown; status: string }[];
     replay?: { id: string };
     concurrent?: number;
+    globalCount?: number;
+    organizationCount?: number;
   } = {}
 ) {
   const handlerResult = { ok: true, output: { ok: true } };
   const handler = { run: vi.fn(async () => handlerResult) };
   mocks.getHandler.mockReturnValue(handler);
+  const inserts: Record<string, unknown>[] = [];
   const from = vi.fn((table: string) => {
     let selection = "";
+    let organizationScoped = false;
     const state = {
       data:
         table === "resolution_steps"
@@ -91,10 +97,17 @@ function makeAdmin(
       selection = String(value);
       return chain;
     };
-    for (const name of ["eq", "in", "order", "limit", "is", "update"]) {
-      chain[name] = () => chain;
+    for (const name of ["eq", "in", "order", "limit", "is", "gte", "update"]) {
+      chain[name] = (...args: unknown[]) => {
+        if (name === "eq" && args[0] === "organization_id")
+          organizationScoped = true;
+        return chain;
+      };
     }
-    chain.insert = () => chain;
+    chain.insert = (value: unknown) => {
+      inserts.push((value ?? {}) as Record<string, unknown>);
+      return chain;
+    };
     chain.maybeSingle = async () => {
       if (table === "resolution_steps") return state;
       if (table === "tickets") return state;
@@ -119,11 +132,22 @@ function makeAdmin(
               ? (options.executions ?? [])
               : [],
         error: null,
+        count:
+          table === "capability_executions"
+            ? organizationScoped
+              ? (options.organizationCount ?? 0)
+              : (options.globalCount ?? 0)
+            : null,
       }).then(resolve);
     };
     return chain;
   });
-  return { admin: { from } as unknown as HandlerAdmin, handler };
+  const admin = { from, inserts };
+  return {
+    admin: admin as unknown as HandlerAdmin,
+    handler,
+    inserts,
+  };
 }
 
 function baseCapability(): CapabilityDefinition {
@@ -184,6 +208,7 @@ describe("executeThroughGateway", () => {
     vi.clearAllMocks();
     vi.stubEnv("HELP_DESK_AUTONOMOUS_EXECUTION_ENABLED", "true");
     vi.stubEnv("HELP_DESK_GUARDRAILS_ENFORCED", "true");
+    vi.stubEnv("HELP_DESK_AUTONOMY_ORG_ALLOWLIST", "org-1");
     mocks.readKillSwitches.mockResolvedValue({
       global: false,
       organization: false,
@@ -393,6 +418,108 @@ describe("executeThroughGateway", () => {
       "org-1",
       "safe_capability",
       "deterministic"
+    );
+  });
+
+  test("denies an organization outside the pilot allow-list", async () => {
+    vi.unstubAllEnvs();
+    vi.stubEnv("HELP_DESK_AUTONOMOUS_EXECUTION_ENABLED", "true");
+    vi.stubEnv("HELP_DESK_GUARDRAILS_ENFORCED", "true");
+    vi.stubEnv("HELP_DESK_AUTONOMY_ORG_ALLOWLIST", "org-2");
+    const { admin } = makeAdmin();
+    const result = await executeThroughGateway(admin, request());
+    expect(result).toMatchObject({
+      ok: false,
+      code: "pilot_org_not_allowlisted",
+    });
+    expect(
+      (admin as unknown as { inserts: Record<string, unknown>[] }).inserts.at(
+        -1
+      )
+    ).toEqual(
+      expect.objectContaining({
+        kind: "guardrail.policy_denied",
+      })
+    );
+  });
+
+  test("denies caution capabilities when no capability allow-list is configured", async () => {
+    vi.unstubAllEnvs();
+    vi.stubEnv("HELP_DESK_AUTONOMOUS_EXECUTION_ENABLED", "true");
+    vi.stubEnv("HELP_DESK_GUARDRAILS_ENFORCED", "true");
+    vi.stubEnv("HELP_DESK_AUTONOMY_ORG_ALLOWLIST", "org-1");
+    const { admin } = makeAdmin();
+    const result = await executeThroughGateway(
+      admin,
+      request({
+        capability: { ...request().capability, riskLevel: "caution" },
+      })
+    );
+    expect(result).toMatchObject({
+      ok: false,
+      code: "pilot_capability_risk",
+    });
+  });
+
+  test("rate-limits an organization at its daily limit without pausing", async () => {
+    vi.unstubAllEnvs();
+    vi.stubEnv("HELP_DESK_AUTONOMOUS_EXECUTION_ENABLED", "true");
+    vi.stubEnv("HELP_DESK_GUARDRAILS_ENFORCED", "true");
+    vi.stubEnv("HELP_DESK_AUTONOMY_ORG_ALLOWLIST", "org-1");
+    vi.stubEnv("HELP_DESK_PILOT_ORG_DAILY_EXECUTION_LIMIT", "10");
+    const { admin } = makeAdmin({ organizationCount: 10 });
+    const result = await executeThroughGateway(admin, request());
+    expect(result).toMatchObject({
+      ok: false,
+      code: "pilot_org_daily_limit",
+    });
+    expect(mocks.setKillSwitch).not.toHaveBeenCalled();
+  });
+
+  test("rate-limits the global daily limit and pauses the organization", async () => {
+    vi.unstubAllEnvs();
+    vi.stubEnv("HELP_DESK_AUTONOMOUS_EXECUTION_ENABLED", "true");
+    vi.stubEnv("HELP_DESK_GUARDRAILS_ENFORCED", "true");
+    vi.stubEnv("HELP_DESK_AUTONOMY_ORG_ALLOWLIST", "org-1");
+    vi.stubEnv("HELP_DESK_AUTONOMY_DAILY_EXECUTION_LIMIT", "20");
+    const { admin } = makeAdmin({ globalCount: 20 });
+    const result = await executeThroughGateway(admin, request());
+    expect(result).toMatchObject({
+      ok: false,
+      code: "pilot_daily_limit",
+    });
+    expect(mocks.setKillSwitch).toHaveBeenCalledWith(
+      admin,
+      expect.objectContaining({ reason: "pilot_auto_pause:daily_limit" })
+    );
+  });
+
+  test("keeps the kill switch denial ahead of pilot eligibility", async () => {
+    vi.unstubAllEnvs();
+    vi.stubEnv("HELP_DESK_AUTONOMOUS_EXECUTION_ENABLED", "true");
+    vi.stubEnv("HELP_DESK_GUARDRAILS_ENFORCED", "true");
+    vi.stubEnv("HELP_DESK_AUTONOMY_ORG_ALLOWLIST", "org-1");
+    mocks.readKillSwitches.mockResolvedValue({
+      anyActive: true,
+      reasons: ["organization"],
+    });
+    const { admin } = makeAdmin();
+    const result = await executeThroughGateway(admin, request());
+    expect(result).toMatchObject({ ok: false, code: "kill_switch_active" });
+  });
+
+  test("pauses when an open breaker is observed", async () => {
+    vi.unstubAllEnvs();
+    vi.stubEnv("HELP_DESK_AUTONOMOUS_EXECUTION_ENABLED", "true");
+    vi.stubEnv("HELP_DESK_GUARDRAILS_ENFORCED", "true");
+    vi.stubEnv("HELP_DESK_AUTONOMY_ORG_ALLOWLIST", "org-1");
+    mocks.readBreakerState.mockResolvedValue({ open: true });
+    const { admin } = makeAdmin();
+    const result = await executeThroughGateway(admin, request());
+    expect(result).toMatchObject({ ok: false, code: "breaker_open" });
+    expect(mocks.setKillSwitch).toHaveBeenCalledWith(
+      admin,
+      expect.objectContaining({ reason: "pilot_auto_pause:breaker" })
     );
   });
 });

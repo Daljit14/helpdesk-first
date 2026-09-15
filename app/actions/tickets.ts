@@ -31,6 +31,8 @@ import { event } from "@/lib/tickets/events";
 import { triageWorkflowTicket } from "@/lib/tickets/triage";
 import { completeUserHandoff } from "@/lib/tickets/handoff";
 import { createKnowledgeDraftForTicket } from "@/lib/knowledge/learning";
+import { isAutonomousExecutionEnabled } from "@/lib/autonomy/config";
+import { handleAutonomousReopen } from "@/lib/autonomy/pilot-review";
 
 type Result = { error: string } | { success: true; ticketId?: string };
 const limiter = new MemoryRateLimiter({
@@ -349,6 +351,12 @@ export async function reopenTicketByUser(
         reason: parsedReason.data,
       }
     );
+    if (isAutonomousExecutionEnabled()) {
+      await handleAutonomousReopen(admin, {
+        organizationId: ticket.organization_id,
+        ticketId: ticketId,
+      });
+    }
     await notifyRequester("ticket.reopened", ticket, { status: "Reopened" });
     await notifyEmployeesOfHandoff(ticket.organization_id, {
       id: ticketId,

@@ -24,6 +24,44 @@ export function guardrailsEnforced(): boolean {
   return process.env.HELP_DESK_GUARDRAILS_ENFORCED !== "false";
 }
 
+function listFromEnv(name: string): string[] {
+  return [
+    ...new Set(
+      (process.env[name] ?? "")
+        .split(",")
+        .map((value) => value.trim())
+        .filter(Boolean)
+    ),
+  ];
+}
+
+export function getPilotOrgAllowlist(): string[] {
+  return listFromEnv("HELP_DESK_AUTONOMY_ORG_ALLOWLIST");
+}
+
+export function getPilotCapabilityAllowlist(): string[] | null {
+  if (process.env.HELP_DESK_PILOT_CAPABILITY_ALLOWLIST === undefined)
+    return null;
+  return listFromEnv("HELP_DESK_PILOT_CAPABILITY_ALLOWLIST");
+}
+
+export function getPilotLimits(): { globalDaily: number; orgDaily: number } {
+  return {
+    globalDaily: boundedNumber(
+      "HELP_DESK_AUTONOMY_DAILY_EXECUTION_LIMIT",
+      20,
+      1,
+      10_000
+    ),
+    orgDaily: boundedNumber(
+      "HELP_DESK_PILOT_ORG_DAILY_EXECUTION_LIMIT",
+      10,
+      1,
+      10_000
+    ),
+  };
+}
+
 export function isPolicyEngineEnabled(): boolean {
   return process.env.HELP_DESK_POLICY_ENGINE_ENABLED === "true";
 }

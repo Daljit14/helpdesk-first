@@ -41,3 +41,8 @@ disagree, or unsafe. False allow is disagreement with an
 Replay and kill-switch gateway proofs live in Vitest tests, where execution is
 enabled only with `vi.stubEnv`. The benchmark and its fake admin do not use
 Supabase, and the shadow SQL migration is not applied by evaluation.
+
+The controlled pilot is separately gated by organization and capability
+allow-lists plus daily execution limits. The committed benchmark sets its
+fixture organization in the process environment while execution remains
+disabled; pilot-specific enabled-gateway behavior is covered by Vitest.

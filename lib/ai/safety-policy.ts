@@ -635,7 +635,7 @@ export function validateAiOutput(
   };
 }
 
-function isSafeString(value: string): boolean {
+export function isSafeString(value: string): boolean {
   if (typeof value !== "string") return false;
 
   if (/<[^>]+>/.test(value)) {

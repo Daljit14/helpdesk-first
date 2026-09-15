@@ -375,6 +375,25 @@ through `isSafeString`-style checks from `safety-policy.ts`.
 **AI-generated text is never passed to a shell, a query builder, a URL, or a
 privileged API.** Handlers accept only the typed, validated parameter object.
 
+### 8.4 Implementation (PR #67)
+
+- Planner contracts and implementations live in `lib/autonomy/planner/`:
+  `schema.ts`, `types.ts`, `deterministic-planner.ts`, `model-planner.ts`,
+  `select.ts`, and `index.ts`.
+- The executor lives in `lib/autonomy/executor/`, including capability
+  handlers, tenant checks, preconditions, output sanitization, execution, and
+  approval resumption.
+- `HELP_DESK_PLANNER_ENABLED` defaults to `false`.
+  `HELP_DESK_PLANNER_MODE` defaults to `shadow`; `execute` is opt-in.
+  `HELP_DESK_PLANNER_PROVIDER` defaults to `deterministic`.
+- Shadow mode records `plan.shadow`, records a dry policy decision, and
+  escalates with `shadow_mode`; it never invokes capability handlers.
+- The executor stops at `verifying`. Verification and any `resolved`
+  transition are deferred to PR #68.
+- Organization-specific planner policy grants and approval requirements are
+  defined in `supabase/autonomy-policy.sql`. This migration is not applied by
+  the application.
+
 ## 9. Independent verification engine (PR #68)
 
 A ticket is resolved only when the original problem is tested again by a

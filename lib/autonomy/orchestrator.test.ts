@@ -46,6 +46,7 @@ function makeQuery(options: {
     update: vi.fn(() => query),
     select: vi.fn(() => query),
     eq: vi.fn(() => query),
+    in: vi.fn(() => query),
     not: vi.fn(() => query),
     order: vi.fn(() => query),
     limit: vi.fn(() => query),
@@ -362,6 +363,75 @@ describe("resolution orchestrator", () => {
     );
     expect(tickets.update).toHaveBeenCalledWith(
       expect.objectContaining({ handoff_reason: "worker_lease_expired" })
+    );
+  });
+
+  test("planner shadow mode records the plan and escalates without executing", async () => {
+    vi.stubEnv("HELP_DESK_PLANNER_ENABLED", "true");
+    vi.stubEnv("HELP_DESK_PLANNER_MODE", "shadow");
+    vi.stubEnv("HELP_DESK_CAPABILITY_REGISTRY_ENABLED", "true");
+    vi.stubEnv("HELP_DESK_CAP_SEARCH_APPROVED_KNOWLEDGE_ENABLED", "true");
+
+    const planning = { ...run, status: "planning" as const };
+    const escalated = { ...run, status: "escalated" as const };
+    const runs = makeQuery({
+      data: [{ ...run, status: "investigating" }],
+      single: { data: planning, error: null },
+    });
+    runs.single
+      .mockResolvedValueOnce({ data: planning, error: null })
+      .mockResolvedValueOnce({ data: escalated, error: null });
+    const tickets = makeQuery({
+      maybeSingle: {
+        data: { id: run.ticket_id, category: "email", platform: "Mac" },
+        error: null,
+      },
+    });
+    const notifications = makeQuery({
+      maybeSingle: { data: null, error: null },
+    });
+    const executions = makeQuery({ data: [] });
+    const orgCapabilities = makeQuery({
+      data: [
+        {
+          capability_id: "search_approved_knowledge",
+          min_version: 1,
+          enabled: true,
+        },
+      ],
+      maybeSingle: { data: { min_version: 1, enabled: true }, error: null },
+    });
+    const versions = makeQuery({
+      maybeSingle: { data: { status: "active" }, error: null },
+    });
+    const steps = makeQuery({
+      single: { data: { id: "step-plan" }, error: null },
+    });
+    const events = makeQuery({});
+    const policyDecisions = makeQuery({});
+    const admin = makeAdmin({
+      resolution_runs: runs,
+      tickets,
+      notification_outbox: notifications,
+      capability_executions: executions,
+      organization_capabilities: orgCapabilities,
+      capability_versions: versions,
+      resolution_steps: steps,
+      resolution_events: events,
+      policy_decisions: policyDecisions,
+    });
+
+    const summary = await processDueRuns(admin as never);
+
+    expect(summary).toEqual({ processed: 1, paused: 0, escalated: 1 });
+    expect(events.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "plan.shadow" })
+    );
+    expect(policyDecisions.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ reasons: ["shadow_mode"] })
+    );
+    expect(tickets.update).toHaveBeenCalledWith(
+      expect.objectContaining({ handoff_reason: "shadow_mode" })
     );
   });
 });

@@ -1,4 +1,5 @@
 export type AutonomyMode = "shadow" | "execute";
+export type PlannerMode = "shadow" | "execute";
 
 function boundedNumber(
   name: string,
@@ -17,6 +18,20 @@ export function isAutonomyEnabled(): boolean {
 
 export function isPolicyEngineEnabled(): boolean {
   return process.env.HELP_DESK_POLICY_ENGINE_ENABLED === "true";
+}
+
+export function isPlannerEnabled(): boolean {
+  return process.env.HELP_DESK_PLANNER_ENABLED === "true";
+}
+
+export function getPlannerMode(): PlannerMode {
+  return process.env.HELP_DESK_PLANNER_MODE === "execute"
+    ? "execute"
+    : "shadow";
+}
+
+export function getPlannerProvider(): string {
+  return process.env.HELP_DESK_PLANNER_PROVIDER?.trim() || "deterministic";
 }
 
 export function getAutonomyMode(): AutonomyMode {

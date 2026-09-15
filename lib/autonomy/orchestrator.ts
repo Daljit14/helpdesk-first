@@ -5,8 +5,19 @@ import { snapshotEvidence } from "@/lib/evidence/snapshot";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { event } from "@/lib/tickets/events";
 import { assertTransition, isTerminal, type RunStatus } from "./state-machine";
-import { getAutonomyLimits, isAutonomyEnabled } from "./config";
+import {
+  getAutonomyLimits,
+  getPlannerMode,
+  isAutonomyEnabled,
+  isPlannerEnabled,
+} from "./config";
 import { readKillSwitches } from "./kill-switches";
+import { listEnabledCapabilities } from "./capabilities/enablement";
+import { getCapability, inputSchemaJson } from "./capabilities/registry";
+import { executePlan } from "./executor/execute";
+import { resumeAfterApproval } from "./executor/resume";
+import { parsePlannerOutput } from "./planner/schema";
+import { selectPlanner } from "./planner/select";
 
 export type OrchestratorAdmin = ReturnType<typeof createAdminClient>;
 
@@ -82,6 +93,152 @@ async function updateRun(
     .single();
   if (result.error) throw result.error;
   return (result.data ?? { ...run, ...patch }) as ResolutionRun;
+}
+
+async function planRun(
+  admin: OrchestratorAdmin,
+  run: ResolutionRun
+): Promise<ResolutionRun | null> {
+  const planning = await transitionRun(admin, run, "planning", {
+    actor: "orchestrator",
+  });
+  if (!planning) return null;
+  const ticketResult = await admin
+    .from("tickets")
+    .select("id,category,platform,diagnostic_answers")
+    .eq("id", run.ticket_id)
+    .eq("organization_id", run.organization_id)
+    .maybeSingle();
+  if (ticketResult.error || !ticketResult.data) {
+    return escalateRun(admin, planning, "ticket_not_found");
+  }
+  const failedNotification = await admin
+    .from("notification_outbox")
+    .select("id")
+    .eq("organization_id", run.organization_id)
+    .eq("ticket_id", run.ticket_id)
+    .in("status", ["failed", "dead"])
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const evidence = isEvidenceEngineEnabled()
+    ? await snapshotEvidence(admin, run.ticket_id, run.organization_id)
+    : null;
+  const attemptsResult = await admin
+    .from("capability_executions")
+    .select("capability_id,capability_version,status")
+    .eq("organization_id", run.organization_id)
+    .eq("run_id", run.id);
+  const priorAttempts = (
+    (attemptsResult.data ?? []) as {
+      capability_id: string;
+      capability_version: number;
+      status: "succeeded" | "failed" | "timed_out";
+    }[]
+  ).map((attempt) => ({
+    capabilityId: attempt.capability_id,
+    version: attempt.capability_version,
+    status: attempt.status,
+  }));
+  const enabledCapabilities = await listEnabledCapabilities(
+    admin,
+    run.organization_id
+  );
+  const allowedCapabilities = enabledCapabilities.flatMap((enabled) => {
+    const capability = getCapability(enabled.id, enabled.version);
+    return capability
+      ? [
+          {
+            id: capability.id,
+            version: capability.version,
+            description: capability.description,
+            inputSchemaJson: inputSchemaJson(capability),
+          },
+        ]
+      : [];
+  });
+  const planner = selectPlanner();
+  let raw: unknown;
+  try {
+    raw = await planner.plan(
+      {
+        evidence,
+        ticket: {
+          id: run.ticket_id,
+          category: ticketResult.data.category ?? null,
+          platform: ticketResult.data.platform ?? null,
+          ...(failedNotification.data?.id
+            ? { context: { failedNotificationId: failedNotification.data.id } }
+            : {}),
+        },
+        allowedCapabilities,
+        priorAttempts,
+      },
+      AbortSignal.timeout(30_000)
+    );
+  } catch {
+    return escalateRun(admin, planning, "provider_unavailable");
+  }
+  const parsed = parsePlannerOutput(raw);
+  if (!parsed.ok) {
+    await writeRunEvent(admin, {
+      organization_id: run.organization_id,
+      run_id: run.id,
+      ticket_id: run.ticket_id,
+      kind: "plan.rejected",
+      actor: "orchestrator",
+      detail: { issues: parsed.issues },
+    });
+    return escalateRun(admin, planning, "plan_rejected");
+  }
+  const planStep = await admin
+    .from("resolution_steps")
+    .insert({
+      organization_id: run.organization_id,
+      run_id: run.id,
+      kind: "plan",
+      position: 0,
+      status: "done",
+      detail: {
+        plan: parsed.value,
+        planner: planner.id,
+        plannerVersion: planner.version,
+      },
+    })
+    .select("id")
+    .single();
+  if (planStep.error || !planStep.data) {
+    return escalateRun(admin, planning, "plan_persistence_failed");
+  }
+  if (getPlannerMode() === "shadow") {
+    await writeRunEvent(admin, {
+      organization_id: run.organization_id,
+      run_id: run.id,
+      ticket_id: run.ticket_id,
+      kind: "plan.shadow",
+      actor: "orchestrator",
+      detail: { plan: parsed.value },
+    });
+    const capabilityId =
+      "capabilityId" in parsed.value ? parsed.value.capabilityId : "planner";
+    const capabilityVersion =
+      "capabilityVersion" in parsed.value ? parsed.value.capabilityVersion : 1;
+    await admin.from("policy_decisions").insert({
+      organization_id: run.organization_id,
+      run_id: run.id,
+      step_id: planStep.data.id,
+      capability_id: capabilityId,
+      capability_version: capabilityVersion,
+      decision: "deny",
+      reasons: ["shadow_mode"],
+      input: { shadow: true, plan: parsed.value },
+      policy_version: "shadow",
+    });
+    return escalateRun(admin, planning, "shadow_mode");
+  }
+  return executePlan(admin, planning, parsed.value, {
+    stepId: planStep.data.id,
+  });
 }
 
 function limitsExceeded(run: ResolutionRun, now = Date.now()): boolean {
@@ -325,6 +482,20 @@ export async function processDueRuns(
           },
         });
       }
+      continue;
+    }
+    if (isPlannerEnabled() && run.status === "investigating") {
+      if (await planRun(admin, run)) {
+        if (getPlannerMode() === "shadow") summary.escalated += 1;
+      }
+      continue;
+    }
+    if (
+      isPlannerEnabled() &&
+      (run.status === "awaiting_consent" || run.status === "awaiting_approval")
+    ) {
+      const resumed = await resumeAfterApproval(admin, run);
+      if (resumed?.status === "escalated") summary.escalated += 1;
       continue;
     }
     if (

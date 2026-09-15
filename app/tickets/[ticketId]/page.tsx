@@ -29,6 +29,7 @@ import { TicketProgress } from "@/components/ticket-progress";
 import { TicketInvestigation } from "@/components/ticket-investigation";
 import { loadInvestigation } from "@/lib/investigation/load";
 import {
+  ArrowLeft,
   Bot,
   CheckCircle2,
   MessageSquare,
@@ -121,6 +122,13 @@ function TicketUnavailable({
   return (
     <section className="flex flex-1 items-center justify-center px-4 py-12 sm:px-6">
       <div className="glass-strong w-full max-w-xl space-y-5 p-6">
+        <Link
+          href="/tickets"
+          className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to my tickets
+        </Link>
         <div>
           <h1 className="text-2xl font-semibold">
             This ticket isn&apos;t available for this account
@@ -297,6 +305,13 @@ export default async function TicketPage({
   return (
     <section className="flex flex-1 flex-col px-4 py-12 sm:px-6 lg:px-8">
       <div className="mx-auto w-full max-w-3xl">
+        <Link
+          href="/tickets"
+          className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to my tickets
+        </Link>
         <p className="font-mono text-sm text-muted-foreground">
           {portalEnabled ? ticketReference(ticket.id) : "Ticket"}
         </p>

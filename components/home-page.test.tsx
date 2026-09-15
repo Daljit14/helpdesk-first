@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { HomePage } from "./home-page";
 
@@ -34,7 +40,15 @@ vi.mock("@/components/search-box", () => ({
 }));
 
 vi.mock("@/components/category-grid", () => ({
-  CategoryGrid: () => null,
+  CategoryGrid: ({
+    onSelect,
+  }: {
+    onSelect: (category: string | null) => void;
+  }) => (
+    <button type="button" onClick={() => onSelect("computer")}>
+      Computer
+    </button>
+  ),
 }));
 vi.mock("@/components/platform-buttons", () => ({
   PlatformButtons: () => null,
@@ -49,7 +63,10 @@ vi.mock("@/components/results-nav", () => ({
   ResultsNav: () => null,
 }));
 
+vi.stubGlobal("matchMedia", () => ({ matches: false }));
+
 afterEach(() => {
+  cleanup();
   mocks.replace.mockReset();
 });
 
@@ -70,5 +87,21 @@ describe("HomePage", () => {
         { scroll: false }
       )
     );
+  });
+
+  it("waits for a filter before showing browse results", () => {
+    render(<HomePage basePath="/browse" />);
+
+    expect(
+      screen.getByText(
+        "Pick a category or platform, or search above, to see matching guides."
+      )
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/matching problems/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Search results")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Computer" }));
+    expect(screen.getByText(/matching problems/)).toBeInTheDocument();
+    expect(screen.getByLabelText("Search results")).toBeInTheDocument();
   });
 });

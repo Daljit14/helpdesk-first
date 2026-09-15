@@ -67,7 +67,7 @@ export default async function RootLayout({
           >
             {children}
           </main>
-          <Footer />
+          <Footer signedIn={Boolean(user)} />
           <InstallPrompt />
         </ThemeProvider>
       </body>

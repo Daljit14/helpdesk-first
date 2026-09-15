@@ -1,4 +1,4 @@
-import { describe, expect, test, vi } from "vitest";
+import { beforeEach, describe, expect, test, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   executePlan: vi.fn(),
@@ -13,6 +13,7 @@ vi.mock("../orchestrator", () => ({
 }));
 
 import { resumeAfterApproval } from "./resume";
+import { assertTransition } from "../state-machine";
 
 const run = {
   id: "run-1",
@@ -61,17 +62,25 @@ function admin(status: string, expiresAt: string | null = null) {
 }
 
 describe("resumeAfterApproval", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.transitionRun.mockImplementation(async (_admin, value, to) => {
+      assertTransition(value.status, to);
+      return { ...value, status: to };
+    });
+  });
+
   test("granted approvals rerun the plan", async () => {
-    mocks.transitionRun.mockResolvedValue({ ...run, status: "planning" });
     mocks.executePlan.mockResolvedValue({ ...run, status: "verifying" });
     const result = await resumeAfterApproval(admin("granted") as never, run);
     expect(mocks.executePlan).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ status: "planning" }),
+      run,
       expect.anything(),
       expect.objectContaining({ stepId: "step-1" })
     );
     expect(result?.status).toBe("verifying");
+    expect(mocks.transitionRun).not.toHaveBeenCalled();
   });
 
   test("denied approvals escalate", async () => {
@@ -97,5 +106,22 @@ describe("resumeAfterApproval", () => {
       "approval_expired"
     );
     expect(result?.status).toBe("escalated");
+  });
+
+  test("pending unexpired approvals leave the run untouched", async () => {
+    const result = await resumeAfterApproval(
+      admin("requested", new Date(Date.now() + 60_000).toISOString()) as never,
+      run
+    );
+    expect(result).toBe(run);
+    expect(mocks.escalateRun).not.toHaveBeenCalled();
+    expect(mocks.transitionRun).not.toHaveBeenCalled();
+    expect(mocks.executePlan).not.toHaveBeenCalled();
+  });
+
+  test("approval transition mocks enforce the state machine", () => {
+    expect(() => assertTransition("awaiting_consent", "planning")).toThrow(
+      "Illegal autonomy transition"
+    );
   });
 });

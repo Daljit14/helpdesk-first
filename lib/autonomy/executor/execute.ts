@@ -1,5 +1,6 @@
-import { snapshotEvidence } from "@/lib/evidence/snapshot";
 import { isEvidenceEngineEnabled } from "@/lib/admin/flags";
+import { buildEvidence } from "@/lib/evidence/build";
+import { loadEvidenceInputs } from "@/lib/evidence/load";
 import { isSafeString } from "@/lib/ai/safety-policy";
 import { getAutonomyLimits } from "../config";
 import { evaluateBreaker } from "../breaker";
@@ -12,6 +13,11 @@ import {
   getCapability,
   validateCapabilityInput,
 } from "../capabilities/registry";
+import {
+  CAPABILITY_PLATFORMS,
+  type CapabilityDefinition,
+  type CapabilityPlatform,
+} from "../capabilities/types";
 import { isCapabilityEnabled } from "../capabilities/enablement";
 import { parsePlannerOutput, type PlannerOutput } from "../planner/schema";
 import type { ResolutionRun } from "../orchestrator";
@@ -21,6 +27,7 @@ import { getHandler } from "./handlers";
 import type { HandlerAdmin } from "./handlers/types";
 import { checkTenant } from "./tenant";
 import { sanitizeOutput } from "./sanitize";
+import type { PolicyDecision, PolicyInput } from "../policy/types";
 
 type PlanStep = { id: string; detail?: Record<string, unknown> };
 
@@ -49,6 +56,19 @@ type OrgPolicy = {
   requireApprovalFor: string[];
 };
 
+type PolicyEvaluation =
+  | {
+      ok: true;
+      decision: PolicyDecision;
+      input: PolicyInput;
+      capability: CapabilityDefinition;
+      validatedParameters: Record<string, unknown>;
+    }
+  | {
+      ok: false;
+      reason: string;
+    };
+
 function safeParameters(value: unknown): boolean {
   if (typeof value === "string") {
     return (
@@ -61,6 +81,22 @@ function safeParameters(value: unknown): boolean {
     return Object.values(value).every(safeParameters);
   }
   return true;
+}
+
+function capabilityPlatform(value: string | null): CapabilityPlatform | null {
+  return value && CAPABILITY_PLATFORMS.includes(value as CapabilityPlatform)
+    ? (value as CapabilityPlatform)
+    : null;
+}
+
+async function readEvidence(
+  admin: HandlerAdmin,
+  ticketId: string,
+  organizationId: string
+) {
+  if (!isEvidenceEngineEnabled()) return null;
+  const inputs = await loadEvidenceInputs(admin, ticketId, organizationId);
+  return inputs ? buildEvidence(inputs) : null;
 }
 
 async function writeEvent(
@@ -382,6 +418,96 @@ async function executeHandler(
   return verifying;
 }
 
+export async function evaluatePlanPolicy(
+  admin: HandlerAdmin,
+  run: ResolutionRun,
+  rawPlan: unknown,
+  stepId: string
+): Promise<PolicyEvaluation> {
+  const parsed = parsePlannerOutput(rawPlan);
+  if (!parsed.ok) return { ok: false, reason: "plan_rejected" };
+  if ("decision" in parsed.value) {
+    return { ok: false, reason: parsed.value.reason };
+  }
+  const plan = parsed.value;
+  const capability = getCapability(plan.capabilityId, plan.capabilityVersion);
+  if (
+    !capability ||
+    !(await isCapabilityEnabled(admin, {
+      organizationId: run.organization_id,
+      id: plan.capabilityId,
+      version: plan.capabilityVersion,
+    }))
+  ) {
+    return { ok: false, reason: "capability_unavailable" };
+  }
+  const tenant = await checkTenant(
+    admin,
+    run.organization_id,
+    run.ticket_id,
+    plan.parameters
+  );
+  if (!tenant.ok) return { ok: false, reason: "tenant_check_failed" };
+  const validated = validateCapabilityInput(
+    capability.id,
+    capability.version,
+    plan.parameters
+  );
+  if (!validated.ok || !safeParameters(validated.value)) {
+    return { ok: false, reason: "parameters_invalid" };
+  }
+  const preconditions = await checkPreconditions(
+    {
+      admin,
+      organizationId: run.organization_id,
+      ticketId: run.ticket_id,
+      params: plan.parameters,
+    },
+    capability.preconditions
+  );
+  if (!preconditions.ok) {
+    return { ok: false, reason: "precondition_failed" };
+  }
+  const ticket = await readTicket(admin, run);
+  if (!ticket) return { ok: false, reason: "ticket_not_found" };
+  const attempts = await failedAttempts(
+    admin,
+    run,
+    capability.id,
+    capability.version
+  );
+  const limits = getAutonomyLimits();
+  const breaker = evaluateBreaker(attempts.failures, Date.now(), {
+    threshold: limits.breakerThreshold,
+    windowMs: limits.breakerWindowMs,
+  });
+  const policyInput = buildPolicyInput({
+    capability,
+    capabilityEnabled: true,
+    killSwitches: await readKillSwitches(
+      admin,
+      run.organization_id,
+      capability.id
+    ),
+    breaker,
+    evidence: await readEvidence(admin, run.ticket_id, run.organization_id),
+    actorRole: "system",
+    platform: capabilityPlatform(ticket.platform),
+    ticketCategory: ticket.category,
+    consent: await policyConsent(admin, run.organization_id, stepId),
+    priorFailedAttempts: attempts.prior,
+    parametersValid: true,
+    orgPolicy: await readOrgPolicy(admin, run.organization_id),
+  });
+  return {
+    ok: true,
+    decision: decidePolicy(policyInput),
+    input: policyInput,
+    capability,
+    validatedParameters: validated.value as Record<string, unknown>,
+  };
+}
+
 export async function executePlan(
   admin: HandlerAdmin,
   run: ResolutionRun,
@@ -398,49 +524,6 @@ export async function executePlan(
   if ("decision" in plan) {
     return escalate(admin, run, plan.reason, deps);
   }
-  const capability = getCapability(plan.capabilityId, plan.capabilityVersion);
-  if (
-    !capability ||
-    !(await isCapabilityEnabled(admin, {
-      organizationId: run.organization_id,
-      id: plan.capabilityId,
-      version: plan.capabilityVersion,
-    }))
-  ) {
-    return escalate(admin, run, "capability_unavailable", deps);
-  }
-  const tenant = await checkTenant(
-    admin,
-    run.organization_id,
-    run.ticket_id,
-    plan.parameters
-  );
-  if (!tenant.ok) {
-    await writeEvent(admin, run, "security.tenant_violation", {
-      reason: tenant.reason,
-    });
-    return escalate(admin, run, "tenant_check_failed", deps);
-  }
-  const validated = validateCapabilityInput(
-    capability.id,
-    capability.version,
-    plan.parameters
-  );
-  if (!validated.ok) return escalate(admin, run, "parameters_invalid", deps);
-  if (!safeParameters(validated.value)) {
-    return escalate(admin, run, "parameters_invalid", deps);
-  }
-  const preconditions = await checkPreconditions(
-    {
-      admin,
-      organizationId: run.organization_id,
-      ticketId: run.ticket_id,
-      params: plan.parameters,
-    },
-    capability.preconditions
-  );
-  if (!preconditions.ok)
-    return escalate(admin, run, "precondition_failed", deps);
   const policyStep = await ensureStep(
     admin,
     run,
@@ -448,6 +531,16 @@ export async function executePlan(
     { plan },
     deps.stepId
   );
+  const evaluated = await evaluatePlanPolicy(admin, run, plan, policyStep.id);
+  if (!evaluated.ok) {
+    if (evaluated.reason === "tenant_check_failed") {
+      await writeEvent(admin, run, "security.tenant_violation", {
+        reason: evaluated.reason,
+      });
+    }
+    return escalate(admin, run, evaluated.reason, deps);
+  }
+  const { capability, input: policyInput, decision } = evaluated;
   const planningRun =
     run.status === "planning"
       ? await transitionRun(admin, run, "policy_check", {
@@ -455,41 +548,6 @@ export async function executePlan(
         })
       : run;
   if (!planningRun) return null;
-  const ticket = await readTicket(admin, run);
-  if (!ticket) return escalate(admin, run, "ticket_not_found", deps);
-  const attempts = await failedAttempts(
-    admin,
-    run,
-    capability.id,
-    capability.version
-  );
-  const limits = getAutonomyLimits();
-  const breaker = evaluateBreaker(attempts.failures, Date.now(), {
-    threshold: limits.breakerThreshold,
-    windowMs: limits.breakerWindowMs,
-  });
-  const evidence = isEvidenceEngineEnabled()
-    ? await snapshotEvidence(admin, run.ticket_id, run.organization_id)
-    : null;
-  const policyInput = buildPolicyInput({
-    capability,
-    capabilityEnabled: true,
-    killSwitches: await readKillSwitches(
-      admin,
-      run.organization_id,
-      capability.id
-    ),
-    breaker,
-    evidence,
-    actorRole: "system",
-    platform: (ticket.platform as never) ?? null,
-    ticketCategory: ticket.category,
-    consent: await policyConsent(admin, run.organization_id, policyStep.id),
-    priorFailedAttempts: attempts.prior,
-    parametersValid: true,
-    orgPolicy: await readOrgPolicy(admin, run.organization_id),
-  });
-  const decision = decidePolicy(policyInput);
   const recorded = await recordPolicyDecision(admin, {
     organizationId: run.organization_id,
     runId: run.id,
@@ -524,14 +582,20 @@ export async function executePlan(
           ? "user_consent"
           : "technician_approval",
     });
-    return transitionRun(
-      admin,
-      planningRun,
-      decision.decision === "require_user_consent"
-        ? "awaiting_consent"
-        : "awaiting_approval",
-      { actor: deps.actor ?? "orchestrator" }
-    );
+    try {
+      const approvalRun = await transitionRun(
+        admin,
+        planningRun,
+        decision.decision === "require_user_consent"
+          ? "awaiting_consent"
+          : "awaiting_approval",
+        { actor: deps.actor ?? "orchestrator" }
+      );
+      if (approvalRun) return approvalRun;
+    } catch {
+      // Escalate below when the approval state is not reachable.
+    }
+    return escalate(admin, planningRun, "approval_transition_failed", deps);
   }
   const executingRun = await transitionRun(admin, planningRun, "executing", {
     actor: deps.actor ?? "orchestrator",
@@ -550,8 +614,8 @@ export async function executePlan(
     executeStep.id,
     capability.id,
     capability.version,
-    validated.value as Record<string, unknown>,
-    Math.min(capability.maxRuntimeMs, limits.runtimeMs),
+    evaluated.validatedParameters,
+    Math.min(capability.maxRuntimeMs, getAutonomyLimits().runtimeMs),
     deps
   );
 }

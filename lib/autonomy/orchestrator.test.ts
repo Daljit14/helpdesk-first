@@ -370,12 +370,17 @@ describe("resolution orchestrator", () => {
     vi.stubEnv("HELP_DESK_PLANNER_ENABLED", "true");
     vi.stubEnv("HELP_DESK_PLANNER_MODE", "shadow");
     vi.stubEnv("HELP_DESK_CAPABILITY_REGISTRY_ENABLED", "true");
-    vi.stubEnv("HELP_DESK_CAP_SEARCH_APPROVED_KNOWLEDGE_ENABLED", "true");
+    vi.stubEnv("HELP_DESK_EVIDENCE_ENGINE_ENABLED", "true");
+    vi.stubEnv("HELP_DESK_CAP_RETRY_FAILED_NOTIFICATION_ENABLED", "true");
 
-    const planning = { ...run, status: "planning" as const };
-    const escalated = { ...run, status: "escalated" as const };
+    const shadowRun = {
+      ...run,
+      ticket_id: "00000000-0000-4000-8000-000000000001",
+    };
+    const planning = { ...shadowRun, status: "planning" as const };
+    const escalated = { ...shadowRun, status: "escalated" as const };
     const runs = makeQuery({
-      data: [{ ...run, status: "investigating" }],
+      data: [{ ...shadowRun, status: "investigating" }],
       single: { data: planning, error: null },
     });
     runs.single
@@ -383,18 +388,37 @@ describe("resolution orchestrator", () => {
       .mockResolvedValueOnce({ data: escalated, error: null });
     const tickets = makeQuery({
       maybeSingle: {
-        data: { id: run.ticket_id, category: "email", platform: "Mac" },
+        data: {
+          id: shadowRun.ticket_id,
+          category: "email",
+          platform: "Mac",
+          message: "The notification was not received.",
+          issue_id: null,
+          diagnostic_answers: [
+            {
+              questionId: "network-owner",
+              answer: "This is a company-managed device.",
+            },
+          ],
+          user_id: "user-1",
+        },
         error: null,
       },
     });
     const notifications = makeQuery({
-      maybeSingle: { data: null, error: null },
+      maybeSingle: {
+        data: {
+          id: "00000000-0000-4000-8000-000000000002",
+          status: "failed",
+        },
+        error: null,
+      },
     });
     const executions = makeQuery({ data: [] });
     const orgCapabilities = makeQuery({
       data: [
         {
-          capability_id: "search_approved_knowledge",
+          capability_id: "retry_failed_notification",
           min_version: 1,
           enabled: true,
         },
@@ -407,19 +431,93 @@ describe("resolution orchestrator", () => {
     const steps = makeQuery({
       single: { data: { id: "step-plan" }, error: null },
     });
+    const evidence = {
+      version: 1,
+      generatedAt: new Date().toISOString(),
+      description: "The notification was not received.",
+      redaction: {},
+      context: {
+        platform: "Mac",
+        os: null,
+        device: null,
+        app: null,
+        deviceOwnership: "organization",
+      },
+      attachmentFindings: [],
+      qa: [],
+      confirmedFacts: [],
+      unknownFacts: [],
+      hypotheses: [
+        {
+          id: "h1",
+          cause: "Notification delivery failure",
+          guideSlug: null,
+          rawConfidence: 0.9,
+          confidence: 0.9,
+          explanation: "The notification was not delivered.",
+          supporting: [],
+          rejecting: [],
+        },
+      ],
+      citations: [],
+      safetyWarnings: [],
+      missingInformation: [],
+    };
+    const investigations = makeQuery({
+      data: [],
+      maybeSingle: {
+        data: {
+          ticket_id: shadowRun.ticket_id,
+          organization_id: shadowRun.organization_id,
+          user_id: "user-1",
+          context: evidence.context,
+          hypotheses: evidence.hypotheses,
+          excluded_steps: [],
+          asked_question_ids: [],
+          status: "escalated",
+          escalation_package: null,
+          escalation_package_at: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        error: null,
+      },
+    });
+    const stepOutcomes = makeQuery({ data: [] });
+    const attachments = makeQuery({ data: [] });
+    const turns = makeQuery({ data: [] });
+    const orgPolicy = makeQuery({
+      maybeSingle: {
+        data: {
+          granted_policies: ["autonomy.notifications"],
+          require_approval_for: [],
+        },
+        error: null,
+      },
+    });
+    const approvals = makeQuery({ data: [] });
     const events = makeQuery({});
-    const policyDecisions = makeQuery({});
+    const policyDecisions = makeQuery({
+      single: { data: { id: "policy-1" }, error: null },
+    });
     const admin = makeAdmin({
       resolution_runs: runs,
       tickets,
+      ticket_investigations: investigations,
+      ticket_step_outcomes: stepOutcomes,
+      ticket_attachments: attachments,
+      ticket_investigation_turns: turns,
       notification_outbox: notifications,
       capability_executions: executions,
       organization_capabilities: orgCapabilities,
       capability_versions: versions,
+      organization_autonomy_policies: orgPolicy,
+      approval_requests: approvals,
       resolution_steps: steps,
       resolution_events: events,
       policy_decisions: policyDecisions,
     });
+    mocks.snapshotEvidence.mockResolvedValue(evidence);
 
     const summary = await processDueRuns(admin as never);
 
@@ -428,7 +526,26 @@ describe("resolution orchestrator", () => {
       expect.objectContaining({ kind: "plan.shadow" })
     );
     expect(policyDecisions.insert).toHaveBeenCalledWith(
-      expect.objectContaining({ reasons: ["shadow_mode"] })
+      expect.objectContaining({
+        capability_id: "retry_failed_notification",
+        decision: "require_user_consent",
+        reasons: expect.arrayContaining(["capability_requires_user_consent"]),
+      })
+    );
+    expect(events.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "plan.shadow",
+        detail: expect.objectContaining({
+          decision: "require_user_consent",
+          rejection: null,
+        }),
+      })
+    );
+    expect(events.insert).not.toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "execution.started" })
+    );
+    expect(events.insert).not.toHaveBeenCalledWith(
+      expect.objectContaining({ to_status: "executing" })
     );
     expect(tickets.update).toHaveBeenCalledWith(
       expect.objectContaining({ handoff_reason: "shadow_mode" })

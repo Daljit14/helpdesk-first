@@ -37,6 +37,7 @@ vi.mock("@/lib/admin/flags", () => ({
 }));
 
 import { executePlan } from "./execute";
+import { assertTransition } from "../state-machine";
 
 const run = {
   id: "run-1",
@@ -60,7 +61,11 @@ const run = {
   completed_at: null,
 };
 
-function admin() {
+function admin(
+  baseRun: Omit<typeof run, "status"> & {
+    status: "planning" | "awaiting_consent";
+  } = run
+) {
   const query = (table: string) => {
     const state = {
       data:
@@ -69,7 +74,11 @@ function admin() {
           : table === "resolution_steps"
             ? { id: "step-1", detail: {} }
             : table === "resolution_runs"
-              ? { ...run, attempts: 1 }
+              ? {
+                  ...baseRun,
+                  status: "executing",
+                  attempts: 1,
+                }
               : table === "capability_executions"
                 ? null
                 : table === "organization_autonomy_policies"
@@ -148,10 +157,10 @@ describe("executePlan", () => {
     mocks.getHandler.mockReturnValue({
       run: vi.fn(async () => ({ ok: true, output: { matches: 1 } })),
     });
-    mocks.transitionRun.mockImplementation(async (_admin, value, to) => ({
-      ...value,
-      status: to,
-    }));
+    mocks.transitionRun.mockImplementation(async (_admin, value, to) => {
+      assertTransition(value.status, to);
+      return { ...value, status: to };
+    });
   });
 
   test("runs a safe plan through verification", async () => {
@@ -165,6 +174,22 @@ describe("executePlan", () => {
       expect.anything(),
       expect.anything(),
       "resolved",
+      expect.anything()
+    );
+  });
+
+  test("granted consent resumes from awaiting_consent through execution", async () => {
+    const awaitingConsent = { ...run, status: "awaiting_consent" as const };
+    const result = await executePlan(
+      admin(awaitingConsent) as never,
+      awaitingConsent,
+      plan
+    );
+    expect(result?.status).toBe("verifying");
+    expect(mocks.transitionRun).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ status: "awaiting_consent" }),
+      "executing",
       expect.anything()
     );
   });

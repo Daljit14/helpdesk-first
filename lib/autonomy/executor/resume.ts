@@ -1,7 +1,7 @@
 import type { HandlerAdmin } from "./handlers/types";
 import type { ResolutionRun } from "../orchestrator";
 import { executePlan, type ExecutePlanDeps } from "./execute";
-import { escalateRun, transitionRun } from "../orchestrator";
+import { escalateRun } from "../orchestrator";
 
 export async function resumeAfterApproval(
   admin: HandlerAdmin,
@@ -47,6 +47,9 @@ export async function resumeAfterApproval(
       .eq("status", "requested");
     return escalateRun(admin, run, "approval_expired");
   }
+  if (approval.data.status === "requested") {
+    return run;
+  }
   if (approval.data.status === "denied") {
     return escalateRun(admin, run, "approval_denied");
   }
@@ -55,11 +58,7 @@ export async function resumeAfterApproval(
   }
   const plan = step.data.detail?.plan;
   if (!plan) return escalateRun(admin, run, "approval_expired");
-  const planning = await transitionRun(admin, run, "planning", {
-    actor: deps.actor ?? "orchestrator",
-  });
-  if (!planning) return null;
-  return executePlan(admin, planning, plan, {
+  return executePlan(admin, run, plan, {
     ...deps,
     stepId: step.data.id,
   });

@@ -14,8 +14,9 @@ import {
 import { readKillSwitches } from "./kill-switches";
 import { listEnabledCapabilities } from "./capabilities/enablement";
 import { getCapability, inputSchemaJson } from "./capabilities/registry";
-import { executePlan } from "./executor/execute";
+import { evaluatePlanPolicy, executePlan } from "./executor/execute";
 import { resumeAfterApproval } from "./executor/resume";
+import { recordPolicyDecision } from "./policy/record";
 import { parsePlannerOutput } from "./planner/schema";
 import { selectPlanner } from "./planner/select";
 
@@ -211,28 +212,34 @@ async function planRun(
     return escalateRun(admin, planning, "plan_persistence_failed");
   }
   if (getPlannerMode() === "shadow") {
+    const evaluated = await evaluatePlanPolicy(
+      admin,
+      planning,
+      parsed.value,
+      planStep.data.id
+    );
+    const recorded = evaluated.ok
+      ? await recordPolicyDecision(admin, {
+          organizationId: run.organization_id,
+          runId: run.id,
+          stepId: planStep.data.id,
+          input: evaluated.input,
+          decision: evaluated.decision,
+        })
+      : null;
     await writeRunEvent(admin, {
       organization_id: run.organization_id,
       run_id: run.id,
       ticket_id: run.ticket_id,
       kind: "plan.shadow",
       actor: "orchestrator",
-      detail: { plan: parsed.value },
-    });
-    const capabilityId =
-      "capabilityId" in parsed.value ? parsed.value.capabilityId : "planner";
-    const capabilityVersion =
-      "capabilityVersion" in parsed.value ? parsed.value.capabilityVersion : 1;
-    await admin.from("policy_decisions").insert({
-      organization_id: run.organization_id,
-      run_id: run.id,
-      step_id: planStep.data.id,
-      capability_id: capabilityId,
-      capability_version: capabilityVersion,
-      decision: "deny",
-      reasons: ["shadow_mode"],
-      input: { shadow: true, plan: parsed.value },
-      policy_version: "shadow",
+      detail: {
+        plan: parsed.value,
+        decision: evaluated.ok ? evaluated.decision.decision : null,
+        reasons: evaluated.ok ? evaluated.decision.reasons : [],
+        rejection: evaluated.ok ? null : evaluated.reason,
+        policyDecisionId: recorded?.ok ? recorded.id : null,
+      },
     });
     return escalateRun(admin, planning, "shadow_mode");
   }

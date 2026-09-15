@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   isEscalationPackageEnabled: vi.fn(),
   snapshotEscalationPackage: vi.fn(),
   snapshotEvidence: vi.fn(),
+  verifyRun: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/admin", () => ({
@@ -25,10 +26,14 @@ vi.mock("@/lib/investigation/escalation", () => ({
 vi.mock("@/lib/evidence/snapshot", () => ({
   snapshotEvidence: mocks.snapshotEvidence,
 }));
+vi.mock("./verification/engine", () => ({
+  verifyRun: mocks.verifyRun,
+}));
 
 import {
   processDueRuns,
   reapExpiredLeases,
+  resolutionStepPosition,
   startRun,
   transitionRun,
   type ResolutionRun,
@@ -102,6 +107,19 @@ describe("resolution orchestrator", () => {
     mocks.event.mockResolvedValue(undefined);
     mocks.snapshotEscalationPackage.mockResolvedValue(null);
     mocks.snapshotEvidence.mockResolvedValue(null);
+    mocks.verifyRun.mockResolvedValue(null);
+  });
+
+  test("uses non-colliding positions for each bounded planning round", () => {
+    expect([
+      resolutionStepPosition(0, "plan"),
+      resolutionStepPosition(0, "policy"),
+      resolutionStepPosition(0, "execute"),
+    ]).toEqual([0, 1, 2]);
+    expect(resolutionStepPosition(1, "plan")).toBe(3);
+    expect(resolutionStepPosition(1, "plan")).not.toBe(
+      resolutionStepPosition(0, "plan")
+    );
   });
 
   test("returns the active run on duplicate start", async () => {
@@ -331,6 +349,22 @@ describe("resolution orchestrator", () => {
     expect(tickets.update).toHaveBeenCalledWith(
       expect.objectContaining({ handoff_reason: "run_failed" })
     );
+  });
+
+  test("verification runs remain untouched when the verification flag is off", async () => {
+    vi.stubEnv("HELP_DESK_VERIFICATION_ENGINE_ENABLED", "false");
+    const runs = makeQuery({ data: [{ ...run, status: "verifying" }] });
+    const events = makeQuery({});
+    const admin = makeAdmin({
+      resolution_runs: runs,
+      resolution_events: events,
+    });
+
+    const summary = await processDueRuns(admin as never);
+
+    expect(summary).toEqual({ processed: 1, paused: 0, escalated: 0 });
+    expect(mocks.verifyRun).not.toHaveBeenCalled();
+    expect(events.insert).not.toHaveBeenCalled();
   });
 
   test("reaper times out a step and escalates its run", async () => {

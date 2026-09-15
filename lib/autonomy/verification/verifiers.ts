@@ -1,0 +1,254 @@
+import type { Verifier, VerifierContext, VerifierResult } from "./types";
+
+export const VERIFIER_VERSION = "1";
+
+const informational = (
+  outcome: VerifierResult["outcome"],
+  evidence: VerifierResult["evidence"] = {}
+): VerifierResult => ({ outcome, evidence, userConfirmationRequired: false });
+
+const resolving = (
+  outcome: VerifierResult["outcome"],
+  evidence: VerifierResult["evidence"] = {}
+): VerifierResult => ({ outcome, evidence, userConfirmationRequired: true });
+
+function idParam(ctx: VerifierContext, key: string): string | null {
+  const value = ctx.parameters[key];
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+async function readTicket(ctx: VerifierContext, columns: string) {
+  return ctx.admin
+    .from("tickets")
+    .select(columns)
+    .eq("id", ctx.ticketId)
+    .eq("organization_id", ctx.organizationId)
+    .maybeSingle();
+}
+
+async function outboxStatus(ctx: VerifierContext): Promise<VerifierResult> {
+  const notificationId = idParam(ctx, "notificationId");
+  if (!notificationId) {
+    return resolving("inconclusive", { reason: "missing_notification_id" });
+  }
+  const result = await ctx.admin
+    .from("notification_outbox")
+    .select("status,sent_at")
+    .eq("id", notificationId)
+    .eq("organization_id", ctx.organizationId)
+    .eq("ticket_id", ctx.ticketId)
+    .maybeSingle();
+  if (result.error || !result.data) {
+    return resolving("inconclusive", { reason: "outbox_row_not_found" });
+  }
+  const row = result.data as { status: string; sent_at: string | null };
+  const evidence = { status: row.status, sentAt: row.sent_at ?? null };
+  if (row.status === "sent") return resolving("passed", evidence);
+  if (row.status === "failed" || row.status === "dead") {
+    return resolving("failed", evidence);
+  }
+  return resolving("inconclusive", evidence);
+}
+
+async function hasResolutionEvent(
+  ctx: VerifierContext,
+  kinds: string[]
+): Promise<boolean> {
+  const result = await ctx.admin
+    .from("resolution_events")
+    .select("id")
+    .eq("organization_id", ctx.organizationId)
+    .eq("run_id", ctx.runId)
+    .in("kind", kinds)
+    .limit(1);
+  return !result.error && (result.data ?? []).length > 0;
+}
+
+const none: Verifier = {
+  method: "none",
+  version: VERIFIER_VERSION,
+  async verify() {
+    return informational("inconclusive", { reason: "no_verification_method" });
+  },
+};
+
+const diagnosticAnswerRecorded: Verifier = {
+  method: "diagnostic_answer_recorded",
+  version: VERIFIER_VERSION,
+  async verify(ctx) {
+    const questionId = idParam(ctx, "questionId");
+    const ticket = await readTicket(ctx, "diagnostic_answers");
+    if (ticket.error || !ticket.data) {
+      return informational("inconclusive", { reason: "ticket_not_found" });
+    }
+    const answers = (ticket.data as unknown as { diagnostic_answers: unknown })
+      .diagnostic_answers;
+    const answered =
+      Array.isArray(answers) &&
+      answers.some(
+        (answer) =>
+          answer !== null &&
+          typeof answer === "object" &&
+          "questionId" in answer &&
+          (answer as { questionId: unknown }).questionId === questionId
+      );
+    return informational(answered ? "passed" : "inconclusive", {
+      questionId,
+      answered,
+    });
+  },
+};
+
+const investigationContextPresent: Verifier = {
+  method: "investigation_context_present",
+  version: VERIFIER_VERSION,
+  async verify(ctx) {
+    const result = await ctx.admin
+      .from("ticket_investigations")
+      .select("id,context")
+      .eq("ticket_id", ctx.ticketId)
+      .eq("organization_id", ctx.organizationId)
+      .limit(1)
+      .maybeSingle();
+    if (result.error || !result.data) {
+      return informational("inconclusive", { reason: "no_investigation" });
+    }
+    const context = (result.data as { context: unknown }).context;
+    const present =
+      context !== null &&
+      typeof context === "object" &&
+      Object.keys(context).length > 0;
+    return informational(present ? "passed" : "inconclusive", { present });
+  },
+};
+
+const statusResponseCaptured: Verifier = {
+  method: "status_response_captured",
+  version: VERIFIER_VERSION,
+  async verify(ctx) {
+    if (!ctx.executionId) {
+      return informational("inconclusive", { reason: "no_execution" });
+    }
+    const result = await ctx.admin
+      .from("capability_executions")
+      .select("status")
+      .eq("id", ctx.executionId)
+      .eq("organization_id", ctx.organizationId)
+      .maybeSingle();
+    const status = (result.data as { status: string } | null)?.status ?? null;
+    return informational(status === "succeeded" ? "passed" : "inconclusive", {
+      executionStatus: status,
+    });
+  },
+};
+
+const outboxStatusSent: Verifier = {
+  method: "outbox_status_sent",
+  version: VERIFIER_VERSION,
+  verify: outboxStatus,
+};
+
+const outboxSentAndUserConfirms: Verifier = {
+  method: "outbox_sent_and_user_confirms",
+  version: VERIFIER_VERSION,
+  verify: outboxStatus,
+};
+
+const attachmentStatusRead: Verifier = {
+  method: "attachment_status_read",
+  version: VERIFIER_VERSION,
+  async verify(ctx) {
+    const attachmentId = idParam(ctx, "attachmentId");
+    if (!attachmentId) {
+      return informational("inconclusive", { reason: "missing_attachment_id" });
+    }
+    const result = await ctx.admin
+      .from("ticket_attachments")
+      .select("status")
+      .eq("id", attachmentId)
+      .eq("ticket_id", ctx.ticketId)
+      .eq("organization_id", ctx.organizationId)
+      .maybeSingle();
+    if (result.error || !result.data) {
+      return informational("inconclusive", { reason: "attachment_not_found" });
+    }
+    const scanStatus =
+      (result.data as { status: string | null }).status ?? null;
+    return informational(scanStatus ? "passed" : "inconclusive", {
+      scanStatus,
+    });
+  },
+};
+
+const escalationPackagePresent: Verifier = {
+  method: "escalation_package_present",
+  version: VERIFIER_VERSION,
+  async verify(ctx) {
+    const ticket = await readTicket(ctx, "escalation_package_at");
+    const at =
+      (ticket.data as { escalation_package_at: string | null } | null)
+        ?.escalation_package_at ?? null;
+    return informational(at ? "passed" : "inconclusive", { packageAt: at });
+  },
+};
+
+const userVerificationAnswer: Verifier = {
+  method: "user_verification_answer",
+  version: VERIFIER_VERSION,
+  async verify(ctx) {
+    const ticket = await readTicket(ctx, "status");
+    const status = (ticket.data as { status: string } | null)?.status ?? null;
+    return resolving(
+      status?.toLowerCase() === "pending verification"
+        ? "passed"
+        : "inconclusive",
+      { ticketStatus: status }
+    );
+  },
+};
+
+const assignmentUpdated: Verifier = {
+  method: "assignment_updated",
+  version: VERIFIER_VERSION,
+  async verify(ctx) {
+    const routed = await hasResolutionEvent(ctx, ["ticket.department_routed"]);
+    return informational(routed ? "passed" : "inconclusive", { routed });
+  },
+};
+
+const needsHumanWithPackage: Verifier = {
+  method: "needs_human_with_package",
+  version: VERIFIER_VERSION,
+  async verify(ctx) {
+    const ticket = await readTicket(ctx, "status,escalation_package_at");
+    const row = ticket.data as {
+      status: string;
+      escalation_package_at: string | null;
+    } | null;
+    const ok =
+      row?.status?.toLowerCase() === "needs human" &&
+      Boolean(row.escalation_package_at);
+    return informational(ok ? "passed" : "inconclusive", {
+      ticketStatus: row?.status ?? null,
+      packageAt: row?.escalation_package_at ?? null,
+    });
+  },
+};
+
+export const VERIFIERS: readonly Verifier[] = [
+  none,
+  diagnosticAnswerRecorded,
+  investigationContextPresent,
+  statusResponseCaptured,
+  outboxStatusSent,
+  outboxSentAndUserConfirms,
+  attachmentStatusRead,
+  escalationPackagePresent,
+  userVerificationAnswer,
+  assignmentUpdated,
+  needsHumanWithPackage,
+];
+
+export function getVerifier(method: string): Verifier | null {
+  return VERIFIERS.find((verifier) => verifier.method === method) ?? null;
+}

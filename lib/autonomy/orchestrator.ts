@@ -9,6 +9,7 @@ import {
   getAutonomyLimits,
   getPlannerMode,
   isAutonomyEnabled,
+  isVerificationEngineEnabled,
   isPlannerEnabled,
 } from "./config";
 import { readKillSwitches } from "./kill-switches";
@@ -19,6 +20,7 @@ import { resumeAfterApproval } from "./executor/resume";
 import { recordPolicyDecision } from "./policy/record";
 import { parsePlannerOutput } from "./planner/schema";
 import { selectPlanner } from "./planner/select";
+import { verifyRun } from "./verification/engine";
 
 export type OrchestratorAdmin = ReturnType<typeof createAdminClient>;
 
@@ -44,6 +46,13 @@ export type ResolutionRun = {
   completed_at: string | null;
 };
 
+export function resolutionStepPosition(
+  attempts: number,
+  kind: "plan" | "policy" | "execute"
+): number {
+  return attempts * 3 + { plan: 0, policy: 1, execute: 2 }[kind];
+}
+
 type RunEvent = {
   organization_id: string;
   run_id: string;
@@ -64,7 +73,7 @@ function isUniqueViolation(error: unknown): boolean {
   );
 }
 
-async function writeRunEvent(
+export async function writeRunEvent(
   admin: OrchestratorAdmin,
   input: RunEvent
 ): Promise<void> {
@@ -100,9 +109,12 @@ async function planRun(
   admin: OrchestratorAdmin,
   run: ResolutionRun
 ): Promise<ResolutionRun | null> {
-  const planning = await transitionRun(admin, run, "planning", {
-    actor: "orchestrator",
-  });
+  const planning =
+    run.status === "planning"
+      ? run
+      : await transitionRun(admin, run, "planning", {
+          actor: "orchestrator",
+        });
   if (!planning) return null;
   const ticketResult = await admin
     .from("tickets")
@@ -198,7 +210,7 @@ async function planRun(
       organization_id: run.organization_id,
       run_id: run.id,
       kind: "plan",
-      position: 0,
+      position: resolutionStepPosition(run.attempts, "plan"),
       status: "done",
       detail: {
         plan: parsed.value,
@@ -491,7 +503,10 @@ export async function processDueRuns(
       }
       continue;
     }
-    if (isPlannerEnabled() && run.status === "investigating") {
+    if (
+      isPlannerEnabled() &&
+      (run.status === "investigating" || run.status === "planning")
+    ) {
       if (await planRun(admin, run)) {
         if (getPlannerMode() === "shadow") summary.escalated += 1;
       }
@@ -503,6 +518,11 @@ export async function processDueRuns(
     ) {
       const resumed = await resumeAfterApproval(admin, run);
       if (resumed?.status === "escalated") summary.escalated += 1;
+      continue;
+    }
+    if (isVerificationEngineEnabled() && run.status === "verifying") {
+      const verified = await verifyRun(admin, run);
+      if (verified?.status === "escalated") summary.escalated += 1;
       continue;
     }
     if (

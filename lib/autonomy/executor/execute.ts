@@ -2,7 +2,7 @@ import { isEvidenceEngineEnabled } from "@/lib/admin/flags";
 import { buildEvidence } from "@/lib/evidence/build";
 import { loadEvidenceInputs } from "@/lib/evidence/load";
 import { isSafeString } from "@/lib/ai/safety-policy";
-import { getAutonomyLimits } from "../config";
+import { getAutonomyLimits, isVerificationEngineEnabled } from "../config";
 import { evaluateBreaker } from "../breaker";
 import { buildIdempotencyKey } from "../idempotency";
 import { readKillSwitches } from "../kill-switches";
@@ -21,13 +21,14 @@ import {
 import { isCapabilityEnabled } from "../capabilities/enablement";
 import { parsePlannerOutput, type PlannerOutput } from "../planner/schema";
 import type { ResolutionRun } from "../orchestrator";
-import { transitionRun } from "../orchestrator";
+import { resolutionStepPosition, transitionRun } from "../orchestrator";
 import { checkPreconditions } from "./preconditions";
 import { getHandler } from "./handlers";
 import type { HandlerAdmin } from "./handlers/types";
 import { checkTenant } from "./tenant";
 import { sanitizeOutput } from "./sanitize";
 import type { PolicyDecision, PolicyInput } from "../policy/types";
+import { verifyRun } from "../verification/engine";
 
 type PlanStep = { id: string; detail?: Record<string, unknown> };
 
@@ -42,7 +43,14 @@ export type ExecutePlanDeps = {
   escalate?: (reason: string) => Promise<ResolutionRun | null>;
 };
 
-export async function verifyExecution(): Promise<{ outcome: "pending" }> {
+export async function verifyExecution(input: {
+  admin: HandlerAdmin;
+  run: ResolutionRun;
+  executionId: string | null;
+}): Promise<{ outcome: "pending" }> {
+  if (isVerificationEngineEnabled()) {
+    await verifyRun(input.admin, input.run);
+  }
   return { outcome: "pending" };
 }
 
@@ -164,7 +172,7 @@ async function ensureStep(
       organization_id: run.organization_id,
       run_id: run.id,
       kind,
-      position: run.attempts + 1,
+      position: resolutionStepPosition(run.attempts, kind),
       status: "pending",
       detail,
     })

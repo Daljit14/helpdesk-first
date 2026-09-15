@@ -38,7 +38,7 @@ export const TRANSITIONS: Record<RunStatus, readonly RunStatus[]> = {
   awaiting_approval: ["executing", "escalated", "paused"],
   executing: ["verifying", "failed", "escalated", "paused"],
   verifying: ["verified", "rolling_back", "failed", "escalated", "paused"],
-  verified: ["resolved", "escalated", "paused"],
+  verified: ["resolved", "planning", "escalated", "paused"],
   resolved: [],
   rolling_back: ["escalated", "failed", "paused"],
   escalated: [],

@@ -24,6 +24,10 @@ export function isPlannerEnabled(): boolean {
   return process.env.HELP_DESK_PLANNER_ENABLED === "true";
 }
 
+export function isVerificationEngineEnabled(): boolean {
+  return process.env.HELP_DESK_VERIFICATION_ENGINE_ENABLED === "true";
+}
+
 export function getPlannerMode(): PlannerMode {
   return process.env.HELP_DESK_PLANNER_MODE === "execute"
     ? "execute"

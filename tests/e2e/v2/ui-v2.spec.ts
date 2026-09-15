@@ -279,15 +279,14 @@ test.describe("UI v2 numbered coverage", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/");
     const menu = page.getByRole("button", { name: /menu|navigation/i }).first();
+    const mobileBrowseLink = page
+      .getByRole("navigation", { name: "Mobile" })
+      .getByRole("link", { name: "Browse solutions" });
     if (await menu.count()) {
       await menu.click();
-      await expect(
-        page.getByRole("link", { name: "Browse solutions" })
-      ).toBeVisible();
+      await expect(mobileBrowseLink).toBeVisible();
     } else {
-      await expect(
-        page.getByRole("link", { name: "Browse solutions" })
-      ).toBeVisible();
+      await expect(mobileBrowseLink).toBeVisible();
     }
   });
 

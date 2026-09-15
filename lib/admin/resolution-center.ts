@@ -119,12 +119,12 @@ function capabilityFromSteps(steps: JsonRecord[]): string | null {
   if (!plan || typeof plan !== "object") return null;
   const value = (plan as JsonRecord).plan;
   if (!value || typeof value !== "object") return null;
-  const stepsValue = (value as JsonRecord).steps;
-  if (!Array.isArray(stepsValue) || !stepsValue[0]) return null;
-  const first = stepsValue[0];
-  if (typeof first !== "object" || first === null) return null;
-  const capabilityId = (first as JsonRecord).capabilityId;
-  return typeof capabilityId === "string" ? capabilityId : null;
+  const capabilityId = (value as JsonRecord).capabilityId;
+  const version = (value as JsonRecord).capabilityVersion;
+  if (typeof capabilityId !== "string") return null;
+  return typeof version === "number"
+    ? `${capabilityId}@${version}`
+    : capabilityId;
 }
 
 function policyFromRows(rows: JsonRecord[]): string | null {

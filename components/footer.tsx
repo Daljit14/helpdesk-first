@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, LifeBuoy } from "lucide-react";
+import { Activity, Headset } from "lucide-react";
 import { getIssueBySlug } from "@/lib/search";
 
 const currentYear = new Date().getFullYear();
@@ -21,7 +21,13 @@ const popularFixes = [
   .map((slug) => getIssueBySlug(slug))
   .filter((issue): issue is NonNullable<typeof issue> => Boolean(issue));
 
-export function Footer({ signedIn = false }: { signedIn?: boolean }) {
+export function Footer({
+  signedIn = false,
+  staff = false,
+}: {
+  signedIn?: boolean;
+  staff?: boolean;
+}) {
   const pathname = usePathname();
   if (pathname?.startsWith("/admin")) return null;
 
@@ -31,7 +37,7 @@ export function Footer({ signedIn = false }: { signedIn?: boolean }) {
         <div className="grid gap-8 md:grid-cols-[1.4fr_1fr_1fr_1fr]">
           <div>
             <div className="flex items-center gap-2 font-semibold">
-              <LifeBuoy className="h-5 w-5" aria-hidden />
+              <Headset className="h-5 w-5" aria-hidden />
               HelpDesk First
             </div>
             <p className="mt-3 max-w-xs text-sm text-muted-foreground">
@@ -106,12 +112,14 @@ export function Footer({ signedIn = false }: { signedIn?: boolean }) {
             Level-1 guidance only — for managed devices or anything outside your
             authority, contact your IT team.
           </span>
-          <Link
-            className="text-xs text-muted-foreground transition hover:text-foreground"
-            href="/admin/login"
-          >
-            Staff sign in
-          </Link>
+          {staff && (
+            <Link
+              className="text-xs text-muted-foreground transition hover:text-foreground"
+              href="/admin/login"
+            >
+              Staff sign in
+            </Link>
+          )}
         </div>
       </div>
     </footer>

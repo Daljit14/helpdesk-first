@@ -154,11 +154,14 @@ describe("TicketsTable", () => {
       />
     );
 
-    expect(screen.getByRole("button", { name: "All 3" })).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Resolved 1" })
-    ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Resolved 1" }));
+    const allButton = screen.getByRole("button", { name: "All 3" });
+    const resolvedButton = screen.getByRole("button", { name: "Resolved 1" });
+    expect(allButton).toHaveClass("bg-foreground");
+    expect(resolvedButton).toHaveClass("glass-pill");
+    fireEvent.click(resolvedButton);
+
+    expect(resolvedButton).toHaveClass("bg-foreground");
+    expect(allButton).toHaveClass("glass-pill");
 
     expect(screen.queryByTestId("tickets-open")).not.toBeInTheDocument();
     expect(screen.getByText("Resolved printer issue")).toBeInTheDocument();

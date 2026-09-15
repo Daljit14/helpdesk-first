@@ -9,6 +9,7 @@ import { ServiceWorkerRegister } from "@/components/sw-register";
 import { InstallPrompt } from "@/components/install-prompt";
 import { getCurrentUser } from "@/lib/supabase/user";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { membershipFor } from "@/lib/admin/auth";
 import { AnalyticsTracker } from "@/components/analytics-tracker";
 import { isUiV2Enabled } from "@/lib/ui-v2";
 
@@ -39,7 +40,16 @@ export default async function RootLayout({
 }: {
   children: ReactNode;
 }) {
-  const user = isSupabaseConfigured() ? await getCurrentUser() : null;
+  const supabaseConfigured = isSupabaseConfigured();
+  const user = supabaseConfigured ? await getCurrentUser() : null;
+  let staff = false;
+  if (supabaseConfigured && user) {
+    try {
+      staff = Boolean(await membershipFor(user));
+    } catch {
+      staff = false;
+    }
+  }
 
   return (
     <html
@@ -67,7 +77,7 @@ export default async function RootLayout({
           >
             {children}
           </main>
-          <Footer signedIn={Boolean(user)} />
+          <Footer signedIn={Boolean(user)} staff={staff} />
           <InstallPrompt />
         </ThemeProvider>
       </body>

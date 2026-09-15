@@ -27,6 +27,9 @@ describe("Footer", () => {
     ).toHaveAttribute("href", "/signup");
     expect(screen.queryByText("Organization admin")).not.toBeInTheDocument();
     expect(screen.queryByText("Notifications")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Staff sign in" })
+    ).not.toBeInTheDocument();
   });
 
   test("uses signed-in account links", () => {
@@ -42,6 +45,18 @@ describe("Footer", () => {
     expect(
       screen.queryByRole("link", { name: "Sign in" })
     ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Staff sign in" })
+    ).not.toBeInTheDocument();
+  });
+
+  test("shows staff sign-in only for staff", () => {
+    render(<Footer signedIn staff />);
+
+    expect(screen.getByRole("link", { name: "Staff sign in" })).toHaveAttribute(
+      "href",
+      "/admin/login"
+    );
   });
 
   test("hides from admin routes", () => {

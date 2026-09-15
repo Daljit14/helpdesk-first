@@ -175,13 +175,18 @@ export async function listShadowDecisions(
     .limit(Math.min(Math.max(options.limit ?? 100, 1), 500));
   if (options.status) query = query.eq("review_status", options.status);
   const result = await query;
+  if (result.error) throw new Error(result.error.message);
   return ((result.data ?? []) as Record<string, unknown>[]).map(shadowRow);
 }
 
 export async function getShadowOverview(
   session: AdminSession,
   options: { status?: ShadowDecision["reviewStatus"]; windowDays?: number } = {}
-): Promise<{ decisions: ShadowDecision[]; metrics: ShadowMetrics }> {
+): Promise<{
+  decisions: ShadowDecision[];
+  metrics: ShadowMetrics;
+  error: string | null;
+}> {
   const admin = createAdminClient();
   const windowDays = Math.max(1, options.windowDays ?? 30);
   let query = admin
@@ -196,10 +201,17 @@ export async function getShadowOverview(
     .limit(500);
   if (options.status) query = query.eq("review_status", options.status);
   const result = await query;
+  if (result.error) {
+    return {
+      decisions: [],
+      metrics: shadowMetrics([]),
+      error: result.error.message,
+    };
+  }
   const decisions = ((result.data ?? []) as Record<string, unknown>[]).map(
     shadowRow
   );
-  return { decisions, metrics: shadowMetrics(decisions) };
+  return { decisions, metrics: shadowMetrics(decisions), error: null };
 }
 
 export async function getShadowAggregate(session: AdminSession): Promise<{

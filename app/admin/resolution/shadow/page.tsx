@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { AdminBreadcrumbs } from "@/components/admin/v2/breadcrumbs";
+import { ShadowReviewForm } from "@/components/admin/resolution/shadow-review-form";
 import { requireAdminPage } from "@/lib/admin/auth";
 import { isResolutionCenterEnabled } from "@/lib/admin/flags";
 import { getShadowOverview } from "@/lib/admin/resolution-center";
-import { reviewShadowDecision } from "@/app/actions/admin-shadow";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -16,6 +16,14 @@ export default async function ShadowReviewPage() {
   if (!isResolutionCenterEnabled()) notFound();
   const session = await requireAdminPage("/admin/resolution/shadow");
   const overview = await getShadowOverview(session);
+  const metrics = [
+    ["Decisions", overview.metrics.total],
+    ["Agreement", `${Math.round(overview.metrics.agreementRate * 100)}%`],
+    ["Unsafe plans", `${Math.round(overview.metrics.unsafePlanRate * 100)}%`],
+    ["False allows", `${Math.round(overview.metrics.falseAllowRate * 100)}%`],
+    ["Planner latency", `${Math.round(overview.metrics.plannerLatencyMs)}ms`],
+    ["Planner cost", `${overview.metrics.plannerCostCents.toFixed(2)}¢`],
+  ] as const;
   return (
     <section className="flex flex-1 flex-col px-4 py-8 sm:px-6 lg:px-8">
       <div className="mx-auto w-full max-w-7xl">
@@ -26,10 +34,19 @@ export default async function ShadowReviewPage() {
           ]}
         />
         <h1 className="mt-4 text-3xl font-bold">AI shadow review</h1>
-        <p className="mt-2 text-muted-foreground">
-          {overview.metrics.total} decisions ·{" "}
-          {Math.round(overview.metrics.agreementRate * 100)}% agreement
-        </p>
+        <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
+          {metrics.map(([label, value]) => (
+            <div className="rounded-lg border bg-background p-4" key={label}>
+              <p className="text-xs text-muted-foreground">{label}</p>
+              <p className="mt-2 text-2xl font-semibold">{value}</p>
+            </div>
+          ))}
+        </div>
+        {overview.error && (
+          <p className="mt-6 rounded-lg border border-border bg-muted/40 p-4 text-sm text-muted-foreground">
+            Shadow decisions are unavailable: {overview.error}
+          </p>
+        )}
         <div className="mt-8 space-y-4">
           {overview.decisions.map((decision) => (
             <article key={decision.id} className="rounded-lg border p-4">
@@ -43,34 +60,12 @@ export default async function ShadowReviewPage() {
                 {decision.policyDecision ?? "no policy decision"} ·{" "}
                 {decision.plannerProvider} · {decision.latencyMs ?? 0}ms
               </p>
-              <form
-                action={async (formData) => {
-                  await reviewShadowDecision(formData);
-                }}
-                className="mt-4 flex flex-wrap gap-2"
-              >
-                <input type="hidden" name="id" value={decision.id} />
-                <select
-                  name="status"
-                  defaultValue={
-                    decision.reviewStatus === "unreviewed"
-                      ? "agree"
-                      : decision.reviewStatus
-                  }
-                >
-                  <option value="agree">Agree</option>
-                  <option value="disagree">Disagree</option>
-                  <option value="unsafe">Unsafe</option>
-                </select>
-                <input
-                  name="note"
-                  placeholder="Review note"
-                  className="min-w-64 rounded border px-2 py-1"
-                />
-                <button type="submit" className="rounded border px-3 py-1">
-                  Save
-                </button>
-              </form>
+              <ShadowReviewForm
+                id={decision.id}
+                reviewStatus={decision.reviewStatus}
+                reviewNote={decision.reviewNote}
+                canReview={session.role === "org_admin"}
+              />
             </article>
           ))}
           {overview.decisions.length === 0 && (

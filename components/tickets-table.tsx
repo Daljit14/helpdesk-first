@@ -191,7 +191,7 @@ export function TicketsTable({
               <button
                 key={ticketFilter.id}
                 type="button"
-                className="glass-pill px-3 py-1.5 text-sm transition hover:bg-muted"
+                className="glass-pill px-3 py-1.5 text-sm transition hover:bg-muted aria-pressed:bg-foreground aria-pressed:text-background aria-pressed:hover:bg-foreground"
                 aria-pressed={filter === ticketFilter.id}
                 onClick={() => selectFilter(ticketFilter.id)}
               >
@@ -294,7 +294,7 @@ export function TicketsTable({
             <button
               key={ticketFilter.id}
               type="button"
-              className="glass-pill px-3 py-1.5 text-sm transition hover:bg-muted"
+              className="glass-pill px-3 py-1.5 text-sm transition hover:bg-muted aria-pressed:bg-foreground aria-pressed:text-background aria-pressed:hover:bg-foreground"
               aria-pressed={filter === ticketFilter.id}
               onClick={() => selectFilter(ticketFilter.id)}
             >

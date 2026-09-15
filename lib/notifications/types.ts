@@ -12,6 +12,7 @@ export type NotificationEventType =
   | "org.role_changed"
   | "sla.first_response_at_risk"
   | "sla.first_response_overdue"
-  | "sla.resolution_overdue";
+  | "sla.resolution_overdue"
+  | "security.autonomy_alert";
 
 export type NotificationChannel = "email" | "push";

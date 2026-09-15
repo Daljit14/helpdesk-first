@@ -2,6 +2,10 @@ import type { ResolutionRun } from "../orchestrator";
 import { escalateRun, transitionRun, writeRunEvent } from "../orchestrator";
 import { getAutonomyLimits } from "../config";
 import { getCapability } from "../capabilities/registry";
+import { isRollbackEnabled } from "../config";
+import { redactAuditDetail } from "../audit/redact";
+import { auditVersions, initiatedBy } from "../audit/versions";
+import { rollbackExecution } from "../rollback";
 import { getVerifier } from "./verifiers";
 import type {
   VerificationOutcome,
@@ -54,6 +58,7 @@ async function insertVerificationResult(
   admin: VerifierAdmin,
   run: ResolutionRun,
   executionId: string | null,
+  actor: string,
   result: {
     method: string;
     evidence: VerifierEvidence;
@@ -67,10 +72,12 @@ async function insertVerificationResult(
     run_id: run.id,
     execution_id: executionId,
     method: result.method,
-    evidence: result.evidence,
+    evidence: redactAuditDetail(result.evidence),
     user_confirmed: result.userConfirmed ?? false,
     outcome: result.outcome,
     verifier_version: result.verifierVersion,
+    initiated_by: initiatedBy(actor),
+    versions: auditVersions(),
   });
 }
 
@@ -87,7 +94,7 @@ async function recordVerification(
     verifierVersion: string | null;
   }
 ): Promise<void> {
-  await insertVerificationResult(admin, run, executionId, result);
+  await insertVerificationResult(admin, run, executionId, actor, result);
   await writeRunEvent(admin, {
     organization_id: run.organization_id,
     run_id: run.id,
@@ -285,11 +292,22 @@ async function handleInformationalResult(
 async function handleObjectiveFailure(
   admin: VerifierAdmin,
   run: ResolutionRun,
+  executionId: string,
   capabilityRollback: string | null,
   method: string,
   evidence: VerifierEvidence,
   actor: string
 ): Promise<ResolutionRun | null> {
+  if (
+    isRollbackEnabled() &&
+    capabilityRollback &&
+    capabilityRollback !== "none"
+  ) {
+    const rollback = await rollbackExecution(admin, run, executionId, {
+      actor,
+    });
+    return rollback;
+  }
   if (capabilityRollback && capabilityRollback !== "none") {
     await writeRunEvent(admin, {
       organization_id: run.organization_id,
@@ -348,6 +366,7 @@ export async function verifyRun(
       return handleObjectiveFailure(
         admin,
         run,
+        execution.id,
         capability?.rollback ?? null,
         method,
         existing.evidence,
@@ -388,6 +407,7 @@ export async function verifyRun(
     return handleObjectiveFailure(
       admin,
       run,
+      execution.id,
       capability?.rollback ?? null,
       method,
       unknown.evidence,
@@ -423,6 +443,7 @@ export async function verifyRun(
     return handleObjectiveFailure(
       admin,
       run,
+      execution.id,
       capability.rollback,
       method,
       result.evidence,

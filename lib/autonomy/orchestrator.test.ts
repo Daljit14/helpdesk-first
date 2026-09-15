@@ -543,6 +543,7 @@ describe("resolution orchestrator", () => {
       ticket_investigation_turns: turns,
       notification_outbox: notifications,
       capability_executions: executions,
+      capability_breakers: makeQuery({ data: null }),
       organization_capabilities: orgCapabilities,
       capability_versions: versions,
       organization_autonomy_policies: orgPolicy,

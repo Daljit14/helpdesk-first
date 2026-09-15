@@ -1,4 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { auditVersions, initiatedBy } from "../audit/versions";
+import { redactAuditDetail } from "../audit/redact";
 import type { PolicyDecision, PolicyInput } from "./types";
 
 type PolicyAdmin = ReturnType<typeof createAdminClient>;
@@ -26,8 +28,13 @@ export async function recordPolicyDecision(
         capability_version: input.capability.version,
         decision: decision.decision,
         reasons: decision.reasons,
-        input,
+        input: redactAuditDetail(input),
         policy_version: decision.policyVersion,
+        initiated_by: initiatedBy("ai"),
+        versions: auditVersions({
+          id: input.capability.id,
+          version: input.capability.version,
+        }),
       })
       .select("id")
       .single();

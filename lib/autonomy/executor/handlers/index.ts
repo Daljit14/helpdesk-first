@@ -1,5 +1,7 @@
 import { filterIssues } from "@/lib/search";
 import { snapshotEscalationPackage } from "@/lib/investigation/escalation";
+import { redactAuditDetail } from "../../audit/redact";
+import { auditVersions, initiatedBy } from "../../audit/versions";
 import type { HandlerContext, HandlerResult, CapabilityHandler } from "./types";
 
 const scalar = (
@@ -17,7 +19,9 @@ async function resolutionEvent(
     ticket_id: ctx.ticketId,
     kind,
     actor: ctx.actor,
-    detail,
+    detail: redactAuditDetail(detail),
+    initiated_by: initiatedBy(ctx.actor),
+    versions: auditVersions(),
   });
 }
 

@@ -25,8 +25,9 @@ const mocks = vi.hoisted(() => ({
         }
       : null;
   }),
+  rollbackExecution: vi.fn(),
 }));
-const { transitionRun, escalateRun, writeRunEvent } = mocks;
+const { transitionRun, escalateRun, writeRunEvent, rollbackExecution } = mocks;
 
 vi.mock("../orchestrator", () => ({
   transitionRun: mocks.transitionRun,
@@ -35,6 +36,9 @@ vi.mock("../orchestrator", () => ({
 }));
 vi.mock("../capabilities/registry", () => ({
   getCapability: mocks.getCapability,
+}));
+vi.mock("../rollback", () => ({
+  rollbackExecution: mocks.rollbackExecution,
 }));
 
 const ORG = "00000000-0000-0000-0000-000000000001";
@@ -128,6 +132,7 @@ beforeEach(() => {
   transitionRun.mockReset();
   escalateRun.mockReset();
   writeRunEvent.mockClear();
+  rollbackExecution.mockReset();
   transitionRun.mockImplementation(
     async (
       _admin: unknown,
@@ -327,6 +332,34 @@ describe("verification engine", () => {
         kind: "rollback.unsupported_in_5c",
         detail: { rollback: "compensating" },
       })
+    );
+  });
+
+  test("objective failure uses rollback when enabled", async () => {
+    vi.stubEnv("HELP_DESK_ROLLBACK_ENABLED", "true");
+    rollbackExecution.mockResolvedValue({ ...run(), status: "escalated" });
+    const admin = adminFor({
+      capability_executions: {
+        data: execution("rollback_capability", {
+          notificationId: NOTIFICATION,
+        }),
+      },
+      verification_results: { data: null },
+      notification_outbox: {
+        data: { status: "failed", sent_at: null },
+      },
+    });
+    const result = await verifyRun(admin, run());
+    expect(result?.status).toBe("escalated");
+    expect(rollbackExecution).toHaveBeenCalledWith(
+      admin,
+      expect.objectContaining({ status: "verifying" }),
+      EXECUTION,
+      expect.objectContaining({ actor: "orchestrator" })
+    );
+    expect(writeRunEvent).not.toHaveBeenCalledWith(
+      admin,
+      expect.objectContaining({ kind: "rollback.unsupported_in_5c" })
     );
   });
 

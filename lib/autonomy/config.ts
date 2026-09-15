@@ -28,6 +28,19 @@ export function isVerificationEngineEnabled(): boolean {
   return process.env.HELP_DESK_VERIFICATION_ENGINE_ENABLED === "true";
 }
 
+export function isRollbackEnabled(): boolean {
+  return process.env.HELP_DESK_ROLLBACK_ENABLED === "true";
+}
+
+export function isAutonomyAlertsEnabled(): boolean {
+  return process.env.HELP_DESK_AUTONOMY_ALERTS_ENABLED === "true";
+}
+
+export function isCapabilityDisabledByEnv(capabilityId: string): boolean {
+  const key = `HELP_DESK_CAP_${capabilityId.toUpperCase()}_ENABLED`;
+  return process.env[key] === "false";
+}
+
 export function getPlannerMode(): PlannerMode {
   return process.env.HELP_DESK_PLANNER_MODE === "execute"
     ? "execute"
@@ -74,6 +87,12 @@ export function getAutonomyLimits() {
     breakerWindowMs: boundedNumber(
       "HELP_DESK_AUTONOMY_BREAKER_WINDOW_MS",
       15 * 60_000,
+      1_000,
+      24 * 60 * 60_000
+    ),
+    breakerCooldownMs: boundedNumber(
+      "HELP_DESK_AUTONOMY_BREAKER_COOLDOWN_MS",
+      30 * 60_000,
       1_000,
       24 * 60 * 60_000
     ),

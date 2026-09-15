@@ -3,7 +3,14 @@ import { buildEvidence } from "@/lib/evidence/build";
 import { loadEvidenceInputs } from "@/lib/evidence/load";
 import { isSafeString } from "@/lib/ai/safety-policy";
 import { getAutonomyLimits, isVerificationEngineEnabled } from "../config";
-import { evaluateBreaker } from "../breaker";
+import {
+  evaluateBreaker,
+  readBreakerState,
+  recordBreakerOutcome,
+} from "../breaker";
+import { alertSecurityEvent } from "../alerts";
+import { redactAuditDetail } from "../audit/redact";
+import { auditVersions } from "../audit/versions";
 import { buildIdempotencyKey } from "../idempotency";
 import { readKillSwitches } from "../kill-switches";
 import { buildPolicyInput } from "../policy/build-input";
@@ -119,7 +126,9 @@ async function writeEvent(
     ticket_id: run.ticket_id,
     kind,
     actor: "orchestrator",
-    detail,
+    detail: redactAuditDetail(detail),
+    initiated_by: "ai",
+    versions: auditVersions(),
   });
 }
 
@@ -316,6 +325,17 @@ async function executeHandler(
       capabilityId,
       executionId: existing.data.id,
     });
+    await writeEvent(admin, run, "security.replay_detected", {
+      capabilityId,
+      executionId: existing.data.id,
+    });
+    await alertSecurityEvent(admin, {
+      organizationId: run.organization_id,
+      ticketId: run.ticket_id,
+      runId: run.id,
+      kind: "security.replay_detected",
+      detail: { capabilityId, executionId: existing.data.id },
+    });
     if (existing.data.status !== "succeeded") {
       await transitionRun(admin, run, "failed", {
         actor: deps.actor ?? "orchestrator",
@@ -366,6 +386,13 @@ async function executeHandler(
     status = signal.aborted ? "timed_out" : "failed";
   }
   const output = sanitizeOutput(result.output);
+  await recordBreakerOutcome(
+    admin,
+    run.organization_id,
+    capabilityId,
+    status === "succeeded",
+    new Date()
+  );
   const execution = await admin
     .from("capability_executions")
     .insert({
@@ -376,9 +403,11 @@ async function executeHandler(
       capability_version: version,
       idempotency_key: key,
       parameters: params,
-      result: output,
+      result: redactAuditDetail(output),
       status,
       duration_ms: Date.now() - started,
+      initiated_by: "ai",
+      versions: auditVersions({ id: capabilityId, version }),
     })
     .select("id")
     .single();
@@ -489,6 +518,12 @@ export async function evaluatePlanPolicy(
     threshold: limits.breakerThreshold,
     windowMs: limits.breakerWindowMs,
   });
+  const persistedBreaker = await readBreakerState(
+    admin,
+    run.organization_id,
+    capability.id,
+    new Date()
+  );
   const policyInput = buildPolicyInput({
     capability,
     capabilityEnabled: true,
@@ -497,7 +532,7 @@ export async function evaluatePlanPolicy(
       run.organization_id,
       capability.id
     ),
-    breaker,
+    breaker: { open: breaker.open || persistedBreaker.open },
     evidence: await readEvidence(admin, run.ticket_id, run.organization_id),
     actorRole: "system",
     platform: capabilityPlatform(ticket.platform),
@@ -525,9 +560,35 @@ export async function executePlan(
   const parsed = parsePlannerOutput(rawPlan);
   if (!parsed.ok) {
     await writeEvent(admin, run, "plan.rejected", { issues: parsed.issues });
+    await alertSecurityEvent(admin, {
+      organizationId: run.organization_id,
+      ticketId: run.ticket_id,
+      runId: run.id,
+      kind: "security.plan_rejected",
+      detail: { issues: parsed.issues },
+    });
     return escalate(admin, run, "plan_rejected", deps);
   }
   const plan: PlannerOutput = parsed.value;
+  if (
+    !("decision" in plan) &&
+    !getCapability(plan.capabilityId, plan.capabilityVersion)
+  ) {
+    await writeEvent(admin, run, "security.unknown_capability", {
+      capabilityId: plan.capabilityId,
+      capabilityVersion: plan.capabilityVersion,
+    });
+    await alertSecurityEvent(admin, {
+      organizationId: run.organization_id,
+      ticketId: run.ticket_id,
+      runId: run.id,
+      kind: "security.unknown_capability",
+      detail: {
+        capabilityId: plan.capabilityId,
+        capabilityVersion: plan.capabilityVersion,
+      },
+    });
+  }
   await writeEvent(admin, run, "plan.received", { plan });
   if ("decision" in plan) {
     return escalate(admin, run, plan.reason, deps);
@@ -544,6 +605,13 @@ export async function executePlan(
     if (evaluated.reason === "tenant_check_failed") {
       await writeEvent(admin, run, "security.tenant_violation", {
         reason: evaluated.reason,
+      });
+      await alertSecurityEvent(admin, {
+        organizationId: run.organization_id,
+        ticketId: run.ticket_id,
+        runId: run.id,
+        kind: "security.tenant_violation",
+        detail: { reason: evaluated.reason },
       });
     }
     return escalate(admin, run, evaluated.reason, deps);
@@ -568,6 +636,38 @@ export async function executePlan(
     reasons: decision.reasons,
     policyDecisionId: recorded.ok ? recorded.id : null,
   });
+  if (policyInput.breakerOpen) {
+    await writeEvent(admin, planningRun, "security.breaker_open", {
+      capabilityId: capability.id,
+      capabilityVersion: capability.version,
+    });
+    await alertSecurityEvent(admin, {
+      organizationId: run.organization_id,
+      ticketId: run.ticket_id,
+      runId: run.id,
+      kind: "security.breaker_open",
+      detail: {
+        capabilityId: capability.id,
+        capabilityVersion: capability.version,
+      },
+    });
+  }
+  if (decision.reasons.includes("kill_switch_active")) {
+    await writeEvent(admin, planningRun, "security.kill_switch", {
+      capabilityId: capability.id,
+      capabilityVersion: capability.version,
+    });
+    await alertSecurityEvent(admin, {
+      organizationId: run.organization_id,
+      ticketId: run.ticket_id,
+      runId: run.id,
+      kind: "security.kill_switch",
+      detail: {
+        capabilityId: capability.id,
+        capabilityVersion: capability.version,
+      },
+    });
+  }
   if (decision.decision === "deny")
     return escalate(admin, planningRun, "policy_denied", deps);
   if (decision.decision === "specialist_only")

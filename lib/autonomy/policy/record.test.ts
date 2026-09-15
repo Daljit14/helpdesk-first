@@ -74,6 +74,10 @@ describe("recordPolicyDecision", () => {
       reasons: ["capability_risk_safe"],
       input,
       policy_version: "2026-09-14.1",
+      initiated_by: "ai",
+      versions: expect.objectContaining({
+        capability: "capability@1",
+      }),
     });
     expect(client.query.select).toHaveBeenCalledWith("id");
   });

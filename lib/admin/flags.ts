@@ -60,3 +60,7 @@ export function isEvidenceEngineEnabled(): boolean {
 export function isCapabilityRegistryEnabled(): boolean {
   return process.env.HELP_DESK_CAPABILITY_REGISTRY_ENABLED === "true";
 }
+
+export function isResolutionCenterEnabled(): boolean {
+  return process.env.HELP_DESK_RESOLUTION_CENTER_ENABLED === "true";
+}

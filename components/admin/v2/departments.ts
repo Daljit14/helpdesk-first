@@ -15,6 +15,7 @@ export type DepartmentSession = {
 export type DepartmentFlags = {
   knowledgeGovernanceEnabled: boolean;
   secureAttachmentsEnabled: boolean;
+  resolutionCenterEnabled: boolean;
 };
 
 export function buildDepartments(
@@ -46,6 +47,25 @@ export function buildDepartments(
       available: true,
       keywords: ["investigation", "hypotheses", "diagnosis"],
     },
+    ...(flags.resolutionCenterEnabled
+      ? [
+          {
+            id: "resolution-center",
+            label: "AI Resolution Center",
+            href: "/admin/resolution",
+            icon: "brain",
+            available: true,
+            keywords: [
+              "ai",
+              "autonomy",
+              "resolution",
+              "runs",
+              "rollback",
+              "verification",
+            ],
+          },
+        ]
+      : []),
     {
       id: "capability-matching",
       label: "Capability Matching",

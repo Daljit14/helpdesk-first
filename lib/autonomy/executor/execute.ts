@@ -570,32 +570,30 @@ export async function executePlan(
     return escalate(admin, planningRun, "policy_denied", deps);
   if (decision.decision === "specialist_only")
     return escalate(admin, planningRun, "specialist_only", deps);
-  if (
-    decision.decision === "require_user_consent" ||
-    decision.decision === "require_technician_approval"
-  ) {
+  const requiredConsentType =
+    decision.decision === "require_user_consent"
+      ? "user_consent"
+      : decision.decision === "require_technician_approval"
+        ? "technician_approval"
+        : null;
+  if (requiredConsentType && deps.consent?.type !== requiredConsentType) {
     await createApproval(
       admin,
       planningRun,
       policyStep.id,
-      decision.decision === "require_user_consent"
-        ? "user_consent"
-        : "technician_approval",
+      requiredConsentType,
       capability,
       evaluated.validatedParameters,
       capability.riskLevel
     );
     await writeEvent(admin, planningRun, "approval.requested", {
-      type:
-        decision.decision === "require_user_consent"
-          ? "user_consent"
-          : "technician_approval",
+      type: requiredConsentType,
     });
     try {
       const approvalRun = await transitionRun(
         admin,
         planningRun,
-        decision.decision === "require_user_consent"
+        requiredConsentType === "user_consent"
           ? "awaiting_consent"
           : "awaiting_approval",
         { actor: deps.actor ?? "orchestrator" }

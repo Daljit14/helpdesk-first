@@ -343,7 +343,7 @@ export async function verifyRun(
     .limit(1)
     .maybeSingle();
   const existing = existingResult.data as VerificationRow | null;
-  if (existing) {
+  if (existing && existing.outcome !== "inconclusive") {
     if (existing.outcome === "failed") {
       return handleObjectiveFailure(
         admin,

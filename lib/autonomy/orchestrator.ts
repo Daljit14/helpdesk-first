@@ -12,6 +12,7 @@ import {
   isAutonomyEnabled,
   isVerificationEngineEnabled,
   isPlannerEnabled,
+  isShadowModeEnabled,
 } from "./config";
 import { readKillSwitches } from "./kill-switches";
 import {
@@ -123,6 +124,45 @@ export async function writeRunEvent(
     detail: redactAuditDetail(input.detail ?? {}),
     initiated_by: initiatedBy(input.actor),
     versions: auditVersions(),
+  });
+}
+
+async function writeShadowDecision(
+  admin: OrchestratorAdmin,
+  run: ResolutionRun,
+  input: {
+    plan: Record<string, unknown>;
+    planner: string;
+    plannerVersion: string;
+    plannerProvider: string;
+    policyDecision?: string | null;
+    policyReasons?: string[];
+    capability?: { id: string; version: number } | null;
+    inputBlocked?: boolean;
+    outputRejected?: boolean;
+    rejectionReason?: string | null;
+    latencyMs?: number | null;
+  }
+): Promise<void> {
+  if (!isShadowModeEnabled()) return;
+  await admin.from("shadow_decisions").insert({
+    organization_id: run.organization_id,
+    run_id: run.id,
+    ticket_id: run.ticket_id,
+    plan: redactAuditDetail(input.plan),
+    planner: input.planner,
+    planner_version: input.plannerVersion,
+    planner_provider: input.plannerProvider,
+    policy_decision: input.policyDecision ?? null,
+    policy_reasons: input.policyReasons ?? [],
+    would_execute_capability_id: input.capability?.id ?? null,
+    would_execute_capability_version: input.capability?.version ?? null,
+    input_blocked: input.inputBlocked ?? false,
+    output_rejected: input.outputRejected ?? false,
+    rejection_reason: input.rejectionReason ?? null,
+    versions: auditVersions(input.capability),
+    latency_ms: input.latencyMs ?? null,
+    cost_cents: 0,
   });
 }
 
@@ -271,6 +311,18 @@ async function planRun(
     });
   }
   if (guardedInput.blocked) {
+    await writeShadowDecision(admin, planning, {
+      plan: {
+        ticketId: run.ticket_id,
+        decision: "no_action",
+        reason: "input_blocked",
+      },
+      planner: "blocked",
+      plannerVersion: "guardrail",
+      plannerProvider: getPlannerProvider(),
+      inputBlocked: true,
+      rejectionReason: guardedInput.blockReason,
+    });
     return escalateRun(admin, planning, "guardrail_blocked");
   }
   const failedNotification = await admin
@@ -364,6 +416,7 @@ async function planRun(
       ? new DeterministicPlanner()
       : selectPlanner();
   let raw: unknown;
+  const plannerStarted = Date.now();
   try {
     raw = await planner.plan(
       {
@@ -413,6 +466,15 @@ async function planRun(
       kind: "plan.no_action",
       actor: "orchestrator",
       detail: { reason: "provider_unavailable" },
+    });
+    await writeShadowDecision(admin, planning, {
+      plan: noAction,
+      planner: planner.id,
+      plannerVersion: planner.version,
+      plannerProvider: getPlannerProvider(),
+      policyDecision: "no_action",
+      rejectionReason: "provider_unavailable",
+      latencyMs: Date.now() - plannerStarted,
     });
     return escalateRun(admin, planning, "provider_unavailable");
   }
@@ -490,6 +552,19 @@ async function planRun(
       actor: "orchestrator",
       detail: { code: validation.code, issueCount: validation.issues.length },
     });
+    await writeShadowDecision(admin, planning, {
+      plan: {
+        decision: "no_action",
+        reason: "plan_rejected",
+        issues: validation.issues,
+      },
+      planner: planner.id,
+      plannerVersion: planner.version,
+      plannerProvider: getPlannerProvider(),
+      outputRejected: true,
+      rejectionReason: validation.code,
+      latencyMs: Date.now() - plannerStarted,
+    });
     return escalateRun(admin, planning, "plan_rejected");
   }
   const parsed: { ok: true; value: PlannerOutput } = {
@@ -545,6 +620,23 @@ async function planRun(
         rejection: evaluated.ok ? null : evaluated.reason,
         policyDecisionId: recorded?.ok ? recorded.id : null,
       },
+    });
+    await writeShadowDecision(admin, planning, {
+      plan: parsed.value as unknown as Record<string, unknown>,
+      planner: planner.id,
+      plannerVersion: planner.version,
+      plannerProvider: getPlannerProvider(),
+      policyDecision: evaluated.ok ? evaluated.decision.decision : null,
+      policyReasons: evaluated.ok ? evaluated.decision.reasons : [],
+      capability:
+        parsed.value.decision === "propose_action"
+          ? {
+              id: parsed.value.capability.id,
+              version: parsed.value.capability.version,
+            }
+          : null,
+      rejectionReason: evaluated.ok ? null : evaluated.reason,
+      latencyMs: Date.now() - plannerStarted,
     });
     return escalateRun(admin, planning, "shadow_mode");
   }

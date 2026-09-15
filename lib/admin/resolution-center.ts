@@ -57,6 +57,169 @@ export type RunDetail = RunSummary & {
   evidenceSummary: unknown | null;
 };
 
+export type ShadowDecision = {
+  id: string;
+  organizationId: string;
+  runId: string;
+  ticketId: string;
+  plan: unknown;
+  planner: string;
+  plannerVersion: string;
+  plannerProvider: string;
+  policyDecision: string | null;
+  policyReasons: string[];
+  capabilityId: string | null;
+  capabilityVersion: number | null;
+  inputBlocked: boolean;
+  outputRejected: boolean;
+  rejectionReason: string | null;
+  versions: unknown;
+  latencyMs: number | null;
+  costCents: number;
+  reviewStatus: "unreviewed" | "agree" | "disagree" | "unsafe";
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  reviewNote: string | null;
+  createdAt: string;
+};
+
+export type ShadowMetrics = {
+  total: number;
+  agreementRate: number;
+  unsafePlanRate: number;
+  falseAllowRate: number;
+  plannerLatencyMs: number;
+  plannerCostCents: number;
+};
+
+function shadowRow(row: Record<string, unknown>): ShadowDecision {
+  return {
+    id: String(row.id),
+    organizationId: String(row.organization_id),
+    runId: String(row.run_id),
+    ticketId: String(row.ticket_id),
+    plan: row.plan,
+    planner: String(row.planner),
+    plannerVersion: String(row.planner_version),
+    plannerProvider: String(row.planner_provider),
+    policyDecision:
+      typeof row.policy_decision === "string" ? row.policy_decision : null,
+    policyReasons: Array.isArray(row.policy_reasons)
+      ? row.policy_reasons.filter(
+          (item): item is string => typeof item === "string"
+        )
+      : [],
+    capabilityId:
+      typeof row.would_execute_capability_id === "string"
+        ? row.would_execute_capability_id
+        : null,
+    capabilityVersion:
+      typeof row.would_execute_capability_version === "number"
+        ? row.would_execute_capability_version
+        : null,
+    inputBlocked: row.input_blocked === true,
+    outputRejected: row.output_rejected === true,
+    rejectionReason:
+      typeof row.rejection_reason === "string" ? row.rejection_reason : null,
+    versions: row.versions,
+    latencyMs: typeof row.latency_ms === "number" ? row.latency_ms : null,
+    costCents: typeof row.cost_cents === "number" ? row.cost_cents : 0,
+    reviewStatus:
+      row.review_status === "agree" ||
+      row.review_status === "disagree" ||
+      row.review_status === "unsafe"
+        ? row.review_status
+        : "unreviewed",
+    reviewedBy: typeof row.reviewed_by === "string" ? row.reviewed_by : null,
+    reviewedAt: typeof row.reviewed_at === "string" ? row.reviewed_at : null,
+    reviewNote: typeof row.review_note === "string" ? row.review_note : null,
+    createdAt: String(row.created_at),
+  };
+}
+
+export function shadowMetrics(rows: ShadowDecision[]): ShadowMetrics {
+  const reviewed = rows.filter((row) => row.reviewStatus !== "unreviewed");
+  const agreed = reviewed.filter((row) => row.reviewStatus === "agree").length;
+  return {
+    total: rows.length,
+    agreementRate: reviewed.length ? agreed / reviewed.length : 0,
+    unsafePlanRate: rows.length
+      ? rows.filter((row) => row.reviewStatus === "unsafe").length / rows.length
+      : 0,
+    falseAllowRate: rows.length
+      ? rows.filter(
+          (row) =>
+            row.reviewStatus === "disagree" &&
+            row.policyDecision === "allow_automatic"
+        ).length / rows.length
+      : 0,
+    plannerLatencyMs: rows.length
+      ? rows.reduce((sum, row) => sum + (row.latencyMs ?? 0), 0) / rows.length
+      : 0,
+    plannerCostCents: rows.length
+      ? rows.reduce((sum, row) => sum + row.costCents, 0) / rows.length
+      : 0,
+  };
+}
+
+export async function listShadowDecisions(
+  admin: ReturnType<typeof createAdminClient>,
+  session: AdminSession,
+  options: { status?: ShadowDecision["reviewStatus"]; limit?: number } = {}
+): Promise<ShadowDecision[]> {
+  let query = admin
+    .from("shadow_decisions")
+    .select("*")
+    .eq("organization_id", session.organizationId)
+    .order("created_at", { ascending: false })
+    .limit(Math.min(Math.max(options.limit ?? 100, 1), 500));
+  if (options.status) query = query.eq("review_status", options.status);
+  const result = await query;
+  return ((result.data ?? []) as Record<string, unknown>[]).map(shadowRow);
+}
+
+export async function getShadowOverview(
+  session: AdminSession,
+  options: { status?: ShadowDecision["reviewStatus"]; windowDays?: number } = {}
+): Promise<{ decisions: ShadowDecision[]; metrics: ShadowMetrics }> {
+  const admin = createAdminClient();
+  const windowDays = Math.max(1, options.windowDays ?? 30);
+  let query = admin
+    .from("shadow_decisions")
+    .select("*")
+    .eq("organization_id", session.organizationId)
+    .gte(
+      "created_at",
+      new Date(Date.now() - windowDays * 86_400_000).toISOString()
+    )
+    .order("created_at", { ascending: false })
+    .limit(500);
+  if (options.status) query = query.eq("review_status", options.status);
+  const result = await query;
+  const decisions = ((result.data ?? []) as Record<string, unknown>[]).map(
+    shadowRow
+  );
+  return { decisions, metrics: shadowMetrics(decisions) };
+}
+
+export async function getShadowAggregate(session: AdminSession): Promise<{
+  total: number;
+  reviewed: number;
+  unsafe: number;
+}> {
+  if (!session.isPlatformAdmin)
+    throw new Error("Platform admin access required.");
+  const result = await createAdminClient()
+    .from("shadow_decisions")
+    .select("review_status");
+  const rows = (result.data ?? []) as { review_status?: string }[];
+  return {
+    total: rows.length,
+    reviewed: rows.filter((row) => row.review_status !== "unreviewed").length,
+    unsafe: rows.filter((row) => row.review_status === "unsafe").length,
+  };
+}
+
 type RawRun = {
   id: string;
   organization_id: string;

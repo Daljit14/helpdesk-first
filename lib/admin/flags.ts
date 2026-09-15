@@ -64,3 +64,7 @@ export function isCapabilityRegistryEnabled(): boolean {
 export function isResolutionCenterEnabled(): boolean {
   return process.env.HELP_DESK_RESOLUTION_CENTER_ENABLED === "true";
 }
+
+export function isShadowModeEnabled(): boolean {
+  return process.env.HELP_DESK_SHADOW_MODE_ENABLED === "true";
+}

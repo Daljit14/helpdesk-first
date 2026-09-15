@@ -85,6 +85,12 @@ export function ResolutionCenterTable({
         >
           Guardrails
         </Link>
+        <Link
+          href="/admin/resolution/shadow"
+          className="v2-touch rounded-full border border-border px-3 py-2 text-sm hover:bg-muted"
+        >
+          Shadow review
+        </Link>
       </div>
       {runs.length === 0 ? (
         <div className="glass p-8 text-center">

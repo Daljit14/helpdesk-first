@@ -266,6 +266,12 @@ export function checkTextSafety(text: string): UserMessageSafety {
   if (
     /\b(registry|BIOS|firmware|cmd\.exe|powershell|terminal|shell script|bash|sudo|regedit|delete system files|disable security|uninstall antivirus)\b/i.test(
       normalized
+    ) ||
+    /\b(?:run|execute)\b.{0,30}\b(?:shell|terminal|powershell|bash|cmd(?:\.exe|\s+exe)|sudo|rm\s+-rf|format\s+c)\b/i.test(
+      normalized
+    ) ||
+    /\b(?:flash|reflash|downgrade)\b.{0,20}\b(?:bios|uefi|firmware)\b/i.test(
+      normalized
     )
   ) {
     return {

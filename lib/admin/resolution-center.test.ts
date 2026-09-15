@@ -10,6 +10,8 @@ import {
   getGuardrailAggregate,
   getResolutionCenterOverview,
   getResolutionRunDetail,
+  getShadowAggregate,
+  getShadowOverview,
 } from "./resolution-center";
 
 const createQuery = (data: unknown[] | null) => {
@@ -165,6 +167,35 @@ describe("computeResolutionMetrics", () => {
 });
 
 describe("Resolution Center organization boundaries", () => {
+  test("scopes shadow overview to the organization", async () => {
+    const query = createQuery([]);
+    supabaseMocks.createAdminClient.mockReturnValue({
+      from: vi.fn(() => query),
+    });
+    await getShadowOverview({
+      userId: "user-1",
+      email: "agent@example.com",
+      role: "support_agent",
+      organizationId: "org-1",
+      displayName: null,
+      isPlatformAdmin: false,
+    });
+    expect(query.eq).toHaveBeenCalledWith("organization_id", "org-1");
+  });
+
+  test("rejects shadow aggregate for non-platform admins", async () => {
+    await expect(
+      getShadowAggregate({
+        userId: "user-1",
+        email: "agent@example.com",
+        role: "org_admin",
+        organizationId: "org-1",
+        displayName: null,
+        isPlatformAdmin: false,
+      })
+    ).rejects.toThrow("Platform admin access required.");
+  });
+
   test("returns null when the run is not in the session organization", async () => {
     const query = createQuery([]);
     const from = vi.fn(() => query);

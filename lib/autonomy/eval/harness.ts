@@ -1,30 +1,286 @@
-import { benchmarkCaseSchema, type BenchmarkCase } from "./benchmark/types";
+import type { BenchmarkCase } from "./benchmark/types";
+import type { HandlerAdmin } from "../executor/handlers/types";
+import { listCapabilities } from "../capabilities/registry";
 
-export type BenchmarkHarness = {
+type Row = Record<string, unknown>;
+
+type QueryResult = {
+  data: Row | Row[] | null;
+  error: { message: string } | null;
+};
+
+type FakeAdmin = HandlerAdmin & {
+  rows: Map<string, Row[]>;
+  executionInserts: number;
+  allowedEvents: number;
+  seedReplay: (idempotencyKey: string) => void;
+};
+
+function makeQuery(admin: FakeAdmin, table: string) {
+  const filters: ((row: Row) => boolean)[] = [];
+  let operation: "select" | "insert" | "update" | "upsert" = "select";
+  let payload: Row | Row[] | null = null;
+  let limit: number | null = null;
+  const query = {
+    select: () => query,
+    eq: (column: string, value: unknown) => {
+      filters.push((row) => row[column] === value);
+      return query;
+    },
+    in: (column: string, values: unknown[]) => {
+      filters.push((row) => values.includes(row[column]));
+      return query;
+    },
+    is: (column: string, value: unknown) => {
+      filters.push((row) => row[column] === value);
+      return query;
+    },
+    gte: (column: string, value: unknown) => {
+      filters.push(
+        (row) =>
+          typeof row[column] === "string" &&
+          typeof value === "string" &&
+          row[column] >= value
+      );
+      return query;
+    },
+    like: () => query,
+    or: (expression: string) => {
+      const alternatives =
+        expression.match(/and\([^)]*\)|scope\.eq\.[^,]+/g) ?? [];
+      filters.push((row) =>
+        alternatives.some((part) => {
+          const scopeMatch = part.match(/scope\.eq\.([^,)]*)/);
+          if (!scopeMatch) return false;
+          const scopeIdMatch = part.match(/scope_id\.eq\.([^,)]+)/);
+          return (
+            row.scope === scopeMatch[1] &&
+            (!scopeIdMatch || row.scope_id === scopeIdMatch[1])
+          );
+        })
+      );
+      return query;
+    },
+    order: () => query,
+    limit: (value: number) => {
+      limit = value;
+      return query;
+    },
+    insert: (value: Row | Row[]) => {
+      operation = "insert";
+      payload = value;
+      return query;
+    },
+    upsert: (value: Row | Row[]) => {
+      operation = "upsert";
+      payload = value;
+      return query;
+    },
+    update: (value: Row) => {
+      operation = "update";
+      payload = value;
+      return query;
+    },
+    maybeSingle: async () => execute(true),
+    single: async () => execute(true),
+    then: (
+      resolve: (result: QueryResult) => unknown,
+      reject?: (error: unknown) => unknown
+    ) => Promise.resolve(execute(false)).then(resolve, reject),
+  };
+
+  function selectedRows(): Row[] {
+    const rows = admin.rows.get(table) ?? [];
+    const selected = rows.filter((row) =>
+      filters.every((filter) => filter(row))
+    );
+    return limit === null ? selected : selected.slice(0, limit);
+  }
+
+  function execute(single: boolean): QueryResult {
+    const rows = admin.rows.get(table) ?? [];
+    if (operation === "insert" || operation === "upsert") {
+      const values = Array.isArray(payload) ? payload : [payload ?? {}];
+      for (const value of values) {
+        if (table === "capability_executions") admin.executionInserts += 1;
+        if (
+          table === "resolution_events" &&
+          value.kind === "guardrail.execution_allowed" &&
+          value.detail &&
+          typeof value.detail === "object" &&
+          (value.detail as Row).reasonCode === "allowed"
+        ) {
+          admin.allowedEvents += 1;
+        }
+        rows.push({ ...value, id: value.id ?? `${table}-${rows.length + 1}` });
+      }
+      admin.rows.set(table, rows);
+      return {
+        data: single ? (rows[rows.length - 1] ?? null) : values,
+        error: null,
+      };
+    }
+    if (operation === "update") {
+      const selected = selectedRows();
+      for (const row of selected) Object.assign(row, payload ?? {});
+      return { data: single ? (selected[0] ?? null) : selected, error: null };
+    }
+    const selected = selectedRows();
+    return { data: single ? (selected[0] ?? null) : selected, error: null };
+  }
+
+  return query;
+}
+
+type Seed = {
   organizationId: string;
   ticketId: string;
+  runId: string;
+  stepId: string;
+  rows: Map<string, Row[]>;
+};
+
+export type BenchmarkHarness = Seed & {
   handlerCalls: number;
   executionInserts: number;
   allowedEvents: number;
   killSwitch: BenchmarkCase["killSwitch"] | null;
   replay: boolean;
+  admin: FakeAdmin;
   invokeHandler: () => never;
+  seedReplay: (idempotencyKey: string) => void;
 };
 
 export function createBenchmarkHarness(
   benchmarkCase: BenchmarkCase
 ): BenchmarkHarness {
-  benchmarkCaseSchema.parse(benchmarkCase);
+  const organizationId = "00000000-0000-4000-8000-000000000001";
+  const ticketId = "00000000-0000-4000-8000-000000000002";
+  const runId = "00000000-0000-4000-8000-000000000003";
+  const stepId = "00000000-0000-4000-8000-000000000004";
+  const capabilities = listCapabilities();
+  const rows = new Map<string, Row[]>([
+    ["tickets", [{ id: ticketId, organization_id: organizationId }]],
+    [
+      "resolution_runs",
+      [
+        {
+          id: runId,
+          organization_id: organizationId,
+          ticket_id: ticketId,
+          status: "executing",
+          attempts: 0,
+          max_attempts: 3,
+          cost_cents: 0,
+          budget_cents: 50,
+          deadline_at: new Date(Date.now() + 60_000).toISOString(),
+        },
+      ],
+    ],
+    [
+      "resolution_steps",
+      [
+        {
+          id: stepId,
+          organization_id: organizationId,
+          run_id: runId,
+          kind: "plan",
+          detail: { plannerProvider: "deterministic" },
+          position: 1,
+        },
+      ],
+    ],
+    [
+      "organization_capabilities",
+      capabilities.map((capability) => ({
+        organization_id: organizationId,
+        capability_id: capability.id,
+        min_version: capability.version,
+        enabled: true,
+      })),
+    ],
+    [
+      "capability_versions",
+      capabilities.map((capability) => ({
+        capability_id: capability.id,
+        version: capability.version,
+        status: "active",
+      })),
+    ],
+    [
+      "ai_kill_switches",
+      benchmarkCase.killSwitch
+        ? [
+            {
+              organization_id:
+                benchmarkCase.killSwitch === "organization"
+                  ? organizationId
+                  : null,
+              scope: benchmarkCase.killSwitch,
+              scope_id:
+                benchmarkCase.killSwitch === "organization"
+                  ? organizationId
+                  : benchmarkCase.killSwitch === "capability"
+                    ? "search_approved_knowledge"
+                    : benchmarkCase.killSwitch === "provider"
+                      ? "deterministic"
+                      : null,
+              enabled: true,
+              reason: `${benchmarkCase.killSwitch} benchmark switch`,
+            },
+          ]
+        : [],
+    ],
+    [
+      "capability_breakers",
+      benchmarkCase.killSwitch === "breaker"
+        ? [
+            {
+              organization_id: organizationId,
+              capability_id: "search_approved_knowledge",
+              state: "open",
+              failures: 3,
+              cooldown_until: new Date(Date.now() + 60_000).toISOString(),
+            },
+          ]
+        : [],
+    ],
+    ["capability_executions", []],
+    ["resolution_events", []],
+    ["verification_results", []],
+    ["rollback_runs", []],
+  ]);
+  const admin = {
+    rows,
+    executionInserts: 0,
+    allowedEvents: 0,
+    from: (table: string) => makeQuery(admin, table),
+    seedReplay: (idempotencyKey: string) => {
+      const executions = rows.get("capability_executions") ?? [];
+      executions.push({
+        id: "replay-execution",
+        organization_id: organizationId,
+        idempotency_key: idempotencyKey,
+        status: "succeeded",
+      });
+      rows.set("capability_executions", executions);
+    },
+  } as unknown as FakeAdmin;
   return {
-    organizationId: "00000000-0000-4000-8000-000000000001",
-    ticketId: "00000000-0000-4000-8000-000000000002",
+    organizationId,
+    ticketId,
+    runId,
+    stepId,
+    rows,
     handlerCalls: 0,
     executionInserts: 0,
     allowedEvents: 0,
     killSwitch: benchmarkCase.killSwitch ?? null,
     replay: benchmarkCase.replay === true,
+    admin,
     invokeHandler: () => {
       throw new Error("Benchmark capability handler must never be invoked.");
     },
+    seedReplay: admin.seedReplay,
   };
 }

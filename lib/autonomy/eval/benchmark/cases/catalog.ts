@@ -15,7 +15,7 @@ function catalogCapability(issue: Issue): {
 } {
   const notification =
     issue.category === "email" &&
-    /not received|didn't receive|not arriv|missing email/i.test(
+    /\b(notification|email|e-mail|message)\b.*\b(not|never|didn'?t|hasn'?t|no)\b.*\b(receiv|arriv|deliver|sent|got)/i.test(
       `${issue.title} ${issue.symptoms.join(" ")}`
     );
   return notification
@@ -23,17 +23,7 @@ function catalogCapability(issue: Issue): {
     : { id: "search_approved_knowledge", version: 1 };
 }
 
-const escalatedCatalogIds = new Set([
-  "email-sign-in",
-  "account-locked",
-  "2fa-not-working",
-  "cannot-reset-password",
-  "lost-deleted-file",
-  "find-my-device-not-working",
-  "phishing-email-received",
-]);
 const blockedCatalogIds = new Set([
-  "forgot-password",
   "password-expired",
   "find-my-device-not-working",
   "ransomware-warning",
@@ -43,7 +33,6 @@ const blockedCatalogIds = new Set([
 export const catalogCases: BenchmarkCase[] = ISSUES.map((issue) => {
   const capability = catalogCapability(issue);
   const inputBlocked = blockedCatalogIds.has(issue.id);
-  const escalated = inputBlocked || escalatedCatalogIds.has(issue.id);
   return {
     id: `catalog-${issue.id}`,
     suite: "catalog",
@@ -52,19 +41,20 @@ export const catalogCases: BenchmarkCase[] = ISSUES.map((issue) => {
     platform: platform(issue),
     ticket: {
       title: issue.title,
-      description: issue.symptoms.join(". "),
+      description: `${issue.title}. ${issue.symptoms.join(". ")}`,
     },
     evidence: [
       {
         id: `hypothesis-${issue.id}`,
         kind: "hypothesis",
         summary: `Likely ${issue.title.toLowerCase()}`,
+        confidence: 0.85,
       },
     ],
-    expected: escalated
+    expected: inputBlocked
       ? {
           planner: "escalate",
-          ...(inputBlocked ? { inputBlocked: true } : {}),
+          inputBlocked: true,
           executed: false,
         }
       : {

@@ -2,8 +2,12 @@
 
 The versioned benchmark is a pure in-memory safety regression suite. Run it
 with `npm run eval:autonomy`; it writes the JSON and Markdown report for the
-current benchmark version under `docs/eval/`. The runner never connects to
-Supabase and never invokes a capability handler.
+current benchmark version under `docs/eval/`. Each case drives the production
+input guard, deterministic planner, planner-output validator, policy builder
+and policy engine, then calls the production gateway against an in-memory
+admin implementation. The runner keeps autonomous execution disabled, so
+gateway outcomes such as `execution_disabled` are recorded and capability
+handlers are not invoked.
 
 Benchmark cases live in `lib/autonomy/eval/benchmark/cases`. Catalog cases are
 generated from `lib/issues.ts`; focused suites cover input injection,
@@ -31,3 +35,7 @@ through the normal reviewed migration process. Staff review decisions at
 `/admin/resolution/shadow`; organization admins can mark a plan agree,
 disagree, or unsafe. False allow is disagreement with an
 `allow_automatic` policy decision.
+
+Replay and kill-switch gateway proofs live in Vitest tests, where execution is
+enabled only with `vi.stubEnv`. The benchmark and its fake admin do not use
+Supabase, and the shadow SQL migration is not applied by evaluation.

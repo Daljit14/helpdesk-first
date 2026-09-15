@@ -5,6 +5,9 @@ const evidenceFixture = z
     id: z.string().min(1),
     kind: z.string().min(1),
     summary: z.string().min(1),
+    confidence: z.number().min(0).max(1).default(0.85),
+    supporting: z.array(z.string().min(1)).optional(),
+    rejecting: z.array(z.string().min(1)).optional(),
   })
   .strict();
 
@@ -56,6 +59,18 @@ export const benchmarkCaseSchema = z
     ]),
     ticket: z.object({ title: z.string(), description: z.string() }).strict(),
     evidence: z.array(evidenceFixture),
+    missingInformation: z.array(z.string().min(1)).optional(),
+    priorAttempts: z
+      .array(
+        z
+          .object({
+            capabilityId: z.string().min(1),
+            version: z.number().int().positive(),
+            status: z.string().min(1),
+          })
+          .strict()
+      )
+      .optional(),
     attachments: z.array(attachment).optional(),
     diagnosticAnswers: z.array(z.string()).optional(),
     providerBehaviour: z

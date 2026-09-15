@@ -157,6 +157,8 @@ queued ─▶ investigating ─▶ planning ─▶ policy_check ─┬─▶ awa
    │                                                          │
    │                                                          ▼
    │                                                     verifying ──▶ verified ──▶ resolved
+   │                                                                    │
+   │                                                                    └──▶ planning (next bounded step)
    │                                                          │
    │                              ┌── rolling_back ◀──────────┤ (verification failed, rollback supported)
    │                              ▼                           ▼
@@ -415,6 +417,41 @@ confirmation through the existing `Pending Verification → user_verify_ticket`
 flow. On failure: retry only within `max_attempts`, never repeat the same
 failed capability+parameters (idempotency key blocks it), roll back when the
 capability supports it, then `escalated` with the full Diagnosis package.
+
+### 9.1 Implementation (PR #68)
+
+- Independent verification contracts and verifiers live in
+  `lib/autonomy/verification/{types,verifiers,engine,index}.ts`.
+- The registry maps capability verification methods to these verifiers:
+
+  | Method                          | Objective check                       | Requester confirmation |
+  | ------------------------------- | ------------------------------------- | ---------------------- |
+  | `none`                          | No objective check                    | No                     |
+  | `diagnostic_answer_recorded`    | Ticket diagnostic answer exists       | No                     |
+  | `investigation_context_present` | Investigation context exists          | No                     |
+  | `status_response_captured`      | Succeeded status event and execution  | No                     |
+  | `outbox_status_sent`            | Notification outbox status is `sent`  | Yes                    |
+  | `outbox_sent_and_user_confirms` | Notification outbox status is `sent`  | Yes                    |
+  | `attachment_status_read`        | Attachment scan status exists         | No                     |
+  | `escalation_package_present`    | Escalation package timestamp exists   | No                     |
+  | `user_verification_answer`      | Ticket reaches `Pending Verification` | Yes                    |
+  | `assignment_updated`            | Department route event exists         | No                     |
+  | `needs_human_with_package`      | `Needs Human` plus package exists     | No                     |
+
+- `HELP_DESK_VERIFICATION_ENGINE_ENABLED` defaults to `false`. The executor
+  keeps its pending verification seam when the flag is off; the orchestrator
+  polls `verifying` runs only when the flag is enabled.
+- Informational verification passes may use the new `verified → planning`
+  edge for another bounded planner step. Resolving methods remain in
+  `verifying` until the requester confirms through
+  `user_verify_ticket`.
+- Rollback execution is deferred to PR #69. In Phase 5C, a failed capability
+  with a non-`none` rollback strategy records
+  `rollback.unsupported_in_5c` and fails closed.
+- The database guard requires a passed `verification_results` row before a run
+  can become `resolved`; ticket resolution with `resolution_source = 'ai'`
+  also requires requester confirmation. The verification engine never sets
+  `user_confirmed` itself.
 
 ## 10. Data handling, redaction, retention and audit
 

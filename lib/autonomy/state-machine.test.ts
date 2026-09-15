@@ -23,6 +23,11 @@ describe("autonomy state machine", () => {
     );
   });
 
+  test("allows verified runs to plan another bounded step", () => {
+    expect(canTransition("verified", "planning")).toBe(true);
+    expect(() => assertTransition("verified", "planning")).not.toThrow();
+  });
+
   test("terminal states have no outgoing transitions", () => {
     for (const status of RUN_STATUSES.filter(isTerminal)) {
       expect(TRANSITIONS[status]).toEqual([]);

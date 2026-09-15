@@ -2,6 +2,10 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   transitionRun: vi.fn(),
+  resolutionStepPosition: vi.fn(
+    (attempts: number, kind: "plan" | "policy" | "execute") =>
+      attempts * 3 + { plan: 0, policy: 1, execute: 2 }[kind]
+  ),
   isCapabilityEnabled: vi.fn(),
   readKillSwitches: vi.fn(),
   recordPolicyDecision: vi.fn(),
@@ -13,6 +17,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("../orchestrator", () => ({
   transitionRun: mocks.transitionRun,
+  resolutionStepPosition: mocks.resolutionStepPosition,
 }));
 vi.mock("../capabilities/enablement", () => ({
   isCapabilityEnabled: mocks.isCapabilityEnabled,
@@ -36,7 +41,7 @@ vi.mock("@/lib/admin/flags", () => ({
   isEvidenceEngineEnabled: mocks.isEvidenceEngineEnabled,
 }));
 
-import { executePlan } from "./execute";
+import { executePlan, verifyExecution } from "./execute";
 import { assertTransition } from "../state-machine";
 
 const run = {
@@ -201,5 +206,12 @@ describe("executePlan", () => {
     });
     expect(result?.status).toBe("escalated");
     expect(mocks.getHandler).not.toHaveBeenCalled();
+  });
+
+  test("keeps the verification seam pending when the engine is disabled", async () => {
+    vi.stubEnv("HELP_DESK_VERIFICATION_ENGINE_ENABLED", "false");
+    await expect(
+      verifyExecution({ admin: admin() as never, run, executionId: null })
+    ).resolves.toEqual({ outcome: "pending" });
   });
 });

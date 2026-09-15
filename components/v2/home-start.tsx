@@ -2,7 +2,14 @@
 
 import Link from "next/link";
 import { useEffect, useState, type ChangeEvent } from "react";
-import { LifeBuoy, Laptop, Monitor, Paperclip, X } from "lucide-react";
+import {
+  Laptop,
+  Monitor,
+  Paperclip,
+  Wrench,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 import { SAFE_USE_WARNING } from "@/lib/ui-copy";
 import type { Platform } from "@/lib/helpdesk-data";
 
@@ -85,7 +92,7 @@ export function HomeStart({ signedIn = false }: { signedIn?: boolean }) {
         {!platform ? (
           <div className="mt-10 grid gap-4 sm:grid-cols-3">
             <Option
-              icon={LifeBuoy}
+              icon={Wrench}
               label="General IT Support"
               onClick={() => choose("General")}
             />
@@ -219,7 +226,7 @@ function Option({
   label,
   onClick,
 }: {
-  icon: typeof LifeBuoy;
+  icon: LucideIcon;
   label: string;
   onClick: () => void;
 }) {

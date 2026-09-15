@@ -13,6 +13,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import type { Ticket } from "@/lib/guides-data";
 import { getIssueBySlug } from "@/lib/search";
+import { cn } from "@/lib/utils";
 import { AttachmentLink } from "@/components/attachment-link";
 import {
   describeTicketStatus,
@@ -187,17 +188,25 @@ export function TicketsTable({
           className="mt-8 space-y-6"
         >
           <div className="flex flex-wrap gap-2" aria-label="Ticket filters">
-            {ticketFilters.map((ticketFilter) => (
-              <button
-                key={ticketFilter.id}
-                type="button"
-                className="glass-pill px-3 py-1.5 text-sm transition hover:bg-muted aria-pressed:bg-foreground aria-pressed:text-background aria-pressed:hover:bg-foreground"
-                aria-pressed={filter === ticketFilter.id}
-                onClick={() => selectFilter(ticketFilter.id)}
-              >
-                {ticketFilter.label} 0
-              </button>
-            ))}
+            {ticketFilters.map((ticketFilter) => {
+              const pressed = filter === ticketFilter.id;
+              return (
+                <button
+                  key={ticketFilter.id}
+                  type="button"
+                  className={cn(
+                    "rounded-full px-3 py-1.5 text-sm transition",
+                    pressed
+                      ? "border border-foreground bg-foreground text-background"
+                      : "glass-pill hover:bg-muted"
+                  )}
+                  aria-pressed={pressed}
+                  onClick={() => selectFilter(ticketFilter.id)}
+                >
+                  {ticketFilter.label} 0
+                </button>
+              );
+            })}
           </div>
           {filter === "all" ? (
             <>
@@ -290,17 +299,25 @@ export function TicketsTable({
         className="mt-8 space-y-6"
       >
         <div className="flex flex-wrap gap-2" aria-label="Ticket filters">
-          {ticketFilters.map((ticketFilter) => (
-            <button
-              key={ticketFilter.id}
-              type="button"
-              className="glass-pill px-3 py-1.5 text-sm transition hover:bg-muted aria-pressed:bg-foreground aria-pressed:text-background aria-pressed:hover:bg-foreground"
-              aria-pressed={filter === ticketFilter.id}
-              onClick={() => selectFilter(ticketFilter.id)}
-            >
-              {ticketFilter.label} {counts[ticketFilter.id]}
-            </button>
-          ))}
+          {ticketFilters.map((ticketFilter) => {
+            const pressed = filter === ticketFilter.id;
+            return (
+              <button
+                key={ticketFilter.id}
+                type="button"
+                className={cn(
+                  "rounded-full px-3 py-1.5 text-sm transition",
+                  pressed
+                    ? "border border-foreground bg-foreground text-background"
+                    : "glass-pill hover:bg-muted"
+                )}
+                aria-pressed={pressed}
+                onClick={() => selectFilter(ticketFilter.id)}
+              >
+                {ticketFilter.label} {counts[ticketFilter.id]}
+              </button>
+            );
+          })}
         </div>
         {filter === "all" ? (
           <>

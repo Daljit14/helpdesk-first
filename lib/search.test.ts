@@ -1,5 +1,5 @@
 import { test, expect } from "vitest";
-import { filterIssues, getIssueBySlug } from "./search";
+import { filterIssues, getIssueBySlug, suggestIssues } from "./search";
 
 test("empty filters return all issues", () => {
   expect(filterIssues({})).toHaveLength(100);
@@ -87,4 +87,25 @@ test("filters can return an empty result set", () => {
 test("getIssueBySlug returns the correct issue", () => {
   expect(getIssueBySlug("no-sound")?.title).toBe("No sound");
   expect(getIssueBySlug("does-not-exist")).toBeUndefined();
+});
+
+test("suggestIssues tolerates access and website typos", () => {
+  const results = suggestIssues("acces website");
+
+  expect(results.map((issue) => issue.title)).toEqual(
+    expect.arrayContaining([
+      "Cannot access shared drive",
+      "Permission denied on shared file",
+    ])
+  );
+});
+
+test("suggestIssues tolerates transposed Wi-Fi slowdown text", () => {
+  const results = suggestIssues("wifi slwo");
+
+  expect(results.map((issue) => issue.title)).toContain("Slow internet");
+});
+
+test("suggestIssues returns no results for nonsense", () => {
+  expect(suggestIssues("qzxv jklm")).toEqual([]);
 });

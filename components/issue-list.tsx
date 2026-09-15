@@ -1,6 +1,7 @@
 import type { Platform } from "@/lib/helpdesk-data";
 import { filterIssues } from "@/lib/search";
 import { IssueCard } from "./issue-card";
+import { SearchAssist } from "./search-assist";
 
 type IssueListProps = {
   query?: string;
@@ -18,6 +19,16 @@ export function IssueList({
   const issues = filterIssues({ query, categoryId, platform });
 
   if (issues.length === 0) {
+    if (query.trim().length >= 3) {
+      return (
+        <SearchAssist
+          query={query}
+          platform={platform}
+          backParams={backParams}
+        />
+      );
+    }
+
     return (
       <div className="glass-strong p-8 text-center">
         <p className="text-lg font-medium">No matching problems found.</p>

@@ -234,6 +234,99 @@ function titleScore(issue: Issue, rawQuery: string): number {
     );
 }
 
+function editDistance(left: string, right: string): number {
+  const distances = Array.from({ length: left.length + 1 }, () =>
+    Array<number>(right.length + 1).fill(0)
+  );
+
+  for (let row = 0; row <= left.length; row += 1) {
+    distances[row][0] = row;
+  }
+  for (let column = 0; column <= right.length; column += 1) {
+    distances[0][column] = column;
+  }
+
+  for (let row = 1; row <= left.length; row += 1) {
+    for (let column = 1; column <= right.length; column += 1) {
+      const substitution =
+        distances[row - 1][column - 1] +
+        (left[row - 1] === right[column - 1] ? 0 : 1);
+      const insertion = distances[row][column - 1] + 1;
+      const deletion = distances[row - 1][column] + 1;
+      let distance = Math.min(substitution, insertion, deletion);
+      if (
+        row > 1 &&
+        column > 1 &&
+        left[row - 1] === right[column - 2] &&
+        left[row - 2] === right[column - 1]
+      ) {
+        distance = Math.min(distance, distances[row - 2][column - 2] + 1);
+      }
+      distances[row][column] = distance;
+    }
+  }
+
+  return distances[left.length][right.length];
+}
+
+function issueSuggestionTerms(issue: Issue): string[] {
+  const fields = [
+    issue.id,
+    issue.title,
+    ...issue.symptoms,
+    categoryLabel(issue.category),
+  ];
+  return [
+    ...new Set(
+      fields.flatMap((field) => [
+        normalize(field),
+        ...field
+          .toLowerCase()
+          .split(/[^a-z0-9]+/)
+          .map(normalize)
+          .filter(Boolean),
+      ])
+    ),
+  ];
+}
+
+function suggestionTokenMatches(token: string, term: string): boolean {
+  if (token === term) return true;
+  if (token.length >= 4 && term.startsWith(token)) return true;
+  const threshold = token.length <= 6 ? 1 : 2;
+  return editDistance(token, term) <= threshold;
+}
+
+export function suggestIssues(
+  query: string,
+  platform?: Device | null,
+  limit = 5
+): Issue[] {
+  const tokens = queryTokens(query);
+  if (tokens.length === 0 || limit <= 0) return [];
+
+  return ISSUES.filter((issue) => !platform || issue.devices.includes(platform))
+    .map((issue) => {
+      const terms = issueSuggestionTerms(issue);
+      const hits = tokens.reduce(
+        (score, token) =>
+          score +
+          (terms.some((term) => suggestionTokenMatches(token, term)) ? 1 : 0),
+        0
+      );
+      return { issue, hits, titleScore: titleScore(issue, query) };
+    })
+    .filter(({ hits }) => hits > 0)
+    .sort(
+      (left, right) =>
+        right.hits - left.hits ||
+        right.titleScore - left.titleScore ||
+        left.issue.title.localeCompare(right.issue.title)
+    )
+    .slice(0, limit)
+    .map(({ issue }) => issue);
+}
+
 export function filterIssues(filters: IssueFilters): Issue[] {
   const { query = "", categoryId = null, platform = null } = filters;
 

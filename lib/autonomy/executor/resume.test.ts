@@ -4,12 +4,16 @@ const mocks = vi.hoisted(() => ({
   executePlan: vi.fn(),
   escalateRun: vi.fn(),
   transitionRun: vi.fn(),
+  verifyConsent: vi.fn(),
 }));
 
 vi.mock("./execute", () => ({ executePlan: mocks.executePlan }));
 vi.mock("../orchestrator", () => ({
   escalateRun: mocks.escalateRun,
   transitionRun: mocks.transitionRun,
+}));
+vi.mock("../guardrails/consent", () => ({
+  verifyConsent: mocks.verifyConsent,
 }));
 
 import { resumeAfterApproval } from "./resume";
@@ -49,12 +53,36 @@ function admin(status: string, expiresAt: string | null = null) {
       .mockResolvedValueOnce({
         data: {
           id: "step-1",
-          detail: { plan: { decision: "escalate", reason: "x" } },
+          detail: {
+            plan: {
+              ticketId: "ticket-1",
+              diagnosis: {
+                summary: "Approved action",
+                confidence: 1,
+                evidenceIds: ["ticket"],
+              },
+              decision: "propose_action",
+              capability: {
+                id: "search_approved_knowledge",
+                version: 1,
+                parameters: { ticketId: "ticket-1", query: "display" },
+              },
+              verificationMethod: "none",
+            },
+          },
         },
         error: null,
       })
       .mockResolvedValueOnce({
-        data: { status, expires_at: expiresAt },
+        data: {
+          status,
+          expires_at: expiresAt,
+          capability_id: "search_approved_knowledge",
+          capability_version: 1,
+          parameter_hash: "hash",
+          risk_level: "low",
+          decided_by_user_id: "ai",
+        },
         error: null,
       }),
   };
@@ -64,6 +92,7 @@ function admin(status: string, expiresAt: string | null = null) {
 describe("resumeAfterApproval", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.verifyConsent.mockResolvedValue({ ok: true, id: "approval-1" });
     mocks.transitionRun.mockImplementation(async (_admin, value, to) => {
       assertTransition(value.status, to);
       return { ...value, status: to };

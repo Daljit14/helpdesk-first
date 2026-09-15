@@ -3,11 +3,7 @@ import { buildEvidence } from "@/lib/evidence/build";
 import { loadEvidenceInputs } from "@/lib/evidence/load";
 import { isSafeString } from "@/lib/ai/safety-policy";
 import { getAutonomyLimits, isVerificationEngineEnabled } from "../config";
-import {
-  evaluateBreaker,
-  readBreakerState,
-  recordBreakerOutcome,
-} from "../breaker";
+import { evaluateBreaker, readBreakerState } from "../breaker";
 import { alertSecurityEvent } from "../alerts";
 import { redactAuditDetail } from "../audit/redact";
 import { auditVersions } from "../audit/versions";
@@ -18,6 +14,7 @@ import { decidePolicy } from "../policy/engine";
 import { recordPolicyDecision } from "../policy/record";
 import {
   getCapability,
+  capabilityStatus,
   validateCapabilityInput,
 } from "../capabilities/registry";
 import {
@@ -30,12 +27,14 @@ import { parsePlannerOutput, type PlannerOutput } from "../planner/schema";
 import type { ResolutionRun } from "../orchestrator";
 import { resolutionStepPosition, transitionRun } from "../orchestrator";
 import { checkPreconditions } from "./preconditions";
-import { getHandler } from "./handlers";
 import type { HandlerAdmin } from "./handlers/types";
 import { checkTenant } from "./tenant";
-import { sanitizeOutput } from "./sanitize";
 import type { PolicyDecision, PolicyInput } from "../policy/types";
 import { verifyRun } from "../verification/engine";
+import { assertGuardrailsEnforced } from "../guardrails/enforce";
+import { executeThroughGateway } from "../guardrails/gateway";
+import type { PlannerPlanV2 } from "../guardrails/planner-output";
+import { parameterHash } from "../guardrails/hash";
 
 type PlanStep = { id: string; detail?: Record<string, unknown> };
 
@@ -280,12 +279,25 @@ async function createApproval(
   admin: HandlerAdmin,
   run: ResolutionRun,
   stepId: string,
-  type: "user_consent" | "technician_approval"
+  type: "user_consent" | "technician_approval",
+  capability: CapabilityDefinition,
+  params: Record<string, unknown>,
+  riskLevel: string
 ): Promise<void> {
   await admin.from("approval_requests").insert({
     organization_id: run.organization_id,
     run_id: run.id,
     step_id: stepId,
+    ticket_id: run.ticket_id,
+    capability_id: capability.id,
+    capability_version: capability.version,
+    parameter_hash: parameterHash({
+      capabilityId: capability.id,
+      version: capability.version,
+      parameters: params,
+    }),
+    risk_level: riskLevel,
+    nonce: crypto.randomUUID(),
     type,
     status: "requested",
     requested_by: "orchestrator",
@@ -303,156 +315,51 @@ async function executeHandler(
   version: number,
   params: Record<string, unknown>,
   maxRuntimeMs: number,
-  deps: ExecutePlanDeps
+  deps: ExecutePlanDeps,
+  policy: PolicyDecision
 ): Promise<ResolutionRun | null> {
-  const handler = getHandler(capabilityId, version);
-  if (!handler) return escalate(admin, run, "capability_unavailable", deps);
-  const key = buildIdempotencyKey({
-    runId: run.id,
-    stepId,
-    capabilityId,
-    capabilityVersion: version,
-    parameters: params,
-  });
-  const existing = await admin
-    .from("capability_executions")
-    .select("id,status,result")
-    .eq("organization_id", run.organization_id)
-    .eq("idempotency_key", key)
-    .maybeSingle();
-  if (existing.data) {
-    await writeEvent(admin, run, "execution.replayed", {
-      capabilityId,
-      executionId: existing.data.id,
-    });
-    await writeEvent(admin, run, "security.replay_detected", {
-      capabilityId,
-      executionId: existing.data.id,
-    });
-    await alertSecurityEvent(admin, {
-      organizationId: run.organization_id,
-      ticketId: run.ticket_id,
-      runId: run.id,
-      kind: "security.replay_detected",
-      detail: { capabilityId, executionId: existing.data.id },
-    });
-    if (existing.data.status !== "succeeded") {
-      await transitionRun(admin, run, "failed", {
-        actor: deps.actor ?? "orchestrator",
-        detail: { capabilityId, replayedStatus: existing.data.status },
-      });
-      return null;
-    }
-    const verifying = await transitionRun(admin, run, "verifying", {
-      actor: deps.actor ?? "orchestrator",
-    });
-    if (verifying) {
-      await (deps.verify ?? verifyExecution)({
-        admin,
-        run: verifying,
-        executionId: existing.data.id,
-      });
-    }
-    return verifying;
-  }
-  await writeEvent(admin, run, "execution.started", { capabilityId });
-  const started = Date.now();
-  const signal = AbortSignal.timeout(maxRuntimeMs);
-  let result;
-  let status: "succeeded" | "failed" | "timed_out";
-  try {
-    result = await handler.run(
-      {
-        admin,
-        organizationId: run.organization_id,
-        ticketId: run.ticket_id,
-        runId: run.id,
-        stepId,
-        signal,
-        actor: deps.actor ?? "orchestrator",
-        escalate: async (reason) => {
-          await escalate(admin, run, reason, deps);
-        },
-      },
-      params
-    );
-    status = result.ok ? "succeeded" : signal.aborted ? "timed_out" : "failed";
-  } catch (error) {
-    result = {
-      ok: false,
-      output: {},
-      error: error instanceof Error ? error.message : "handler failed",
-    };
-    status = signal.aborted ? "timed_out" : "failed";
-  }
-  const output = sanitizeOutput(result.output);
-  await recordBreakerOutcome(
-    admin,
-    run.organization_id,
-    capabilityId,
-    status === "succeeded",
-    new Date()
-  );
-  const execution = await admin
-    .from("capability_executions")
-    .insert({
-      organization_id: run.organization_id,
-      run_id: run.id,
-      step_id: stepId,
-      capability_id: capabilityId,
-      capability_version: version,
-      idempotency_key: key,
-      parameters: params,
-      result: redactAuditDetail(output),
-      status,
-      duration_ms: Date.now() - started,
-      initiated_by: "ai",
-      versions: auditVersions({ id: capabilityId, version }),
-    })
-    .select("id")
-    .single();
-  const nextRun = await admin
-    .from("resolution_runs")
-    .update({ attempts: run.attempts + 1 })
-    .eq("id", run.id)
-    .eq("organization_id", run.organization_id)
-    .select("*")
-    .single();
-  const updatedRun = (nextRun.data ?? {
-    ...run,
-    attempts: run.attempts + 1,
-  }) as ResolutionRun;
-  if (execution.error) {
-    await writeEvent(admin, updatedRun, `execution.${status}`, {
-      capabilityId,
-      error: execution.error.message,
-    });
-  } else {
-    await writeEvent(admin, updatedRun, `execution.${status}`, {
-      capabilityId,
-      executionId: execution.data?.id ?? null,
-      error: result.error ?? null,
-    });
-  }
-  if (status !== "succeeded") {
-    await transitionRun(admin, updatedRun, "failed", {
-      actor: deps.actor ?? "orchestrator",
-      detail: { capabilityId, error: result.error ?? status },
-    });
-    return null;
-  }
-  const verifying = await transitionRun(admin, updatedRun, "verifying", {
+  const capability = getCapability(capabilityId, version);
+  if (!capability) return escalate(admin, run, "capability_unavailable", deps);
+  const plan: PlannerPlanV2 = {
+    ticketId: run.ticket_id,
+    diagnosis: {
+      summary: "Approved planner action",
+      confidence: 1,
+      evidenceIds: ["ticket"],
+    },
+    decision: "propose_action",
+    capability: {
+      id: capabilityId,
+      version,
+      parameters: params as Record<string, string | number | boolean | null>,
+    },
+    verificationMethod: capability.verification,
+  };
+  const result = await executeThroughGateway(admin, {
+    run,
+    plan,
+    capability,
+    policy: {
+      ...policy,
+      parameterHash: parameterHash({
+        capabilityId,
+        version,
+        parameters: params,
+      }),
+    },
     actor: deps.actor ?? "orchestrator",
+    idempotencyKey: buildIdempotencyKey({
+      runId: run.id,
+      stepId,
+      capabilityId,
+      capabilityVersion: version,
+      parameters: params,
+    }),
+    stepId,
+    verify: deps.verify ?? verifyExecution,
   });
-  if (verifying) {
-    await (deps.verify ?? verifyExecution)({
-      admin,
-      run: verifying,
-      executionId: execution.data?.id ?? null,
-    });
-  }
-  if (verifying) await writeEvent(admin, verifying, "verification.pending");
-  return verifying;
+  if (!result.ok) return escalate(admin, run, result.code, deps);
+  return result.run;
 }
 
 export async function evaluatePlanPolicy(
@@ -463,17 +370,17 @@ export async function evaluatePlanPolicy(
 ): Promise<PolicyEvaluation> {
   const parsed = parsePlannerOutput(rawPlan);
   if (!parsed.ok) return { ok: false, reason: "plan_rejected" };
-  if ("decision" in parsed.value) {
+  if (parsed.value.decision !== "propose_action") {
     return { ok: false, reason: parsed.value.reason };
   }
   const plan = parsed.value;
-  const capability = getCapability(plan.capabilityId, plan.capabilityVersion);
+  const capability = getCapability(plan.capability.id, plan.capability.version);
   if (
     !capability ||
     !(await isCapabilityEnabled(admin, {
       organizationId: run.organization_id,
-      id: plan.capabilityId,
-      version: plan.capabilityVersion,
+      id: plan.capability.id,
+      version: plan.capability.version,
     }))
   ) {
     return { ok: false, reason: "capability_unavailable" };
@@ -482,13 +389,13 @@ export async function evaluatePlanPolicy(
     admin,
     run.organization_id,
     run.ticket_id,
-    plan.parameters
+    plan.capability.parameters
   );
   if (!tenant.ok) return { ok: false, reason: "tenant_check_failed" };
   const validated = validateCapabilityInput(
     capability.id,
     capability.version,
-    plan.parameters
+    plan.capability.parameters
   );
   if (!validated.ok || !safeParameters(validated.value)) {
     return { ok: false, reason: "parameters_invalid" };
@@ -498,7 +405,7 @@ export async function evaluatePlanPolicy(
       admin,
       organizationId: run.organization_id,
       ticketId: run.ticket_id,
-      params: plan.parameters,
+      params: plan.capability.parameters,
     },
     capability.preconditions
   );
@@ -541,6 +448,7 @@ export async function evaluatePlanPolicy(
     priorFailedAttempts: attempts.prior,
     parametersValid: true,
     orgPolicy: await readOrgPolicy(admin, run.organization_id),
+    capabilityStatus: capabilityStatus(capability),
   });
   return {
     ok: true,
@@ -557,6 +465,7 @@ export async function executePlan(
   rawPlan: unknown,
   deps: ExecutePlanDeps = {}
 ): Promise<ResolutionRun | null> {
+  assertGuardrailsEnforced();
   const parsed = parsePlannerOutput(rawPlan);
   if (!parsed.ok) {
     await writeEvent(admin, run, "plan.rejected", { issues: parsed.issues });
@@ -571,12 +480,12 @@ export async function executePlan(
   }
   const plan: PlannerOutput = parsed.value;
   if (
-    !("decision" in plan) &&
-    !getCapability(plan.capabilityId, plan.capabilityVersion)
+    plan.decision === "propose_action" &&
+    !getCapability(plan.capability.id, plan.capability.version)
   ) {
     await writeEvent(admin, run, "security.unknown_capability", {
-      capabilityId: plan.capabilityId,
-      capabilityVersion: plan.capabilityVersion,
+      capabilityId: plan.capability.id,
+      capabilityVersion: plan.capability.version,
     });
     await alertSecurityEvent(admin, {
       organizationId: run.organization_id,
@@ -584,13 +493,13 @@ export async function executePlan(
       runId: run.id,
       kind: "security.unknown_capability",
       detail: {
-        capabilityId: plan.capabilityId,
-        capabilityVersion: plan.capabilityVersion,
+        capabilityId: plan.capability.id,
+        capabilityVersion: plan.capability.version,
       },
     });
   }
   await writeEvent(admin, run, "plan.received", { plan });
-  if ("decision" in plan) {
+  if (plan.decision !== "propose_action") {
     return escalate(admin, run, plan.reason, deps);
   }
   const policyStep = await ensureStep(
@@ -682,7 +591,10 @@ export async function executePlan(
       policyStep.id,
       decision.decision === "require_user_consent"
         ? "user_consent"
-        : "technician_approval"
+        : "technician_approval",
+      capability,
+      evaluated.validatedParameters,
+      capability.riskLevel
     );
     await writeEvent(admin, planningRun, "approval.requested", {
       type:
@@ -724,6 +636,7 @@ export async function executePlan(
     capability.version,
     evaluated.validatedParameters,
     Math.min(capability.maxRuntimeMs, getAutonomyLimits().runtimeMs),
-    deps
+    deps,
+    decision
   );
 }

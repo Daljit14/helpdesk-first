@@ -4,7 +4,15 @@ import type {
   CapabilitySideEffects,
 } from "@/lib/autonomy/capabilities/types";
 
-export const POLICY_VERSION = "2026-09-14.1";
+export const POLICY_VERSION = "2026-09-15.1";
+
+export const POLICY_PRECEDENCE = [
+  "deny",
+  "specialist_only",
+  "require_technician_approval",
+  "require_user_consent",
+  "allow_automatic",
+] as const;
 
 export type PolicyDecisionValue =
   | "allow_automatic"
@@ -52,6 +60,9 @@ export type PolicyInput = {
   };
   killSwitchActive: boolean;
   breakerOpen: boolean;
+  conflictingEvidence?: boolean;
+  capabilityStatus?:
+    "active" | "deprecated" | "expired" | "unknown" | "disabled";
 };
 
 export type PolicyDecision = {
@@ -61,3 +72,13 @@ export type PolicyDecision = {
   auditLabel: string;
   userLabel: string;
 };
+
+export function isMoreRestrictive(
+  left: PolicyDecisionValue,
+  right: PolicyDecisionValue
+): boolean {
+  return (
+    POLICY_PRECEDENCE.indexOf(left as (typeof POLICY_PRECEDENCE)[number]) <=
+    POLICY_PRECEDENCE.indexOf(right as (typeof POLICY_PRECEDENCE)[number])
+  );
+}

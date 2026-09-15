@@ -126,20 +126,29 @@ function admin(
 }
 
 const plan = {
-  diagnosis: "A matching approved guide may help.",
-  capabilityId: "search_approved_knowledge",
-  capabilityVersion: 1,
-  parameters: {
-    ticketId: "00000000-0000-4000-8000-000000000001",
-    query: "display issue",
+  ticketId: "00000000-0000-4000-8000-000000000001",
+  diagnosis: {
+    summary: "A matching approved guide may help.",
+    confidence: 0.9,
+    evidenceIds: ["ticket"],
   },
-  expectedEvidence: ["Matching guide is listed."],
+  decision: "propose_action",
+  capability: {
+    id: "search_approved_knowledge",
+    version: 1,
+    parameters: {
+      ticketId: "00000000-0000-4000-8000-000000000001",
+      query: "display issue",
+    },
+  },
+  verificationMethod: "none",
 };
 
 describe("executePlan", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubEnv("HELP_DESK_AUTONOMY_ENABLED", "true");
+    vi.stubEnv("HELP_DESK_AUTONOMOUS_EXECUTION_ENABLED", "true");
     vi.stubEnv("HELP_DESK_CAPABILITY_REGISTRY_ENABLED", "true");
     vi.stubEnv("HELP_DESK_CAP_SEARCH_APPROVED_KNOWLEDGE_ENABLED", "true");
     mocks.isCapabilityEnabled.mockResolvedValue(true);
@@ -202,7 +211,10 @@ describe("executePlan", () => {
   test("rejects shell-string parameters before invoking a handler", async () => {
     const result = await executePlan(admin() as never, run, {
       ...plan,
-      parameters: { ticketId: run.ticket_id, query: "run powershell" },
+      capability: {
+        ...plan.capability,
+        parameters: { ticketId: run.ticket_id, query: "run powershell" },
+      },
     });
     expect(result?.status).toBe("escalated");
     expect(mocks.getHandler).not.toHaveBeenCalled();

@@ -374,6 +374,45 @@ const resolutionSchema = z.object({
   verificationEvidence: z.string().trim().min(10).max(2000).optional(),
 });
 
+async function aiResolutionVerificationMissing(
+  organizationId: string,
+  ticketId: string
+): Promise<boolean> {
+  const admin = createAdminClient();
+  const runs = admin.from("resolution_runs");
+  if (typeof runs.select !== "function") return false;
+  const run = await runs
+    .select("id,status")
+    .eq("organization_id", organizationId)
+    .eq("ticket_id", ticketId)
+    .not("status", "in", '("escalated","failed")')
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (run.error) return true;
+  if (!run.data) return false;
+  const passed = await admin
+    .from("verification_results")
+    .select("id")
+    .eq("organization_id", organizationId)
+    .eq("run_id", run.data.id)
+    .eq("outcome", "passed")
+    .limit(1)
+    .maybeSingle();
+  if (passed.error) return true;
+  if (passed.data) return false;
+  await admin.from("resolution_events").insert({
+    organization_id: organizationId,
+    run_id: run.data.id,
+    ticket_id: ticketId,
+    kind: "guardrail.verification_missing",
+    actor: "staff",
+    initiated_by: "user",
+    detail: { reasonCode: "verification_missing" },
+  });
+  return true;
+}
+
 const actionSchema = z
   .object({
     ticketId: id,
@@ -449,6 +488,15 @@ export async function submitResolution(
           at: now,
         },
       };
+  if (
+    !isUserConfirmed &&
+    (await aiResolutionVerificationMissing(
+      found.session.organizationId,
+      ticketId
+    ))
+  ) {
+    return { error: "AI-owned ticket needs a passed verification." };
+  }
   const result = await updateTicket(ticketId, found.session.organizationId, {
     resolution_report: resolutionReport,
     resolution_summary: parsed.data.userExplanation,

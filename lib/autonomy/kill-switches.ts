@@ -1,10 +1,15 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isAutonomyEnabled, isCapabilityDisabledByEnv } from "./config";
+import {
+  getPlannerProvider,
+  isAutonomyEnabled,
+  isCapabilityDisabledByEnv,
+  isProviderDisabledByEnv,
+} from "./config";
 
 type KillSwitchAdmin = ReturnType<typeof createAdminClient>;
 
 type KillSwitchRow = {
-  scope: "global" | "organization" | "capability";
+  scope: "global" | "organization" | "capability" | "provider";
   scope_id: string | null;
   reason: string | null;
 };
@@ -12,11 +17,13 @@ type KillSwitchRow = {
 export async function readKillSwitches(
   admin: KillSwitchAdmin,
   organizationId: string,
-  capabilityId?: string
+  capabilityId?: string,
+  providerId = getPlannerProvider()
 ): Promise<{
   global: boolean;
   organization: boolean;
   capability: boolean;
+  provider: boolean;
   anyActive: boolean;
   reasons: string[];
 }> {
@@ -31,10 +38,13 @@ export async function readKillSwitches(
   if (capabilityId) {
     clauses.push(`and(scope.eq.capability,scope_id.eq.${capabilityId})`);
   }
+  clauses.push(`and(scope.eq.provider,scope_id.eq.${providerId})`);
   const capabilityByEnv = capabilityId
     ? isCapabilityDisabledByEnv(capabilityId)
     : false;
+  const providerByEnv = isProviderDisabledByEnv(providerId);
   if (capabilityByEnv) reasons.push("capability_env_disabled");
+  if (providerByEnv) reasons.push("provider_env_disabled");
 
   try {
     const { data, error } = await admin
@@ -48,6 +58,8 @@ export async function readKillSwitches(
     const organization = rows.some((row) => row.scope === "organization");
     const capability =
       capabilityByEnv || rows.some((row) => row.scope === "capability");
+    const provider =
+      providerByEnv || rows.some((row) => row.scope === "provider");
     for (const row of rows) {
       if (row.reason) reasons.push(row.reason);
     }
@@ -55,7 +67,8 @@ export async function readKillSwitches(
       global,
       organization,
       capability,
-      anyActive: global || organization || capability,
+      provider,
+      anyActive: global || organization || capability || provider,
       reasons,
     };
   } catch {
@@ -63,17 +76,19 @@ export async function readKillSwitches(
       global: true,
       organization: false,
       capability: capabilityByEnv,
+      provider: providerByEnv,
       anyActive: true,
       reasons: [
         "switch_read_failed",
         ...(capabilityByEnv ? ["capability_env_disabled"] : []),
+        ...(providerByEnv ? ["provider_env_disabled"] : []),
       ],
     };
   }
 }
 
 export type SetKillSwitchInput = {
-  scope: "global" | "organization" | "capability";
+  scope: "global" | "organization" | "capability" | "provider";
   scopeId: string | null;
   enabled: boolean;
   reason?: string | null;

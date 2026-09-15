@@ -119,8 +119,15 @@ function capabilityFromSteps(steps: JsonRecord[]): string | null {
   if (!plan || typeof plan !== "object") return null;
   const value = (plan as JsonRecord).plan;
   if (!value || typeof value !== "object") return null;
-  const capabilityId = (value as JsonRecord).capabilityId;
-  const version = (value as JsonRecord).capabilityVersion;
+  const capability = (value as JsonRecord).capability;
+  const capabilityId =
+    capability && typeof capability === "object"
+      ? (capability as JsonRecord).id
+      : (value as JsonRecord).capabilityId;
+  const version =
+    capability && typeof capability === "object"
+      ? (capability as JsonRecord).version
+      : (value as JsonRecord).capabilityVersion;
   if (typeof capabilityId !== "string") return null;
   return typeof version === "number"
     ? `${capabilityId}@${version}`
@@ -442,5 +449,161 @@ export async function getResolutionRunDetail(
     evidenceSummary:
       events.find((event) => event.kind === "evidence.snapshot")?.detail ??
       null,
+  };
+}
+
+export type GuardrailOverview = {
+  windowDays: number;
+  allowed: number;
+  blocked: number;
+  blockReasons: Record<string, number>;
+  injectionDetections: number;
+  consentPending: number;
+  approvalPending: number;
+  killSwitchEvents: number;
+  providerFailures: number;
+  tenantViolations: number;
+  verificationBlocks: number;
+  events: {
+    kind: string;
+    reasonCode: string | null;
+    actor: string | null;
+    createdAt: string;
+    detail: unknown;
+  }[];
+};
+
+function reasonCode(detail: unknown): string | null {
+  if (!detail || typeof detail !== "object" || Array.isArray(detail)) {
+    return null;
+  }
+  const value = (detail as Record<string, unknown>).reasonCode;
+  return typeof value === "string" ? value : null;
+}
+
+export async function getGuardrailOverview(
+  session: AdminSession,
+  windowDays = 30
+): Promise<GuardrailOverview> {
+  const admin = createAdminClient();
+  const start = new Date(
+    Date.now() - Math.max(1, windowDays) * 86_400_000
+  ).toISOString();
+  const result = await admin
+    .from("resolution_events")
+    .select("kind,actor,detail,created_at")
+    .eq("organization_id", session.organizationId)
+    .gte("created_at", start)
+    .like("kind", "guardrail.%")
+    .order("created_at", { ascending: false })
+    .limit(200);
+  const rows = (result.data ?? []) as {
+    kind: string;
+    actor: string | null;
+    detail: unknown;
+    created_at: string;
+  }[];
+  const blockReasons: Record<string, number> = {};
+  for (const row of rows) {
+    const code = reasonCode(row.detail);
+    if (code) blockReasons[code] = (blockReasons[code] ?? 0) + 1;
+  }
+  const blockedKinds = new Set([
+    "guardrail.output_rejected",
+    "guardrail.tenant_mismatch",
+    "guardrail.capability_unknown",
+    "guardrail.policy_denied",
+    "guardrail.consent_rejected",
+    "guardrail.rate_limited",
+    "guardrail.kill_switch_blocked",
+    "guardrail.breaker_open",
+    "guardrail.verification_missing",
+    "guardrail.execution_disabled",
+  ]);
+  return {
+    windowDays: Math.max(1, windowDays),
+    allowed: rows.filter((row) => row.kind === "guardrail.execution_allowed")
+      .length,
+    blocked: rows.filter((row) => blockedKinds.has(row.kind)).length,
+    blockReasons,
+    injectionDetections: rows.filter(
+      (row) => row.kind === "guardrail.prompt_injection_detected"
+    ).length,
+    consentPending: rows.filter(
+      (row) => row.kind === "guardrail.consent_required"
+    ).length,
+    approvalPending: rows.filter(
+      (row) => row.kind === "guardrail.approval_required"
+    ).length,
+    killSwitchEvents: rows.filter(
+      (row) => row.kind === "guardrail.kill_switch_blocked"
+    ).length,
+    providerFailures: blockReasons.provider_unavailable ?? 0,
+    tenantViolations: rows.filter(
+      (row) => row.kind === "guardrail.tenant_mismatch"
+    ).length,
+    verificationBlocks: rows.filter(
+      (row) => row.kind === "guardrail.verification_missing"
+    ).length,
+    events: rows.map((row) => ({
+      kind: row.kind,
+      reasonCode: reasonCode(row.detail),
+      actor: row.actor,
+      createdAt: row.created_at,
+      detail: row.detail,
+    })),
+  };
+}
+
+export async function getGuardrailAggregate(
+  session: AdminSession,
+  windowDays = 30
+): Promise<{
+  allowed: number;
+  blocked: number;
+  injectionDetections: number;
+  providerFailures: number;
+  killSwitchEvents: number;
+}> {
+  if (!session.isPlatformAdmin) {
+    throw new Error("Platform admin access required.");
+  }
+  const admin = createAdminClient();
+  const start = new Date(
+    Date.now() - Math.max(1, windowDays) * 86_400_000
+  ).toISOString();
+  const result = await admin
+    .from("resolution_events")
+    .select("kind,detail")
+    .gte("created_at", start)
+    .like("kind", "guardrail.%")
+    .limit(2000);
+  const rows = (result.data ?? []) as { kind: string; detail: unknown }[];
+  const blocked = new Set([
+    "guardrail.output_rejected",
+    "guardrail.tenant_mismatch",
+    "guardrail.capability_unknown",
+    "guardrail.policy_denied",
+    "guardrail.consent_rejected",
+    "guardrail.rate_limited",
+    "guardrail.kill_switch_blocked",
+    "guardrail.breaker_open",
+    "guardrail.verification_missing",
+    "guardrail.execution_disabled",
+  ]);
+  const failures = rows.filter(
+    (row) => reasonCode(row.detail) === "provider_unavailable"
+  ).length;
+  return {
+    allowed: rows.filter((row) => row.kind === "guardrail.execution_allowed")
+      .length,
+    blocked: rows.filter((row) => blocked.has(row.kind)).length,
+    injectionDetections: rows.filter(
+      (row) => row.kind === "guardrail.prompt_injection_detected"
+    ).length,
+    providerFailures: failures,
+    killSwitchEvents: rows.filter(
+      (row) => row.kind === "guardrail.kill_switch_blocked"
+    ).length,
   };
 }

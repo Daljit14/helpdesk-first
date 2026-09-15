@@ -79,6 +79,12 @@ export function ResolutionCenterTable({
         >
           All
         </Link>
+        <Link
+          href="/admin/resolution/guardrails"
+          className="v2-touch rounded-full border border-border px-3 py-2 text-sm hover:bg-muted"
+        >
+          Guardrails
+        </Link>
       </div>
       {runs.length === 0 ? (
         <div className="glass p-8 text-center">

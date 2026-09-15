@@ -77,14 +77,14 @@ describe("deterministic planner", () => {
       },
     });
     expect(result).toMatchObject({
-      capabilityId: "retry_failed_notification",
+      capability: { id: "retry_failed_notification" },
     });
   });
 
   test("selects service status without a failed notification id", async () => {
     const result = await planner.plan(input());
     expect(result).toMatchObject({
-      capabilityId: "check_helpdesk_service_status",
+      capability: { id: "check_helpdesk_service_status" },
     });
   });
 
@@ -99,7 +99,9 @@ describe("deterministic planner", () => {
         },
       })
     );
-    expect(result).toMatchObject({ capabilityId: "ask_diagnostic_question" });
+    expect(result).toMatchObject({
+      capability: { id: "ask_diagnostic_question" },
+    });
   });
 
   test("selects knowledge search for a grounded hypothesis", async () => {
@@ -112,7 +114,9 @@ describe("deterministic planner", () => {
         },
       })
     );
-    expect(result).toMatchObject({ capabilityId: "search_approved_knowledge" });
+    expect(result).toMatchObject({
+      capability: { id: "search_approved_knowledge" },
+    });
   });
 
   test("does not repeat failed capabilities", async () => {
@@ -128,13 +132,13 @@ describe("deterministic planner", () => {
       })
     );
     expect(result).not.toMatchObject({
-      capabilityId: "check_helpdesk_service_status",
+      capability: { id: "check_helpdesk_service_status" },
     });
   });
 
   test("escalates when no capability is allowed", async () => {
     const result = await planner.plan(input({ allowedCapabilities: [] }));
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       decision: "escalate",
       reason: "no_applicable_capability",
     });

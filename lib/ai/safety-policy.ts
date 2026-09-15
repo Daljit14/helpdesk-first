@@ -222,7 +222,7 @@ function isMaliciousRequest(text: string): boolean {
   return false;
 }
 
-function checkTextSafety(text: string): UserMessageSafety {
+export function checkTextSafety(text: string): UserMessageSafety {
   const normalized = normalizeSafetyText(text);
   const tokens = new Set(normalized.split(" "));
 

@@ -1,9 +1,11 @@
 import { getPlannerProvider } from "../config";
 import { PLANNER_PROMPT_VERSION } from "../planner/model-planner";
 import { POLICY_VERSION } from "../policy/types";
+import { GUARDRAIL_VERSION } from "../guardrails/version";
 import { VERIFIER_VERSION } from "../verification/verifiers";
 
 export type AuditVersions = {
+  guardrail: string;
   planner: string;
   model: string | null;
   prompt: string;
@@ -16,6 +18,7 @@ export function auditVersions(
   capability?: { id: string; version: number } | null
 ): AuditVersions {
   return {
+    guardrail: GUARDRAIL_VERSION,
     planner: getPlannerProvider(),
     model: process.env.HELP_DESK_PLANNER_MODEL?.trim() || null,
     prompt: PLANNER_PROMPT_VERSION,

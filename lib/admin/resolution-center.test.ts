@@ -183,6 +183,37 @@ describe("Resolution Center organization boundaries", () => {
     expect(query.eq).toHaveBeenCalledWith("organization_id", "org-1");
   });
 
+  test("returns a query error from shadow overview", async () => {
+    const query = createQuery([]);
+    query.then = (
+      resolve: (value: {
+        data: unknown[] | null;
+        error: { message: string };
+      }) => unknown
+    ) =>
+      Promise.resolve({
+        data: null,
+        error: { message: "shadow query failed" },
+      }).then(resolve);
+    supabaseMocks.createAdminClient.mockReturnValue({
+      from: vi.fn(() => query),
+    });
+    await expect(
+      getShadowOverview({
+        userId: "user-1",
+        email: "agent@example.com",
+        role: "support_agent",
+        organizationId: "org-1",
+        displayName: null,
+        isPlatformAdmin: false,
+      })
+    ).resolves.toMatchObject({
+      decisions: [],
+      metrics: { total: 0 },
+      error: "shadow query failed",
+    });
+  });
+
   test("rejects shadow aggregate for non-platform admins", async () => {
     await expect(
       getShadowAggregate({

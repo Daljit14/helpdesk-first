@@ -34,7 +34,11 @@ describe("Footer", () => {
 
     expect(
       screen.getByRole("link", { name: "Notification settings" })
-    ).toHaveAttribute("href", "/tickets");
+    ).toHaveAttribute("href", "/tickets#notifications");
+    expect(screen.getByRole("link", { name: "New ticket" })).toHaveAttribute(
+      "href",
+      "/assistant"
+    );
     expect(
       screen.queryByRole("link", { name: "Sign in" })
     ).not.toBeInTheDocument();

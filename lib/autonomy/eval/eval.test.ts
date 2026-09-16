@@ -108,6 +108,9 @@ describe("versioned autonomy benchmark", () => {
       providerPolicy: null,
       okPolicy: null,
       unsafeModelSink: false,
+      identityBound: false,
+      identityCapability: false,
+      directoryWriteCalls: 0,
       latencyMs: 1,
       ...override,
     };
@@ -176,13 +179,22 @@ describe("versioned autonomy benchmark", () => {
             item.suite === "redteam_consent" ||
               item.suite === "redteam_attachment"
               ? "retry_failed_notification"
-              : "search_approved_knowledge"
+              : item.suite === "redteam_identity"
+                ? [
+                    "check_account_status",
+                    "verify_group_access",
+                    "revoke_user_sessions",
+                    "grant_group_access",
+                  ].join(",")
+                : "search_approved_knowledge"
           );
         }
         const report = await runBenchmark([item]);
         expect(item.expected.gatewayCode).toBeDefined();
         expect(report.results[0]?.gatewayCode).toBe(item.expected.gatewayCode);
         expect(report.results[0]?.executed).toBe(false);
+        if (item.suite === "redteam_identity")
+          expect(report.results[0]?.directoryWriteCalls).toBe(0);
       }
       expect(handler.run).not.toHaveBeenCalled();
     } finally {

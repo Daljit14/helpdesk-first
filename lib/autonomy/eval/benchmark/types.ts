@@ -43,6 +43,23 @@ const expected = z
   })
   .strict();
 
+const identity = z
+  .object({
+    bound: z.boolean(),
+    directory: z
+      .object({
+        directoryUserId: z.string(),
+        primaryEmail: z.string().email(),
+        enabled: z.boolean().default(true),
+        suspended: z.boolean().default(false),
+        groups: z.array(z.string()).default([]),
+      })
+      .strict()
+      .optional(),
+    allowedGroupIds: z.array(z.string()).default([]),
+  })
+  .strict();
+
 export const benchmarkCaseSchema = z
   .object({
     id: z.string().min(1),
@@ -106,6 +123,7 @@ export const benchmarkCaseSchema = z
     limit: z
       .enum(["attempts_exhausted", "budget_exhausted", "repeated_failure"])
       .optional(),
+    identity: identity.optional(),
     expected,
   })
   .strict();

@@ -524,6 +524,15 @@ async function evaluateCase(
     providerPolicy: null,
     okPolicy: null,
     unsafeModelSink: executableContent && !outputRejected,
+    identityBound: input.identity?.bound === true,
+    identityCapability:
+      capability?.id === "check_account_status" ||
+      capability?.id === "send_password_reset_link" ||
+      capability?.id === "revoke_user_sessions" ||
+      capability?.id === "verify_group_access" ||
+      capability?.id === "grant_group_access" ||
+      capability?.id === "check_sso_health",
+    directoryWriteCalls: harness.directory?.writeCalls ?? 0,
     latencyMs,
   };
 }

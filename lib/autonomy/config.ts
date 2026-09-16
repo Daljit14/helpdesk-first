@@ -1,3 +1,4 @@
+import type { ResearchProviderId } from "@/lib/research/types";
 export type AutonomyMode = "shadow" | "execute";
 export type PlannerMode = "shadow" | "execute";
 
@@ -113,6 +114,52 @@ export function getPlannerMode(): PlannerMode {
 
 export function getPlannerProvider(): string {
   return process.env.HELP_DESK_PLANNER_PROVIDER?.trim() || "deterministic";
+}
+
+export type ResearchConfig = {
+  enabled: boolean;
+  provider: ResearchProviderId;
+  families: string[];
+  minConfidence: number;
+  maxQueriesPerRun: number;
+  orgDailyBudget: number;
+  cacheTtlHours: number;
+  judgeEnabled: boolean;
+};
+
+export function getResearchConfig(): ResearchConfig {
+  const provider =
+    process.env.HELP_DESK_RESEARCH_PROVIDER === "brave" ? "brave" : "tavily";
+  const families = listFromEnv("HELP_DESK_RESEARCH_FAMILIES");
+  const confidence = Number(process.env.HELP_DESK_RESEARCH_MIN_CONFIDENCE);
+  return {
+    enabled: process.env.HELP_DESK_RESEARCH_ENABLED === "true",
+    provider,
+    families,
+    minConfidence:
+      Number.isFinite(confidence) && confidence >= 0 && confidence <= 1
+        ? confidence
+        : 0.6,
+    maxQueriesPerRun: boundedNumber(
+      "HELP_DESK_RESEARCH_MAX_QUERIES_PER_RUN",
+      3,
+      0,
+      3
+    ),
+    orgDailyBudget: boundedNumber(
+      "HELP_DESK_RESEARCH_ORG_DAILY_BUDGET",
+      50,
+      0,
+      10_000
+    ),
+    cacheTtlHours: boundedNumber(
+      "HELP_DESK_RESEARCH_CACHE_TTL_HOURS",
+      24,
+      1,
+      720
+    ),
+    judgeEnabled: process.env.HELP_DESK_JUDGE_ENABLED !== "false",
+  };
 }
 
 export function getAutonomyMode(): AutonomyMode {

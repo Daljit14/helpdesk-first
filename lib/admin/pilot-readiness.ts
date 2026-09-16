@@ -107,7 +107,9 @@ export async function computePilotReadiness(
     items,
     ready: blockers === 0,
     verdict:
-      blockers === 0 ? "Ready to enable" : `Not ready (${blockers} blockers)`,
+      blockers === 0
+        ? "Ready to enable"
+        : `Not ready (${blockers} ${blockers === 1 ? "blocker" : "blockers"})`,
     executionEnabled: isAutonomousExecutionEnabled(),
   };
 }

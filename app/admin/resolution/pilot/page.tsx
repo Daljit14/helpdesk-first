@@ -50,7 +50,11 @@ export default async function PilotPage() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="font-semibold">Pilot readiness</h2>
             <span
-              className={readiness.ready ? "text-emerald-600" : "text-red-600"}
+              className={
+                readiness.ready
+                  ? "rounded-full border border-foreground bg-foreground px-3 py-1 text-sm font-semibold text-background"
+                  : "rounded-full border border-foreground px-3 py-1 text-sm font-semibold"
+              }
             >
               {readiness.verdict}
             </span>
@@ -58,7 +62,18 @@ export default async function PilotPage() {
           <ul className="mt-3 space-y-2 text-sm">
             {readiness.items.map((item) => (
               <li className="flex gap-2" key={item.label}>
-                <span aria-hidden="true">{item.ready ? "✓" : "!"}</span>
+                <span
+                  className={
+                    item.ready
+                      ? "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-foreground text-xs font-bold text-background"
+                      : "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-foreground text-xs font-bold"
+                  }
+                >
+                  <span aria-hidden="true">{item.ready ? "✓" : "!"}</span>
+                  <span className="sr-only">
+                    {item.ready ? "Ready" : "Blocked"}
+                  </span>
+                </span>
                 <span>
                   <strong>{item.label}:</strong> {item.reason}
                 </span>

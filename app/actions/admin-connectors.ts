@@ -28,7 +28,8 @@ const inputSchema = z.object({
     .refine((value) => value.startsWith("https://"))
     .optional(),
 });
-type Result = { success: true } | { error: string };
+export type ConnectorActionState = { success: true } | { error: string };
+type Result = ConnectorActionState;
 type Session = NonNullable<Awaited<ReturnType<typeof getAdminSession>>>;
 async function sessionOrError(): Promise<Session | Result> {
   const session = await getAdminSession();
@@ -44,25 +45,25 @@ async function sessionOrError(): Promise<Session | Result> {
     return { error: "Too many connector requests." };
   return session;
 }
-export async function saveConnectorAction(input: unknown): Promise<Result> {
+export async function saveConnectorAction(
+  _previousState: Result | null,
+  formData: FormData
+): Promise<Result> {
   const session = await sessionOrError();
   if (!("organizationId" in session)) return session;
-  const valueInput =
-    input instanceof FormData
-      ? {
-          provider: input.get("provider"),
-          tenantId: input.get("tenantId") || undefined,
-          clientId: input.get("clientId") || undefined,
-          clientSecret: input.get("clientSecret") || undefined,
-          serviceAccountJson: input.get("serviceAccountJson") || undefined,
-          adminSubject: input.get("adminSubject") || undefined,
-          allowedGroupIds: String(input.get("allowedGroupIds") ?? "")
-            .split(",")
-            .map((value) => value.trim())
-            .filter(Boolean),
-          resetUrl: input.get("resetUrl") || undefined,
-        }
-      : input;
+  const valueInput = {
+    provider: formData.get("provider"),
+    tenantId: formData.get("tenantId") || undefined,
+    clientId: formData.get("clientId") || undefined,
+    clientSecret: formData.get("clientSecret") || undefined,
+    serviceAccountJson: formData.get("serviceAccountJson") || undefined,
+    adminSubject: formData.get("adminSubject") || undefined,
+    allowedGroupIds: String(formData.get("allowedGroupIds") ?? "")
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean),
+    resetUrl: formData.get("resetUrl") || undefined,
+  };
   const parsed = inputSchema.safeParse(valueInput);
   if (!parsed.success) return { error: "Invalid connector settings." };
   const value = parsed.data;
@@ -121,7 +122,12 @@ export async function saveConnectorAction(input: unknown): Promise<Result> {
   revalidatePath("/admin/connectors");
   return { success: true };
 }
-export async function testConnectorAction(): Promise<Result> {
+export async function testConnectorAction(
+  _previousState: Result | null,
+  _formData: FormData
+): Promise<Result> {
+  void _previousState;
+  void _formData;
   const session = await sessionOrError();
   if (!("organizationId" in session)) return session;
   const admin = createAdminClient();
@@ -145,7 +151,12 @@ export async function testConnectorAction(): Promise<Result> {
   revalidatePath("/admin/connectors");
   return { success: true };
 }
-export async function disableConnectorAction(): Promise<Result> {
+export async function disableConnectorAction(
+  _previousState: Result | null,
+  _formData: FormData
+): Promise<Result> {
+  void _previousState;
+  void _formData;
   const session = await sessionOrError();
   if (!("organizationId" in session)) return session;
   const result = await createAdminClient()

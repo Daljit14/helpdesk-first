@@ -28,6 +28,12 @@ vi.mock("@/lib/ai/rate-limit", () => ({
 
 import { saveConnectorAction } from "./admin-connectors";
 
+function formData(values: Record<string, string>) {
+  const data = new FormData();
+  for (const [key, value] of Object.entries(values)) data.set(key, value);
+  return data;
+}
+
 describe("admin connector actions", () => {
   beforeEach(() => {
     mocks.getAdminSession.mockReset();
@@ -43,7 +49,10 @@ describe("admin connector actions", () => {
         userId: "user-1",
       });
       await expect(
-        saveConnectorAction({ provider: "google", allowedGroupIds: [] })
+        saveConnectorAction(
+          null,
+          formData({ provider: "google", allowedGroupIds: "" })
+        )
       ).resolves.toEqual({ error: "Organization admin access required." });
     }
   });
@@ -54,12 +63,15 @@ describe("admin connector actions", () => {
       organizationId: "org-1",
       userId: "user-1",
     });
-    const result = await saveConnectorAction({
-      provider: "google",
-      serviceAccountJson: JSON.stringify({ client_email: "x@example.com" }),
-      adminSubject: "admin@example.com",
-      allowedGroupIds: [],
-    });
+    const result = await saveConnectorAction(
+      null,
+      formData({
+        provider: "google",
+        serviceAccountJson: JSON.stringify({ client_email: "x@example.com" }),
+        adminSubject: "admin@example.com",
+        allowedGroupIds: "",
+      })
+    );
     expect(result).toEqual({
       error: "Google service account JSON is invalid.",
     });

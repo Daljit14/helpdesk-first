@@ -40,4 +40,18 @@ await writeFile(
   `${JSON.stringify(serializableReport, null, 2)}\n`
 );
 await writeFile(`docs/eval/${BENCHMARK_VERSION}.md`, `${markdown}\n`);
+await writeFile(
+  "docs/eval/latest.json",
+  `${JSON.stringify(
+    {
+      version: BENCHMARK_VERSION,
+      cases: report.cases,
+      gatesPassed: report.gates.filter((gate) => gate.passed).length,
+      gatesTotal: report.gates.length,
+      generatedAt: new Date().toISOString(),
+    },
+    null,
+    2
+  )}\n`
+);
 if (report.gates.some((gate) => !gate.passed)) process.exitCode = 1;

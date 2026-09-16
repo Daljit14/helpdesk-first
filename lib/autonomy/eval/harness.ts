@@ -14,6 +14,12 @@ type FakeAdmin = HandlerAdmin & {
   executionInserts: number;
   allowedEvents: number;
   seedReplay: (idempotencyKey: string) => void;
+  seedConsent: (parameterHash: string) => void;
+  seedFailedExecution: (
+    parameters: Record<string, unknown>,
+    capabilityId: string,
+    capabilityVersion: number
+  ) => void;
 };
 
 function makeQuery(admin: FakeAdmin, table: string) {
@@ -162,12 +168,21 @@ export type BenchmarkHarness = Seed & {
   admin: FakeAdmin;
   invokeHandler: () => never;
   seedReplay: (idempotencyKey: string) => void;
+  seedConsent: (parameterHash: string) => void;
+  seedFailedExecution: (
+    parameters: Record<string, unknown>,
+    capabilityId: string,
+    capabilityVersion: number
+  ) => void;
 };
 
 export function createBenchmarkHarness(
   benchmarkCase: BenchmarkCase
 ): BenchmarkHarness {
-  const organizationId = "00000000-0000-4000-8000-000000000001";
+  const organizationId =
+    benchmarkCase.pilot === "org_removed"
+      ? "00000000-0000-4000-8000-000000000099"
+      : "00000000-0000-4000-8000-000000000001";
   const ticketId = "00000000-0000-4000-8000-000000000002";
   const runId = "00000000-0000-4000-8000-000000000003";
   const stepId = "00000000-0000-4000-8000-000000000004";
@@ -198,6 +213,7 @@ export function createBenchmarkHarness(
             benchmarkCase.tenant === "foreign_ticket"
               ? "00000000-0000-4000-8000-000000000099"
               : organizationId,
+          user_id: "requester-1",
         },
       ],
     ],
@@ -215,6 +231,16 @@ export function createBenchmarkHarness(
           budget_cents: 50,
           deadline_at: new Date(Date.now() + 60_000).toISOString(),
         },
+        ...(benchmarkCase.limit === "repeated_failure"
+          ? [
+              {
+                id: runId,
+                organization_id: organizationId,
+                ticket_id: ticketId,
+                status: "failed",
+              },
+            ]
+          : []),
       ],
     ],
     [
@@ -279,13 +305,14 @@ export function createBenchmarkHarness(
     ],
     [
       "capability_executions",
-      benchmarkCase.priorAttempts?.length
+      benchmarkCase.priorAttempts?.length ||
+      benchmarkCase.limit === "repeated_failure"
         ? [
             {
               organization_id: organizationId,
               run_id: runId,
-              capability_id: benchmarkCase.priorAttempts[0]?.capabilityId,
-              capability_version: benchmarkCase.priorAttempts[0]?.version,
+              capability_id: benchmarkCase.priorAttempts?.[0]?.capabilityId,
+              capability_version: benchmarkCase.priorAttempts?.[0]?.version,
               parameters: {},
               status: "failed",
             },
@@ -311,6 +338,58 @@ export function createBenchmarkHarness(
       });
       rows.set("capability_executions", executions);
     },
+    seedConsent: (parameterHash: string) => {
+      const approvals = rows.get("approval_requests") ?? [];
+      if (!benchmarkCase.consent || benchmarkCase.consent === "wrong_org") {
+        return;
+      }
+      approvals.push({
+        id: "approval-1",
+        organization_id: organizationId,
+        run_id: runId,
+        step_id: stepId,
+        ticket_id:
+          benchmarkCase.consent === "wrong_ticket"
+            ? "00000000-0000-4000-8000-000000000099"
+            : ticketId,
+        type: "user_consent",
+        status: "granted",
+        expires_at:
+          benchmarkCase.consent === "expired"
+            ? new Date(Date.now() - 60_000).toISOString()
+            : new Date(Date.now() + 60_000).toISOString(),
+        capability_id: "retry_failed_notification",
+        capability_version: 1,
+        parameter_hash:
+          benchmarkCase.consent === "hash_mismatch"
+            ? "different-hash"
+            : parameterHash,
+        risk_level: "caution",
+        consumed_at:
+          benchmarkCase.consent === "replay" ? new Date().toISOString() : null,
+        decided_by_user_id:
+          benchmarkCase.consent === "wrong_user" ? "other-user" : "requester-1",
+        created_at: new Date().toISOString(),
+      });
+      rows.set("approval_requests", approvals);
+    },
+    seedFailedExecution: (
+      parameters: Record<string, unknown>,
+      capabilityId: string,
+      capabilityVersion: number
+    ) => {
+      const executions = rows.get("capability_executions") ?? [];
+      executions.push({
+        id: "failed-execution",
+        organization_id: organizationId,
+        run_id: runId,
+        capability_id: capabilityId,
+        capability_version: capabilityVersion,
+        parameters,
+        status: "failed",
+      });
+      rows.set("capability_executions", executions);
+    },
   } as unknown as FakeAdmin;
   return {
     organizationId,
@@ -328,5 +407,7 @@ export function createBenchmarkHarness(
       throw new Error("Benchmark capability handler must never be invoked.");
     },
     seedReplay: admin.seedReplay,
+    seedConsent: admin.seedConsent,
+    seedFailedExecution: admin.seedFailedExecution,
   };
 }

@@ -1,4 +1,16 @@
 import type { RedactionSummary } from "@/lib/knowledge/learning-redaction";
+import type {
+  AccountStatus,
+  ConnectorError,
+  DirectoryProvider,
+} from "@/lib/autonomy/connectors/types";
+
+export type IdentityEvidence = {
+  provider: DirectoryProvider;
+  status: AccountStatus | null;
+  error: ConnectorError["kind"] | null;
+  checkedAt: string;
+};
 
 export type EvidenceSource =
   | "user_description"
@@ -63,4 +75,5 @@ export type EvidenceRecord = {
   citations: { guideSlug: string; title: string; path: string }[];
   safetyWarnings: string[];
   missingInformation: string[];
+  identity?: IdentityEvidence;
 };

@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadInvestigation } from "@/lib/investigation/load";
 import type { EvidenceInputs } from "./build";
+import { loadIdentityEvidence } from "./identity-family";
 
 type EvidenceClient = ReturnType<typeof createAdminClient>;
 
@@ -12,7 +13,7 @@ export async function loadEvidenceInputs(
   try {
     const ticketResult = await admin
       .from("tickets")
-      .select("message,platform,issue_id,diagnostic_answers,user_id")
+      .select("message,platform,issue_id,diagnostic_answers,user_id,category")
       .eq("organization_id", organizationId)
       .eq("id", ticketId)
       .maybeSingle();
@@ -36,12 +37,22 @@ export async function loadEvidenceInputs(
     ]);
     if (stepOutcomes.error) throw stepOutcomes.error;
     if (attachments.error) throw attachments.error;
+    const identity = await loadIdentityEvidence(admin, {
+      runId: "",
+      ticketId,
+      organizationId,
+      userId: ticketResult.data.user_id,
+      category:
+        (ticketResult.data as { category?: string | null }).category ?? null,
+      message: ticketResult.data.message,
+    });
     return {
       ticket: ticketResult.data as EvidenceInputs["ticket"],
       investigation: investigation?.investigation ?? null,
       turns: investigation?.turns ?? [],
       stepOutcomes: (stepOutcomes.data ?? []) as EvidenceInputs["stepOutcomes"],
       attachments: (attachments.data ?? []) as EvidenceInputs["attachments"],
+      ...(identity ? { identity } : {}),
     };
   } catch (error) {
     console.error("Failed to load evidence inputs.", error);

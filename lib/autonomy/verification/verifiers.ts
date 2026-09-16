@@ -1,4 +1,6 @@
 import type { Verifier, VerifierContext, VerifierResult } from "./types";
+import { loadDirectoryForOrganization } from "@/lib/autonomy/connectors";
+import { getIdentityBinding } from "@/lib/autonomy/connectors/binding";
 
 export const VERIFIER_VERSION = "1";
 
@@ -235,6 +237,119 @@ const needsHumanWithPackage: Verifier = {
   },
 };
 
+const directoryStatusRead: Verifier = {
+  method: "directory_status_read",
+  version: VERIFIER_VERSION,
+  async verify(ctx) {
+    const result = await ctx.admin
+      .from("capability_executions")
+      .select("result,status")
+      .eq("id", ctx.executionId ?? "")
+      .eq("organization_id", ctx.organizationId)
+      .maybeSingle();
+    const output = (
+      result.data as {
+        result?: Record<string, unknown>;
+        status?: string;
+      } | null
+    )?.result;
+    const passed = Boolean(
+      output && ("enabled" in output || "tokenAcquired" in output)
+    );
+    return informational(passed ? "passed" : "inconclusive", {
+      status: result.data?.status ?? null,
+    });
+  },
+};
+
+const directorySignInAfterAction: Verifier = {
+  method: "directory_signin_after_action",
+  version: VERIFIER_VERSION,
+  async verify(ctx) {
+    const confirmed = await readTicket(ctx, "user_confirmed");
+    const userConfirmed = Boolean(
+      (confirmed.data as { user_confirmed?: boolean } | null)?.user_confirmed
+    );
+    if (userConfirmed) return resolving("passed", { userConfirmed });
+    if (!ctx.executionId) {
+      return resolving("inconclusive", { reason: "no_execution" });
+    }
+    const execution = await ctx.admin
+      .from("capability_executions")
+      .select("created_at,executed_at")
+      .eq("id", ctx.executionId)
+      .eq("organization_id", ctx.organizationId)
+      .maybeSingle();
+    const executedAt =
+      (execution.data as { executed_at?: string; created_at?: string } | null)
+        ?.executed_at ??
+      (execution.data as { created_at?: string } | null)?.created_at;
+    const binding = await getIdentityBinding(ctx.admin, ctx.runId);
+    const loaded = binding
+      ? await loadDirectoryForOrganization(ctx.admin, ctx.organizationId)
+      : null;
+    if (!binding || !loaded) {
+      return resolving("inconclusive", {
+        reason: "identity_unbound_or_connector_unavailable",
+      });
+    }
+    const user = await ctx.admin.auth.admin.getUserById(binding.userId);
+    const email = user.data.user?.email;
+    if (!email || !executedAt) {
+      return resolving("inconclusive", {
+        reason: "missing_identity_or_execution",
+      });
+    }
+    const directory = await loaded.directory.lookupUserByEmail(
+      email,
+      ctx.signal
+    );
+    if (!directory.ok) {
+      return resolving(
+        "inconclusive",
+        directory.error.kind === "unsupported"
+          ? { reason: "sign_in_activity_unsupported" }
+          : { reason: directory.error.kind }
+      );
+    }
+    const lastSignInAt = directory.value.lastSignInAt;
+    const passed =
+      lastSignInAt !== null &&
+      new Date(lastSignInAt).getTime() > new Date(executedAt).getTime();
+    return resolving(passed ? "passed" : "inconclusive", {
+      lastSignInAt,
+      executedAt,
+      userConfirmed,
+    });
+  },
+};
+
+const directoryGroupMembership: Verifier = {
+  method: "directory_group_membership",
+  version: VERIFIER_VERSION,
+  async verify(ctx) {
+    const groupId = idParam(ctx, "groupId");
+    const binding = await getIdentityBinding(ctx.admin, ctx.runId);
+    const loaded = binding
+      ? await loadDirectoryForOrganization(ctx.admin, ctx.organizationId)
+      : null;
+    if (!groupId || !binding || !loaded) {
+      return resolving("inconclusive", { reason: "identity_or_group_missing" });
+    }
+    const result = await loaded.directory.isMemberOfGroup(
+      binding.directoryUserId,
+      groupId,
+      ctx.signal
+    );
+    if (!result.ok)
+      return resolving("inconclusive", { reason: result.error.kind });
+    return resolving(result.value ? "passed" : "inconclusive", {
+      groupId,
+      isMemberOfGroup: result.value,
+    });
+  },
+};
+
 export const VERIFIERS: readonly Verifier[] = [
   none,
   diagnosticAnswerRecorded,
@@ -247,6 +362,9 @@ export const VERIFIERS: readonly Verifier[] = [
   userVerificationAnswer,
   assignmentUpdated,
   needsHumanWithPackage,
+  directoryStatusRead,
+  directorySignInAfterAction,
+  directoryGroupMembership,
 ];
 
 export function getVerifier(method: string): Verifier | null {

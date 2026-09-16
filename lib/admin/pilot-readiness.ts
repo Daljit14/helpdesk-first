@@ -10,6 +10,7 @@ import { listCapabilities } from "@/lib/autonomy/capabilities/registry";
 import { readKillSwitches } from "@/lib/autonomy/kill-switches";
 import { isAlertingConfigured } from "@/lib/autonomy/alerts";
 import { BENCHMARK_VERSION } from "@/lib/autonomy/eval/benchmark/version";
+import { isConnectorKeyValid } from "@/lib/security/connector-key";
 
 type Admin = ReturnType<typeof createAdminClient>;
 
@@ -53,6 +54,16 @@ export async function computePilotReadiness(
       )
     ),
   ]);
+  const connector = process.env.HELP_DESK_CONNECTOR_KEY
+    ? await admin
+        .from("organization_connectors")
+        .select("status,last_health_ok,allowed_group_ids")
+        .eq("organization_id", organizationId)
+        .eq("status", "active")
+        .maybeSingle()
+    : { data: null, error: null };
+  const grantEnabled =
+    capabilityAllowlist?.includes("grant_group_access") ?? false;
   const items: PilotReadinessItem[] = [
     {
       label: "Guardrails enforced",
@@ -89,6 +100,29 @@ export async function computePilotReadiness(
       ready: !switches.organization,
       reason: "An organization kill switch pauses the pilot.",
     },
+    {
+      label: "Identity connector",
+      ready:
+        connector.data?.status === "active" &&
+        connector.data.last_health_ok === true,
+      reason:
+        "An active identity connector must have a successful health check.",
+    },
+    {
+      label: "Connector encryption key",
+      ready: isConnectorKeyValid(),
+      reason: "HELP_DESK_CONNECTOR_KEY must decode to 32 bytes.",
+    },
+    ...(grantEnabled
+      ? [
+          {
+            label: "Allowed groups configured",
+            ready: (connector.data?.allowed_group_ids ?? []).length > 0,
+            reason:
+              "Granting group access requires at least one allow-listed group.",
+          },
+        ]
+      : []),
     {
       label: "Alert email configured",
       ready: isAlertingConfigured(),

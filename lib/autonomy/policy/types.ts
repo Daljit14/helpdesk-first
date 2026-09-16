@@ -63,6 +63,7 @@ export type PolicyInput = {
   conflictingEvidence?: boolean;
   capabilityStatus?:
     "active" | "deprecated" | "expired" | "unknown" | "disabled";
+  plannerDisagreement?: boolean;
 };
 
 export type PolicyDecision = {

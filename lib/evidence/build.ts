@@ -18,6 +18,7 @@ import { deriveFacts } from "./facts";
 import { redactEvidenceText } from "./redaction";
 import { deriveSafetyWarnings } from "./safety";
 import type { EvidenceRecord } from "./types";
+import type { IdentityEvidence } from "./types";
 
 export type EvidenceInputs = {
   ticket: {
@@ -46,6 +47,7 @@ export type EvidenceInputs = {
     height: number | null;
   }[];
   now?: Date;
+  identity?: IdentityEvidence;
 };
 
 function diagnosticAnswers(value: unknown): DiagnosticAnswer[] {
@@ -131,6 +133,37 @@ export function buildEvidence(
   const missingInformation = [...new Set(facts.missingInformation)];
   if (!context.os) missingInformation.push("operating system");
   if (!context.device) missingInformation.push("device");
+  if (inputs.identity?.error || !inputs.identity?.status) {
+    missingInformation.push("verified directory identity");
+  }
+  const identityFacts = inputs.identity?.status
+    ? [
+        {
+          id: "identity.account_enabled",
+          statement: `Directory account is ${inputs.identity.status.enabled ? "enabled" : "disabled"}.`,
+          source: "context" as const,
+        },
+        {
+          id: "identity.suspended",
+          statement: `Directory account is ${inputs.identity.status.suspended ? "suspended" : "not suspended"}.`,
+          source: "context" as const,
+        },
+        ...(inputs.identity.status.passwordExpired
+          ? [
+              {
+                id: "identity.password_expired",
+                statement: "Directory account requires account recovery.",
+                source: "context" as const,
+              },
+            ]
+          : []),
+        ...inputs.identity.status.groups.map((group) => ({
+          id: `identity.group_member:${group}`,
+          statement: `Directory account belongs to approved group ${group}.`,
+          source: "context" as const,
+        })),
+      ]
+    : [];
   return {
     version: 1,
     generatedAt: now.toISOString(),
@@ -145,7 +178,7 @@ export function buildEvidence(
     },
     attachmentFindings: facts.attachmentFindings,
     qa,
-    confirmedFacts: facts.confirmedFacts,
+    confirmedFacts: [...facts.confirmedFacts, ...identityFacts],
     unknownFacts: facts.unknownFacts,
     hypotheses,
     citations: citationsFor(
@@ -158,5 +191,6 @@ export function buildEvidence(
       qa: rawAnswers,
     }),
     missingInformation: [...new Set(missingInformation)],
+    ...(inputs.identity ? { identity: inputs.identity } : {}),
   };
 }

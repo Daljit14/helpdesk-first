@@ -10,6 +10,22 @@ function uncomment(source: string): string {
 }
 
 describe("Supabase RLS coverage", () => {
+  test("protects connector secrets and invokes RLS on the public view", async () => {
+    const source = await readFile(
+      join(process.cwd(), "supabase/autonomy-l1.sql"),
+      "utf8"
+    );
+    expect(source).toMatch(
+      /create or replace view public\.organization_connectors_public\s+with \(security_invoker = true\)/i
+    );
+    expect(source).toMatch(
+      /revoke select on public\.organization_connectors from authenticated, anon;/i
+    );
+    expect(source).toMatch(
+      /grant select \((?![^)]*secret_ciphertext)(?![^)]*key_id)[^)]*\)\s+on public\.organization_connectors to authenticated;/i
+    );
+  });
+
   test("every declared table enables RLS and has a policy", async () => {
     const directory = join(process.cwd(), "supabase");
     const files = (await readdir(directory)).filter((file) =>

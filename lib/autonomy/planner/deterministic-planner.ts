@@ -68,6 +68,71 @@ export class DeterministicPlanner implements Planner {
       ...evidence.hypotheses.map((hypothesis) => hypothesis.cause),
     ].join(" ");
 
+    const identityActions: [RegExp, string, string][] = [
+      [
+        /identity\.account_enabled/i,
+        "check_account_status",
+        "Check the directory account status.",
+      ],
+      [
+        /identity\.password_expired|identity\.password_forgotten/i,
+        "send_password_reset_link",
+        "Directory account recovery is the safest next step.",
+      ],
+      [
+        /identity\.suspended|identity\.account_enabled.*disabled/i,
+        "escalate",
+        "Account is disabled or suspended.",
+      ],
+      [
+        /identity\.mfa_not_registered/i,
+        "escalate",
+        "MFA registration requires specialist review.",
+      ],
+      [
+        /identity\.group_member:/i,
+        "verify_group_access",
+        "Verify approved group membership.",
+      ],
+      [
+        /grant .*access|identity\.group_grant/i,
+        "grant_group_access",
+        "Grant approved group access after consent.",
+      ],
+      [
+        /identity\.stale_session|identity\.conflicting_session/i,
+        "revoke_user_sessions",
+        "A stale session may be causing the access issue.",
+      ],
+      [
+        /identity\.sso_provider_outage/i,
+        "check_sso_health",
+        "Check identity provider health.",
+      ],
+    ];
+    for (const [pattern, id, summary] of identityActions) {
+      if (!pattern.test(text)) continue;
+      if (id === "escalate") return escalate("identity_disabled_or_suspended");
+      const action = allowed(id);
+      if (!action) continue;
+      const parameters: Record<string, string> = { ticketId };
+      if (id === "verify_group_access" || id === "grant_group_access") {
+        parameters.groupId =
+          text.match(
+            /identity\.(?:group_member|group_grant):([A-Za-z0-9._:-]+)/i
+          )?.[1] ?? "";
+      }
+      return {
+        ticketId,
+        diagnosis: diagnosis(summary),
+        decision: "propose_action",
+        capability: { id: action.id, version: action.version, parameters },
+        verificationMethod:
+          getCapability(action.id, action.version)?.verification ??
+          "verification_pending",
+      };
+    }
+
     if (NOTIFICATION_PATTERN.test(text)) {
       const failedNotificationId = input.ticket.context?.failedNotificationId;
       const retry = allowed("retry_failed_notification");

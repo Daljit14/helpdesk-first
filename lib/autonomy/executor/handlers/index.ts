@@ -3,6 +3,11 @@ import { snapshotEscalationPackage } from "@/lib/investigation/escalation";
 import { redactAuditDetail } from "../../audit/redact";
 import { auditVersions, initiatedBy } from "../../audit/versions";
 import type { HandlerContext, HandlerResult, CapabilityHandler } from "./types";
+import { getIdentityBinding } from "@/lib/autonomy/connectors/binding";
+import { loadDirectoryForOrganization } from "@/lib/autonomy/connectors";
+import { createVerificationLink } from "@/lib/autonomy/verification/links";
+import { hashEmail } from "@/lib/autonomy/connectors/binding";
+import { buildNotification } from "@/lib/notifications/templates";
 
 const scalar = (
   output: Record<string, string | number | boolean | null>
@@ -23,6 +28,51 @@ async function resolutionEvent(
     initiated_by: initiatedBy(ctx.actor),
     versions: auditVersions(),
   });
+}
+
+async function enqueueVerificationNotification(
+  ctx: HandlerContext,
+  userId: string,
+  verificationLink: string
+): Promise<boolean> {
+  const notification = buildNotification("identity.recovery_link", {
+    ticketTitle: "Your support ticket",
+    ticketId: ctx.ticketId,
+    recoveryLink: verificationLink,
+  });
+  const inserted = await ctx.admin.from("notification_outbox").insert({
+    organization_id: ctx.organizationId,
+    ticket_id: ctx.ticketId,
+    event_type: "identity.recovery_link",
+    channel: "email",
+    recipient_user_id: userId,
+    dedupe_key: `identity-verification:${ctx.runId}`,
+    subject: notification.subject,
+    body: notification.body,
+    url: verificationLink,
+  });
+  return !inserted.error;
+}
+
+async function identityContext(ctx: HandlerContext) {
+  const binding = await getIdentityBinding(ctx.admin, ctx.runId);
+  if (
+    !binding ||
+    binding.organizationId !== ctx.organizationId ||
+    binding.ticketId !== ctx.ticketId
+  ) {
+    return null;
+  }
+  const ticket = await ctx.admin
+    .from("tickets")
+    .select("user_id")
+    .eq("id", ctx.ticketId)
+    .eq("organization_id", ctx.organizationId)
+    .maybeSingle();
+  if (ticket.error || !ticket.data || ticket.data.user_id !== binding.userId) {
+    return null;
+  }
+  return { binding, ticket: ticket.data as { user_id: string } };
 }
 
 function aborted(ctx: HandlerContext): HandlerResult | null {
@@ -271,6 +321,245 @@ const handlers: CapabilityHandler[] = [
         return { ok: false, output: {}, error: "aborted" };
       await ctx.escalate(String(params.reason));
       return scalar({ escalated: true });
+    },
+  },
+  {
+    capabilityId: "check_account_status",
+    version: 1,
+    async run(ctx) {
+      const identity = await identityContext(ctx);
+      if (!identity)
+        return { ok: false, output: {}, error: "identity_unbound" };
+      const { binding } = identity;
+      const loaded = await loadDirectoryForOrganization(
+        ctx.admin,
+        ctx.organizationId
+      );
+      if (!loaded)
+        return { ok: false, output: {}, error: "connector_unavailable" };
+      const result = await loaded.directory.getUserById(
+        binding.directoryUserId,
+        ctx.signal
+      );
+      if (!result.ok)
+        return { ok: false, output: {}, error: result.error.kind };
+      if (hashEmail(result.value.primaryEmail) !== binding.matchedEmailHash)
+        return { ok: false, output: {}, error: "identity_mismatch" };
+      await resolutionEvent(ctx, "identity.status_checked", {
+        provider: binding.provider,
+        enabled: result.value.enabled,
+        suspended: result.value.suspended,
+        lastSignInAt: result.value.lastSignInAt,
+      });
+      return scalar({
+        directoryUserId: result.value.directoryUserId,
+        enabled: result.value.enabled,
+        suspended: result.value.suspended,
+        passwordExpired: result.value.passwordExpired,
+        lastSignInAt: result.value.lastSignInAt,
+        mfaRegistered: result.value.mfaRegistered,
+      });
+    },
+  },
+  {
+    capabilityId: "send_password_reset_link",
+    version: 1,
+    async run(ctx) {
+      const identity = await identityContext(ctx);
+      if (!identity)
+        return { ok: false, output: {}, error: "identity_unbound" };
+      const { binding, ticket } = identity;
+      const loaded = await loadDirectoryForOrganization(
+        ctx.admin,
+        ctx.organizationId
+      );
+      if (!loaded)
+        return { ok: false, output: {}, error: "connector_unavailable" };
+      const url =
+        loaded.config.resetUrl ??
+        (binding.provider === "entra"
+          ? "https://passwordreset.microsoftonline.com/"
+          : "https://accounts.google.com/signin/recovery");
+      const verificationLink = await createVerificationLink(ctx.admin, {
+        runId: ctx.runId,
+        ticketId: ctx.ticketId,
+        organizationId: ctx.organizationId,
+        userId: ticket.user_id,
+      });
+      const notification = buildNotification("identity.recovery_link", {
+        ticketTitle: "Your support ticket",
+        ticketId: ctx.ticketId,
+        recoveryLink: verificationLink,
+      });
+      const inserted = await ctx.admin.from("notification_outbox").insert({
+        organization_id: ctx.organizationId,
+        ticket_id: ctx.ticketId,
+        event_type: "identity.recovery_link",
+        channel: "email",
+        recipient_user_id: ticket.user_id,
+        dedupe_key: `identity-recovery:${ctx.runId}`,
+        subject: notification.subject,
+        body: `${notification.body}\nRecovery provider: ${url}`,
+        url: verificationLink,
+      });
+      if (inserted.error)
+        return { ok: false, output: {}, error: "notification_enqueue_failed" };
+      await resolutionEvent(ctx, "identity.recovery_link_sent", {
+        provider: binding.provider,
+        recoveryHost: new URL(url).host,
+      });
+      return scalar({ queued: true, notificationId: null });
+    },
+  },
+  {
+    capabilityId: "revoke_user_sessions",
+    version: 1,
+    async run(ctx) {
+      const identity = await identityContext(ctx);
+      if (!identity)
+        return { ok: false, output: {}, error: "identity_unbound" };
+      const { binding, ticket } = identity;
+      const loaded = await loadDirectoryForOrganization(
+        ctx.admin,
+        ctx.organizationId
+      );
+      if (!loaded)
+        return { ok: false, output: {}, error: "connector_unavailable" };
+      const result = await loaded.directory.revokeSessions(
+        binding.directoryUserId,
+        ctx.signal
+      );
+      if (!result.ok)
+        return { ok: false, output: {}, error: result.error.kind };
+      const verificationLink = await createVerificationLink(ctx.admin, {
+        runId: ctx.runId,
+        ticketId: ctx.ticketId,
+        organizationId: ctx.organizationId,
+        userId: ticket.user_id,
+      });
+      if (
+        !(await enqueueVerificationNotification(
+          ctx,
+          ticket.user_id,
+          verificationLink
+        ))
+      )
+        return { ok: false, output: {}, error: "notification_enqueue_failed" };
+      await resolutionEvent(ctx, "identity.sessions_revoked", {
+        provider: binding.provider,
+        revokedAt: result.value.revokedAt,
+      });
+      return scalar({
+        revokedAt: result.value.revokedAt,
+        verificationLink,
+      });
+    },
+  },
+  {
+    capabilityId: "verify_group_access",
+    version: 1,
+    async run(ctx, params) {
+      const identity = await identityContext(ctx);
+      if (!identity)
+        return { ok: false, output: {}, error: "identity_unbound" };
+      const { binding } = identity;
+      const loaded = await loadDirectoryForOrganization(
+        ctx.admin,
+        ctx.organizationId
+      );
+      if (
+        !loaded ||
+        !loaded.config.allowedGroupIds.includes(String(params.groupId))
+      )
+        return { ok: false, output: {}, error: "group_not_allowlisted" };
+      const result = await loaded.directory.isMemberOfGroup(
+        binding.directoryUserId,
+        String(params.groupId),
+        ctx.signal
+      );
+      if (!result.ok)
+        return { ok: false, output: {}, error: result.error.kind };
+      await resolutionEvent(ctx, "identity.group_verified", {
+        provider: binding.provider,
+        groupId: params.groupId,
+        isMemberOfGroup: result.value,
+      });
+      return scalar({
+        groupId: String(params.groupId),
+        isMemberOfGroup: result.value,
+      });
+    },
+  },
+  {
+    capabilityId: "grant_group_access",
+    version: 1,
+    async run(ctx, params) {
+      const identity = await identityContext(ctx);
+      if (!identity)
+        return { ok: false, output: {}, error: "identity_unbound" };
+      const { binding, ticket } = identity;
+      const loaded = await loadDirectoryForOrganization(
+        ctx.admin,
+        ctx.organizationId
+      );
+      if (
+        !loaded ||
+        !loaded.config.allowedGroupIds.includes(String(params.groupId))
+      )
+        return { ok: false, output: {}, error: "group_not_allowlisted" };
+      const result = await loaded.directory.addToGroup(
+        binding.directoryUserId,
+        String(params.groupId),
+        ctx.signal
+      );
+      if (!result.ok)
+        return { ok: false, output: {}, error: result.error.kind };
+      const verificationLink = await createVerificationLink(ctx.admin, {
+        runId: ctx.runId,
+        ticketId: ctx.ticketId,
+        organizationId: ctx.organizationId,
+        userId: ticket.user_id,
+      });
+      if (
+        !(await enqueueVerificationNotification(
+          ctx,
+          ticket.user_id,
+          verificationLink
+        ))
+      )
+        return { ok: false, output: {}, error: "notification_enqueue_failed" };
+      await resolutionEvent(ctx, "identity.group_granted", {
+        provider: binding.provider,
+        groupId: params.groupId,
+        addedAt: result.value.addedAt,
+        verificationLink,
+      });
+      return scalar({
+        groupId: String(params.groupId),
+        addedAt: result.value.addedAt,
+        isMemberOfGroup: true,
+      });
+    },
+  },
+  {
+    capabilityId: "check_sso_health",
+    version: 1,
+    async run(ctx) {
+      const loaded = await loadDirectoryForOrganization(
+        ctx.admin,
+        ctx.organizationId
+      );
+      if (!loaded)
+        return { ok: false, output: {}, error: "connector_unavailable" };
+      const result = await loaded.directory.health(ctx.signal);
+      if (!result.ok)
+        return { ok: false, output: {}, error: result.error.kind };
+      await resolutionEvent(ctx, "identity.sso_health_checked", {
+        provider: loaded.config.provider,
+        tokenAcquired: result.value.tokenAcquired,
+        latencyMs: result.value.latencyMs,
+      });
+      return scalar(result.value);
     },
   },
 ];

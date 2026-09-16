@@ -9,6 +9,7 @@ export type NotificationEventType =
   | "ticket.resolved"
   | "ticket.reopened"
   | "ticket.status_changed"
+  | "identity.recovery_link"
   | "org.role_changed"
   | "sla.first_response_at_risk"
   | "sla.first_response_overdue"

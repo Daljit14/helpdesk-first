@@ -260,6 +260,116 @@ export const escalateWithEvidence: CapabilityDefinition = {
   sideEffects: "internal_write",
 };
 
+const identityCommon = {
+  ...common,
+  requiresIdentityBinding: true,
+  preconditions: [
+    { id: "ticket_not_terminal", description: "Ticket is not terminal." },
+    {
+      id: "connector_active",
+      description: "An active identity connector exists.",
+    },
+  ],
+};
+
+export const checkAccountStatus: CapabilityDefinition = {
+  ...identityCommon,
+  id: "check_account_status",
+  department: "Integrations",
+  description: "Read the requester's directory account status.",
+  inputSchema: ticketScoped,
+  riskLevel: "safe",
+  consent: "none",
+  orgPolicyRequirements: [],
+  maxRuntimeMs: 10_000,
+  expectedResult: "Directory status snapshot captured.",
+  verification: "directory_status_read",
+  rollback: "none",
+  sideEffects: "read_only",
+};
+
+export const sendPasswordResetLink: CapabilityDefinition = {
+  ...identityCommon,
+  id: "send_password_reset_link",
+  department: "Integrations",
+  description: "Send a self-service account recovery link.",
+  inputSchema: ticketScoped,
+  riskLevel: "safe",
+  consent: "none",
+  orgPolicyRequirements: [],
+  maxRuntimeMs: 10_000,
+  expectedResult: "Recovery link queued through the notification outbox.",
+  verification: "outbox_status_sent",
+  rollback: "none",
+  sideEffects: "external_write",
+};
+
+export const revokeUserSessions: CapabilityDefinition = {
+  ...identityCommon,
+  id: "revoke_user_sessions",
+  department: "Integrations",
+  description: "Revoke the requester's active directory sessions.",
+  inputSchema: ticketScoped,
+  riskLevel: "caution",
+  consent: "user",
+  orgPolicyRequirements: [],
+  maxRuntimeMs: 10_000,
+  expectedResult: "Directory sessions revoked.",
+  verification: "directory_signin_after_action",
+  rollback: "none",
+  sideEffects: "external_write",
+};
+
+const groupSchema = closed({ ticketId: uuid(), groupId: boundedString(128) });
+export const verifyGroupAccess: CapabilityDefinition = {
+  ...identityCommon,
+  id: "verify_group_access",
+  department: "Integrations",
+  description:
+    "Verify whether the requester belongs to an approved directory group.",
+  inputSchema: groupSchema,
+  riskLevel: "safe",
+  consent: "none",
+  orgPolicyRequirements: [],
+  maxRuntimeMs: 10_000,
+  expectedResult: "Directory group membership captured.",
+  verification: "directory_group_membership",
+  rollback: "none",
+  sideEffects: "read_only",
+};
+
+export const grantGroupAccess: CapabilityDefinition = {
+  ...identityCommon,
+  id: "grant_group_access",
+  department: "Integrations",
+  description: "Grant the requester access to an approved directory group.",
+  inputSchema: groupSchema,
+  riskLevel: "caution",
+  consent: "user",
+  orgPolicyRequirements: ["identity.group_grant"],
+  maxRuntimeMs: 10_000,
+  expectedResult: "Requester is added to the approved directory group.",
+  verification: "directory_group_membership",
+  rollback: "handler:remove_group_access",
+  sideEffects: "external_write",
+};
+
+export const checkSsoHealth: CapabilityDefinition = {
+  ...identityCommon,
+  id: "check_sso_health",
+  department: "Integrations",
+  description: "Check whether the organization's identity provider is healthy.",
+  inputSchema: ticketScoped,
+  riskLevel: "safe",
+  consent: "none",
+  orgPolicyRequirements: [],
+  maxRuntimeMs: 10_000,
+  expectedResult: "Identity provider health captured.",
+  verification: "directory_status_read",
+  rollback: "none",
+  sideEffects: "read_only",
+};
+
 export const CAPABILITY_DEFINITIONS: readonly CapabilityDefinition[] =
   Object.freeze([
     searchApprovedKnowledge,
@@ -273,4 +383,10 @@ export const CAPABILITY_DEFINITIONS: readonly CapabilityDefinition[] =
     requestUserVerification,
     routeToDepartment,
     escalateWithEvidence,
+    checkAccountStatus,
+    sendPasswordResetLink,
+    revokeUserSessions,
+    verifyGroupAccess,
+    grantGroupAccess,
+    checkSsoHealth,
   ]);

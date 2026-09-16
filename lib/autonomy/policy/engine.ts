@@ -88,10 +88,9 @@ export function decidePolicy(input: PolicyInput): PolicyDecision {
     PROHIBITED_CATEGORIES.has(input.ticketCategory.toLowerCase())
   )
     reasons.push(`prohibited_category:${input.ticketCategory.toLowerCase()}`);
-  for (const requirement of cap.orgPolicyRequirements) {
-    if (!org.grantedPolicies.includes(requirement))
-      reasons.push(`org_policy_missing:${requirement}`);
-  }
+  const missingOrgPolicies = cap.orgPolicyRequirements.filter(
+    (requirement) => !org.grantedPolicies.includes(requirement)
+  );
   if (!cap.platforms.includes("any")) {
     if (!input.platform) reasons.push("platform_unsupported:unknown");
     else if (!cap.platforms.includes(input.platform))
@@ -114,6 +113,17 @@ export function decidePolicy(input: PolicyInput): PolicyDecision {
 
   if (input.conflictingEvidence) {
     return finish("require_user_consent", ["evidence_conflicting"]);
+  }
+  if (input.plannerDisagreement && cap.riskLevel !== "safe") {
+    return finish("require_user_consent", ["planner_disagreement"]);
+  }
+  if (missingOrgPolicies.length > 0) {
+    return finish(
+      "require_technician_approval",
+      missingOrgPolicies.map(
+        (requirement) => `org_policy_missing:${requirement}`
+      )
+    );
   }
 
   // 3. Technician approval.

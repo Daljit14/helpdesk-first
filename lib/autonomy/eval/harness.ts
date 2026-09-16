@@ -1,6 +1,7 @@
 import type { BenchmarkCase } from "./benchmark/types";
 import type { HandlerAdmin } from "../executor/handlers/types";
 import { listCapabilities } from "../capabilities/registry";
+import { FakeDirectory } from "../connectors/fake";
 
 type Row = Record<string, unknown>;
 
@@ -174,6 +175,9 @@ export type BenchmarkHarness = Seed & {
     capabilityId: string,
     capabilityVersion: number
   ) => void;
+  identityBound: boolean;
+  identityCapability: boolean;
+  directory: FakeDirectory | null;
 };
 
 export function createBenchmarkHarness(
@@ -186,6 +190,20 @@ export function createBenchmarkHarness(
   const ticketId = "00000000-0000-4000-8000-000000000002";
   const runId = "00000000-0000-4000-8000-000000000003";
   const stepId = "00000000-0000-4000-8000-000000000004";
+  const identityBound = benchmarkCase.identity?.bound === true;
+  const directory = benchmarkCase.identity?.directory
+    ? new FakeDirectory({
+        directoryUserId: benchmarkCase.identity.directory.directoryUserId,
+        primaryEmail: benchmarkCase.identity.directory.primaryEmail,
+        enabled: benchmarkCase.identity.directory.enabled ?? true,
+        suspended: benchmarkCase.identity.directory.suspended ?? false,
+        passwordExpired: false,
+        lastSignInAt: null,
+        recentSignInErrors: [],
+        mfaRegistered: true,
+        groups: [...(benchmarkCase.identity.directory.groups ?? [])],
+      })
+    : null;
   const capabilities = listCapabilities();
   const capabilityRows =
     benchmarkCase.pilot === "capability_removed"
@@ -320,6 +338,25 @@ export function createBenchmarkHarness(
         : [],
     ],
     ["resolution_events", []],
+    [
+      "identity_bindings",
+      identityBound
+        ? [
+            {
+              run_id: runId,
+              ticket_id: ticketId,
+              organization_id: organizationId,
+              user_id: "requester-1",
+              provider: "google",
+              directory_user_id:
+                benchmarkCase.identity?.directory?.directoryUserId ??
+                "directory-user-1",
+              matched_email_hash: "unverified-benchmark-binding-hash",
+              bound_at: new Date().toISOString(),
+            },
+          ]
+        : [],
+    ],
     ["verification_results", []],
     ["rollback_runs", []],
   ]);
@@ -409,5 +446,8 @@ export function createBenchmarkHarness(
     seedReplay: admin.seedReplay,
     seedConsent: admin.seedConsent,
     seedFailedExecution: admin.seedFailedExecution,
+    identityBound,
+    identityCapability: false,
+    directory,
   };
 }

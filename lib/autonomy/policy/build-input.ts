@@ -24,6 +24,7 @@ export type BuildPolicyInputParams = {
   capabilityStatus?: PolicyInput["capabilityStatus"];
   studentData?: boolean;
   securityIncident?: boolean;
+  plannerDisagreement?: boolean;
 };
 
 function ownershipFor(
@@ -89,6 +90,7 @@ export function buildPolicyInput({
   capabilityStatus,
   studentData = false,
   securityIncident = false,
+  plannerDisagreement = false,
 }: BuildPolicyInputParams): PolicyInput {
   const redaction = evidence?.redaction ?? {};
   return {
@@ -128,5 +130,6 @@ export function buildPolicyInput({
     breakerOpen: breaker.open,
     conflictingEvidence: conflictingEvidenceFor(evidence),
     capabilityStatus: capabilityStatus ?? "active",
+    plannerDisagreement,
   };
 }

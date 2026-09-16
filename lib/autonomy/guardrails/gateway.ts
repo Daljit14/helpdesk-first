@@ -18,6 +18,8 @@ import { tripPilotPause } from "../pilot-review";
 import type { PlannerPlanV2 } from "./planner-output";
 import { parameterHash } from "./hash";
 import { verifyConsent } from "./consent";
+import { getIdentityBinding } from "../connectors/binding";
+import { loadDirectoryForOrganization } from "../connectors";
 
 export type GatewayRequest = {
   run: ResolutionRun;
@@ -182,7 +184,7 @@ export async function executeThroughGateway(
   }
   const ticket = await admin
     .from("tickets")
-    .select("id,organization_id")
+    .select("id,organization_id,user_id")
     .eq("id", req.run.ticket_id)
     .eq("organization_id", req.run.organization_id)
     .maybeSingle();
@@ -202,6 +204,42 @@ export async function executeThroughGateway(
       "capability_disabled",
       "guardrail.capability_unknown"
     );
+  }
+  if (req.capability.requiresIdentityBinding) {
+    const binding = await getIdentityBinding(admin, req.run.id);
+    if (
+      !binding ||
+      binding.organizationId !== req.run.organization_id ||
+      binding.ticketId !== req.run.ticket_id ||
+      binding.userId !== ticket.data.user_id
+    ) {
+      return deny(admin, req, "identity_unbound", "guardrail.identity_unbound");
+    }
+  }
+  if (
+    req.capability.id === "verify_group_access" ||
+    req.capability.id === "grant_group_access"
+  ) {
+    const loaded = await loadDirectoryForOrganization(
+      admin,
+      req.run.organization_id
+    );
+    const groupId =
+      typeof req.plan.capability.parameters.groupId === "string"
+        ? req.plan.capability.parameters.groupId
+        : "";
+    if (
+      !loaded ||
+      !groupId ||
+      !loaded.config.allowedGroupIds.includes(groupId)
+    ) {
+      return deny(
+        admin,
+        req,
+        "group_not_allowlisted",
+        "guardrail.group_not_allowlisted"
+      );
+    }
   }
   if (
     ![

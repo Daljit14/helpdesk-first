@@ -6,6 +6,7 @@ export type NotificationContext = {
   status?: string;
   actorLabel?: string;
   publicReplyExcerpt?: string;
+  recoveryLink?: string;
 };
 
 function excerpt(value: string | undefined): string {
@@ -65,6 +66,12 @@ export function buildNotification(
     case "ticket.status_changed":
       subject = `Your ticket is now ${context.status ?? "updated"}`;
       message = `${title} is now ${context.status ?? "updated"}.`;
+      break;
+    case "identity.recovery_link":
+      subject = "Self-service account recovery";
+      message = context.recoveryLink
+        ? `Use this self-service account recovery link: ${context.recoveryLink}`
+        : `Self-service account recovery is available for ${title}.`;
       break;
     case "org.role_changed":
       subject = `Your role in ${title} is now ${context.status ?? "updated"}`;

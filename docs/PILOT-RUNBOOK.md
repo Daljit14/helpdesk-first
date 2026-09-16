@@ -5,6 +5,16 @@ change environment flags during an incident response without approval.
 
 ## Enable one organization
 
+### Identity connector setup
+
+For Entra, register an application with `User.Read.All`, optional
+`AuditLog.Read.All`, `UserAuthenticationMethod.Read.All`,
+`GroupMember.ReadWrite.All`, and `User.RevokeSessions.All`. For Google
+Workspace, configure domain-wide delegation for
+`admin.directory.user.readonly`, `admin.directory.user.security`, and
+`admin.directory.group.member`. Configure verified organization domains and
+allow-list group IDs before enabling group capabilities.
+
 1. Confirm `HELP_DESK_GUARDRAILS_ENFORCED=true`.
 2. Set `HELP_DESK_AUTONOMY_ORG_ALLOWLIST` to exactly one approved
    organization UUID.

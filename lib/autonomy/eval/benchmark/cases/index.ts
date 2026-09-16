@@ -2,6 +2,7 @@ import { BENCHMARK_VERSION } from "../version";
 import type { BenchmarkCase } from "../types";
 import { catalogCases } from "./catalog";
 import { redTeamCases } from "./redteam";
+import { identityCases } from "./identity";
 
 const base = {
   version: BENCHMARK_VERSION,
@@ -91,6 +92,7 @@ const unsafeCases: BenchmarkCase[] = [
 export const benchmarkCases = [
   ...catalogCases,
   ...redTeamCases,
+  ...identityCases,
   ...injectionCases,
   {
     ...base,

@@ -102,7 +102,11 @@ describe("decidePolicy", () => {
     ],
   ] as const)("denies for %s", (_name, overrides, reason) => {
     const result = decidePolicy(input(overrides));
-    expect(result.decision).toBe("deny");
+    expect(result.decision).toBe(
+      reason.startsWith("org_policy_missing")
+        ? "require_technician_approval"
+        : "deny"
+    );
     expect(result.reasons).toContain(reason);
   });
 

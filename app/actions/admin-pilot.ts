@@ -8,12 +8,17 @@ import {
   resumePilot,
   reviewPilotResolution,
 } from "@/lib/autonomy/pilot-review";
+import { createRateLimiter, getRateLimitConfig } from "@/lib/ai/rate-limit";
 
 const reviewSchema = z.object({
   id: z.string().uuid(),
   status: z.enum(["confirmed", "incorrect", "unsafe"]),
   note: z.string().trim().max(2000),
 });
+const pilotActionLimiter = createRateLimiter(
+  { ...getRateLimitConfig(), maxRequests: 30 },
+  "pilot-actions"
+);
 
 export async function reviewPilotResolutionAction(
   input: unknown
@@ -21,6 +26,10 @@ export async function reviewPilotResolutionAction(
   const session = await getAdminSession();
   if (!session || session.role !== "org_admin")
     return { error: "Organization admin access required." };
+  const rate = await pilotActionLimiter.check(
+    `org:${session.organizationId}:user:${session.userId}`
+  );
+  if (!rate.allowed) return { error: "Too many pilot review attempts." };
   const value =
     input instanceof FormData
       ? {
@@ -49,6 +58,10 @@ export async function resumePilotAction(): Promise<
   const session = await getAdminSession();
   if (!session || session.role !== "org_admin")
     return { error: "Organization admin access required." };
+  const rate = await pilotActionLimiter.check(
+    `org:${session.organizationId}:user:${session.userId}`
+  );
+  if (!rate.allowed) return { error: "Too many pilot action attempts." };
   const result = await resumePilot(
     createAdminClient(),
     session.organizationId,

@@ -4,6 +4,7 @@ const { notFound, redirect, cookieStore } = vi.hoisted(() => {
   const store = {
     value: undefined as string | undefined,
     get: vi.fn(() => (store.value ? { value: store.value } : undefined)),
+    set: vi.fn(),
   };
   return {
     cookieStore: store,
@@ -20,6 +21,8 @@ import {
   getAdminSession,
   requireAdminApi,
   requireAdminPage,
+  setAdminSessionCookie,
+  clearAdminSessionCookie,
 } from "./auth";
 import { getCurrentUser } from "@/lib/supabase/user";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -201,6 +204,22 @@ describe("admin authorization", () => {
     configureMembership();
     cookieStore.value = sessionCookie("user-1", Date.now() - 1, "test-secret");
     await expect(getAdminSession()).resolves.toBeNull();
+  });
+
+  test("admin cookies use lax same-site and preserve server-action path", async () => {
+    vi.stubEnv("HELP_DESK_ADMIN_SESSION_SECRET", "test-secret");
+    await expect(setAdminSessionCookie("user-1")).resolves.toBe(true);
+    expect(cookieStore.set).toHaveBeenCalledWith(
+      "hd_admin",
+      expect.any(String),
+      expect.objectContaining({ sameSite: "lax", path: "/" })
+    );
+    await clearAdminSessionCookie();
+    expect(cookieStore.set).toHaveBeenLastCalledWith(
+      "hd_admin",
+      "",
+      expect.objectContaining({ sameSite: "lax", path: "/" })
+    );
   });
 
   test("authenticated non-members receive API 403", async () => {

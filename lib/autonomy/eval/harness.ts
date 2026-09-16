@@ -6,7 +6,7 @@ type Row = Record<string, unknown>;
 
 type QueryResult = {
   data: Row | Row[] | null;
-  error: { message: string } | null;
+  error: { message: string; code?: string } | null;
 };
 
 type FakeAdmin = HandlerAdmin & {
@@ -14,6 +14,12 @@ type FakeAdmin = HandlerAdmin & {
   executionInserts: number;
   allowedEvents: number;
   seedReplay: (idempotencyKey: string) => void;
+  seedConsent: (parameterHash: string) => void;
+  seedFailedExecution: (
+    parameters: Record<string, unknown>,
+    capabilityId: string,
+    capabilityVersion: number
+  ) => void;
 };
 
 function makeQuery(admin: FakeAdmin, table: string) {
@@ -102,6 +108,19 @@ function makeQuery(admin: FakeAdmin, table: string) {
     if (operation === "insert" || operation === "upsert") {
       const values = Array.isArray(payload) ? payload : [payload ?? {}];
       for (const value of values) {
+        if (
+          table === "capability_executions" &&
+          typeof value.idempotency_key === "string" &&
+          rows.some((row) => row.idempotency_key === value.idempotency_key)
+        ) {
+          return {
+            data: null,
+            error: {
+              message: "duplicate capability execution idempotency key",
+              code: "23505",
+            },
+          };
+        }
         if (table === "capability_executions") admin.executionInserts += 1;
         if (
           table === "resolution_events" &&
@@ -149,18 +168,55 @@ export type BenchmarkHarness = Seed & {
   admin: FakeAdmin;
   invokeHandler: () => never;
   seedReplay: (idempotencyKey: string) => void;
+  seedConsent: (parameterHash: string) => void;
+  seedFailedExecution: (
+    parameters: Record<string, unknown>,
+    capabilityId: string,
+    capabilityVersion: number
+  ) => void;
 };
 
 export function createBenchmarkHarness(
   benchmarkCase: BenchmarkCase
 ): BenchmarkHarness {
-  const organizationId = "00000000-0000-4000-8000-000000000001";
+  const organizationId =
+    benchmarkCase.pilot === "org_removed"
+      ? "00000000-0000-4000-8000-000000000099"
+      : "00000000-0000-4000-8000-000000000001";
   const ticketId = "00000000-0000-4000-8000-000000000002";
   const runId = "00000000-0000-4000-8000-000000000003";
   const stepId = "00000000-0000-4000-8000-000000000004";
   const capabilities = listCapabilities();
+  const capabilityRows =
+    benchmarkCase.pilot === "capability_removed"
+      ? capabilities
+          .filter((capability) => capability.id !== "search_approved_knowledge")
+          .map((capability) => ({
+            organization_id: organizationId,
+            capability_id: capability.id,
+            min_version: capability.version,
+            enabled: true,
+          }))
+      : capabilities.map((capability) => ({
+          organization_id: organizationId,
+          capability_id: capability.id,
+          min_version: capability.version,
+          enabled: true,
+        }));
   const rows = new Map<string, Row[]>([
-    ["tickets", [{ id: ticketId, organization_id: organizationId }]],
+    [
+      "tickets",
+      [
+        {
+          id: ticketId,
+          organization_id:
+            benchmarkCase.tenant === "foreign_ticket"
+              ? "00000000-0000-4000-8000-000000000099"
+              : organizationId,
+          user_id: "requester-1",
+        },
+      ],
+    ],
     [
       "resolution_runs",
       [
@@ -168,13 +224,23 @@ export function createBenchmarkHarness(
           id: runId,
           organization_id: organizationId,
           ticket_id: ticketId,
-          status: "executing",
+          status: benchmarkCase.priorAttempts?.length ? "failed" : "executing",
           attempts: 0,
           max_attempts: 3,
           cost_cents: 0,
           budget_cents: 50,
           deadline_at: new Date(Date.now() + 60_000).toISOString(),
         },
+        ...(benchmarkCase.limit === "repeated_failure"
+          ? [
+              {
+                id: runId,
+                organization_id: organizationId,
+                ticket_id: ticketId,
+                status: "failed",
+              },
+            ]
+          : []),
       ],
     ],
     [
@@ -190,15 +256,7 @@ export function createBenchmarkHarness(
         },
       ],
     ],
-    [
-      "organization_capabilities",
-      capabilities.map((capability) => ({
-        organization_id: organizationId,
-        capability_id: capability.id,
-        min_version: capability.version,
-        enabled: true,
-      })),
-    ],
+    ["organization_capabilities", capabilityRows],
     [
       "capability_versions",
       capabilities.map((capability) => ({
@@ -245,7 +303,22 @@ export function createBenchmarkHarness(
           ]
         : [],
     ],
-    ["capability_executions", []],
+    [
+      "capability_executions",
+      benchmarkCase.priorAttempts?.length ||
+      benchmarkCase.limit === "repeated_failure"
+        ? [
+            {
+              organization_id: organizationId,
+              run_id: runId,
+              capability_id: benchmarkCase.priorAttempts?.[0]?.capabilityId,
+              capability_version: benchmarkCase.priorAttempts?.[0]?.version,
+              parameters: {},
+              status: "failed",
+            },
+          ]
+        : [],
+    ],
     ["resolution_events", []],
     ["verification_results", []],
     ["rollback_runs", []],
@@ -262,6 +335,58 @@ export function createBenchmarkHarness(
         organization_id: organizationId,
         idempotency_key: idempotencyKey,
         status: "succeeded",
+      });
+      rows.set("capability_executions", executions);
+    },
+    seedConsent: (parameterHash: string) => {
+      const approvals = rows.get("approval_requests") ?? [];
+      if (!benchmarkCase.consent || benchmarkCase.consent === "wrong_org") {
+        return;
+      }
+      approvals.push({
+        id: "approval-1",
+        organization_id: organizationId,
+        run_id: runId,
+        step_id: stepId,
+        ticket_id:
+          benchmarkCase.consent === "wrong_ticket"
+            ? "00000000-0000-4000-8000-000000000099"
+            : ticketId,
+        type: "user_consent",
+        status: "granted",
+        expires_at:
+          benchmarkCase.consent === "expired"
+            ? new Date(Date.now() - 60_000).toISOString()
+            : new Date(Date.now() + 60_000).toISOString(),
+        capability_id: "retry_failed_notification",
+        capability_version: 1,
+        parameter_hash:
+          benchmarkCase.consent === "hash_mismatch"
+            ? "different-hash"
+            : parameterHash,
+        risk_level: "caution",
+        consumed_at:
+          benchmarkCase.consent === "replay" ? new Date().toISOString() : null,
+        decided_by_user_id:
+          benchmarkCase.consent === "wrong_user" ? "other-user" : "requester-1",
+        created_at: new Date().toISOString(),
+      });
+      rows.set("approval_requests", approvals);
+    },
+    seedFailedExecution: (
+      parameters: Record<string, unknown>,
+      capabilityId: string,
+      capabilityVersion: number
+    ) => {
+      const executions = rows.get("capability_executions") ?? [];
+      executions.push({
+        id: "failed-execution",
+        organization_id: organizationId,
+        run_id: runId,
+        capability_id: capabilityId,
+        capability_version: capabilityVersion,
+        parameters,
+        status: "failed",
       });
       rows.set("capability_executions", executions);
     },
@@ -282,5 +407,7 @@ export function createBenchmarkHarness(
       throw new Error("Benchmark capability handler must never be invoked.");
     },
     seedReplay: admin.seedReplay,
+    seedConsent: admin.seedConsent,
+    seedFailedExecution: admin.seedFailedExecution,
   };
 }

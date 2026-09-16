@@ -6,6 +6,8 @@ import { resumePilotAction } from "@/app/actions/admin-pilot";
 import { requireAdminPage } from "@/lib/admin/auth";
 import { isResolutionCenterEnabled } from "@/lib/admin/flags";
 import { getPilotOverview } from "@/lib/admin/resolution-center";
+import { computePilotReadiness } from "@/lib/admin/pilot-readiness";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -17,6 +19,10 @@ export default async function PilotPage() {
   if (!isResolutionCenterEnabled()) notFound();
   const session = await requireAdminPage("/admin/resolution/pilot");
   const overview = await getPilotOverview(session);
+  const readiness = await computePilotReadiness(
+    createAdminClient(),
+    session.organizationId
+  );
   const metrics = [
     [
       "Executions today",
@@ -40,6 +46,45 @@ export default async function PilotPage() {
           ]}
         />
         <h1 className="mt-4 text-3xl font-bold">Controlled AI pilot</h1>
+        <section className="mt-6 rounded-lg border p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="font-semibold">Pilot readiness</h2>
+            <span
+              className={
+                readiness.ready
+                  ? "rounded-full border border-foreground bg-foreground px-3 py-1 text-sm font-semibold text-background"
+                  : "rounded-full border border-foreground px-3 py-1 text-sm font-semibold"
+              }
+            >
+              {readiness.verdict}
+            </span>
+          </div>
+          <ul className="mt-3 space-y-2 text-sm">
+            {readiness.items.map((item) => (
+              <li className="flex gap-2" key={item.label}>
+                <span
+                  className={
+                    item.ready
+                      ? "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-foreground text-xs font-bold text-background"
+                      : "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-foreground text-xs font-bold"
+                  }
+                >
+                  <span aria-hidden="true">{item.ready ? "✓" : "!"}</span>
+                  <span className="sr-only">
+                    {item.ready ? "Ready" : "Blocked"}
+                  </span>
+                </span>
+                <span>
+                  <strong>{item.label}:</strong> {item.reason}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-3 text-xs text-muted-foreground">
+            Execution flag: {readiness.executionEnabled ? "on" : "off"}{" "}
+            (informational only)
+          </p>
+        </section>
         <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
           {metrics.map(([label, value]) => (
             <div className="rounded-lg border bg-background p-4" key={label}>

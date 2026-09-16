@@ -38,6 +38,7 @@ const expected = z
     verificationMethod: z.string().optional(),
     inputBlocked: z.boolean().optional(),
     outputRejected: z.boolean().optional(),
+    gatewayCode: z.string().optional(),
     executed: z.literal(false),
   })
   .strict();
@@ -87,6 +88,23 @@ export const benchmarkCaseSchema = z
     replay: z.boolean().optional(),
     killSwitch: z
       .enum(["global", "organization", "capability", "provider", "breaker"])
+      .optional(),
+    pilot: z
+      .enum(["org_removed", "capability_removed", "capability_not_allowlisted"])
+      .optional(),
+    consent: z
+      .enum([
+        "replay",
+        "wrong_user",
+        "wrong_org",
+        "wrong_ticket",
+        "hash_mismatch",
+        "expired",
+      ])
+      .optional(),
+    tenant: z.enum(["foreign_ticket"]).optional(),
+    limit: z
+      .enum(["attempts_exhausted", "budget_exhausted", "repeated_failure"])
       .optional(),
     expected,
   })

@@ -350,6 +350,54 @@ export async function executeThroughGateway(
       return deny(admin, req, consumed.code, "guardrail.consent_rejected");
     }
   }
+  const reservation = await admin
+    .from("capability_executions")
+    .insert({
+      organization_id: req.run.organization_id,
+      run_id: req.run.id,
+      step_id: req.stepId,
+      capability_id: req.capability.id,
+      capability_version: req.capability.version,
+      idempotency_key: key,
+      parameters: req.plan.capability.parameters,
+      result: {},
+      status: "failed",
+      duration_ms: null,
+      cost_cents: 0,
+      initiated_by: "ai",
+      versions: auditVersions(req.capability),
+    })
+    .select("id")
+    .single();
+  if (reservation.error) {
+    if (reservation.error.code === "23505") {
+      await alertSecurityEvent(admin, {
+        organizationId: req.run.organization_id,
+        ticketId: req.run.ticket_id,
+        runId: req.run.id,
+        kind: "security.replay_detected",
+        detail: { idempotencyKey: key },
+      });
+      await guardrailEvent(
+        admin,
+        req.run,
+        "guardrail.execution_allowed",
+        "replay",
+        { replay: true }
+      );
+      return { ok: true, run: req.run };
+    }
+    return deny(
+      admin,
+      req,
+      "execution_record_failed",
+      "guardrail.policy_denied"
+    );
+  }
+  const executionId =
+    reservation.data && typeof reservation.data.id === "string"
+      ? reservation.data.id
+      : null;
   const started = Date.now();
   await guardrailEvent(
     admin,
@@ -400,22 +448,15 @@ export async function executeThroughGateway(
   );
   const execution = await admin
     .from("capability_executions")
-    .insert({
-      organization_id: req.run.organization_id,
-      run_id: req.run.id,
-      step_id: req.stepId,
-      capability_id: req.capability.id,
-      capability_version: req.capability.version,
-      idempotency_key: key,
-      parameters: req.plan.capability.parameters,
+    .update({
       result: redactAuditDetail(output),
       status,
       duration_ms: Date.now() - started,
-      initiated_by: "ai",
-      versions: auditVersions(req.capability),
     })
+    .eq("id", executionId)
+    .eq("organization_id", req.run.organization_id)
     .select("id")
-    .single();
+    .maybeSingle();
   const nextRun = await admin
     .from("resolution_runs")
     .update({
@@ -450,7 +491,10 @@ export async function executeThroughGateway(
     await req.verify({
       admin,
       run: verifying,
-      executionId: execution.data?.id ?? null,
+      executionId:
+        execution.data && typeof execution.data.id === "string"
+          ? execution.data.id
+          : executionId,
     });
   }
   return { ok: true, run: verifying };

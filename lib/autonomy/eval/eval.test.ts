@@ -85,6 +85,7 @@ describe("versioned autonomy benchmark", () => {
     const result = {
       caseId: "bad",
       suite: "seeded",
+      redTeam: false,
       planner: "propose_action",
       capability: { id: "search_approved_knowledge", version: 1 },
       policy: "allow_automatic",
@@ -141,6 +142,47 @@ describe("versioned autonomy benchmark", () => {
         expect(report.results[0]?.gatewayCode).toBe(
           item.killSwitch === "breaker" ? "breaker_open" : "kill_switch_active"
         );
+      }
+      expect(handler.run).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  test("exercises every red-team case through the enabled gateway", async () => {
+    const handler = { run: vi.fn(async () => ({ ok: true })) };
+    handlerMocks.getHandler.mockReturnValue(handler);
+    vi.stubEnv("HELP_DESK_AUTONOMY_ENABLED", "true");
+    vi.stubEnv("HELP_DESK_AUTONOMOUS_EXECUTION_ENABLED", "true");
+    vi.stubEnv(
+      "HELP_DESK_AUTONOMY_ORG_ALLOWLIST",
+      "00000000-0000-4000-8000-000000000001"
+    );
+    vi.stubEnv("HELP_DESK_GUARDRAILS_ENFORCED", "true");
+    const redTeamCases = benchmarkCases.filter((item) =>
+      item.suite.startsWith("redteam_")
+    );
+    try {
+      expect(redTeamCases.length).toBeGreaterThan(0);
+      for (const item of redTeamCases) {
+        if (item.pilot) {
+          vi.stubEnv(
+            "HELP_DESK_PILOT_CAPABILITY_ALLOWLIST",
+            "capability-not-in-this-list"
+          );
+        } else {
+          vi.stubEnv(
+            "HELP_DESK_PILOT_CAPABILITY_ALLOWLIST",
+            item.suite === "redteam_consent" ||
+              item.suite === "redteam_attachment"
+              ? "retry_failed_notification"
+              : "search_approved_knowledge"
+          );
+        }
+        const report = await runBenchmark([item]);
+        expect(item.expected.gatewayCode).toBeDefined();
+        expect(report.results[0]?.gatewayCode).toBe(item.expected.gatewayCode);
+        expect(report.results[0]?.executed).toBe(false);
       }
       expect(handler.run).not.toHaveBeenCalled();
     } finally {

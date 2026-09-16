@@ -1,6 +1,5 @@
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
 import type { createAdminClient } from "@/lib/supabase/admin";
+import latest from "@/docs/eval/latest.json";
 import {
   getPilotCapabilityAllowlist,
   getPilotOrgAllowlist,
@@ -39,13 +38,12 @@ export async function computePilotReadiness(
   const capabilitySubset =
     capabilityAllowlist === null ||
     capabilityAllowlist.every((id) => enabledCapabilities.includes(id));
-  const [switches, breaker, tables, report] = await Promise.all([
+  const [switches, breakers, tables] = await Promise.all([
     readKillSwitches(admin, organizationId),
     admin
       .from("capability_breakers")
       .select("state")
-      .eq("organization_id", organizationId)
-      .maybeSingle(),
+      .eq("organization_id", organizationId),
     Promise.all(
       ["pilot_reviews", "shadow_decisions", "resolution_events"].map(
         async (table) => {
@@ -54,14 +52,7 @@ export async function computePilotReadiness(
         }
       )
     ),
-    readFile(
-      join(process.cwd(), "docs/eval", `${BENCHMARK_VERSION}.json`),
-      "utf8"
-    )
-      .then((value) => value.includes(`"version": "${BENCHMARK_VERSION}"`))
-      .catch(() => false),
   ]);
-  const organizationQueriesScoped = true;
   const items: PilotReadinessItem[] = [
     {
       label: "Guardrails enforced",
@@ -85,14 +76,13 @@ export async function computePilotReadiness(
         "Pilot reviews, shadow decisions, and guardrail events must exist.",
     },
     {
-      label: "Organization-scoped queries",
-      ready: organizationQueriesScoped,
-      reason: "Service-role reads must filter by organization.",
-    },
-    {
       label: "Breaker closed",
-      ready: !breaker.error && breaker.data?.state !== "open",
-      reason: "The organization capability breaker must be closed.",
+      ready:
+        !breakers.error &&
+        (breakers.data ?? []).every(
+          (row: { state?: unknown }) => row.state !== "open"
+        ),
+      reason: "Every organization capability breaker must be closed.",
     },
     {
       label: "Organization kill switch off",
@@ -102,12 +92,14 @@ export async function computePilotReadiness(
     {
       label: "Alert email configured",
       ready: isAlertingConfigured(),
-      reason: "BREVO_API_KEY and a sender address are required.",
+      reason: "BREVO_API_KEY and NOTIFICATIONS_FROM_EMAIL are required.",
     },
     {
       label: "Latest benchmark report",
-      ready: report,
-      reason: `The ${BENCHMARK_VERSION} report must be present.`,
+      ready:
+        latest.version === BENCHMARK_VERSION &&
+        latest.gatesPassed === latest.gatesTotal,
+      reason: `The latest report must be ${BENCHMARK_VERSION} with all gates passing.`,
     },
   ];
   const blockers = items.filter((item) => !item.ready).length;

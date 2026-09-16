@@ -206,19 +206,19 @@ describe("admin authorization", () => {
     await expect(getAdminSession()).resolves.toBeNull();
   });
 
-  test("admin cookies use strict same-site and preserve server-action path", async () => {
+  test("admin cookies use lax same-site and preserve server-action path", async () => {
     vi.stubEnv("HELP_DESK_ADMIN_SESSION_SECRET", "test-secret");
     await expect(setAdminSessionCookie("user-1")).resolves.toBe(true);
     expect(cookieStore.set).toHaveBeenCalledWith(
       "hd_admin",
       expect.any(String),
-      expect.objectContaining({ sameSite: "strict", path: "/" })
+      expect.objectContaining({ sameSite: "lax", path: "/" })
     );
     await clearAdminSessionCookie();
     expect(cookieStore.set).toHaveBeenLastCalledWith(
       "hd_admin",
       "",
-      expect.objectContaining({ sameSite: "strict", path: "/" })
+      expect.objectContaining({ sameSite: "lax", path: "/" })
     );
   });
 

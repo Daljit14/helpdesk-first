@@ -9,8 +9,7 @@ type AlertAdmin = ReturnType<typeof createAdminClient>;
 
 export function isAlertingConfigured(): boolean {
   return Boolean(
-    process.env.BREVO_API_KEY &&
-    (process.env.NOTIFICATIONS_FROM_EMAIL || "onboarding@example.com")
+    process.env.BREVO_API_KEY && process.env.NOTIFICATIONS_FROM_EMAIL
   );
 }
 

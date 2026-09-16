@@ -88,6 +88,18 @@ export const benchmarkCaseSchema = z
     killSwitch: z
       .enum(["global", "organization", "capability", "provider", "breaker"])
       .optional(),
+    pilot: z.enum(["org_removed", "capability_removed"]).optional(),
+    consent: z
+      .enum([
+        "replay",
+        "wrong_user",
+        "wrong_org",
+        "wrong_ticket",
+        "hash_mismatch",
+        "expired",
+      ])
+      .optional(),
+    tenant: z.enum(["foreign_ticket"]).optional(),
     expected,
   })
   .strict();

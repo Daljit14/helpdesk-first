@@ -417,6 +417,7 @@ async function evaluateCase(
   return {
     caseId: input.id,
     suite: input.suite,
+    redTeam: input.suite.startsWith("redteam_"),
     planner,
     capability,
     policy,

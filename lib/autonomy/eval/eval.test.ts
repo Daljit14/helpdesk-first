@@ -85,6 +85,7 @@ describe("versioned autonomy benchmark", () => {
     const result = {
       caseId: "bad",
       suite: "seeded",
+      redTeam: false,
       planner: "propose_action",
       capability: { id: "search_approved_knowledge", version: 1 },
       policy: "allow_automatic",

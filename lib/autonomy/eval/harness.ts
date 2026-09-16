@@ -6,7 +6,7 @@ type Row = Record<string, unknown>;
 
 type QueryResult = {
   data: Row | Row[] | null;
-  error: { message: string } | null;
+  error: { message: string; code?: string } | null;
 };
 
 type FakeAdmin = HandlerAdmin & {
@@ -102,6 +102,19 @@ function makeQuery(admin: FakeAdmin, table: string) {
     if (operation === "insert" || operation === "upsert") {
       const values = Array.isArray(payload) ? payload : [payload ?? {}];
       for (const value of values) {
+        if (
+          table === "capability_executions" &&
+          typeof value.idempotency_key === "string" &&
+          rows.some((row) => row.idempotency_key === value.idempotency_key)
+        ) {
+          return {
+            data: null,
+            error: {
+              message: "duplicate capability execution idempotency key",
+              code: "23505",
+            },
+          };
+        }
         if (table === "capability_executions") admin.executionInserts += 1;
         if (
           table === "resolution_events" &&
@@ -159,8 +172,35 @@ export function createBenchmarkHarness(
   const runId = "00000000-0000-4000-8000-000000000003";
   const stepId = "00000000-0000-4000-8000-000000000004";
   const capabilities = listCapabilities();
+  const capabilityRows =
+    benchmarkCase.pilot === "capability_removed"
+      ? capabilities
+          .filter((capability) => capability.id !== "search_approved_knowledge")
+          .map((capability) => ({
+            organization_id: organizationId,
+            capability_id: capability.id,
+            min_version: capability.version,
+            enabled: true,
+          }))
+      : capabilities.map((capability) => ({
+          organization_id: organizationId,
+          capability_id: capability.id,
+          min_version: capability.version,
+          enabled: true,
+        }));
   const rows = new Map<string, Row[]>([
-    ["tickets", [{ id: ticketId, organization_id: organizationId }]],
+    [
+      "tickets",
+      [
+        {
+          id: ticketId,
+          organization_id:
+            benchmarkCase.tenant === "foreign_ticket"
+              ? "00000000-0000-4000-8000-000000000099"
+              : organizationId,
+        },
+      ],
+    ],
     [
       "resolution_runs",
       [
@@ -168,7 +208,7 @@ export function createBenchmarkHarness(
           id: runId,
           organization_id: organizationId,
           ticket_id: ticketId,
-          status: "executing",
+          status: benchmarkCase.priorAttempts?.length ? "failed" : "executing",
           attempts: 0,
           max_attempts: 3,
           cost_cents: 0,
@@ -190,15 +230,7 @@ export function createBenchmarkHarness(
         },
       ],
     ],
-    [
-      "organization_capabilities",
-      capabilities.map((capability) => ({
-        organization_id: organizationId,
-        capability_id: capability.id,
-        min_version: capability.version,
-        enabled: true,
-      })),
-    ],
+    ["organization_capabilities", capabilityRows],
     [
       "capability_versions",
       capabilities.map((capability) => ({
@@ -245,7 +277,21 @@ export function createBenchmarkHarness(
           ]
         : [],
     ],
-    ["capability_executions", []],
+    [
+      "capability_executions",
+      benchmarkCase.priorAttempts?.length
+        ? [
+            {
+              organization_id: organizationId,
+              run_id: runId,
+              capability_id: benchmarkCase.priorAttempts[0]?.capabilityId,
+              capability_version: benchmarkCase.priorAttempts[0]?.version,
+              parameters: {},
+              status: "failed",
+            },
+          ]
+        : [],
+    ],
     ["resolution_events", []],
     ["verification_results", []],
     ["rollback_runs", []],

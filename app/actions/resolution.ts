@@ -14,8 +14,13 @@ import {
 import { completeUserHandoff } from "@/lib/tickets/handoff";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resumeAfterApproval } from "@/lib/autonomy/executor/resume";
+import { createRateLimiter, getRateLimitConfig } from "@/lib/ai/rate-limit";
 
 type ResolutionActionResult = { error: string };
+const consentLimiter = createRateLimiter(
+  { ...getRateLimitConfig(), maxRequests: 20 },
+  "consent"
+);
 
 export async function respondToAiConsent(
   requestId: string,
@@ -44,6 +49,11 @@ export async function respondToAiConsent(
   ) {
     return { error: "Consent request not found." };
   }
+  const rate = await consentLimiter.check(
+    `org:${request.data.organization_id}:user:${user.id}`
+  );
+  if (!rate.allowed)
+    return { error: "Too many consent attempts. Try again later." };
   if (
     request.data.status !== "requested" ||
     (request.data.expires_at &&

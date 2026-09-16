@@ -177,7 +177,7 @@ export async function setAdminSessionCookie(userId: string): Promise<boolean> {
   if (!value) return false;
   (await cookies()).set(ADMIN_COOKIE, value, {
     httpOnly: true,
-    sameSite: "lax",
+    sameSite: "strict",
     secure: process.env.NODE_ENV === "production",
     maxAge: ADMIN_SESSION_MAX_AGE,
     path: "/",
@@ -188,7 +188,7 @@ export async function setAdminSessionCookie(userId: string): Promise<boolean> {
 export async function clearAdminSessionCookie(): Promise<void> {
   (await cookies()).set(ADMIN_COOKIE, "", {
     httpOnly: true,
-    sameSite: "lax",
+    sameSite: "strict",
     secure: process.env.NODE_ENV === "production",
     maxAge: 0,
     path: "/",

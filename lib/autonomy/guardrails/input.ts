@@ -27,7 +27,9 @@ export type InputGuardResult = {
 
 const CARD_PATTERN = /\b(?:\d[ -]*?){13,19}\b/g;
 const TOKEN_PATTERN =
-  /\b(?:sk-[A-Za-z0-9_-]{12,}|ghp_[A-Za-z0-9]{20,}|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)\b/g;
+  /\b(?:sk-[A-Za-z0-9_-]{12,}|ghp_[A-Za-z0-9]{20,}|AKIA[A-Z0-9]{16}|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)\b/g;
+const CREDENTIAL_PATTERN =
+  /\b(?:password|passcode|mfa\s*code|verification\s*code|recovery\s*key|api\s*key)\b\s*(?:is|was|:|=)\s*[^\n,;]+/gi;
 const ATTACHMENT_INJECTION =
   /\b(?:ignore previous|system:|assistant:|you must|run the following)\b/i;
 const BLOCKED_CATEGORIES = new Set([
@@ -70,7 +72,14 @@ function redactSecrets(text: string): { text: string; count: number } {
     count += 1;
     return "[token]";
   });
-  return { text: tokenText, count };
+  const credentialText = tokenText.replace(CREDENTIAL_PATTERN, (match) => {
+    count += 1;
+    const label = match.match(
+      /^(password|passcode|mfa\s*code|verification\s*code|recovery\s*key|api\s*key)/i
+    )?.[1];
+    return `${label ?? "credential"}: [redacted]`;
+  });
+  return { text: credentialText, count };
 }
 
 export function guardModelInput(

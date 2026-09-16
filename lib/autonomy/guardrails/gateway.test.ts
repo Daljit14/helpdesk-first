@@ -72,16 +72,21 @@ function makeAdmin(
     concurrent?: number;
     globalCount?: number;
     organizationCount?: number;
+    enforceExecutionUniqueness?: boolean;
   } = {}
 ) {
   const handlerResult = { ok: true, output: { ok: true } };
   const handler = { run: vi.fn(async () => handlerResult) };
   mocks.getHandler.mockReturnValue(handler);
   const inserts: Record<string, unknown>[] = [];
+  const executionKeys = new Set<string>();
   const from = vi.fn((table: string) => {
     let selection = "";
     let organizationScoped = false;
-    const state = {
+    const state: {
+      data: unknown;
+      error: { message: string; code?: string } | null;
+    } = {
       data:
         table === "resolution_steps"
           ? { detail: { plannerProvider: "deterministic" } }
@@ -105,7 +110,25 @@ function makeAdmin(
       };
     }
     chain.insert = (value: unknown) => {
-      inserts.push((value ?? {}) as Record<string, unknown>);
+      const row = (value ?? {}) as Record<string, unknown>;
+      if (
+        table === "capability_executions" &&
+        options.enforceExecutionUniqueness &&
+        typeof row.idempotency_key === "string" &&
+        executionKeys.has(row.idempotency_key)
+      ) {
+        state.error = {
+          message: "duplicate capability execution idempotency key",
+          code: "23505",
+        };
+      } else {
+        if (
+          table === "capability_executions" &&
+          typeof row.idempotency_key === "string"
+        )
+          executionKeys.add(row.idempotency_key);
+        inserts.push(row);
+      }
       return chain;
     };
     chain.maybeSingle = async () => {
@@ -118,7 +141,10 @@ function makeAdmin(
     };
     chain.single = async () =>
       table === "capability_executions"
-        ? { data: { id: "execution-1" }, error: null }
+        ? {
+            data: state.error ? null : { id: "execution-1" },
+            error: state.error,
+          }
         : { data: run, error: null };
     chain.then = (...args: unknown[]) => {
       const resolve = args[0] as (value: unknown) => unknown;
@@ -398,6 +424,27 @@ describe("executeThroughGateway", () => {
       "safe_capability",
       "deterministic"
     );
+  });
+
+  test("reserves an idempotency key across five concurrent gateway calls", async () => {
+    const { admin, handler, inserts } = makeAdmin({
+      enforceExecutionUniqueness: true,
+    });
+    const results = await Promise.all(
+      Array.from({ length: 5 }, () => executeThroughGateway(admin, request()))
+    );
+    expect(handler.run).toHaveBeenCalledTimes(1);
+    expect(
+      inserts.filter((row) => row.idempotency_key === "key-1")
+    ).toHaveLength(1);
+    expect(
+      inserts.filter(
+        (row) =>
+          row.kind === "guardrail.execution_allowed" &&
+          (row.detail as { reasonCode?: string })?.reasonCode === "replay"
+      )
+    ).toHaveLength(4);
+    expect(results.filter((result) => result.ok)).toHaveLength(5);
   });
 
   test("blocks when the planner provider switch flips before execution", async () => {

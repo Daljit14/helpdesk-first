@@ -1,3 +1,8 @@
+| External page injection | Research snippets are guarded as untrusted input and dropped on injection or executable content. |
+| Spoofed vendor domains | Vendor trust requires HTTPS and exact hostname/subdomain matching. |
+| Query data exfiltration | Queries are built only from category, platform, hypotheses, and guide titles. |
+| Cost abuse | Per-organization uncached-query budgets, cache TTLs, and query limits bound spend. |
+
 # Pilot hardening security review
 
 ## Threat-model delta

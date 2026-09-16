@@ -258,6 +258,8 @@ function policyFor(
         requireApprovalFor: [],
       },
       capabilityStatus: capabilityStatus(capability),
+      evidenceContradiction:
+        evidence.research?.contradictsTopHypothesis ?? false,
     })
   );
 }
@@ -533,6 +535,8 @@ async function evaluateCase(
       capability?.id === "grant_group_access" ||
       capability?.id === "check_sso_health",
     directoryWriteCalls: harness.directory?.writeCalls ?? 0,
+    researchPresent: Boolean(input.research?.sources.length),
+    researchInfluencedNonSafe: false,
     latencyMs,
   };
 }

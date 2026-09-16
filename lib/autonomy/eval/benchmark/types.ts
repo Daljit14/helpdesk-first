@@ -60,6 +60,21 @@ const identity = z
   })
   .strict();
 
+const research = z
+  .object({
+    sources: z.array(
+      z
+        .object({
+          url: z.string().url(),
+          title: z.string(),
+          snippet: z.string(),
+        })
+        .strict()
+    ),
+    failure: z.enum(["timeout", "too_large", "rate_limited"]).optional(),
+  })
+  .strict();
+
 export const benchmarkCaseSchema = z
   .object({
     id: z.string().min(1),
@@ -124,6 +139,7 @@ export const benchmarkCaseSchema = z
       .enum(["attempts_exhausted", "budget_exhausted", "repeated_failure"])
       .optional(),
     identity: identity.optional(),
+    research: research.optional(),
     expected,
   })
   .strict();

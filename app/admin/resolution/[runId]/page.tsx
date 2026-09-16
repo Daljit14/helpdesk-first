@@ -117,6 +117,39 @@ export default async function ResolutionRunPage({
             </ul>
           )}
         </section>
+        <section className="glass space-y-3 p-5">
+          <h2 className="text-lg font-semibold">Sources consulted</h2>
+          {detail.researchSources.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No external research for this run
+            </p>
+          ) : (
+            <ul className="space-y-3">
+              {detail.researchSources.map((source) => (
+                <li
+                  key={`${source.url}-${source.title}`}
+                  className="rounded-xl border border-border p-3"
+                >
+                  <a
+                    href={source.url}
+                    target="_blank"
+                    rel="noopener noreferrer nofollow"
+                    className="font-medium underline underline-offset-4"
+                  >
+                    {source.title}
+                  </a>
+                  <p className="text-sm text-muted-foreground">
+                    {source.domain} ·{" "}
+                    {source.trust === "vendor"
+                      ? "Vendor docs"
+                      : "Community — unverified"}{" "}
+                    · {source.judgement}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
         {(
           [
             ["Policy decisions", detail.policyDecisions],

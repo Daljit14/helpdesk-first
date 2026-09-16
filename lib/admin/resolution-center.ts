@@ -2,6 +2,7 @@ import type { AdminSession } from "./auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { RunStatus } from "@/lib/autonomy/state-machine";
 import { getPilotLimits } from "@/lib/autonomy/config";
+import type { Judgement, TrustTier } from "@/lib/research/types";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -56,6 +57,17 @@ export type RunDetail = RunSummary & {
   approvals: unknown[];
   diagnosis: unknown | null;
   evidenceSummary: unknown | null;
+  researchSources: JudgedSourceRow[];
+};
+
+export type JudgedSourceRow = {
+  url: string;
+  domain: string;
+  title: string;
+  trust: TrustTier;
+  judgement: Judgement;
+  snippet?: string;
+  query?: string;
 };
 
 export type ShadowDecision = {
@@ -756,6 +768,7 @@ export async function getResolutionRunDetail(
     verifications,
     rollbacks,
     approvals,
+    researchSources,
   ] = await Promise.all([
     admin
       .from("tickets")
@@ -770,6 +783,7 @@ export async function getResolutionRunDetail(
     queryRows(admin, "verification_results", session.organizationId, [run.id]),
     queryRows(admin, "rollback_runs", session.organizationId, [run.id]),
     queryRows(admin, "approval_requests", session.organizationId, [run.id]),
+    queryRows(admin, "research_sources", session.organizationId, [run.id]),
   ]);
   const ticket = ticketResult.data as RawTicket | null;
   const policyRows = policies;
@@ -794,6 +808,14 @@ export async function getResolutionRunDetail(
     evidenceSummary:
       events.find((event) => event.kind === "evidence.snapshot")?.detail ??
       null,
+    researchSources: (researchSources as JudgedSourceRow[]).map((source) => ({
+      url: source.url,
+      domain: source.domain,
+      title: source.title,
+      trust: source.trust,
+      judgement: source.judgement,
+      snippet: source.snippet,
+    })),
   };
 }
 

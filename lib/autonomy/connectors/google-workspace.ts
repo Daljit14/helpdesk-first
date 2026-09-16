@@ -131,6 +131,42 @@ export class GoogleWorkspaceDirectory implements IdentityDirectory {
     };
   }
 
+  async getUserById(
+    directoryUserId: string,
+    signal: AbortSignal
+  ): Promise<ConnectorResult<AccountStatus>> {
+    const result = await this.api(
+      `https://admin.googleapis.com/admin/directory/v1/users/${encodeURIComponent(directoryUserId)}?projection=full`,
+      signal,
+      (raw) =>
+        z
+          .object({
+            id: z.string(),
+            primaryEmail: z.string().email(),
+            suspended: z.boolean(),
+            lastLoginTime: z.string().nullable().optional(),
+            isEnrolledIn2Sv: z.boolean().nullable().optional(),
+            changePasswordAtNextLogin: z.boolean().nullable().optional(),
+          })
+          .parse(raw)
+    );
+    if (!result.ok) return result;
+    return {
+      ok: true,
+      value: {
+        directoryUserId: result.value.id,
+        primaryEmail: result.value.primaryEmail,
+        enabled: !result.value.suspended,
+        suspended: result.value.suspended,
+        passwordExpired: result.value.changePasswordAtNextLogin ?? null,
+        lastSignInAt: result.value.lastLoginTime ?? null,
+        recentSignInErrors: [],
+        mfaRegistered: result.value.isEnrolledIn2Sv ?? null,
+        groups: [],
+      },
+    };
+  }
+
   async revokeSessions(directoryUserId: string, signal: AbortSignal) {
     return this.api(
       `https://admin.googleapis.com/admin/directory/v1/users/${encodeURIComponent(directoryUserId)}/signOut`,

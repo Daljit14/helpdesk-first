@@ -3,7 +3,7 @@ import {
   guardrailsEnforced,
   isAutonomousExecutionEnabled,
 } from "../config";
-import { isConnectorKeyValid } from "@/lib/security/secret-box";
+import { isConnectorKeyValid } from "@/lib/security/connector-key";
 
 export class GuardrailConfigurationError extends Error {
   constructor() {

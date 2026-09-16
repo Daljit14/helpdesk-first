@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 export default async function ConnectorsPage() {
   const session = await requireAdminPage("/admin/connectors");
   const row = await createAdminClient()
-    .from("organization_connectors")
+    .from("organization_connectors_public")
     .select("provider,config,allowed_group_ids,reset_url,status")
     .eq("organization_id", session.organizationId)
     .maybeSingle();

@@ -19,10 +19,15 @@ alter table public.organization_connectors enable row level security;
 drop policy if exists organization_connectors_admin on public.organization_connectors;
 create policy organization_connectors_admin on public.organization_connectors
   for all using (public.is_org_admin(organization_id)) with check (public.is_org_admin(organization_id));
-create or replace view public.organization_connectors_public as
+create or replace view public.organization_connectors_public
+with (security_invoker = true) as
   select id, organization_id, provider, config, allowed_group_ids, reset_url, status,
          last_health_at, last_health_ok, created_by, updated_at
   from public.organization_connectors;
+revoke all on public.organization_connectors_public from anon;
+grant select on public.organization_connectors_public to authenticated;
+revoke select (secret_ciphertext, key_id)
+  on public.organization_connectors from authenticated, anon;
 
 create table if not exists public.identity_bindings (
   id uuid primary key default gen_random_uuid(),
@@ -42,8 +47,7 @@ create policy identity_bindings_staff_read on public.identity_bindings for selec
 create or replace function public.identity_bindings_immutable()
 returns trigger language plpgsql as $$
 begin
-  if tg_op = 'UPDATE' then raise exception 'identity bindings are append-only'; end if;
-  return new;
+  raise exception 'identity bindings are append-only';
 end $$;
 drop trigger if exists identity_bindings_immutable on public.identity_bindings;
 create trigger identity_bindings_immutable before update or delete on public.identity_bindings
@@ -64,3 +68,6 @@ create index if not exists verification_links_lookup_idx on public.verification_
 alter table public.verification_links enable row level security;
 drop policy if exists verification_links_requester_read on public.verification_links;
 create policy verification_links_requester_read on public.verification_links for select using (auth.uid() = user_id);
+drop policy if exists verification_links_service on public.verification_links;
+create policy verification_links_service on public.verification_links
+  for all to service_role using (true) with check (true);

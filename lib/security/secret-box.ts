@@ -60,14 +60,3 @@ export function openSecret(
     decipher.final(),
   ]).toString("utf8");
 }
-
-export function isConnectorKeyValid(
-  value = process.env.HELP_DESK_CONNECTOR_KEY
-) {
-  if (!value) return false;
-  try {
-    return Buffer.from(value, "base64").length === 32;
-  } catch {
-    return false;
-  }
-}

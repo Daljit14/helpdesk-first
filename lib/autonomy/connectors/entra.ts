@@ -176,6 +176,39 @@ export class EntraDirectory implements IdentityDirectory {
     };
   }
 
+  async getUserById(
+    directoryUserId: string,
+    signal: AbortSignal
+  ): Promise<ConnectorResult<AccountStatus>> {
+    const id = graphId.safeParse(directoryUserId);
+    if (!id.success) {
+      return {
+        ok: false,
+        error: { kind: "invalid_response", message: "Invalid directory user" },
+      };
+    }
+    const user = await this.graph(
+      `/users/${encodeURIComponent(id.data)}?$select=id,mail,userPrincipalName,accountEnabled,signInActivity,lastPasswordChangeDateTime`,
+      signal,
+      (raw) => userSchema.parse(raw)
+    );
+    if (!user.ok) return user;
+    return {
+      ok: true,
+      value: {
+        directoryUserId: user.value.id,
+        primaryEmail: user.value.mail ?? user.value.userPrincipalName ?? "",
+        enabled: user.value.accountEnabled !== false,
+        suspended: false,
+        passwordExpired: user.value.lastPasswordChangeDateTime ? false : null,
+        lastSignInAt: user.value.signInActivity?.lastSignInDateTime ?? null,
+        recentSignInErrors: [],
+        mfaRegistered: null,
+        groups: [],
+      },
+    };
+  }
+
   async revokeSessions(directoryUserId: string, signal: AbortSignal) {
     return this.graph(
       `/users/${encodeURIComponent(graphId.parse(directoryUserId))}/revokeSignInSessions`,

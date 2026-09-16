@@ -2,10 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { getAdminSession } from "@/lib/admin/auth";
+import { getAdminSession, recordAudit } from "@/lib/admin/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createRateLimiter, getRateLimitConfig } from "@/lib/ai/rate-limit";
 import { sealSecret } from "@/lib/security/secret-box";
+import { loadDirectoryForOrganization } from "@/lib/autonomy/connectors";
 
 const limiter = createRateLimiter(
   { ...getRateLimitConfig(), maxRequests: 20 },
@@ -75,6 +76,22 @@ export async function saveConnectorAction(input: unknown): Promise<Result> {
     (!value.serviceAccountJson || !value.adminSubject)
   )
     return { error: "Google service account and admin subject are required." };
+  if (value.provider === "google") {
+    try {
+      const credentials = JSON.parse(value.serviceAccountJson ?? "") as {
+        client_email?: unknown;
+        private_key?: unknown;
+      };
+      if (
+        typeof credentials.client_email !== "string" ||
+        typeof credentials.private_key !== "string"
+      ) {
+        return { error: "Google service account JSON is invalid." };
+      }
+    } catch {
+      return { error: "Google service account JSON is invalid." };
+    }
+  }
   const secret =
     value.provider === "entra"
       ? (value.clientSecret ?? "")
@@ -100,18 +117,32 @@ export async function saveConnectorAction(input: unknown): Promise<Result> {
       { onConflict: "organization_id" }
     );
   if (result.error) return { error: "Connector could not be saved." };
+  await recordAudit(session, "connector.saved", value.provider);
   revalidatePath("/admin/connectors");
   return { success: true };
 }
 export async function testConnectorAction(): Promise<Result> {
   const session = await sessionOrError();
   if (!("organizationId" in session)) return session;
-  const row = await createAdminClient()
+  const admin = createAdminClient();
+  const loaded = await loadDirectoryForOrganization(
+    admin,
+    session.organizationId
+  );
+  if (!loaded) return { error: "No connector configured." };
+  const health = await loaded.directory.health(AbortSignal.timeout(8_000));
+  const update = await admin
     .from("organization_connectors")
-    .select("id")
-    .eq("organization_id", session.organizationId)
-    .maybeSingle();
-  if (row.error || !row.data) return { error: "No connector configured." };
+    .update({
+      last_health_at: new Date().toISOString(),
+      last_health_ok: health.ok,
+      status: health.ok ? "active" : "error",
+    })
+    .eq("organization_id", session.organizationId);
+  if (update.error) return { error: "Connector health could not be saved." };
+  await recordAudit(session, "connector.tested", loaded.config.provider);
+  if (!health.ok) return { error: "Connector health check failed." };
+  revalidatePath("/admin/connectors");
   return { success: true };
 }
 export async function disableConnectorAction(): Promise<Result> {
@@ -122,6 +153,7 @@ export async function disableConnectorAction(): Promise<Result> {
     .update({ status: "disabled" })
     .eq("organization_id", session.organizationId);
   if (result.error) return { error: "Connector could not be disabled." };
+  await recordAudit(session, "connector.disabled", session.organizationId);
   revalidatePath("/admin/connectors");
   return { success: true };
 }

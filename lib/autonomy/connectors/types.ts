@@ -32,6 +32,10 @@ export interface IdentityDirectory {
     email: string,
     signal: AbortSignal
   ): Promise<ConnectorResult<AccountStatus>>;
+  getUserById(
+    directoryUserId: string,
+    signal: AbortSignal
+  ): Promise<ConnectorResult<AccountStatus>>;
   revokeSessions(
     directoryUserId: string,
     signal: AbortSignal

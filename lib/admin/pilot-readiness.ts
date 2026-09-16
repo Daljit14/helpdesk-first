@@ -10,7 +10,7 @@ import { listCapabilities } from "@/lib/autonomy/capabilities/registry";
 import { readKillSwitches } from "@/lib/autonomy/kill-switches";
 import { isAlertingConfigured } from "@/lib/autonomy/alerts";
 import { BENCHMARK_VERSION } from "@/lib/autonomy/eval/benchmark/version";
-import { isConnectorKeyValid } from "@/lib/security/secret-box";
+import { isConnectorKeyValid } from "@/lib/security/connector-key";
 
 type Admin = ReturnType<typeof createAdminClient>;
 

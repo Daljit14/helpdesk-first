@@ -5,6 +5,9 @@ import { auditVersions, initiatedBy } from "../../audit/versions";
 import type { HandlerContext, HandlerResult, CapabilityHandler } from "./types";
 import { getIdentityBinding } from "@/lib/autonomy/connectors/binding";
 import { loadDirectoryForOrganization } from "@/lib/autonomy/connectors";
+import { createVerificationLink } from "@/lib/autonomy/verification/links";
+import { hashEmail } from "@/lib/autonomy/connectors/binding";
+import { buildNotification } from "@/lib/notifications/templates";
 
 const scalar = (
   output: Record<string, string | number | boolean | null>
@@ -27,12 +30,49 @@ async function resolutionEvent(
   });
 }
 
-async function requesterEmail(
+async function enqueueVerificationNotification(
   ctx: HandlerContext,
-  userId: string
-): Promise<string | null> {
-  const user = await ctx.admin.auth.admin.getUserById(userId);
-  return user.data.user?.email ?? null;
+  userId: string,
+  verificationLink: string
+): Promise<boolean> {
+  const notification = buildNotification("identity.recovery_link", {
+    ticketTitle: "Your support ticket",
+    ticketId: ctx.ticketId,
+    recoveryLink: verificationLink,
+  });
+  const inserted = await ctx.admin.from("notification_outbox").insert({
+    organization_id: ctx.organizationId,
+    ticket_id: ctx.ticketId,
+    event_type: "identity.recovery_link",
+    channel: "email",
+    recipient_user_id: userId,
+    dedupe_key: `identity-verification:${ctx.runId}`,
+    subject: notification.subject,
+    body: notification.body,
+    url: verificationLink,
+  });
+  return !inserted.error;
+}
+
+async function identityContext(ctx: HandlerContext) {
+  const binding = await getIdentityBinding(ctx.admin, ctx.runId);
+  if (
+    !binding ||
+    binding.organizationId !== ctx.organizationId ||
+    binding.ticketId !== ctx.ticketId
+  ) {
+    return null;
+  }
+  const ticket = await ctx.admin
+    .from("tickets")
+    .select("user_id")
+    .eq("id", ctx.ticketId)
+    .eq("organization_id", ctx.organizationId)
+    .maybeSingle();
+  if (ticket.error || !ticket.data || ticket.data.user_id !== binding.userId) {
+    return null;
+  }
+  return { binding, ticket: ticket.data as { user_id: string } };
 }
 
 function aborted(ctx: HandlerContext): HandlerResult | null {
@@ -287,27 +327,24 @@ const handlers: CapabilityHandler[] = [
     capabilityId: "check_account_status",
     version: 1,
     async run(ctx) {
-      const binding = await getIdentityBinding(ctx.admin, ctx.runId);
-      if (
-        !binding ||
-        binding.organizationId !== ctx.organizationId ||
-        binding.ticketId !== ctx.ticketId
-      )
+      const identity = await identityContext(ctx);
+      if (!identity)
         return { ok: false, output: {}, error: "identity_unbound" };
+      const { binding } = identity;
       const loaded = await loadDirectoryForOrganization(
         ctx.admin,
         ctx.organizationId
       );
       if (!loaded)
         return { ok: false, output: {}, error: "connector_unavailable" };
-      const email = await requesterEmail(ctx, binding.userId);
-      if (!email) return { ok: false, output: {}, error: "identity_unbound" };
-      const result = await loaded.directory.lookupUserByEmail(
-        email,
+      const result = await loaded.directory.getUserById(
+        binding.directoryUserId,
         ctx.signal
       );
       if (!result.ok)
         return { ok: false, output: {}, error: result.error.kind };
+      if (hashEmail(result.value.primaryEmail) !== binding.matchedEmailHash)
+        return { ok: false, output: {}, error: "identity_mismatch" };
       await resolutionEvent(ctx, "identity.status_checked", {
         provider: binding.provider,
         enabled: result.value.enabled,
@@ -328,13 +365,10 @@ const handlers: CapabilityHandler[] = [
     capabilityId: "send_password_reset_link",
     version: 1,
     async run(ctx) {
-      const binding = await getIdentityBinding(ctx.admin, ctx.runId);
-      if (
-        !binding ||
-        binding.organizationId !== ctx.organizationId ||
-        binding.ticketId !== ctx.ticketId
-      )
+      const identity = await identityContext(ctx);
+      if (!identity)
         return { ok: false, output: {}, error: "identity_unbound" };
+      const { binding, ticket } = identity;
       const loaded = await loadDirectoryForOrganization(
         ctx.admin,
         ctx.organizationId
@@ -346,45 +380,45 @@ const handlers: CapabilityHandler[] = [
         (binding.provider === "entra"
           ? "https://passwordreset.microsoftonline.com/"
           : "https://accounts.google.com/signin/recovery");
-      const ticket = await ctx.admin
-        .from("tickets")
-        .select("issue_title,user_id")
-        .eq("id", ctx.ticketId)
-        .eq("organization_id", ctx.organizationId)
-        .maybeSingle();
-      if (ticket.error || !ticket.data)
-        return { ok: false, output: {}, error: "ticket_not_found" };
+      const verificationLink = await createVerificationLink(ctx.admin, {
+        runId: ctx.runId,
+        ticketId: ctx.ticketId,
+        organizationId: ctx.organizationId,
+        userId: ticket.user_id,
+      });
+      const notification = buildNotification("identity.recovery_link", {
+        ticketTitle: "Your support ticket",
+        ticketId: ctx.ticketId,
+        recoveryLink: verificationLink,
+      });
       const inserted = await ctx.admin.from("notification_outbox").insert({
         organization_id: ctx.organizationId,
         ticket_id: ctx.ticketId,
-        event_type: "ticket.status_changed",
+        event_type: "identity.recovery_link",
         channel: "email",
-        recipient_user_id: ticket.data.user_id,
+        recipient_user_id: ticket.user_id,
         dedupe_key: `identity-recovery:${ctx.runId}`,
-        subject: "Self-service account recovery",
-        body: `Use this self-service account recovery link: ${url}`,
-        url,
+        subject: notification.subject,
+        body: `${notification.body}\nRecovery provider: ${url}`,
+        url: verificationLink,
       });
       if (inserted.error)
         return { ok: false, output: {}, error: "notification_enqueue_failed" };
       await resolutionEvent(ctx, "identity.recovery_link_sent", {
         provider: binding.provider,
-        url,
+        recoveryHost: new URL(url).host,
       });
-      return scalar({ queued: true, resetUrl: url });
+      return scalar({ queued: true, notificationId: null });
     },
   },
   {
     capabilityId: "revoke_user_sessions",
     version: 1,
     async run(ctx) {
-      const binding = await getIdentityBinding(ctx.admin, ctx.runId);
-      if (
-        !binding ||
-        binding.organizationId !== ctx.organizationId ||
-        binding.ticketId !== ctx.ticketId
-      )
+      const identity = await identityContext(ctx);
+      if (!identity)
         return { ok: false, output: {}, error: "identity_unbound" };
+      const { binding, ticket } = identity;
       const loaded = await loadDirectoryForOrganization(
         ctx.admin,
         ctx.organizationId
@@ -397,24 +431,38 @@ const handlers: CapabilityHandler[] = [
       );
       if (!result.ok)
         return { ok: false, output: {}, error: result.error.kind };
+      const verificationLink = await createVerificationLink(ctx.admin, {
+        runId: ctx.runId,
+        ticketId: ctx.ticketId,
+        organizationId: ctx.organizationId,
+        userId: ticket.user_id,
+      });
+      if (
+        !(await enqueueVerificationNotification(
+          ctx,
+          ticket.user_id,
+          verificationLink
+        ))
+      )
+        return { ok: false, output: {}, error: "notification_enqueue_failed" };
       await resolutionEvent(ctx, "identity.sessions_revoked", {
         provider: binding.provider,
         revokedAt: result.value.revokedAt,
       });
-      return scalar({ revokedAt: result.value.revokedAt });
+      return scalar({
+        revokedAt: result.value.revokedAt,
+        verificationLink,
+      });
     },
   },
   {
     capabilityId: "verify_group_access",
     version: 1,
     async run(ctx, params) {
-      const binding = await getIdentityBinding(ctx.admin, ctx.runId);
-      if (
-        !binding ||
-        binding.organizationId !== ctx.organizationId ||
-        binding.ticketId !== ctx.ticketId
-      )
+      const identity = await identityContext(ctx);
+      if (!identity)
         return { ok: false, output: {}, error: "identity_unbound" };
+      const { binding } = identity;
       const loaded = await loadDirectoryForOrganization(
         ctx.admin,
         ctx.organizationId
@@ -446,13 +494,10 @@ const handlers: CapabilityHandler[] = [
     capabilityId: "grant_group_access",
     version: 1,
     async run(ctx, params) {
-      const binding = await getIdentityBinding(ctx.admin, ctx.runId);
-      if (
-        !binding ||
-        binding.organizationId !== ctx.organizationId ||
-        binding.ticketId !== ctx.ticketId
-      )
+      const identity = await identityContext(ctx);
+      if (!identity)
         return { ok: false, output: {}, error: "identity_unbound" };
+      const { binding, ticket } = identity;
       const loaded = await loadDirectoryForOrganization(
         ctx.admin,
         ctx.organizationId
@@ -469,10 +514,25 @@ const handlers: CapabilityHandler[] = [
       );
       if (!result.ok)
         return { ok: false, output: {}, error: result.error.kind };
+      const verificationLink = await createVerificationLink(ctx.admin, {
+        runId: ctx.runId,
+        ticketId: ctx.ticketId,
+        organizationId: ctx.organizationId,
+        userId: ticket.user_id,
+      });
+      if (
+        !(await enqueueVerificationNotification(
+          ctx,
+          ticket.user_id,
+          verificationLink
+        ))
+      )
+        return { ok: false, output: {}, error: "notification_enqueue_failed" };
       await resolutionEvent(ctx, "identity.group_granted", {
         provider: binding.provider,
         groupId: params.groupId,
         addedAt: result.value.addedAt,
+        verificationLink,
       });
       return scalar({
         groupId: String(params.groupId),

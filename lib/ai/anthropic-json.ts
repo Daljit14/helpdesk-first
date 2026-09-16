@@ -2,6 +2,8 @@ import { checkAndConsumeDailyBudget } from "./budget";
 import { getAiModel, getAiProviderKind } from "./config";
 import { getProviderTimeoutMs } from "./safety-policy";
 import type { JsonGenerator } from "@/lib/autonomy/planner/model-planner";
+import { z } from "zod";
+import { plannerOutputSchema } from "@/lib/autonomy/guardrails/planner-output";
 
 export function createAnthropicJsonGenerator(): JsonGenerator | null {
   if (getAiProviderKind() !== "anthropic" || !process.env.ANTHROPIC_API_KEY)
@@ -21,7 +23,6 @@ export function createAnthropicJsonGenerator(): JsonGenerator | null {
         "content-type": "application/json",
         "x-api-key": apiKey,
         "anthropic-version": "2023-06-01",
-        "anthropic-beta": "tools-2024-04-04",
       },
       body: JSON.stringify({
         model: getAiModel(),
@@ -31,10 +32,7 @@ export function createAnthropicJsonGenerator(): JsonGenerator | null {
           {
             name: "emit_plan",
             description: "Emit the planner JSON object.",
-            input_schema: {
-              type: "object",
-              additionalProperties: true,
-            },
+            input_schema: z.toJSONSchema(plannerOutputSchema, { io: "input" }),
           },
         ],
         tool_choice: { type: "tool", name: "emit_plan" },

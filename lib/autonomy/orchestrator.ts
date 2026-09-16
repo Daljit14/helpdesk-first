@@ -31,6 +31,8 @@ import { selectPlanner } from "./planner/select";
 import { ensurePlannerRegistered } from "./planner/bootstrap";
 import { loadDirectoryForOrganization } from "./connectors";
 import { bindRequesterIdentity } from "./connectors/binding";
+import { getIdentityBinding } from "./connectors/binding";
+import { isIdentityFamily } from "@/lib/evidence/identity-family";
 import { DeterministicPlanner } from "./planner/deterministic-planner";
 import { verifyRun } from "./verification/engine";
 import { redactAuditDetail } from "./audit/redact";
@@ -208,7 +210,20 @@ async function planRun(
   if (ticketResult.error || !ticketResult.data) {
     return escalateRun(admin, planning, "ticket_not_found");
   }
-  if (process.env.HELP_DESK_CONNECTOR_KEY && ticketResult.data.user_id) {
+  const identityTicket = isIdentityFamily(
+    ticketResult.data.category,
+    ticketResult.data.message
+  );
+  const existingBinding =
+    identityTicket && process.env.HELP_DESK_CONNECTOR_KEY
+      ? await getIdentityBinding(admin, run.id)
+      : null;
+  if (
+    identityTicket &&
+    !existingBinding &&
+    process.env.HELP_DESK_CONNECTOR_KEY &&
+    ticketResult.data.user_id
+  ) {
     const directory = await loadDirectoryForOrganization(
       admin,
       run.organization_id

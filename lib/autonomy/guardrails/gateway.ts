@@ -217,16 +217,22 @@ export async function executeThroughGateway(
     }
   }
   if (
-    (req.capability.id === "verify_group_access" ||
-      req.capability.id === "grant_group_access") &&
-    req.plan.capability.parameters.groupId
+    req.capability.id === "verify_group_access" ||
+    req.capability.id === "grant_group_access"
   ) {
     const loaded = await loadDirectoryForOrganization(
       admin,
       req.run.organization_id
     );
-    const groupId = String(req.plan.capability.parameters.groupId);
-    if (!loaded || !loaded.config.allowedGroupIds.includes(groupId)) {
+    const groupId =
+      typeof req.plan.capability.parameters.groupId === "string"
+        ? req.plan.capability.parameters.groupId
+        : "";
+    if (
+      !loaded ||
+      !groupId ||
+      !loaded.config.allowedGroupIds.includes(groupId)
+    ) {
       return deny(
         admin,
         req,

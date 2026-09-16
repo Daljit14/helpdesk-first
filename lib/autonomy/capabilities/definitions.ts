@@ -346,7 +346,7 @@ export const grantGroupAccess: CapabilityDefinition = {
   inputSchema: groupSchema,
   riskLevel: "caution",
   consent: "user",
-  orgPolicyRequirements: [],
+  orgPolicyRequirements: ["identity.group_grant"],
   maxRuntimeMs: 10_000,
   expectedResult: "Requester is added to the approved directory group.",
   verification: "directory_group_membership",

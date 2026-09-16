@@ -1,8 +1,53 @@
 import { redactAuditDetail } from "../audit/redact";
 import { auditVersions } from "../audit/versions";
 import type { RollbackHandler, RollbackResult } from "./types";
+import { getIdentityBinding } from "@/lib/autonomy/connectors/binding";
+import { loadDirectoryForOrganization } from "@/lib/autonomy/connectors";
 
 const handlers: RollbackHandler[] = [
+  {
+    capabilityId: "grant_group_access",
+    version: 1,
+    method: "handler:remove_group_access",
+    async run(context): Promise<RollbackResult> {
+      const groupId =
+        typeof context.parameters.groupId === "string"
+          ? context.parameters.groupId
+          : null;
+      const binding = await getIdentityBinding(context.admin, context.runId);
+      const loaded = await loadDirectoryForOrganization(
+        context.admin,
+        context.organizationId
+      );
+      if (!groupId || !binding || !loaded) {
+        return { ok: false, output: {}, error: "identity_unbound" };
+      }
+      const result = await loaded.directory.removeFromGroup(
+        binding.directoryUserId,
+        groupId,
+        context.signal
+      );
+      if (!result.ok)
+        return { ok: false, output: {}, error: result.error.kind };
+      await context.admin.from("resolution_events").insert({
+        organization_id: context.organizationId,
+        run_id: context.runId,
+        ticket_id: context.ticketId,
+        kind: "identity.group_grant_rolled_back",
+        actor: "orchestrator",
+        detail: redactAuditDetail({
+          groupId,
+          removedAt: result.value.removedAt,
+        }),
+        initiated_by: "ai",
+        versions: auditVersions({ id: "grant_group_access", version: 1 }),
+      });
+      return {
+        ok: true,
+        output: { groupId, removedAt: result.value.removedAt },
+      };
+    },
+  },
   {
     capabilityId: "route_to_department",
     version: 1,

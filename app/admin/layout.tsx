@@ -72,6 +72,14 @@ function LegacyAdminLayout({
                   {session.role === "org_admin" && (
                     <Link
                       className="rounded-full px-3 py-2 hover:bg-muted"
+                      href="/admin/connectors"
+                    >
+                      Connectors
+                    </Link>
+                  )}
+                  {session.role === "org_admin" && (
+                    <Link
+                      className="rounded-full px-3 py-2 hover:bg-muted"
                       href="/admin/organization"
                     >
                       Organization

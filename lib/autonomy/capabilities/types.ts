@@ -58,6 +58,7 @@ export type CapabilityDefinition<S extends z.ZodTypeAny = z.ZodTypeAny> = {
   owner: string;
   reviewDate: string;
   sideEffects: CapabilitySideEffects;
+  requiresIdentityBinding?: boolean;
   estimatedCostCents?: number;
 };
 

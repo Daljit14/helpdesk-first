@@ -115,6 +115,9 @@ export function decidePolicy(input: PolicyInput): PolicyDecision {
   if (input.conflictingEvidence) {
     return finish("require_user_consent", ["evidence_conflicting"]);
   }
+  if (input.plannerDisagreement && cap.riskLevel !== "safe") {
+    return finish("require_user_consent", ["planner_disagreement"]);
+  }
 
   // 3. Technician approval.
   if (cap.riskLevel === "approval") reasons.push("capability_risk_approval");

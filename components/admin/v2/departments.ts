@@ -151,9 +151,9 @@ export function buildDepartments(
           {
             id: "integrations",
             label: "Integrations",
-            href: "/admin/organization#integrations",
+            href: "/admin/connectors",
             icon: "plug",
-            available: false,
+            available: true,
             keywords: ["integrations", "connections"],
           },
           {

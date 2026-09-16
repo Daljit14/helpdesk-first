@@ -10,17 +10,21 @@ endpoint is treated as an internet-facing AI boundary.
 
 ## Findings
 
-| ID        | Severity | Area                                 | Status                                                                            | Reference     |
-| --------- | -------- | ------------------------------------ | --------------------------------------------------------------------------------- | ------------- |
-| SEC-78-01 | high     | Idempotency check-then-insert        | fixed                                                                             | PR #78        |
-| SEC-78-02 | high     | Red-team coverage and release gate   | fixed: enabled gateway proofs and 2026-09-15.4 benchmark                          | PR #78 rework |
-| SEC-78-03 | high     | Secret and log hygiene               | fixed                                                                             | PR #78        |
-| SEC-78-04 | high     | Autonomy RLS coverage                | fixed in migration, remote verification pending                                   | PR #78        |
-| SEC-78-05 | high     | CSP and browser security headers     | fixed: dev `unsafe-eval` and regional Sentry wildcard smoke-tested                | PR #78 rework |
-| SEC-78-06 | medium   | Consent and pilot action rate limits | fixed                                                                             | PR #78        |
-| SEC-78-07 | high     | Next.js advisory                     | deferred: owner decision                                                          | PR #78        |
-| SEC-78-08 | medium   | Admin cookie cross-site navigation   | accepted: lax + server-action origin checks; strict rejected for email deep-links | PR #78 rework |
-| SEC-78-09 | medium   | Pilot readiness runtime report       | fixed: static latest report, all breaker rows, and complete alert configuration   | PR #78 rework |
+| ID        | Severity | Area                                 | Status                                                                                            | Reference     |
+| --------- | -------- | ------------------------------------ | ------------------------------------------------------------------------------------------------- | ------------- |
+| SEC-78-01 | high     | Idempotency check-then-insert        | fixed                                                                                             | PR #78        |
+| SEC-78-02 | high     | Red-team coverage and release gate   | fixed: enabled gateway proofs and 2026-09-15.4 benchmark                                          | PR #78 rework |
+| SEC-78-03 | high     | Secret and log hygiene               | fixed                                                                                             | PR #78        |
+| SEC-78-04 | high     | Autonomy RLS coverage                | fixed in migration, remote verification pending                                                   | PR #78        |
+| SEC-78-05 | high     | CSP and browser security headers     | fixed: dev `unsafe-eval` and regional Sentry wildcard smoke-tested                                | PR #78 rework |
+| SEC-78-06 | medium   | Consent and pilot action rate limits | fixed                                                                                             | PR #78        |
+| SEC-78-07 | high     | Next.js advisory                     | deferred: owner decision                                                                          | PR #78        |
+| SEC-78-08 | medium   | Admin cookie cross-site navigation   | accepted: lax + server-action origin checks; strict rejected for email deep-links                 | PR #78 rework |
+| SEC-78-09 | medium   | Pilot readiness runtime report       | fixed: static latest report, all breaker rows, and complete alert configuration                   | PR #78 rework |
+| SEC-80-01 | high     | Wrong directory account              | mitigated: verified requester email, verified domain, append-only identity binding, gateway match | PR #80        |
+| SEC-80-02 | high     | Group injection                      | mitigated: strict group IDs and connector allow-list checks in handler, precondition, and gateway | PR #80        |
+| SEC-80-03 | high     | Connector secret exposure            | mitigated: AES-256-GCM application-layer sealing; secrets excluded from public view and events    | PR #80        |
+| SEC-80-04 | medium   | Connector outage                     | mitigated: bounded fetch, timeout, read retry, typed errors, readiness health check, fail closed  | PR #80        |
 
 ## RLS findings
 

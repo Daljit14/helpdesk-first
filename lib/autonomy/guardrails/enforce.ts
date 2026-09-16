@@ -3,6 +3,7 @@ import {
   guardrailsEnforced,
   isAutonomousExecutionEnabled,
 } from "../config";
+import { isConnectorKeyValid } from "@/lib/security/secret-box";
 
 export class GuardrailConfigurationError extends Error {
   constructor() {
@@ -25,6 +26,24 @@ export function assertGuardrailsEnforced(): void {
     throw new GuardrailConfigurationError();
   }
   if (isAutonomousExecutionEnabled() && getPilotOrgAllowlist().length === 0) {
+    throw new PilotConfigurationError();
+  }
+  const identityCapabilities = [
+    "check_account_status",
+    "send_password_reset_link",
+    "revoke_user_sessions",
+    "verify_group_access",
+    "grant_group_access",
+    "check_sso_health",
+  ];
+  if (
+    isAutonomousExecutionEnabled() &&
+    identityCapabilities.some(
+      (id) =>
+        process.env[`HELP_DESK_CAP_${id.toUpperCase()}_ENABLED`] === "true"
+    ) &&
+    !isConnectorKeyValid()
+  ) {
     throw new PilotConfigurationError();
   }
 }

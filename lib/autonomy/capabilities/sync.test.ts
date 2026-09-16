@@ -56,12 +56,12 @@ describe("capability registry sync", () => {
   test("inserts every code definition into an empty database", async () => {
     const { admin, calls } = makeAdmin([]);
     await expect(syncCapabilityRegistry(admin as never)).resolves.toEqual({
-      inserted: 11,
+      inserted: CAPABILITIES.length,
       updated: 0,
       deprecated: 0,
       conflicts: [],
     });
-    expect(calls.inserts).toHaveLength(11);
+    expect(calls.inserts).toHaveLength(CAPABILITIES.length);
     expect(calls.deletes).toHaveLength(0);
   });
 
@@ -76,10 +76,10 @@ describe("capability registry sync", () => {
       },
     ]);
     const result = await syncCapabilityRegistry(admin as never);
-    expect(result.inserted).toBe(10);
+    expect(result.inserted).toBe(CAPABILITIES.length - 1);
     expect(result.updated).toBe(0);
     expect(calls.updates).toHaveLength(0);
-    expect(calls.inserts).toHaveLength(10);
+    expect(calls.inserts).toHaveLength(CAPABILITIES.length - 1);
   });
 
   test("reports checksum conflicts without overwriting the row", async () => {
@@ -97,7 +97,7 @@ describe("capability registry sync", () => {
       `${definition.id}@${definition.version}`
     );
     expect(calls.updates).toHaveLength(0);
-    expect(calls.inserts).toHaveLength(10);
+    expect(calls.inserts).toHaveLength(CAPABILITIES.length - 1);
   });
 
   test("deprecates active rows missing from code", async () => {

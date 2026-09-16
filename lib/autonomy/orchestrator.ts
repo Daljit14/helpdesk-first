@@ -28,6 +28,9 @@ import { evaluatePlanPolicy, executePlan } from "./executor/execute";
 import { resumeAfterApproval } from "./executor/resume";
 import { recordPolicyDecision } from "./policy/record";
 import { selectPlanner } from "./planner/select";
+import { ensurePlannerRegistered } from "./planner/bootstrap";
+import { loadDirectoryForOrganization } from "./connectors";
+import { bindRequesterIdentity } from "./connectors/binding";
 import { DeterministicPlanner } from "./planner/deterministic-planner";
 import { verifyRun } from "./verification/engine";
 import { redactAuditDetail } from "./audit/redact";
@@ -186,6 +189,7 @@ async function planRun(
   admin: OrchestratorAdmin,
   run: ResolutionRun
 ): Promise<ResolutionRun | null> {
+  ensurePlannerRegistered();
   const planning =
     run.status === "planning"
       ? run
@@ -195,12 +199,28 @@ async function planRun(
   if (!planning) return null;
   const ticketResult = await admin
     .from("tickets")
-    .select("id,issue_title,message,category,platform,diagnostic_answers")
+    .select(
+      "id,issue_title,message,category,platform,diagnostic_answers,user_id"
+    )
     .eq("id", run.ticket_id)
     .eq("organization_id", run.organization_id)
     .maybeSingle();
   if (ticketResult.error || !ticketResult.data) {
     return escalateRun(admin, planning, "ticket_not_found");
+  }
+  if (process.env.HELP_DESK_CONNECTOR_KEY && ticketResult.data.user_id) {
+    const directory = await loadDirectoryForOrganization(
+      admin,
+      run.organization_id
+    );
+    if (directory) {
+      await bindRequesterIdentity(admin, directory.directory, {
+        runId: run.id,
+        ticketId: run.ticket_id,
+        organizationId: run.organization_id,
+        userId: ticketResult.data.user_id,
+      });
+    }
   }
   const [attachments, comments, events] = await Promise.all([
     optionalTicketRows(

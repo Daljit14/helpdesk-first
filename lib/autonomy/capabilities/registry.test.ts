@@ -34,6 +34,9 @@ function validInput(id: string): Record<string, unknown> {
   if (id === "escalate_with_evidence") {
     return { ticketId, reason: "Needs human review" };
   }
+  if (id === "verify_group_access" || id === "grant_group_access") {
+    return { ticketId, groupId: "group-1" };
+  }
   return { ticketId };
 }
 
@@ -47,15 +50,15 @@ function fixture(
 }
 
 describe("approved capability registry", () => {
-  test("contains exactly eleven unique versioned definitions", () => {
-    expect(CAPABILITIES).toHaveLength(11);
+  test("contains all unique versioned definitions", () => {
+    expect(CAPABILITIES.length).toBeGreaterThanOrEqual(11);
     expect(
       new Set(
         CAPABILITIES.map(
           (definition) => `${definition.id}:${definition.version}`
         )
       )
-    ).toHaveLength(11);
+    ).toHaveLength(CAPABILITIES.length);
     expect(validateRegistry(CAPABILITIES)).toEqual([]);
   });
 

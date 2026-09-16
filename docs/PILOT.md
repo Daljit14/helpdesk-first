@@ -4,6 +4,9 @@ Production execution remains off until the pilot is explicitly approved.
 
 ## Turn-on runbook
 
+See [`docs/PILOT-RUNBOOK.md`](./PILOT-RUNBOOK.md) for the exact change,
+pause, incident, and rollback procedure.
+
 1. Set `HELP_DESK_AUTONOMY_ORG_ALLOWLIST` to the approved organization IDs.
 2. Set `HELP_DESK_PILOT_CAPABILITY_ALLOWLIST` to the approved low-risk capability IDs.
 3. Flip `HELP_DESK_AUTONOMOUS_EXECUTION_ENABLED=true`.

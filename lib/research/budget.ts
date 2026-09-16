@@ -5,7 +5,7 @@ export async function checkAndConsumeOrgResearchBudget(
   organizationId: string,
   limit: number
 ): Promise<boolean> {
-  if (limit === 0) return true;
+  if (limit === 0) return false;
   const start = new Date();
   start.setUTCHours(0, 0, 0, 0);
   const result = await admin

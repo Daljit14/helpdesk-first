@@ -274,6 +274,15 @@ async function planRun(
           platform: ticketResult.data.platform ?? null,
           evidence: evidenceBase,
           signal: AbortSignal.timeout(8000),
+          writeEvent: (kind, detail) =>
+            writeRunEvent(admin, {
+              organization_id: run.organization_id,
+              run_id: run.id,
+              ticket_id: run.ticket_id,
+              kind,
+              actor: "research",
+              detail,
+            }),
         })
       : null;
   const evidence = evidenceBase

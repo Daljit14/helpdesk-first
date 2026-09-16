@@ -1,5 +1,5 @@
 import type { createAdminClient } from "@/lib/supabase/admin";
-import { getResearchConfig } from "@/lib/autonomy/config";
+import { getResearchConfig, type ResearchConfig } from "@/lib/autonomy/config";
 import { isIdentityFamily } from "@/lib/evidence/identity-family";
 import { isNetworkFamily } from "@/lib/evidence/network-family";
 import { buildResearchQueries } from "./query";
@@ -11,7 +11,13 @@ import { judgeSources } from "./judge";
 import { checkAndConsumeOrgResearchBudget } from "./budget";
 import { getCached, putCached } from "./cache";
 import type { EvidenceRecord } from "@/lib/evidence/types";
-import type { JudgedSource, ResearchOutcome, ResearchProvider } from "./types";
+import type { EvidenceHypothesis, Fact } from "@/lib/evidence/types";
+import type {
+  JudgedSource,
+  ResearchOutcome,
+  ResearchProvider,
+  ResearchSource,
+} from "./types";
 
 type ResearchAdmin = ReturnType<typeof createAdminClient>;
 
@@ -25,29 +31,21 @@ async function hash(value: string): Promise<string> {
     .join("");
 }
 
-async function event(
-  admin: ResearchAdmin,
-  input: {
-    organizationId: string;
-    runId: string;
-    ticketId: string;
-    kind: "research.consulted" | "research.skipped";
-    detail: Record<string, unknown>;
-  }
-): Promise<void> {
-  await admin.from("resolution_events").insert({
-    organization_id: input.organizationId,
-    run_id: input.runId,
-    ticket_id: input.ticketId,
-    kind: input.kind,
-    actor: "research",
-    detail: input.detail,
-  });
-}
-
 function providerFor(provider: string): ResearchProvider {
   return provider === "brave" ? createBraveProvider() : createTavilyProvider();
 }
+
+type ResearchJudge = (
+  sources: ResearchSource[],
+  hypotheses: EvidenceHypothesis[],
+  evidenceFacts: Fact[],
+  signal: AbortSignal
+) => Promise<JudgedSource[]>;
+
+type CollectedSource = {
+  source: ResearchSource;
+  queryId: string;
+};
 
 export async function runResearch(
   admin: ResearchAdmin,
@@ -60,17 +58,17 @@ export async function runResearch(
     evidence: EvidenceRecord;
     signal: AbortSignal;
     provider?: ResearchProvider;
+    judge?: ResearchJudge;
+    configOverride?: Partial<ResearchConfig>;
+    writeEvent: (
+      kind: "research.consulted" | "research.skipped",
+      detail: Record<string, unknown>
+    ) => Promise<void>;
   }
 ): Promise<ResearchOutcome> {
-  const config = getResearchConfig();
+  const config = { ...getResearchConfig(), ...input.configOverride };
   const skip = async (reason: string): Promise<ResearchOutcome> => {
-    await event(admin, {
-      organizationId: input.organizationId,
-      runId: input.runId,
-      ticketId: input.ticketId,
-      kind: "research.skipped",
-      detail: { reason },
-    });
+    await input.writeEvent("research.skipped", { reason });
     return { status: "skipped", reason, sources: [], queries: [] };
   };
   if (!config.enabled) return skip("disabled");
@@ -102,123 +100,120 @@ export async function runResearch(
   }).slice(0, config.maxQueriesPerRun);
   if (queries.length === 0) return skip("no_queries");
   const provider = input.provider ?? providerFor(config.provider);
-  const allSources: JudgedSource[] = [];
+  const collectedSources: CollectedSource[] = [];
   let dropped = 0;
   let cachedCount = 0;
   for (const query of queries) {
     const queryHash = await hash(query);
-    let sources = await getCached(
+    const cachedSources = await getCached(
       admin,
       input.organizationId,
       provider.id,
       queryHash
     );
-    if (sources) {
+    let sources: ResearchSource[] | null = cachedSources;
+    let providerFailed = false;
+    if (cachedSources) {
       cachedCount += 1;
-      await admin.from("research_queries").insert({
+    } else {
+      const result = await provider.search(query, input.signal);
+      if (!result.ok) {
+        providerFailed = true;
+        dropped += 1;
+      } else {
+        sources = result.value;
+        await putCached(
+          admin,
+          input.organizationId,
+          provider.id,
+          queryHash,
+          sources,
+          config.cacheTtlHours
+        );
+      }
+    }
+    const queryRow = await admin
+      .from("research_queries")
+      .insert({
         organization_id: input.organizationId,
         run_id: input.runId,
         ticket_id: input.ticketId,
         provider: provider.id,
         query,
-        cached: true,
-      });
-    } else {
-      const result = await provider.search(query, input.signal);
-      if (!result.ok) {
+        cached: Boolean(cachedSources),
+      })
+      .select("id")
+      .single();
+    if (providerFailed || queryRow.error || !queryRow.data || !sources) {
+      dropped += sources?.length ?? 0;
+      continue;
+    }
+    for (const source of sources) {
+      const trusted = trustTierFor(source.url);
+      if (!trusted) {
         dropped += 1;
         continue;
       }
-      sources = result.value;
-      await putCached(
-        admin,
-        input.organizationId,
-        provider.id,
-        queryHash,
-        sources,
-        config.cacheTtlHours
-      );
-      const queryRow = await admin
-        .from("research_queries")
-        .insert({
-          organization_id: input.organizationId,
-          run_id: input.runId,
-          ticket_id: input.ticketId,
-          provider: provider.id,
-          query,
-          cached: false,
-        })
-        .select("id")
-        .single();
-      if (!queryRow.error && queryRow.data) {
-        for (const source of sources) {
-          const trusted = trustTierFor(source.url);
-          if (!trusted) {
-            dropped += 1;
-            continue;
-          }
-          const guarded = await guardSource(
-            { ...source, trust: trusted },
-            {
-              admin,
-              run: {
-                id: input.runId,
-                organization_id: input.organizationId,
-                ticket_id: input.ticketId,
-              },
-            }
-          );
-          if (!guarded.ok) {
-            dropped += 1;
-            continue;
-          }
-          allSources.push({
-            ...guarded.source,
-            judgement: "unjudged",
-            hypothesisId: null,
-          });
-          await admin.from("research_sources").insert({
+      const guarded = await guardSource(
+        { ...source, trust: trusted },
+        {
+          admin,
+          run: {
+            id: input.runId,
             organization_id: input.organizationId,
-            run_id: input.runId,
             ticket_id: input.ticketId,
-            query_id: queryRow.data.id,
-            url: guarded.source.url,
-            domain: guarded.source.domain,
-            title: guarded.source.title,
-            snippet: guarded.source.snippet,
-            trust: guarded.source.trust,
-            judgement: "unjudged",
-            hypothesis_id: null,
-            content_hash: guarded.source.contentHash,
-          });
+          },
         }
+      );
+      if (!guarded.ok) {
+        dropped += 1;
+        continue;
       }
+      collectedSources.push({
+        source: guarded.source,
+        queryId: queryRow.data.id,
+      });
     }
   }
-  const judged = await judgeSources(
-    allSources.slice(0, 15),
+  const judge = input.judge ?? judgeSources;
+  const judged = await judge(
+    collectedSources.slice(0, 15).map(({ source }) => source),
     input.evidence.hypotheses,
     input.evidence.confirmedFacts,
     input.signal
   );
-  await event(admin, {
-    organizationId: input.organizationId,
-    runId: input.runId,
-    ticketId: input.ticketId,
-    kind: judged.length > 0 ? "research.consulted" : "research.skipped",
-    detail:
-      judged.length > 0
-        ? {
-            queries: queries.length,
-            sources: judged.length,
-            vendor: judged.filter((source) => source.trust === "vendor").length,
-            community: judged.filter((source) => source.trust === "community")
-              .length,
-            dropped,
-            cached: cachedCount,
-          }
-        : { reason: "no_valid_sources", dropped },
-  });
+  for (const [index, source] of judged.entries()) {
+    const collected = collectedSources[index];
+    if (!collected) continue;
+    await admin.from("research_sources").insert({
+      organization_id: input.organizationId,
+      run_id: input.runId,
+      ticket_id: input.ticketId,
+      query_id: collected.queryId,
+      url: source.url,
+      domain: source.domain,
+      title: source.title,
+      snippet: source.snippet,
+      trust: source.trust,
+      judgement: source.judgement,
+      hypothesis_id: source.hypothesisId,
+      content_hash: source.contentHash,
+    });
+  }
+  await input.writeEvent(
+    judged.length > 0 ? "research.consulted" : "research.skipped",
+    judged.length > 0
+      ? {
+          queries: queries.length,
+          sources: judged.length,
+          vendor: judged.filter((source) => source.trust === "vendor").length,
+          community: judged.filter((source) => source.trust === "community")
+            .length,
+          dropped,
+          cached: cachedCount,
+        }
+      : { reason: "no_valid_sources", dropped }
+  );
   return {
     status: judged.length > 0 ? "ran" : "skipped",
     ...(judged.length > 0 ? {} : { reason: "no_valid_sources" }),

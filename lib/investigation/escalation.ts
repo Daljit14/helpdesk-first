@@ -10,6 +10,7 @@ import type { createAdminClient } from "@/lib/supabase/admin";
 import { formatHandoffReason } from "@/lib/tickets/routing";
 import { isEvidenceEngineEnabled } from "@/lib/admin/flags";
 import { snapshotEvidence } from "@/lib/evidence/snapshot";
+import type { JudgedSource } from "@/lib/research/types";
 
 export type EscalationPackage = {
   version: 1;
@@ -64,6 +65,13 @@ export type EscalationPackage = {
     title: string;
     url: string | null;
   }>;
+  external?: Array<{
+    url: string;
+    domain: string;
+    title: string;
+    trust: JudgedSource["trust"];
+    judgement: JudgedSource["judgement"];
+  }>;
   handoff: {
     reason: string | null;
     detail: string | null;
@@ -107,6 +115,7 @@ export type EscalationInputs = {
   }>;
   requesterRole: string | null;
   attachmentCount: number;
+  externalResearch?: EscalationPackage["external"];
 };
 
 const MAX_STRING = 300;
@@ -307,6 +316,7 @@ export function buildEscalationPackage(
     otherHypotheses,
     aiConfidence: turn?.confidence ?? inputs.ticket.ai_confidence,
     sources,
+    ...(inputs.externalResearch ? { external: inputs.externalResearch } : {}),
     handoff: {
       reason: nullableText(inputs.ticket.handoff_reason),
       detail: nullableText(inputs.ticket.escalation_reason),
@@ -340,6 +350,15 @@ export async function snapshotEscalationPackage(
     if (!inputs) return null;
     const generatedAt = new Date();
     const pkg = buildEscalationPackage(inputs, generatedAt);
+    const sourceRows = await admin
+      .from("research_sources")
+      .select("url,domain,title,trust,judgement")
+      .eq("organization_id", organizationId)
+      .eq("ticket_id", inputs.ticket.id);
+    const external = sourceRows.error
+      ? []
+      : ((sourceRows.data ?? []) as EscalationPackage["external"]);
+    const packageWithSources = { ...pkg, external };
     const investigation = inputs.investigation;
     const result = await admin.from("ticket_investigations").upsert(
       {
@@ -350,7 +369,7 @@ export async function snapshotEscalationPackage(
         hypotheses: investigation?.hypotheses ?? [],
         excluded_steps: investigation?.excluded_steps ?? [],
         status: investigation?.status ?? "escalated",
-        escalation_package: pkg,
+        escalation_package: packageWithSources,
         escalation_package_at: generatedAt.toISOString(),
       },
       { onConflict: "ticket_id" }
@@ -359,7 +378,7 @@ export async function snapshotEscalationPackage(
     if (isEvidenceEngineEnabled()) {
       await snapshotEvidence(admin, ticketId, organizationId);
     }
-    return pkg;
+    return packageWithSources;
   } catch (error) {
     console.error("Failed to snapshot escalation package.", error);
     return null;

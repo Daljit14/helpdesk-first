@@ -2,6 +2,7 @@ import { isEscalationPackageEnabled } from "@/lib/investigation/config";
 import { snapshotEscalationPackage } from "@/lib/investigation/escalation";
 import { isEvidenceEngineEnabled } from "@/lib/admin/flags";
 import { snapshotEvidence } from "@/lib/evidence/snapshot";
+import { runResearch } from "@/lib/research";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { event } from "@/lib/tickets/events";
 import { assertTransition, isTerminal, type RunStatus } from "./state-machine";
@@ -260,6 +261,29 @@ async function planRun(
       run.ticket_id
     ),
   ]);
+  const evidenceBase = isEvidenceEngineEnabled()
+    ? await snapshotEvidence(admin, run.ticket_id, run.organization_id)
+    : null;
+  const research =
+    evidenceBase && process.env.HELP_DESK_RESEARCH_ENABLED === "true"
+      ? await runResearch(admin, {
+          organizationId: run.organization_id,
+          runId: run.id,
+          ticketId: run.ticket_id,
+          category: ticketResult.data.category ?? null,
+          platform: ticketResult.data.platform ?? null,
+          evidence: evidenceBase,
+          signal: AbortSignal.timeout(8000),
+        })
+      : null;
+  const evidence = evidenceBase
+    ? research
+      ? await snapshotEvidence(admin, run.ticket_id, run.organization_id, {
+          queries: research.queries,
+          sources: research.sources,
+        })
+      : evidenceBase
+    : null;
   const fields: UntrustedField[] = [];
   const ticket = ticketResult.data as {
     issue_title?: string | null;
@@ -317,6 +341,12 @@ async function planRun(
       text: JSON.stringify({ type: row.event_type, detail: row.detail }),
     });
   }
+  for (const source of research?.sources.slice(0, 3) ?? []) {
+    fields.push({
+      source: "externalSources",
+      text: `${source.title}: ${source.snippet.slice(0, 1500)}`,
+    });
+  }
   const guardedInput = guardModelInput(fields, {
     maxChars: getAutonomyLimits().maxPlannerInputChars,
   });
@@ -369,9 +399,6 @@ async function planRun(
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  const evidence = isEvidenceEngineEnabled()
-    ? await snapshotEvidence(admin, run.ticket_id, run.organization_id)
-    : null;
   const attemptsResult = await admin
     .from("capability_executions")
     .select("capability_id,capability_version,status")

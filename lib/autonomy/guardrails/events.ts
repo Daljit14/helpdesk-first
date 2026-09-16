@@ -28,7 +28,7 @@ type GuardrailAdmin = ReturnType<typeof createAdminClient>;
 export async function writeGuardrailEvent(
   admin: GuardrailAdmin,
   input: {
-    run: ResolutionRun;
+    run: Pick<ResolutionRun, "id" | "organization_id" | "ticket_id">;
     kind: GuardrailEventKind;
     reasonCode: string;
     capability?: { id: string; version: number } | null;

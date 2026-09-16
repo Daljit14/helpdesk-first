@@ -4,6 +4,7 @@ import type {
   ConnectorError,
   DirectoryProvider,
 } from "@/lib/autonomy/connectors/types";
+import type { JudgedSource } from "@/lib/research/types";
 
 export type IdentityEvidence = {
   provider: DirectoryProvider;
@@ -18,7 +19,14 @@ export type EvidenceSource =
   | "context"
   | "attachment"
   | "step_outcome"
-  | "catalog";
+  | "catalog"
+  | "external_source";
+
+export type ResearchEvidence = {
+  queries: string[];
+  sources: JudgedSource[];
+  contradictsTopHypothesis?: boolean;
+};
 
 export type Fact = {
   id: string;
@@ -76,4 +84,5 @@ export type EvidenceRecord = {
   safetyWarnings: string[];
   missingInformation: string[];
   identity?: IdentityEvidence;
+  research?: ResearchEvidence;
 };

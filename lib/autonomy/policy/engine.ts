@@ -117,6 +117,9 @@ export function decidePolicy(input: PolicyInput): PolicyDecision {
   if (input.plannerDisagreement && cap.riskLevel !== "safe") {
     return finish("require_user_consent", ["planner_disagreement"]);
   }
+  if (input.evidenceContradiction === true && cap.riskLevel !== "safe") {
+    return finish("require_user_consent", ["evidence_contradiction"]);
+  }
   if (missingOrgPolicies.length > 0) {
     return finish(
       "require_technician_approval",

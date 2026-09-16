@@ -50,7 +50,12 @@ export type EvaluationCaseResult = {
   identityBound: boolean;
   identityCapability: boolean;
   researchPresent?: boolean;
+  researchConfidence?: number;
   researchInfluencedNonSafe?: boolean;
+  researchProviderCalls?: number;
+  researchTrusts?: ("vendor" | "community")[];
+  researchGuardrailEvents?: number;
+  researchParameterLeak?: boolean;
   directoryWriteCalls: number;
   latencyMs: number;
 };

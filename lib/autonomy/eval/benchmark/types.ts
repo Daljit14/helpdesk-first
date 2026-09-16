@@ -39,6 +39,13 @@ const expected = z
     inputBlocked: z.boolean().optional(),
     outputRejected: z.boolean().optional(),
     gatewayCode: z.string().optional(),
+    researchConfidence: z.number().min(0).max(1).optional(),
+    researchPresent: z.boolean().optional(),
+    researchInfluencedNonSafe: z.boolean().optional(),
+    researchProviderCalls: z.number().int().nonnegative().optional(),
+    researchTrusts: z.array(z.enum(["vendor", "community"])).optional(),
+    researchGuardrailEvents: z.number().int().nonnegative().optional(),
+    researchParameterLeak: z.boolean().optional(),
     executed: z.literal(false),
   })
   .strict();
@@ -68,10 +75,17 @@ const research = z
           url: z.string().url(),
           title: z.string(),
           snippet: z.string(),
+          judgement: z
+            .enum(["supports", "contradicts", "irrelevant", "unjudged"])
+            .optional(),
+          hypothesisId: z.string().nullable().optional(),
         })
         .strict()
     ),
     failure: z.enum(["timeout", "too_large", "rate_limited"]).optional(),
+    enabled: z.boolean().optional(),
+    budgetExhausted: z.boolean().optional(),
+    familyAllowlisted: z.boolean().optional(),
   })
   .strict();
 

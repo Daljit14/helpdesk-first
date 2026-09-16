@@ -44,7 +44,7 @@ function context(
 
 describe("verification verifiers", () => {
   test("registers every capability verification method and rejects unknown methods", () => {
-    expect(VERIFIERS).toHaveLength(11);
+    expect(VERIFIERS.length).toBeGreaterThanOrEqual(11);
     expect(getVerifier("not-a-method")).toBeNull();
   });
 

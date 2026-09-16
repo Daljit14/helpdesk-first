@@ -235,6 +235,72 @@ const needsHumanWithPackage: Verifier = {
   },
 };
 
+const directoryStatusRead: Verifier = {
+  method: "directory_status_read",
+  version: VERIFIER_VERSION,
+  async verify(ctx) {
+    const result = await ctx.admin
+      .from("capability_executions")
+      .select("result,status")
+      .eq("id", ctx.executionId ?? "")
+      .eq("organization_id", ctx.organizationId)
+      .maybeSingle();
+    const output = (
+      result.data as {
+        result?: Record<string, unknown>;
+        status?: string;
+      } | null
+    )?.result;
+    const passed = Boolean(
+      output && ("enabled" in output || "tokenAcquired" in output)
+    );
+    return informational(passed ? "passed" : "inconclusive", {
+      status: result.data?.status ?? null,
+    });
+  },
+};
+
+const directorySignInAfterAction: Verifier = {
+  method: "directory_signin_after_action",
+  version: VERIFIER_VERSION,
+  async verify(ctx) {
+    const result = await ctx.admin
+      .from("resolution_events")
+      .select("id")
+      .eq("organization_id", ctx.organizationId)
+      .eq("run_id", ctx.runId)
+      .eq("kind", "identity.sessions_revoked")
+      .limit(1);
+    const confirmed = await readTicket(ctx, "user_confirmed");
+    const userConfirmed = Boolean(
+      (confirmed.data as { user_confirmed?: boolean } | null)?.user_confirmed
+    );
+    return resolving(
+      result.data?.length || userConfirmed ? "passed" : "inconclusive",
+      { userConfirmed }
+    );
+  },
+};
+
+const directoryGroupMembership: Verifier = {
+  method: "directory_group_membership",
+  version: VERIFIER_VERSION,
+  async verify(ctx) {
+    const result = await ctx.admin
+      .from("capability_executions")
+      .select("result")
+      .eq("id", ctx.executionId ?? "")
+      .eq("organization_id", ctx.organizationId)
+      .maybeSingle();
+    const output = (result.data as { result?: Record<string, unknown> } | null)
+      ?.result;
+    const passed = output?.isMemberOfGroup === true;
+    return informational(passed ? "passed" : "inconclusive", {
+      isMemberOfGroup: passed,
+    });
+  },
+};
+
 export const VERIFIERS: readonly Verifier[] = [
   none,
   diagnosticAnswerRecorded,
@@ -247,6 +313,9 @@ export const VERIFIERS: readonly Verifier[] = [
   userVerificationAnswer,
   assignmentUpdated,
   needsHumanWithPackage,
+  directoryStatusRead,
+  directorySignInAfterAction,
+  directoryGroupMembership,
 ];
 
 export function getVerifier(method: string): Verifier | null {

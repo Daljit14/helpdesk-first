@@ -91,6 +91,13 @@ export function isCapabilityDisabledByEnv(capabilityId: string): boolean {
   return process.env[key] === "false";
 }
 
+export function isCapabilityEnabledByEnv(capabilityId: string): boolean {
+  return (
+    process.env[`HELP_DESK_CAP_${capabilityId.toUpperCase()}_ENABLED`] ===
+    "true"
+  );
+}
+
 export function isProviderDisabledByEnv(provider: string): boolean {
   return (
     process.env[`HELP_DESK_PROVIDER_${provider.toUpperCase()}_ENABLED`] ===

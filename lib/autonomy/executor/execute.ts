@@ -431,6 +431,7 @@ export async function evaluatePlanPolicy(
     parametersValid: true,
     orgPolicy: await readOrgPolicy(admin, run.organization_id),
     capabilityStatus: capabilityStatus(capability),
+    plannerDisagreement: false,
   });
   return {
     ok: true,

@@ -19,7 +19,10 @@ describe("Supabase RLS coverage", () => {
       /create or replace view public\.organization_connectors_public\s+with \(security_invoker = true\)/i
     );
     expect(source).toMatch(
-      /revoke select \(secret_ciphertext, key_id\)\s+on public\.organization_connectors from authenticated, anon;/i
+      /revoke select on public\.organization_connectors from authenticated, anon;/i
+    );
+    expect(source).toMatch(
+      /grant select \((?![^)]*secret_ciphertext)(?![^)]*key_id)[^)]*\)\s+on public\.organization_connectors to authenticated;/i
     );
   });
 

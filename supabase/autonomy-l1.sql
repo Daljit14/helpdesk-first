@@ -26,8 +26,12 @@ with (security_invoker = true) as
   from public.organization_connectors;
 revoke all on public.organization_connectors_public from anon;
 grant select on public.organization_connectors_public to authenticated;
-revoke select (secret_ciphertext, key_id)
-  on public.organization_connectors from authenticated, anon;
+-- Column privileges are additive in PostgreSQL: the table-wide SELECT grant
+-- must be revoked before a column-level grant can hide the secret columns.
+revoke select on public.organization_connectors from authenticated, anon;
+grant select (id, organization_id, provider, config, allowed_group_ids, reset_url, status,
+              last_health_at, last_health_ok, created_by, updated_at)
+  on public.organization_connectors to authenticated;
 
 create table if not exists public.identity_bindings (
   id uuid primary key default gen_random_uuid(),

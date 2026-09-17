@@ -2,6 +2,7 @@ import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 import { isOrgEncryptionEnabled } from "@/lib/security/data-protection-config";
 import { getActiveOrgKey, getOrgKeyVersion } from "@/lib/security/org-keys";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isMasterKeyValid } from "@/lib/security/master-key";
 
 export type FieldRef = {
   table:
@@ -14,10 +15,17 @@ export type FieldRef = {
 
 export class DataProtectionError extends Error {
   readonly code:
-    "master_key_missing" | "decrypt_failed" | "organization_missing";
+    | "master_key_missing"
+    | "org_key_unavailable"
+    | "decrypt_failed"
+    | "organization_missing";
 
   constructor(
-    code: "master_key_missing" | "decrypt_failed" | "organization_missing"
+    code:
+      | "master_key_missing"
+      | "org_key_unavailable"
+      | "decrypt_failed"
+      | "organization_missing"
   ) {
     super(code);
     this.name = "DataProtectionError";
@@ -53,11 +61,14 @@ export async function encryptText(
   plaintext: string
 ): Promise<string> {
   if (!isOrgEncryptionEnabled()) return plaintext;
+  if (!isMasterKeyValid()) {
+    throw new DataProtectionError("master_key_missing");
+  }
   let key;
   try {
     key = await getActiveOrgKey(admin, organizationId);
   } catch {
-    throw new DataProtectionError("master_key_missing");
+    throw new DataProtectionError("org_key_unavailable");
   }
   const iv = randomBytes(IV_BYTES);
   const cipher = createCipheriv(ALGORITHM, key.dek, iv);

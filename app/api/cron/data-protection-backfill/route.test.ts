@@ -1,0 +1,70 @@
+import { afterEach, describe, expect, test, vi } from "vitest";
+import { DataProtectionError } from "@/lib/security/field-crypto";
+
+const mocks = vi.hoisted(() => ({
+  backfillEncryption: vi.fn(),
+  createAdminClient: vi.fn(() => ({})),
+}));
+
+vi.mock("@/lib/security/backfill", () => ({
+  backfillEncryption: mocks.backfillEncryption,
+}));
+vi.mock("@/lib/supabase/admin", () => ({
+  createAdminClient: mocks.createAdminClient,
+}));
+
+import { GET } from "./route";
+
+afterEach(() => {
+  vi.clearAllMocks();
+  vi.unstubAllEnvs();
+  vi.restoreAllMocks();
+});
+
+describe("data-protection backfill cron", () => {
+  test("rejects unauthorized requests", async () => {
+    vi.stubEnv("CRON_SECRET", "cron-secret");
+
+    const response = await GET(
+      new Request("http://localhost/api/cron/data-protection-backfill")
+    );
+
+    expect(response.status).toBe(401);
+  });
+
+  test("returns the disabled result", async () => {
+    vi.stubEnv("CRON_SECRET", "cron-secret");
+    mocks.backfillEncryption.mockResolvedValueOnce({ skipped: "disabled" });
+
+    const response = await GET(
+      new Request("http://localhost/api/cron/data-protection-backfill", {
+        headers: { Authorization: "Bearer cron-secret" },
+      })
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ skipped: "disabled" });
+  });
+
+  test("returns 503 for data-protection failures without exposing details", async () => {
+    vi.stubEnv("CRON_SECRET", "cron-secret");
+    mocks.backfillEncryption.mockRejectedValueOnce(
+      new DataProtectionError("org_key_unavailable")
+    );
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const response = await GET(
+      new Request("http://localhost/api/cron/data-protection-backfill", {
+        headers: { Authorization: "Bearer cron-secret" },
+      })
+    );
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({
+      error: "org_key_unavailable",
+    });
+    expect(error).toHaveBeenCalledWith("data-protection backfill failed", {
+      code: "org_key_unavailable",
+    });
+  });
+});

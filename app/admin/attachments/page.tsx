@@ -6,6 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { AttachmentPolicyForm } from "@/components/admin/attachment-policy-form";
 import { isUiV2Enabled } from "@/lib/ui-v2";
 import { AdminBreadcrumbs } from "@/components/admin/v2/breadcrumbs";
+import { decryptAttachmentRow } from "@/lib/security/ticket-crypto";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -20,13 +21,19 @@ export default async function AdminAttachmentsPage() {
   }
   const session = await requireAdminPage("/admin/attachments");
   const policy = await getAttachmentPolicy(session.organizationId);
-  const { data: recent } = await createAdminClient()
+  const admin = createAdminClient();
+  const { data: rawRecent } = await admin
     .from("ticket_attachments")
-    .select("id,original_name,status,rejection_reason,created_at")
+    .select(
+      "id,organization_id,original_name,status,scan_detail,rejection_reason,created_at"
+    )
     .eq("organization_id", session.organizationId)
     .in("status", ["rejected", "scanning", "unscanned"])
     .order("created_at", { ascending: false })
     .limit(25);
+  const recent = await Promise.all(
+    (rawRecent ?? []).map((row) => decryptAttachmentRow(admin, row))
+  );
   return (
     <section className="flex flex-1 flex-col px-4 py-10 sm:px-6 lg:px-8">
       <div className="mx-auto w-full max-w-5xl">

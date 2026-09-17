@@ -33,6 +33,12 @@ import { completeUserHandoff } from "@/lib/tickets/handoff";
 import { createKnowledgeDraftForTicket } from "@/lib/knowledge/learning";
 import { isAutonomousExecutionEnabled } from "@/lib/autonomy/config";
 import { handleAutonomousReopen } from "@/lib/autonomy/pilot-review";
+import {
+  decryptCommentRows,
+  decryptTicketRow,
+  encryptCommentForWrite,
+  encryptTicketForWrite,
+} from "@/lib/security/ticket-crypto";
 
 type Result = { error: string } | { success: true; ticketId?: string };
 const limiter = new MemoryRateLimiter({
@@ -95,7 +101,11 @@ export async function createWorkflowTicket(input: unknown): Promise<Result> {
       issue_title: issue?.title ?? "IT support request",
       category: issue?.category ?? "Other",
       platform: toTicketPlatform(parsed.data.platform),
-      message: parsed.data.message,
+      message: await encryptTicketForWrite(
+        admin,
+        organizationId,
+        parsed.data.message
+      ),
       diagnostic_answers: parsed.data.diagnosticAnswers,
       attachment_path:
         !isSecureAttachmentsEnabled() &&
@@ -241,7 +251,11 @@ export async function addUserComment(
     author_id: user.id,
     author_type: "user",
     visibility: "public",
-    message: body.data,
+    message: await encryptCommentForWrite(
+      admin,
+      ticket.data.organization_id,
+      body.data
+    ),
   });
   if (error) return { error: "Unable to add comment." };
   await event(
@@ -446,7 +460,11 @@ export async function rejectAiSolution(
         author_id: user.id,
         author_type: "user",
         visibility: "public",
-        message: `Didn't work: ${parsedNote.data}`,
+        message: await encryptCommentForWrite(
+          admin,
+          ticket?.organization_id ?? "",
+          `Didn't work: ${parsedNote.data}`
+        ),
       });
     if (commentError) return { error: "Unable to add comment." };
   }
@@ -462,4 +480,59 @@ export async function rejectAiSolution(
   revalidatePath(`/tickets/${ticketId}`);
   revalidatePath("/tickets");
   return { success: true };
+}
+
+export type TicketRow = {
+  id: string;
+  issue_id: string;
+  issue_title: string;
+  message: string;
+  status: string;
+  created_at: string;
+  attachment_path: string | null;
+  resolver_type?: string | null;
+};
+
+export type CommentRow = {
+  id: number;
+  organization_id: string | null;
+  message: string;
+  author_type: string;
+  created_at: string;
+};
+
+export async function listMyTickets(): Promise<TicketRow[]> {
+  const user = await getCurrentUser();
+  if (!user) return [];
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("tickets")
+    .select(
+      "id,organization_id,issue_id,issue_title,message,status,created_at,attachment_path,resolver_type"
+    )
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: false });
+  if (error) return [];
+  const admin = createAdminClient();
+  return Promise.all(
+    ((data ?? []) as Array<TicketRow & { organization_id: string | null }>).map(
+      async (row) => decryptTicketRow(admin, row)
+    )
+  );
+}
+
+export async function listTicketComments(
+  ticketId: string
+): Promise<CommentRow[]> {
+  const user = await getCurrentUser();
+  if (!user || !ticketIdSchema.safeParse(ticketId).success) return [];
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("ticket_comments")
+    .select("id,organization_id,message,author_type,created_at")
+    .eq("ticket_id", ticketId)
+    .eq("visibility", "public")
+    .order("created_at", { ascending: true });
+  if (error) return [];
+  return decryptCommentRows(createAdminClient(), (data ?? []) as CommentRow[]);
 }

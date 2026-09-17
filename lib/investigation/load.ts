@@ -37,7 +37,7 @@ export async function loadInvestigation(
     let investigationQuery = client
       .from("ticket_investigations")
       .select(
-        "ticket_id,organization_id,user_id,context,hypotheses,excluded_steps,asked_question_ids,status,escalation_package,escalation_package_at,created_at,updated_at"
+        "ticket_id,organization_id,user_id,context,hypotheses,excluded_steps,asked_question_ids,status,evidence,evidence_at,escalation_package,escalation_package_at,created_at,updated_at"
       )
       .eq("ticket_id", ticketId);
     if (organizationId) {

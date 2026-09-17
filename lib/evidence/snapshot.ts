@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { buildEvidence } from "./build";
 import { loadEvidenceInputs } from "./load";
 import type { EvidenceRecord, ResearchEvidence } from "./types";
+import { encryptInvestigationForWrite } from "@/lib/security/ticket-crypto";
 
 export async function snapshotEvidence(
   admin: ReturnType<typeof createAdminClient>,
@@ -20,8 +21,13 @@ export async function snapshotEvidence(
     });
     const now = evidence.generatedAt;
     const investigation = inputs.investigation;
+    const encrypted = await encryptInvestigationForWrite(
+      admin,
+      organizationId,
+      { evidence }
+    );
     const payload = {
-      evidence,
+      ...encrypted,
       evidence_at: now,
     };
     const result = investigation

@@ -12,6 +12,15 @@ change environment flags during an incident response without approval.
 
 ## Enable one organization
 
+### Data protection
+
+1. Set a unique base64-encoded 32-byte `HELP_DESK_MASTER_KEY` and
+   `HELP_DESK_MASTER_KEY_ID`.
+2. Set `HELP_DESK_ORG_ENCRYPTION_ENABLED=true`.
+3. Run the data-protection backfill cron route with `CRON_SECRET`.
+4. Confirm pilot readiness reports `backfill 0 rows remaining`.
+5. Optionally rotate the organization's DEK after backfill verification.
+
 ### Identity connector setup
 
 For Entra, register an application with `User.Read.All`, optional

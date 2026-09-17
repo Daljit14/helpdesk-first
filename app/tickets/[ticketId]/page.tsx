@@ -28,6 +28,11 @@ import { getIssueSteps } from "@/lib/steps";
 import { TicketProgress } from "@/components/ticket-progress";
 import { TicketInvestigation } from "@/components/ticket-investigation";
 import { TicketConsentPrompt } from "@/components/ticket-consent-prompt";
+import {
+  decryptCommentRows,
+  decryptInvestigationRow,
+  decryptTicketRow,
+} from "@/lib/security/ticket-crypto";
 import { loadInvestigation } from "@/lib/investigation/load";
 import {
   ArrowLeft,
@@ -182,14 +187,21 @@ export default async function TicketPage({
   const supabase = await createClient();
   const ticketSelect = portalEnabled
     ? "id,organization_id,issue_title,message,status,platform,created_at,handoff_reason,resolver_type,ai_recommended_issue_id,diagnostic_answers,attachment_path,satisfaction_rating,satisfaction_comment,resolved_at,closed_at,updated_at,assigned_agent_id,human_response_due_at,first_human_response_at"
-    : "id,issue_title,message,status,platform,created_at,handoff_reason,ai_recommended_issue_id";
+    : "id,organization_id,issue_title,message,status,platform,created_at,handoff_reason,ai_recommended_issue_id";
   const { data: rawTicket } = await supabase
     .from("tickets")
     .select(ticketSelect)
     .eq("id", ticketId)
     .eq("user_id", user.id)
     .maybeSingle();
-  const ticket = rawTicket as TicketDetail | null;
+  const ticket = rawTicket
+    ? ((await decryptTicketRow(
+        createAdminClient(),
+        rawTicket as unknown as TicketDetail & {
+          organization_id: string | null;
+        }
+      )) as TicketDetail)
+    : null;
   if (!ticket) {
     const adminSession = await getAdminSession();
     const { data: accessTicket } = await createAdminClient()
@@ -211,10 +223,19 @@ export default async function TicketPage({
       />
     );
   }
-  const investigation =
+  const investigationRaw =
     isInvestigationEnabled() && portalEnabled
       ? await loadInvestigation(supabase, ticketId)
       : null;
+  const investigation = investigationRaw?.investigation
+    ? {
+        ...investigationRaw,
+        investigation: await decryptInvestigationRow(
+          createAdminClient(),
+          investigationRaw.investigation
+        ),
+      }
+    : investigationRaw;
   const consentRequest = portalEnabled
     ? await createAdminClient()
         .from("approval_requests")
@@ -231,12 +252,19 @@ export default async function TicketPage({
   const citation = ticket.ai_recommended_issue_id
     ? await getCitation(ticket.ai_recommended_issue_id, null)
     : null;
-  const { data: comments } = await supabase
+  const { data: rawComments } = await supabase
     .from("ticket_comments")
     .select("id,message,author_type,created_at")
     .eq("ticket_id", ticketId)
     .eq("visibility", "public")
     .order("created_at", { ascending: true });
+  const comments = await decryptCommentRows(
+    createAdminClient(),
+    (rawComments ?? []).map((row) => ({
+      ...row,
+      organization_id: ticket.organization_id ?? null,
+    }))
+  );
   const attachments = await listOwnAttachments(ticketId);
   const { data: events } = portalEnabled
     ? await supabase

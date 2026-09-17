@@ -3,6 +3,7 @@ import { isSecureAttachmentsEnabled } from "@/lib/admin/flags";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUser } from "@/lib/supabase/user";
 import { getAttachmentPolicy } from "@/lib/attachments/policy";
+import { decryptAttachmentRow } from "@/lib/security/ticket-crypto";
 
 const attachmentIdSchema = z.string().uuid();
 
@@ -60,10 +61,20 @@ export async function listOwnAttachments(ticketId: string) {
   const { data } = await createAdminClient()
     .from("ticket_attachments")
     .select(
-      "id,original_name,byte_size,status,detected_mime,scan_verdict,created_at,width,height,page_count,rejection_reason"
+      "id,organization_id,original_name,byte_size,status,detected_mime,scan_verdict,scan_detail,created_at,width,height,page_count,rejection_reason"
     )
     .eq("ticket_id", ticketId)
     .eq("uploader_id", user.id)
     .order("created_at", { ascending: true });
-  return data ?? [];
+  return Promise.all(
+    (data ?? []).map((row) =>
+      decryptAttachmentRow(
+        createAdminClient(),
+        row as typeof row & {
+          organization_id: string | null;
+          scan_detail: string | null;
+        }
+      )
+    )
+  );
 }

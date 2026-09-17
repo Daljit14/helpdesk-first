@@ -1,6 +1,10 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadInvestigation } from "./load";
 import type { EscalationInputs } from "./escalation";
+import {
+  decryptInvestigationRow,
+  decryptTicketRow,
+} from "@/lib/security/ticket-crypto";
 
 type InvestigationClient = ReturnType<typeof createAdminClient>;
 
@@ -60,9 +64,18 @@ export async function loadEscalationInputs(
       .eq("organization_id", organizationId)
       .eq("ticket_id", ticketId);
 
+    const loadedTicket = await decryptTicketRow(admin, {
+      ...(ticketResult.data as EscalationInputs["ticket"] & {
+        organization_id: string | null;
+      }),
+      organization_id: organizationId,
+    });
+    const loadedInvestigation = investigation?.investigation
+      ? await decryptInvestigationRow(admin, investigation.investigation)
+      : null;
     return {
-      ticket: ticketResult.data as EscalationInputs["ticket"],
-      investigation: investigation?.investigation ?? null,
+      ticket: loadedTicket as EscalationInputs["ticket"],
+      investigation: loadedInvestigation,
       turns: investigation?.turns ?? [],
       stepOutcomes: (stepOutcomes.data ??
         []) as EscalationInputs["stepOutcomes"],

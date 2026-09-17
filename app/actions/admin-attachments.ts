@@ -4,6 +4,7 @@ import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAdminSession, recordAudit } from "@/lib/admin/auth";
 import { isSecureAttachmentsEnabled } from "@/lib/admin/flags";
+import { encryptAttachmentScanDetail } from "@/lib/security/ticket-crypto";
 
 const policySchema = z.object({
   maxFilesPerTicket: z.number().int().min(1).max(50),
@@ -92,7 +93,11 @@ export async function adminMarkAttachmentSafe(
       status: "ready",
       scan_verdict: "clean",
       scan_engine: "admin",
-      scan_detail: reason.trim().slice(0, 500),
+      scan_detail: await encryptAttachmentScanDetail(
+        createAdminClient(),
+        found.row.organization_id ?? "",
+        reason.trim().slice(0, 500)
+      ),
       scanned_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     })

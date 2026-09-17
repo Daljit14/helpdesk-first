@@ -17,6 +17,8 @@ import {
 import { createWorkflowTicket } from "@/app/actions/tickets";
 import { attachTicketAttachments } from "@/lib/attachments/server";
 import { resolveOrganizationForUser } from "@/lib/org/membership";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { encryptTicketForWrite } from "@/lib/security/ticket-crypto";
 
 type GuideActionError = { error: string };
 type AuthenticatedIssueResult = GuideActionError | { user: User; issue: Issue };
@@ -187,7 +189,11 @@ export async function submitTicket(
       issue_id: result.issue.id,
       issue_title: result.issue.title,
       category: result.issue.category,
-      message: parsed.data.message,
+      message: await encryptTicketForWrite(
+        createAdminClient(),
+        organizationId,
+        parsed.data.message
+      ),
       attachment_path: isSecureAttachmentsEnabled() ? null : attachmentPath,
       escalated: true,
       escalated_at: new Date().toISOString(),

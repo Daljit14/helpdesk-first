@@ -9,6 +9,8 @@ import { MemoryRateLimiter } from "@/lib/ai/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUser } from "@/lib/supabase/user";
 import { getAttachmentPolicy } from "@/lib/attachments/policy";
+import { encryptAttachmentScanDetail } from "@/lib/security/ticket-crypto";
+import { decryptAttachmentRow } from "@/lib/security/ticket-crypto";
 import {
   inspectPdf,
   sanitizeFilename,
@@ -139,7 +141,13 @@ async function rejectAttachment(
       rejection_reason: reason,
       scan_engine: scan?.engine ?? row.scan_engine,
       scan_verdict: scan?.verdict ?? row.scan_verdict,
-      scan_detail: detail ? JSON.stringify(detail) : row.scan_detail,
+      scan_detail: detail
+        ? await encryptAttachmentScanDetail(
+            admin,
+            row.organization_id ?? "",
+            JSON.stringify(detail)
+          )
+        : row.scan_detail,
       scanned_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     })
@@ -240,7 +248,12 @@ async function loadOwnAttachment(
     .eq("id", attachmentId)
     .eq("uploader_id", userId)
     .maybeSingle();
-  return (data as AttachmentRow | null) ?? null;
+  return data
+    ? await decryptAttachmentRow(
+        createAdminClient(),
+        data as AttachmentRow & { organization_id: string | null }
+      )
+    : null;
 }
 
 export async function finalizeAttachmentUpload(
@@ -367,7 +380,11 @@ export async function finalizeAttachmentUpload(
         page_count: pageCount,
         scan_engine: scan.engine,
         scan_verdict: scan.verdict,
-        scan_detail: scan.detail ?? null,
+        scan_detail: await encryptAttachmentScanDetail(
+          admin,
+          row.organization_id ?? "",
+          scan.detail ?? null
+        ),
         scanned_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
@@ -402,7 +419,11 @@ export async function finalizeAttachmentUpload(
       storage_path: storagePath,
       scan_engine: scan.engine,
       scan_verdict: scan.verdict,
-      scan_detail: scan.detail ?? null,
+      scan_detail: await encryptAttachmentScanDetail(
+        admin,
+        row.organization_id ?? "",
+        scan.detail ?? null
+      ),
       scanned_at: new Date().toISOString(),
       expires_at: expiresAt,
       updated_at: new Date().toISOString(),

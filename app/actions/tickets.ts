@@ -34,6 +34,7 @@ import { createKnowledgeDraftForTicket } from "@/lib/knowledge/learning";
 import { isAutonomousExecutionEnabled } from "@/lib/autonomy/config";
 import { handleAutonomousReopen } from "@/lib/autonomy/pilot-review";
 import {
+  DataProtectionError,
   decryptCommentRows,
   decryptTicketRow,
   encryptCommentForWrite,
@@ -244,6 +245,18 @@ export async function addUserComment(
     .eq("user_id", user.id)
     .maybeSingle();
   if (!ticket.data) return { error: "Ticket not found." };
+  let encryptedMessage: string;
+  try {
+    encryptedMessage = await encryptCommentForWrite(
+      admin,
+      ticket.data.organization_id,
+      body.data
+    );
+  } catch (error) {
+    if (error instanceof DataProtectionError)
+      return { error: "Unable to add comment." };
+    throw error;
+  }
   const supabase = await createClient();
   const { error } = await supabase.from("ticket_comments").insert({
     ticket_id: ticketId,
@@ -251,11 +264,7 @@ export async function addUserComment(
     author_id: user.id,
     author_type: "user",
     visibility: "public",
-    message: await encryptCommentForWrite(
-      admin,
-      ticket.data.organization_id,
-      body.data
-    ),
+    message: encryptedMessage,
   });
   if (error) return { error: "Unable to add comment." };
   await event(
@@ -452,19 +461,28 @@ export async function rejectAiSolution(
     .eq("id", ticketId)
     .maybeSingle();
   if (parsedNote.data) {
+    if (!ticket?.organization_id) return { error: "Unable to add comment." };
+    let encryptedMessage: string;
+    try {
+      encryptedMessage = await encryptCommentForWrite(
+        admin,
+        ticket.organization_id,
+        `Didn't work: ${parsedNote.data}`
+      );
+    } catch (error) {
+      if (error instanceof DataProtectionError)
+        return { error: "Unable to add comment." };
+      throw error;
+    }
     const { error: commentError } = await supabase
       .from("ticket_comments")
       .insert({
         ticket_id: ticketId,
-        organization_id: ticket?.organization_id,
+        organization_id: ticket.organization_id,
         author_id: user.id,
         author_type: "user",
         visibility: "public",
-        message: await encryptCommentForWrite(
-          admin,
-          ticket?.organization_id ?? "",
-          `Didn't work: ${parsedNote.data}`
-        ),
+        message: encryptedMessage,
       });
     if (commentError) return { error: "Unable to add comment." };
   }

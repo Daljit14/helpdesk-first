@@ -115,6 +115,13 @@ export async function rotateOrgKey(
   const current = await getActiveOrgKey(admin, organizationId);
   const provider = createEnvKeyProvider();
   const nextVersion = current.keyVersion + 1;
+  const retired = await admin
+    .from("organization_keys")
+    .update({ status: "retired", retired_at: new Date().toISOString() })
+    .eq("organization_id", organizationId)
+    .eq("key_version", current.keyVersion)
+    .eq("status", "active");
+  if (retired.error) throw retired.error;
   const inserted = await admin
     .from("organization_keys")
     .insert({
@@ -126,14 +133,16 @@ export async function rotateOrgKey(
     })
     .select("key_version,wrapped_dek")
     .single();
-  if (inserted.error || !inserted.data) throw inserted.error;
-  const retired = await admin
-    .from("organization_keys")
-    .update({ status: "retired", retired_at: new Date().toISOString() })
-    .eq("organization_id", organizationId)
-    .eq("key_version", current.keyVersion)
-    .eq("status", "active");
-  if (retired.error) throw retired.error;
+  if (inserted.error || !inserted.data) {
+    const restored = await admin
+      .from("organization_keys")
+      .update({ status: "active", retired_at: null })
+      .eq("organization_id", organizationId)
+      .eq("key_version", current.keyVersion)
+      .eq("status", "retired");
+    if (restored.error) throw restored.error;
+    throw inserted.error ?? new Error("Organization key was not created");
+  }
   return store(rowKey(organizationId, inserted.data));
 }
 

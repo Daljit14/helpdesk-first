@@ -13,9 +13,12 @@ export type FieldRef = {
 };
 
 export class DataProtectionError extends Error {
-  readonly code: "master_key_missing" | "decrypt_failed";
+  readonly code:
+    "master_key_missing" | "decrypt_failed" | "organization_missing";
 
-  constructor(code: "master_key_missing" | "decrypt_failed") {
+  constructor(
+    code: "master_key_missing" | "decrypt_failed" | "organization_missing"
+  ) {
     super(code);
     this.name = "DataProtectionError";
     this.code = code;

@@ -1,5 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isOrgEncryptionEnabled } from "@/lib/security/data-protection-config";
 import {
+  DataProtectionError,
   decryptJson,
   decryptText,
   encryptJson,
@@ -7,6 +9,50 @@ import {
 } from "@/lib/security/field-crypto";
 
 type Admin = ReturnType<typeof createAdminClient>;
+export { DataProtectionError };
+const ENCRYPTED_KEY_UNAVAILABLE = "[encrypted — key unavailable]";
+
+function isDecryptFailure(error: unknown): error is DataProtectionError {
+  return (
+    error instanceof DataProtectionError && error.code === "decrypt_failed"
+  );
+}
+
+function reportDecryptFailure(table: string, column: string): void {
+  console.error("data-protection decrypt_failed", { table, column });
+}
+
+async function decryptTextForRead(
+  admin: Admin,
+  organizationId: string,
+  table: "tickets" | "ticket_comments" | "ticket_attachments",
+  column: string,
+  stored: string | null
+): Promise<string | null> {
+  try {
+    return await decryptText(admin, organizationId, { table, column }, stored);
+  } catch (error) {
+    if (!isDecryptFailure(error)) throw error;
+    reportDecryptFailure(table, column);
+    return ENCRYPTED_KEY_UNAVAILABLE;
+  }
+}
+
+async function decryptJsonForRead(
+  admin: Admin,
+  organizationId: string,
+  table: "ticket_investigations",
+  column: string,
+  stored: unknown
+): Promise<unknown> {
+  try {
+    return await decryptJson(admin, organizationId, { table, column }, stored);
+  } catch (error) {
+    if (!isDecryptFailure(error)) throw error;
+    reportDecryptFailure(table, column);
+    return null;
+  }
+}
 
 export async function decryptTicketRow<
   T extends {
@@ -17,13 +63,11 @@ export async function decryptTicketRow<
   return {
     ...row,
     message: row.organization_id
-      ? await decryptText(
+      ? await decryptTextForRead(
           admin,
           row.organization_id,
-          {
-            table: "tickets",
-            column: "message",
-          },
+          "tickets",
+          "message",
           row.message
         )
       : row.message,
@@ -40,13 +84,11 @@ export async function decryptCommentRows<
     rows.map(async (row) => ({
       ...row,
       message: row.organization_id
-        ? await decryptText(
+        ? await decryptTextForRead(
             admin,
             row.organization_id,
-            {
-              table: "ticket_comments",
-              column: "message",
-            },
+            "ticket_comments",
+            "message",
             row.message
           )
         : row.message,
@@ -63,22 +105,18 @@ export async function decryptInvestigationRow<
 >(admin: Admin, row: T): Promise<T> {
   if (!row.organization_id) return row;
   const [evidence, escalationPackage] = await Promise.all([
-    decryptJson(
+    decryptJsonForRead(
       admin,
       row.organization_id,
-      {
-        table: "ticket_investigations",
-        column: "evidence",
-      },
+      "ticket_investigations",
+      "evidence",
       row.evidence
     ),
-    decryptJson(
+    decryptJsonForRead(
       admin,
       row.organization_id,
-      {
-        table: "ticket_investigations",
-        column: "escalation_package",
-      },
+      "ticket_investigations",
+      "escalation_package",
       row.escalation_package
     ),
   ]);
@@ -94,13 +132,11 @@ export async function decryptAttachmentRow<
   return {
     ...row,
     scan_detail: row.organization_id
-      ? await decryptText(
+      ? await decryptTextForRead(
           admin,
           row.organization_id,
-          {
-            table: "ticket_attachments",
-            column: "scan_detail",
-          },
+          "ticket_attachments",
+          "scan_detail",
           row.scan_detail
         )
       : row.scan_detail,
@@ -109,9 +145,13 @@ export async function decryptAttachmentRow<
 
 export async function encryptTicketForWrite(
   admin: Admin,
-  organizationId: string,
+  organizationId: string | null,
   message: string
 ): Promise<string> {
+  if (!organizationId) {
+    if (!isOrgEncryptionEnabled()) return message;
+    throw new DataProtectionError("organization_missing");
+  }
   return encryptText(
     admin,
     organizationId,
@@ -125,9 +165,13 @@ export async function encryptTicketForWrite(
 
 export async function encryptCommentForWrite(
   admin: Admin,
-  organizationId: string,
+  organizationId: string | null,
   message: string
 ): Promise<string> {
+  if (!organizationId) {
+    if (!isOrgEncryptionEnabled()) return message;
+    throw new DataProtectionError("organization_missing");
+  }
   return encryptText(
     admin,
     organizationId,

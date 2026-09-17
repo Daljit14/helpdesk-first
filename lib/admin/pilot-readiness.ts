@@ -14,7 +14,7 @@ import { isConnectorKeyValid } from "@/lib/security/connector-key";
 import { getResearchConfig } from "@/lib/autonomy/config";
 import { isOrgEncryptionEnabled } from "@/lib/security/data-protection-config";
 import { isMasterKeyValid } from "@/lib/security/master-key";
-import { countPlaintextRows } from "@/lib/security/backfill";
+import { countPlaintextRowsDetailed } from "@/lib/security/backfill";
 
 type Admin = ReturnType<typeof createAdminClient>;
 
@@ -60,12 +60,15 @@ export async function computePilotReadiness(
   ]);
   const encryptionEnabled = isOrgEncryptionEnabled();
   const encryptionKeyValid = isMasterKeyValid();
-  const plaintextCounts =
+  const plaintextResult =
     encryptionEnabled && encryptionKeyValid
-      ? await countPlaintextRows(admin, organizationId)
+      ? await countPlaintextRowsDetailed(admin, organizationId)
       : null;
-  const plaintextRemaining = plaintextCounts
-    ? Object.values(plaintextCounts).reduce((sum, count) => sum + count, 0)
+  const plaintextRemaining = plaintextResult
+    ? Object.values(plaintextResult.counts).reduce(
+        (sum, count) => sum + count,
+        0
+      )
     : 0;
   const connector = process.env.HELP_DESK_CONNECTOR_KEY
     ? await admin
@@ -144,7 +147,9 @@ export async function computePilotReadiness(
         ? "disabled"
         : !encryptionKeyValid
           ? "HELP_DESK_MASTER_KEY must decode to 32 bytes."
-          : `backfill ${plaintextRemaining} rows remaining`,
+          : `backfill ${
+              plaintextResult?.truncated ? "1000+" : plaintextRemaining
+            } rows remaining`,
     },
     ...(grantEnabled
       ? [

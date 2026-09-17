@@ -44,7 +44,7 @@ async function countTarget(
   admin: Admin,
   target: Target,
   organizationId: string
-): Promise<number> {
+): Promise<{ count: number; truncated: boolean }> {
   const query = admin
     .from(target.table)
     .select("id", { count: "exact", head: true })
@@ -60,29 +60,47 @@ async function countTarget(
     const rows = await admin
       .from(target.table)
       .select(`id,${target.column}`)
-      .eq("organization_id", organizationId);
+      .eq("organization_id", organizationId)
+      .limit(1000);
     if (rows.error) throw rows.error;
-    return (rows.data ?? []).filter((row) => {
-      const value = (row as unknown as Record<string, unknown>)[target.column];
-      return !isEncryptedJson(value);
-    }).length;
+    const data = rows.data ?? [];
+    return {
+      count: data.filter((row) => {
+        const value = (row as unknown as Record<string, unknown>)[
+          target.column
+        ];
+        return !isEncryptedJson(value);
+      }).length,
+      truncated: data.length === 1000,
+    };
   }
-  return result.count ?? 0;
+  return { count: result.count ?? 0, truncated: false };
+}
+
+export type PlaintextCountResult = {
+  counts: Record<string, number>;
+  truncated: boolean;
+};
+
+export async function countPlaintextRowsDetailed(
+  admin: Admin,
+  organizationId: string
+): Promise<PlaintextCountResult> {
+  const counts: Record<string, number> = {};
+  let truncated = false;
+  for (const target of targets) {
+    const result = await countTarget(admin, target, organizationId);
+    counts[`${target.table}.${target.column}`] = result.count;
+    truncated ||= result.truncated;
+  }
+  return { counts, truncated };
 }
 
 export async function countPlaintextRows(
   admin: Admin,
   organizationId: string
 ): Promise<Record<string, number>> {
-  const counts: Record<string, number> = {};
-  for (const target of targets) {
-    counts[`${target.table}.${target.column}`] = await countTarget(
-      admin,
-      target,
-      organizationId
-    );
-  }
-  return counts;
+  return (await countPlaintextRowsDetailed(admin, organizationId)).counts;
 }
 
 async function backfillTarget(
@@ -91,12 +109,30 @@ async function backfillTarget(
   target: Target,
   batchSize: number
 ): Promise<{ processed: number; remaining: number }> {
-  const rows = await admin
+  let query = admin
     .from(target.table)
     .select(`id,organization_id,${target.column}`)
-    .eq("organization_id", organizationId)
-    .order("id", { ascending: true })
-    .limit(batchSize);
+    .eq("organization_id", organizationId);
+  let cursor: string | null = null;
+  if (target.kind === "text") {
+    query = query
+      .not(target.column, "is", null)
+      .not(target.column, "like", "enc:%");
+  } else {
+    const progress = await admin
+      .from("data_protection_backfill")
+      .select("last_processed_id")
+      .eq("organization_id", organizationId)
+      .eq("table_name", target.table)
+      .eq("column_name", target.column)
+      .maybeSingle();
+    if (progress.error) throw progress.error;
+    cursor = progress.data?.last_processed_id
+      ? String(progress.data.last_processed_id)
+      : null;
+    if (cursor) query = query.gt("id", cursor);
+  }
+  const rows = await query.order("id", { ascending: true }).limit(batchSize);
   if (rows.error) throw rows.error;
   let processed = 0;
   for (const row of (rows.data ?? []) as unknown as Array<
@@ -134,18 +170,26 @@ async function backfillTarget(
     processed += 1;
   }
   const remaining = await countTarget(admin, target, organizationId);
+  const lastRowId =
+    rows.data && rows.data.length > 0
+      ? String(
+          (rows.data[rows.data.length - 1] as unknown as { id: unknown }).id
+        )
+      : null;
+  const nextCursor =
+    target.kind === "json" && rows.data && rows.data.length === batchSize
+      ? lastRowId
+      : null;
   await admin.from("data_protection_backfill").upsert({
     organization_id: organizationId,
     table_name: target.table,
     column_name: target.column,
-    last_processed_id:
-      (rows.data?.[rows.data.length - 1] as { id?: string } | undefined)?.id ??
-      null,
+    last_processed_id: nextCursor,
     encrypted_count: processed,
-    plaintext_remaining: remaining,
+    plaintext_remaining: remaining.count,
     updated_at: new Date().toISOString(),
   });
-  return { processed, remaining };
+  return { processed, remaining: remaining.count };
 }
 
 export async function backfillEncryption(

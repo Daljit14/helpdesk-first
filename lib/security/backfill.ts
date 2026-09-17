@@ -16,18 +16,35 @@ type Target = {
   table: TableName;
   column: string;
   kind: "text" | "json";
+  idColumn: "id" | "ticket_id";
 };
 
 const targets: Target[] = [
-  { table: "tickets", column: "message", kind: "text" },
-  { table: "ticket_comments", column: "message", kind: "text" },
-  { table: "ticket_investigations", column: "evidence", kind: "json" },
+  { table: "tickets", column: "message", kind: "text", idColumn: "id" },
+  {
+    table: "ticket_comments",
+    column: "message",
+    kind: "text",
+    idColumn: "id",
+  },
+  {
+    table: "ticket_investigations",
+    column: "evidence",
+    kind: "json",
+    idColumn: "ticket_id",
+  },
   {
     table: "ticket_investigations",
     column: "escalation_package",
     kind: "json",
+    idColumn: "ticket_id",
   },
-  { table: "ticket_attachments", column: "scan_detail", kind: "text" },
+  {
+    table: "ticket_attachments",
+    column: "scan_detail",
+    kind: "text",
+    idColumn: "id",
+  },
 ];
 
 function isEncryptedJson(value: unknown): boolean {
@@ -47,7 +64,7 @@ async function countTarget(
 ): Promise<{ count: number; truncated: boolean }> {
   const query = admin
     .from(target.table)
-    .select("id", { count: "exact", head: true })
+    .select(target.idColumn, { count: "exact", head: true })
     .eq("organization_id", organizationId);
   const result =
     target.kind === "text"
@@ -59,7 +76,7 @@ async function countTarget(
   if (target.kind === "json") {
     const rows = await admin
       .from(target.table)
-      .select(`id,${target.column}`)
+      .select(`${target.idColumn},${target.column}`)
       .eq("organization_id", organizationId)
       .limit(1000);
     if (rows.error) throw rows.error;
@@ -111,7 +128,7 @@ async function backfillTarget(
 ): Promise<{ processed: number; remaining: number }> {
   let query = admin
     .from(target.table)
-    .select(`id,organization_id,${target.column}`)
+    .select(`${target.idColumn},organization_id,${target.column}`)
     .eq("organization_id", organizationId);
   let cursor: string | null = null;
   if (target.kind === "text") {
@@ -130,13 +147,19 @@ async function backfillTarget(
     cursor = progress.data?.last_processed_id
       ? String(progress.data.last_processed_id)
       : null;
-    if (cursor) query = query.gt("id", cursor);
+    if (cursor) query = query.gt(target.idColumn, cursor);
   }
-  const rows = await query.order("id", { ascending: true }).limit(batchSize);
+  const rows = await query
+    .order(target.idColumn, { ascending: true })
+    .limit(batchSize);
   if (rows.error) throw rows.error;
   let processed = 0;
   for (const row of (rows.data ?? []) as unknown as Array<
-    Record<string, unknown> & { id: string; organization_id: string }
+    Record<string, unknown> & {
+      organization_id: string;
+      id?: string | number;
+      ticket_id?: string;
+    }
   >) {
     const value = row[target.column];
     if (value === null || value === undefined) continue;
@@ -164,7 +187,7 @@ async function backfillTarget(
     const updated = await admin
       .from(target.table)
       .update({ [target.column]: encrypted })
-      .eq("id", row.id)
+      .eq(target.idColumn, row[target.idColumn])
       .eq("organization_id", organizationId);
     if (updated.error) throw updated.error;
     processed += 1;
@@ -173,7 +196,12 @@ async function backfillTarget(
   const lastRowId =
     rows.data && rows.data.length > 0
       ? String(
-          (rows.data[rows.data.length - 1] as unknown as { id: unknown }).id
+          (
+            rows.data[rows.data.length - 1] as unknown as Record<
+              string,
+              unknown
+            >
+          )[target.idColumn]
         )
       : null;
   const nextCursor =

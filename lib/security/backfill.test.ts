@@ -11,7 +11,8 @@ vi.mock("./field-crypto", () => ({
 }));
 
 type Row = {
-  id: string | number;
+  id?: string | number;
+  ticket_id?: string;
   organization_id: string;
   message?: unknown;
   evidence?: unknown;
@@ -22,8 +23,13 @@ type Row = {
 function fakeAdmin(initial: Record<string, Row[]>): {
   admin: Parameters<typeof backfillEncryption>[0];
   rows: Record<string, Row[]>;
+  updates: Array<{ table: string; ids: Array<string | number | undefined> }>;
 } {
   const rows = structuredClone(initial);
+  const updates: Array<{
+    table: string;
+    ids: Array<string | number | undefined>;
+  }> = [];
   const progress = new Map<string, { last_processed_id: string | null }>();
   const admin = {
     from(table: string) {
@@ -129,6 +135,10 @@ function fakeAdmin(initial: Record<string, Row[]>): {
           const matching = (rows[table] ?? []).filter(matches);
           if (updateValues) {
             for (const row of matching) Object.assign(row, updateValues);
+            updates.push({
+              table,
+              ids: matching.map((row) => row.id ?? row.ticket_id),
+            });
           }
           const result = head
             ? {
@@ -149,6 +159,7 @@ function fakeAdmin(initial: Record<string, Row[]>): {
   return {
     admin: admin as unknown as Parameters<typeof backfillEncryption>[0],
     rows,
+    updates,
   };
 }
 
@@ -171,9 +182,21 @@ describe("data protection backfill", () => {
       tickets: [],
       ticket_comments: [],
       ticket_investigations: [
-        { id: 1, organization_id: "org-a", evidence: { one: true } },
-        { id: 2, organization_id: "org-a", evidence: { two: true } },
-        { id: 3, organization_id: "org-a", evidence: { three: true } },
+        {
+          ticket_id: "00000000-0000-4000-8000-000000000001",
+          organization_id: "org-a",
+          evidence: { one: true },
+        },
+        {
+          ticket_id: "00000000-0000-4000-8000-000000000002",
+          organization_id: "org-a",
+          evidence: { two: true },
+        },
+        {
+          ticket_id: "00000000-0000-4000-8000-000000000003",
+          organization_id: "org-a",
+          evidence: { three: true },
+        },
       ],
       ticket_attachments: [],
     });
@@ -199,6 +222,13 @@ describe("data protection backfill", () => {
           row.evidence !== null &&
           "$enc" in row.evidence
       )
+    ).toBe(true);
+    expect(
+      fixture.updates
+        .filter((update) => update.table === "ticket_investigations")
+        .every((update) =>
+          update.ids.every((id) => typeof id === "string" && id.length > 0)
+        )
     ).toBe(true);
   });
 });

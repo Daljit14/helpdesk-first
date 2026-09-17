@@ -60,10 +60,18 @@ export async function computePilotReadiness(
   ]);
   const encryptionEnabled = isOrgEncryptionEnabled();
   const encryptionKeyValid = isMasterKeyValid();
-  const plaintextResult =
-    encryptionEnabled && encryptionKeyValid
-      ? await countPlaintextRowsDetailed(admin, organizationId)
-      : null;
+  let plaintextResult: Awaited<
+    ReturnType<typeof countPlaintextRowsDetailed>
+  > | null = null;
+  let plaintextCountError: string | null = null;
+  if (encryptionEnabled && encryptionKeyValid) {
+    try {
+      plaintextResult = await countPlaintextRowsDetailed(admin, organizationId);
+    } catch (error) {
+      plaintextCountError =
+        error instanceof Error && error.message ? error.message : "unknown";
+    }
+  }
   const plaintextRemaining = plaintextResult
     ? Object.values(plaintextResult.counts).reduce(
         (sum, count) => sum + count,
@@ -142,14 +150,18 @@ export async function computePilotReadiness(
     },
     {
       label: "Data protection",
-      ready: !encryptionEnabled || encryptionKeyValid,
+      ready:
+        !encryptionEnabled ||
+        (encryptionKeyValid && plaintextCountError === null),
       reason: !encryptionEnabled
         ? "disabled"
         : !encryptionKeyValid
           ? "HELP_DESK_MASTER_KEY must decode to 32 bytes."
-          : `backfill ${
-              plaintextResult?.truncated ? "1000+" : plaintextRemaining
-            } rows remaining`,
+          : plaintextCountError
+            ? `plaintext count failed: ${plaintextCountError}`
+            : `backfill ${
+                plaintextResult?.truncated ? "1000+" : plaintextRemaining
+              } rows remaining`,
     },
     ...(grantEnabled
       ? [

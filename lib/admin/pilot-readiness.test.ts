@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
+import { countPlaintextRowsDetailed } from "@/lib/security/backfill";
 import { computePilotReadiness } from "./pilot-readiness";
+
+vi.mock("@/lib/security/backfill", () => ({
+  countPlaintextRowsDetailed: vi.fn(),
+}));
 
 function admin(open = false) {
   const builder = {
@@ -69,6 +74,30 @@ describe("pilot readiness", () => {
     expect(
       configured.items.find((item) => item.label === "Alert email configured")
         ?.ready
+    ).toBe(true);
+  });
+
+  test("blocks without throwing when plaintext counting fails", async () => {
+    vi.stubEnv("HELP_DESK_GUARDRAILS_ENFORCED", "true");
+    vi.stubEnv("HELP_DESK_AUTONOMY_ORG_ALLOWLIST", "org-1");
+    vi.stubEnv("HELP_DESK_ORG_ENCRYPTION_ENABLED", "true");
+    vi.stubEnv("HELP_DESK_MASTER_KEY", Buffer.alloc(32, 1).toString("base64"));
+    vi.mocked(countPlaintextRowsDetailed).mockRejectedValueOnce(
+      new Error("42703 missing column")
+    );
+
+    const result = await computePilotReadiness(admin(), "org-1");
+    const dataProtection = result.items.find(
+      (item) => item.label === "Data protection"
+    );
+
+    expect(dataProtection).toEqual({
+      label: "Data protection",
+      ready: false,
+      reason: "plaintext count failed: 42703 missing column",
+    });
+    expect(
+      result.items.some((item) => item.label === "Guardrails enforced")
     ).toBe(true);
   });
 });

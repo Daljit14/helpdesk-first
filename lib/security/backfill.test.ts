@@ -176,7 +176,7 @@ describe("data protection backfill", () => {
     ).resolves.toEqual({ skipped: "disabled" });
   });
 
-  test("advances JSON targets across consecutive runs", async () => {
+  test("drains JSON targets across passes in one run", async () => {
     vi.stubEnv("HELP_DESK_ORG_ENCRYPTION_ENABLED", "true");
     const fixture = fakeAdmin({
       tickets: [],
@@ -200,21 +200,16 @@ describe("data protection backfill", () => {
       ],
       ticket_attachments: [],
     });
-    const first = await backfillEncryption(fixture.admin, {
+    const result = await backfillEncryption(fixture.admin, {
       organizationId: "org-a",
       batchSize: 2,
     });
-    const second = await backfillEncryption(fixture.admin, {
-      organizationId: "org-a",
-      batchSize: 2,
+
+    expect(result).toMatchObject({
+      processed: 3,
+      remaining: 0,
+      exhaustedBudget: false,
     });
-    const third = await backfillEncryption(fixture.admin, {
-      organizationId: "org-a",
-      batchSize: 2,
-    });
-    expect(first).toMatchObject({ processed: 2 });
-    expect(second).toMatchObject({ processed: 1 });
-    expect(third).toMatchObject({ processed: 0 });
     expect(
       fixture.rows.ticket_investigations.every(
         (row) =>
@@ -230,5 +225,50 @@ describe("data protection backfill", () => {
           update.ids.every((id) => typeof id === "string" && id.length > 0)
         )
     ).toBe(true);
+  });
+
+  test("stops after one pass when the time budget is zero", async () => {
+    vi.stubEnv("HELP_DESK_ORG_ENCRYPTION_ENABLED", "true");
+    const fixture = fakeAdmin({
+      tickets: [],
+      ticket_comments: [],
+      ticket_investigations: [
+        {
+          ticket_id: "00000000-0000-4000-8000-000000000001",
+          organization_id: "org-a",
+          evidence: { one: true },
+        },
+        {
+          ticket_id: "00000000-0000-4000-8000-000000000002",
+          organization_id: "org-a",
+          evidence: { two: true },
+        },
+        {
+          ticket_id: "00000000-0000-4000-8000-000000000003",
+          organization_id: "org-a",
+          evidence: { three: true },
+        },
+      ],
+      ticket_attachments: [],
+    });
+    const result = await backfillEncryption(fixture.admin, {
+      organizationId: "org-a",
+      batchSize: 2,
+      timeBudgetMs: 0,
+    });
+
+    expect(result).toMatchObject({
+      processed: 2,
+      remaining: 1,
+      exhaustedBudget: true,
+    });
+    expect(
+      fixture.rows.ticket_investigations.filter(
+        (row) =>
+          typeof row.evidence === "object" &&
+          row.evidence !== null &&
+          "$enc" in row.evidence
+      ).length
+    ).toBe(2);
   });
 });

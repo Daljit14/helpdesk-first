@@ -40,11 +40,21 @@ retention policy.
 1. Set `HELP_DESK_MASTER_KEY` and `HELP_DESK_MASTER_KEY_ID` in the server
    environment.
 2. Enable `HELP_DESK_ORG_ENCRYPTION_ENABLED=true`.
-3. Run `/api/cron/data-protection-backfill` with the configured cron secret.
-4. Repeat until readiness reports `backfill 0 rows remaining`.
-5. Investigate any database trigger rejection; do not weaken trigger semantics.
+3. The Vercel Hobby cron runs `/api/cron/data-protection-backfill` daily at
+   03:00 UTC. Each run drains for up to approximately 50 seconds.
+4. To drain faster, trigger the route manually and repeat until the response
+   reports `remaining: 0`:
 
-The worker processes at most 200 rows per target and is idempotent. SQL in
+   ```bash
+   curl -H "Authorization: Bearer $CRON_SECRET" \
+     https://<host>/api/cron/data-protection-backfill
+   ```
+
+5. Confirm readiness reports `backfill 0 rows remaining`.
+6. Investigate any database trigger rejection; do not weaken trigger semantics.
+
+The worker processes at most 200 rows per target per pass, drains for up to
+approximately 50 seconds per run, and is idempotent. SQL in
 `supabase/data-protection.sql` is intentionally not applied by this change.
 
 ## Incident response

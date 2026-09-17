@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/cron/attachments-purge",
-      "schedule": "0 3 * * *"
+      "schedule": "0 2 * * *"
     },
     {
       "path": "/api/cron/notifications-dispatch",
@@ -26,7 +26,7 @@
     },
     {
       "path": "/api/cron/data-protection-backfill",
-      "schedule": "*/10 * * * *"
+      "schedule": "0 3 * * *"
     }
   ]
 }

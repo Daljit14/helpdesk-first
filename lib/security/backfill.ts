@@ -86,7 +86,7 @@ async function countTarget(
         const value = (row as unknown as Record<string, unknown>)[
           target.column
         ];
-        return !isEncryptedJson(value);
+        return value !== null && value !== undefined && !isEncryptedJson(value);
       }).length,
       truncated: data.length === 1000,
     };
@@ -222,13 +222,18 @@ async function backfillTarget(
 
 export async function backfillEncryption(
   admin: Admin,
-  options: { batchSize?: number; organizationId?: string } = {}
+  options: {
+    batchSize?: number;
+    organizationId?: string;
+    timeBudgetMs?: number;
+  } = {}
 ): Promise<
   | { skipped: "disabled" }
   | {
       processed: number;
       remaining: number;
       perTable: Record<string, { processed: number; remaining: number }>;
+      exhaustedBudget: boolean;
     }
 > {
   if (!isOrgEncryptionEnabled()) return { skipped: "disabled" };
@@ -240,22 +245,39 @@ export async function backfillEncryption(
   const perTable: Record<string, { processed: number; remaining: number }> = {};
   let processed = 0;
   let remaining = 0;
-  for (const organizationId of organizations) {
-    for (const target of targets) {
-      const result = await backfillTarget(
-        admin,
-        organizationId,
-        target,
-        Math.min(Math.max(options.batchSize ?? 200, 1), 200)
-      );
-      const name = `${target.table}.${target.column}`;
-      perTable[name] = {
-        processed: (perTable[name]?.processed ?? 0) + result.processed,
-        remaining: result.remaining,
-      };
-      processed += result.processed;
-      remaining += result.remaining;
+  const batchSize = Math.min(Math.max(options.batchSize ?? 200, 1), 200);
+  const timeBudgetMs = Math.max(options.timeBudgetMs ?? 50_000, 0);
+  const startedAt = Date.now();
+  let pass = 0;
+  let exhaustedBudget = false;
+
+  while (pass === 0 || Date.now() - startedAt < timeBudgetMs) {
+    pass += 1;
+    let passProcessed = 0;
+    remaining = 0;
+    for (const organizationId of organizations) {
+      for (const target of targets) {
+        const result = await backfillTarget(
+          admin,
+          organizationId,
+          target,
+          batchSize
+        );
+        const name = `${target.table}.${target.column}`;
+        perTable[name] = {
+          processed: (perTable[name]?.processed ?? 0) + result.processed,
+          remaining: result.remaining,
+        };
+        processed += result.processed;
+        passProcessed += result.processed;
+        remaining += result.remaining;
+      }
+    }
+    if (passProcessed === 0) break;
+    if (Date.now() - startedAt >= timeBudgetMs) {
+      exhaustedBudget = true;
+      break;
     }
   }
-  return { processed, remaining, perTable };
+  return { processed, remaining, perTable, exhaustedBudget };
 }

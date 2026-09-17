@@ -10,6 +10,7 @@ export type UntrustedField = {
     | "attachment.metadata"
     | "attachment.text"
     | "knowledge"
+    | "externalSources"
     | "comment"
     | "event";
   text: string;

@@ -2,18 +2,22 @@ import { isEvidenceEngineEnabled } from "@/lib/admin/flags";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { buildEvidence } from "./build";
 import { loadEvidenceInputs } from "./load";
-import type { EvidenceRecord } from "./types";
+import type { EvidenceRecord, ResearchEvidence } from "./types";
 
 export async function snapshotEvidence(
   admin: ReturnType<typeof createAdminClient>,
   ticketId: string,
-  organizationId: string
+  organizationId: string,
+  research?: ResearchEvidence
 ): Promise<EvidenceRecord | null> {
   if (!isEvidenceEngineEnabled()) return null;
   try {
     const inputs = await loadEvidenceInputs(admin, ticketId, organizationId);
     if (!inputs) return null;
-    const evidence = buildEvidence(inputs);
+    const evidence = buildEvidence({
+      ...inputs,
+      ...(research ? { research } : {}),
+    });
     const now = evidence.generatedAt;
     const investigation = inputs.investigation;
     const payload = {

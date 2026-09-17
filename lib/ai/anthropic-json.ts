@@ -5,7 +5,12 @@ import type { JsonGenerator } from "@/lib/autonomy/planner/model-planner";
 import { z } from "zod";
 import { plannerOutputSchema } from "@/lib/autonomy/guardrails/planner-output";
 
-export function createAnthropicJsonGenerator(): JsonGenerator | null {
+export function createAnthropicToolGenerator<T>(
+  toolName: string,
+  schema: z.ZodType<T>,
+  systemPrompt: string,
+  description = `Emit the ${toolName} JSON object.`
+): JsonGenerator | null {
   if (getAiProviderKind() !== "anthropic" || !process.env.ANTHROPIC_API_KEY)
     return null;
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -27,15 +32,16 @@ export function createAnthropicJsonGenerator(): JsonGenerator | null {
       body: JSON.stringify({
         model: getAiModel(),
         max_tokens: 1024,
+        ...(systemPrompt ? { system: systemPrompt } : {}),
         messages: [{ role: "user", content: prompt }],
         tools: [
           {
-            name: "emit_plan",
-            description: "Emit the planner JSON object.",
-            input_schema: z.toJSONSchema(plannerOutputSchema, { io: "input" }),
+            name: toolName,
+            description,
+            input_schema: z.toJSONSchema(schema, { io: "input" }),
           },
         ],
-        tool_choice: { type: "tool", name: "emit_plan" },
+        tool_choice: { type: "tool", name: toolName },
       }),
     });
     if (!response.ok) throw new Error("Anthropic planner request failed");
@@ -47,4 +53,13 @@ export function createAnthropicJsonGenerator(): JsonGenerator | null {
       throw new Error("Anthropic planner returned no plan");
     return JSON.stringify(tool.input);
   };
+}
+
+export function createAnthropicJsonGenerator(): JsonGenerator | null {
+  return createAnthropicToolGenerator(
+    "emit_plan",
+    plannerOutputSchema,
+    "",
+    "Emit the planner JSON object."
+  );
 }

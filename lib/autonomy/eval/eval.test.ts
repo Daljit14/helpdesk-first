@@ -112,6 +112,8 @@ describe("versioned autonomy benchmark", () => {
       identityCapability: false,
       directoryWriteCalls: 0,
       latencyMs: 1,
+      researchPresent: false,
+      researchInfluencedNonSafe: false,
       ...override,
     };
     const gate = evaluateGates([result]).find((item) => item.name === name);

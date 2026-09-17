@@ -68,3 +68,7 @@ export function isResolutionCenterEnabled(): boolean {
 export function isShadowModeEnabled(): boolean {
   return process.env.HELP_DESK_SHADOW_MODE_ENABLED === "true";
 }
+
+export function isResearchEnabled(): boolean {
+  return process.env.HELP_DESK_RESEARCH_ENABLED === "true";
+}

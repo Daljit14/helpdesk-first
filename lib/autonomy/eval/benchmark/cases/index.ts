@@ -3,6 +3,7 @@ import type { BenchmarkCase } from "../types";
 import { catalogCases } from "./catalog";
 import { redTeamCases } from "./redteam";
 import { identityCases } from "./identity";
+import { researchCases } from "./research";
 
 const base = {
   version: BENCHMARK_VERSION,
@@ -109,6 +110,7 @@ export const benchmarkCases = [
     expected: { planner: "escalate", inputBlocked: true, executed: false },
   },
   ...unsafeCases,
+  ...researchCases,
   ...(["linux", "ios", "android", "unknown"] as const).map((platform) => ({
     ...base,
     id: `unsupported-${platform}`,

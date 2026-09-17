@@ -17,7 +17,7 @@ import { buildHypotheses } from "./hypotheses";
 import { deriveFacts } from "./facts";
 import { redactEvidenceText } from "./redaction";
 import { deriveSafetyWarnings } from "./safety";
-import type { EvidenceRecord } from "./types";
+import type { EvidenceRecord, ResearchEvidence, TestRef } from "./types";
 import type { IdentityEvidence } from "./types";
 
 export type EvidenceInputs = {
@@ -48,6 +48,7 @@ export type EvidenceInputs = {
   }[];
   now?: Date;
   identity?: IdentityEvidence;
+  research?: ResearchEvidence;
 };
 
 function diagnosticAnswers(value: unknown): DiagnosticAnswer[] {
@@ -126,9 +127,39 @@ export function buildEvidence(
     attachments: inputs.attachments,
   });
   const turn = latestTurn(inputs.turns);
+  const researchTests: TestRef[] = (inputs.research?.sources ?? []).flatMap(
+    (source) => {
+      if (
+        source.judgement === "contradicts" ||
+        (source.judgement === "supports" && source.trust === "vendor")
+      ) {
+        return [
+          {
+            id: `${source.hypothesisId ?? "research"}#${source.contentHash}`,
+            kind: "action",
+            summary: source.title,
+            result: source.judgement === "contradicts" ? "rejects" : "supports",
+          },
+        ];
+      }
+      return [];
+    }
+  );
   const hypotheses = buildHypotheses(
     hypothesesFor(inputs.investigation, turn),
+    [...facts.tests, ...researchTests]
+  );
+  const topBeforeResearch = buildHypotheses(
+    hypothesesFor(inputs.investigation, turn),
     facts.tests
+  )[0];
+  const contradictsTopHypothesis = Boolean(
+    topBeforeResearch &&
+    (inputs.research?.sources ?? []).some(
+      (source) =>
+        source.judgement === "contradicts" &&
+        source.hypothesisId === topBeforeResearch.id
+    )
   );
   const missingInformation = [...new Set(facts.missingInformation)];
   if (!context.os) missingInformation.push("operating system");
@@ -164,6 +195,12 @@ export function buildEvidence(
         })),
       ]
     : [];
+  const researchFacts = (inputs.research?.sources ?? []).map((source) => ({
+    id: `research.${source.judgement}:${source.hypothesisId ?? "general"}`,
+    statement: `${source.trust === "vendor" ? "Vendor" : "Community"} source ${source.judgement}: ${source.title}`,
+    source: "external_source" as const,
+    at: source.fetchedAt,
+  }));
   return {
     version: 1,
     generatedAt: now.toISOString(),
@@ -178,7 +215,11 @@ export function buildEvidence(
     },
     attachmentFindings: facts.attachmentFindings,
     qa,
-    confirmedFacts: [...facts.confirmedFacts, ...identityFacts],
+    confirmedFacts: [
+      ...facts.confirmedFacts,
+      ...identityFacts,
+      ...researchFacts,
+    ],
     unknownFacts: facts.unknownFacts,
     hypotheses,
     citations: citationsFor(
@@ -192,5 +233,8 @@ export function buildEvidence(
     }),
     missingInformation: [...new Set(missingInformation)],
     ...(inputs.identity ? { identity: inputs.identity } : {}),
+    ...(inputs.research
+      ? { research: { ...inputs.research, contradictsTopHypothesis } }
+      : {}),
   };
 }

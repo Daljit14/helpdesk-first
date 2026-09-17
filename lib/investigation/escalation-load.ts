@@ -54,6 +54,11 @@ export async function loadEscalationInputs(
     if (actions.error) throw actions.error;
     if (member.error) throw member.error;
     if (attachments.error) throw attachments.error;
+    const external = await admin
+      .from("research_sources")
+      .select("url,domain,title,trust,judgement")
+      .eq("organization_id", organizationId)
+      .eq("ticket_id", ticketId);
 
     return {
       ticket: ticketResult.data as EscalationInputs["ticket"],
@@ -65,6 +70,9 @@ export async function loadEscalationInputs(
       requesterRole:
         typeof member.data?.role === "string" ? member.data.role : null,
       attachmentCount: attachments.count ?? 0,
+      externalResearch: external.error
+        ? []
+        : ((external.data ?? []) as EscalationInputs["externalResearch"]),
     };
   } catch (error) {
     console.error("Failed to load escalation inputs.", error);

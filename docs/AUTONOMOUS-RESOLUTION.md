@@ -1,3 +1,10 @@
+## External research
+
+Optional external research is disabled by default. When enabled for an allow-listed
+identity or network family and a low-confidence diagnosis, deterministic queries may
+consult Tavily or Brave. Results remain untrusted, are guarded before planner input,
+and can only adjust evidence confidence or require consent.
+
 # Autonomous resolution
 
 ## Level 1 identity assistance

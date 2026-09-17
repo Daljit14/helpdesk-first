@@ -1,3 +1,10 @@
+### Enabling external research for one organization
+
+Keep `HELP_DESK_RESEARCH_ENABLED=false` globally until the provider key, budget, and
+family configuration are reviewed. For a pilot, set the provider key and
+`HELP_DESK_RESEARCH_FAMILIES=identity,network`, then use the organization readiness
+card to confirm the provider is configured before enabling the feature.
+
 # Controlled pilot runbook
 
 This runbook enables autonomous execution for one organization only. Do not

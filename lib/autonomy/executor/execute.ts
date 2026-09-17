@@ -114,6 +114,15 @@ async function readEvidence(
   organizationId: string
 ) {
   if (!isEvidenceEngineEnabled()) return null;
+  const snapshot = await admin
+    .from("ticket_investigations")
+    .select("evidence")
+    .eq("ticket_id", ticketId)
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+  if (!snapshot.error && snapshot.data?.evidence) {
+    return snapshot.data.evidence as Awaited<ReturnType<typeof buildEvidence>>;
+  }
   const inputs = await loadEvidenceInputs(admin, ticketId, organizationId);
   return inputs ? buildEvidence(inputs) : null;
 }
@@ -404,6 +413,11 @@ export async function evaluatePlanPolicy(
     capability.id,
     new Date()
   );
+  const evidence = await readEvidence(
+    admin,
+    run.ticket_id,
+    run.organization_id
+  );
   const policyInput = buildPolicyInput({
     capability,
     capabilityEnabled: true,
@@ -413,7 +427,7 @@ export async function evaluatePlanPolicy(
       capability.id
     ),
     breaker: { open: breaker.open || persistedBreaker.open },
-    evidence: await readEvidence(admin, run.ticket_id, run.organization_id),
+    evidence,
     actorRole: "system",
     platform: capabilityPlatform(ticket.platform),
     ticketCategory: ticket.category,
@@ -432,6 +446,8 @@ export async function evaluatePlanPolicy(
     orgPolicy: await readOrgPolicy(admin, run.organization_id),
     capabilityStatus: capabilityStatus(capability),
     plannerDisagreement: false,
+    evidenceContradiction:
+      evidence?.research?.contradictsTopHypothesis ?? false,
   });
   return {
     ok: true,

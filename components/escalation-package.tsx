@@ -224,6 +224,34 @@ export function EscalationPackageCard({
             <Empty />
           )}
         </Block>
+        <Block title="External research">
+          {(pkg.external ?? []).length > 0 ? (
+            <ul className="space-y-2">
+              {(pkg.external ?? []).map((source) => (
+                <li key={`${source.url}-${source.title}`}>
+                  <a
+                    className="underline underline-offset-4"
+                    href={source.url}
+                    target="_blank"
+                    rel="noopener noreferrer nofollow"
+                  >
+                    {source.title}
+                  </a>{" "}
+                  <span className="glass-pill px-2 py-0.5 text-xs">
+                    {source.trust === "vendor"
+                      ? "Vendor docs"
+                      : "Community — unverified"}
+                  </span>{" "}
+                  <span className="text-muted-foreground">
+                    {source.judgement}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <Empty />
+          )}
+        </Block>
       </div>
 
       <Block title="Other hypotheses">

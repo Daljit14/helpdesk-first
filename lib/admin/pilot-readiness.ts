@@ -11,6 +11,7 @@ import { readKillSwitches } from "@/lib/autonomy/kill-switches";
 import { isAlertingConfigured } from "@/lib/autonomy/alerts";
 import { BENCHMARK_VERSION } from "@/lib/autonomy/eval/benchmark/version";
 import { isConnectorKeyValid } from "@/lib/security/connector-key";
+import { getResearchConfig } from "@/lib/autonomy/config";
 
 type Admin = ReturnType<typeof createAdminClient>;
 
@@ -65,6 +66,17 @@ export async function computePilotReadiness(
   const grantEnabled =
     capabilityAllowlist?.includes("grant_group_access") ?? false;
   const items: PilotReadinessItem[] = [
+    {
+      label: "External research",
+      ready:
+        !getResearchConfig().enabled ||
+        (getResearchConfig().provider === "brave"
+          ? Boolean(process.env.BRAVE_SEARCH_API_KEY)
+          : Boolean(process.env.TAVILY_API_KEY)),
+      reason: !getResearchConfig().enabled
+        ? "disabled"
+        : "The configured research provider key must be present.",
+    },
     {
       label: "Guardrails enforced",
       ready: guardrailsEnforced(),

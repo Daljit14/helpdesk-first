@@ -2,6 +2,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { loadInvestigation } from "@/lib/investigation/load";
 import type { EvidenceInputs } from "./build";
 import { loadIdentityEvidence } from "./identity-family";
+import { decryptInvestigationRow } from "@/lib/security/ticket-crypto";
+import { decryptTicketRow } from "@/lib/security/ticket-crypto";
 
 type EvidenceClient = ReturnType<typeof createAdminClient>;
 
@@ -37,6 +39,10 @@ export async function loadEvidenceInputs(
     ]);
     if (stepOutcomes.error) throw stepOutcomes.error;
     if (attachments.error) throw attachments.error;
+    const ticket = await decryptTicketRow(admin, {
+      ...ticketResult.data,
+      organization_id: organizationId,
+    });
     const identity = await loadIdentityEvidence(admin, {
       runId: "",
       ticketId,
@@ -44,11 +50,14 @@ export async function loadEvidenceInputs(
       userId: ticketResult.data.user_id,
       category:
         (ticketResult.data as { category?: string | null }).category ?? null,
-      message: ticketResult.data.message,
+      message: ticket.message,
     });
+    const loadedInvestigation = investigation?.investigation
+      ? await decryptInvestigationRow(admin, investigation.investigation)
+      : null;
     return {
-      ticket: ticketResult.data as EvidenceInputs["ticket"],
-      investigation: investigation?.investigation ?? null,
+      ticket: ticket as EvidenceInputs["ticket"],
+      investigation: loadedInvestigation,
       turns: investigation?.turns ?? [],
       stepOutcomes: (stepOutcomes.data ?? []) as EvidenceInputs["stepOutcomes"],
       attachments: (attachments.data ?? []) as EvidenceInputs["attachments"],

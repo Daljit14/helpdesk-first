@@ -6,6 +6,7 @@ import {
   addUserComment,
   requestHuman,
   verifyTicket,
+  listTicketComments,
 } from "@/app/actions/tickets";
 import { createClient } from "@/lib/supabase/client";
 
@@ -45,14 +46,10 @@ export function TicketConversation({
   useEffect(() => {
     const supabase = createClient();
     const refresh = async () => {
-      const { data } = await supabase
-        .from("ticket_comments")
-        .select("id,message,author_type,created_at")
-        .eq("ticket_id", ticketId)
-        .eq("visibility", "public")
-        .order("created_at", { ascending: true });
-      if (data) setComments(data as Comment[]);
+      const data = await listTicketComments(ticketId);
+      setComments(data);
     };
+    let refreshTimer = 0;
     const channel = supabase
       .channel(`ticket-comments-${ticketId}`)
       .on(
@@ -63,7 +60,10 @@ export function TicketConversation({
           table: "ticket_comments",
           filter: `ticket_id=eq.${ticketId}`,
         },
-        () => void refresh()
+        () => {
+          window.clearTimeout(refreshTimer);
+          refreshTimer = window.setTimeout(() => void refresh(), 300);
+        }
       )
       .on(
         "postgres_changes",
@@ -83,6 +83,7 @@ export function TicketConversation({
     }, 30_000);
     return () => {
       window.clearInterval(timer);
+      window.clearTimeout(refreshTimer);
       supabase.removeChannel(channel);
     };
   }, [router, ticketId, userId]);
@@ -96,14 +97,7 @@ export function TicketConversation({
       setNotice("error" in result ? result.error : "Comment added.");
       if (!("error" in result)) {
         setMessage("");
-        const supabase = createClient();
-        const { data } = await supabase
-          .from("ticket_comments")
-          .select("id,message,author_type,created_at")
-          .eq("ticket_id", ticketId)
-          .eq("visibility", "public")
-          .order("created_at", { ascending: true });
-        if (data) setComments(data as Comment[]);
+        setComments(await listTicketComments(ticketId));
       }
     });
   }

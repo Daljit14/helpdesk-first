@@ -30,6 +30,9 @@ endpoint is treated as an internet-facing AI boundary.
 | SEC-80-02 | high     | Group injection                      | mitigated: strict group IDs and connector allow-list checks in handler, precondition, and gateway | PR #80        |
 | SEC-80-03 | high     | Connector secret exposure            | mitigated: AES-256-GCM application-layer sealing; secrets excluded from public view and events    | PR #80        |
 | SEC-80-04 | medium   | Connector outage                     | mitigated: bounded fetch, timeout, read retry, typed errors, readiness health check, fail closed  | PR #80        |
+| SEC-82-01 | high     | Ticket text at rest                  | mitigated: per-organization AES-256-GCM field encryption with dual-read and bounded backfill      | PR #82        |
+| SEC-82-02 | high     | Cross-org key misuse                 | mitigated: organization/column AAD, organization-scoped key lookup, server-only decryption        | PR #82        |
+| SEC-82-03 | high     | Master-key loss                      | operational risk: rotate KEK/DEKs and retain historical versions for dual-read during recovery    | PR #82        |
 
 ## RLS findings
 

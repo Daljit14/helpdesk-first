@@ -1,5 +1,7 @@
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { decryptTicketRow } from "@/lib/security/ticket-crypto";
 
 type ProgressRow = {
   completed_steps: number[] | null;
@@ -87,10 +89,16 @@ export async function getTickets(
     .from("tickets")
     .select(
       portalEnabled
-        ? "id, issue_id, issue_title, message, status, created_at, attachment_path, resolver_type"
-        : "id, issue_id, issue_title, message, status, created_at, attachment_path"
+        ? "id, organization_id, issue_id, issue_title, message, status, created_at, attachment_path, resolver_type"
+        : "id, organization_id, issue_id, issue_title, message, status, created_at, attachment_path"
     )
     .eq("user_id", userId)
     .order("created_at", { ascending: false });
-  return (data ?? []) as unknown as Ticket[];
+  return Promise.all(
+    (
+      (data ?? []) as unknown as Array<
+        Ticket & { organization_id: string | null }
+      >
+    ).map((row) => decryptTicketRow(createAdminClient(), row))
+  );
 }

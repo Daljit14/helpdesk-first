@@ -19,6 +19,7 @@ import {
   describeTicketStatus,
   ticketReference,
 } from "@/lib/tickets/user-status";
+import { listMyTickets } from "@/app/actions/tickets";
 
 type TicketWithAttachments = Ticket & { attachmentCount?: number };
 type TicketFilter = "all" | "open" | "resolved" | "closed";
@@ -86,19 +87,7 @@ export function TicketsTable({
   useEffect(() => {
     const supabase = createClient();
     const refreshTickets = async () => {
-      const { data, error } = await supabase
-        .from("tickets")
-        .select(
-          portalEnabled
-            ? "id, issue_id, issue_title, message, status, created_at, attachment_path, resolver_type"
-            : "id, issue_id, issue_title, message, status, created_at, attachment_path"
-        )
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false });
-      if (error) {
-        console.warn("Unable to refresh tickets.", error);
-        return;
-      }
+      const data = await listMyTickets();
       let attachmentCounts = new Map<string, number>();
       if (secureAttachmentsEnabled) {
         const { data: attachments } = await supabase
@@ -117,9 +106,8 @@ export function TicketsTable({
           }
         }
       }
-      const refreshedTickets = (data ?? []) as unknown as Ticket[];
       setTickets(
-        refreshedTickets.map((ticket) => ({
+        data.map((ticket) => ({
           ...ticket,
           attachmentCount: attachmentCounts.get(ticket.id) ?? 0,
         }))
@@ -135,23 +123,9 @@ export function TicketsTable({
           table: "tickets",
           filter: `user_id=eq.${userId}`,
         },
-        (payload) => {
-          setTickets((current) => {
-            if (payload.eventType === "DELETE") {
-              const oldRow = payload.old as { id?: string };
-              return current.filter((t) => t.id !== oldRow.id);
-            }
-            const updated = payload.new as Ticket;
-            const exists = current.some((t) => t.id === updated.id);
-            if (exists) {
-              return current.map((t) =>
-                t.id === updated.id
-                  ? { ...updated, attachmentCount: t.attachmentCount }
-                  : t
-              );
-            }
-            return [updated, ...current];
-          });
+        () => {
+          window.clearTimeout(refreshTimer);
+          refreshTimer = window.setTimeout(() => void refreshTickets(), 300);
         }
       )
       .subscribe((status, error) => {
@@ -168,6 +142,7 @@ export function TicketsTable({
       if (document.visibilityState === "visible") void refreshTickets();
     };
     const interval = window.setInterval(poll, 30_000);
+    let refreshTimer = 0;
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") void refreshTickets();
     };
@@ -175,6 +150,7 @@ export function TicketsTable({
 
     return () => {
       window.clearInterval(interval);
+      window.clearTimeout(refreshTimer);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       supabase.removeChannel(channel);
     };

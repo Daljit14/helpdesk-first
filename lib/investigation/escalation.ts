@@ -11,6 +11,7 @@ import { formatHandoffReason } from "@/lib/tickets/routing";
 import { isEvidenceEngineEnabled } from "@/lib/admin/flags";
 import { snapshotEvidence } from "@/lib/evidence/snapshot";
 import type { JudgedSource } from "@/lib/research/types";
+import { encryptInvestigationForWrite } from "@/lib/security/ticket-crypto";
 
 export type EscalationPackage = {
   version: 1;
@@ -360,6 +361,11 @@ export async function snapshotEscalationPackage(
       : ((sourceRows.data ?? []) as EscalationPackage["external"]);
     const packageWithSources = { ...pkg, external };
     const investigation = inputs.investigation;
+    const encrypted = await encryptInvestigationForWrite(
+      admin,
+      organizationId,
+      { escalation_package: packageWithSources }
+    );
     const result = await admin.from("ticket_investigations").upsert(
       {
         ticket_id: ticketId,
@@ -369,7 +375,7 @@ export async function snapshotEscalationPackage(
         hypotheses: investigation?.hypotheses ?? [],
         excluded_steps: investigation?.excluded_steps ?? [],
         status: investigation?.status ?? "escalated",
-        escalation_package: packageWithSources,
+        ...encrypted,
         escalation_package_at: generatedAt.toISOString(),
       },
       { onConflict: "ticket_id" }

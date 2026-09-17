@@ -40,6 +40,10 @@ import { EscalationPackageCard } from "@/components/escalation-package";
 import { formatHandoffReason } from "@/lib/tickets/routing";
 import { isUiV2Enabled } from "@/lib/ui-v2";
 import { AdminBreadcrumbs } from "@/components/admin/v2/breadcrumbs";
+import {
+  decryptCommentRows,
+  decryptTicketRow,
+} from "@/lib/security/ticket-crypto";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -210,7 +214,12 @@ export default async function AdminTicketPage({
     data: TicketPageRow | null;
     error: Error | null;
   };
-  const ticket = rawTicket;
+  const ticket = rawTicket
+    ? await decryptTicketRow(admin, {
+        ...rawTicket,
+        organization_id: session.organizationId,
+      })
+    : null;
   if (error || !ticket) return <TicketAccessDenied />;
   if (workflowEnabled && !canAccessTicket(session, ticket))
     return <TicketAccessDenied />;
@@ -232,7 +241,7 @@ export default async function AdminTicketPage({
         .eq("ticket_id", uuid)
         .order("created_at", { ascending: true })
     : { data: [] };
-  const { data: comments } = workflowEnabled
+  const { data: rawComments } = workflowEnabled
     ? await admin
         .from("ticket_comments")
         .select("id,message,visibility,author_type,created_at")
@@ -240,6 +249,14 @@ export default async function AdminTicketPage({
         .eq("ticket_id", uuid)
         .order("created_at", { ascending: true })
     : { data: [] };
+  const comments = await decryptCommentRows(
+    admin,
+    (rawComments ?? []).map((row) => ({
+      ...row,
+      organization_id: session.organizationId,
+      message: row.message as string | null,
+    }))
+  );
   const { data: actions } = workflowEnabled
     ? await admin
         .from("ticket_actions")

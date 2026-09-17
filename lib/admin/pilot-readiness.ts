@@ -12,6 +12,9 @@ import { isAlertingConfigured } from "@/lib/autonomy/alerts";
 import { BENCHMARK_VERSION } from "@/lib/autonomy/eval/benchmark/version";
 import { isConnectorKeyValid } from "@/lib/security/connector-key";
 import { getResearchConfig } from "@/lib/autonomy/config";
+import { isOrgEncryptionEnabled } from "@/lib/security/data-protection-config";
+import { isMasterKeyValid } from "@/lib/security/master-key";
+import { countPlaintextRowsDetailed } from "@/lib/security/backfill";
 
 type Admin = ReturnType<typeof createAdminClient>;
 
@@ -55,6 +58,26 @@ export async function computePilotReadiness(
       )
     ),
   ]);
+  const encryptionEnabled = isOrgEncryptionEnabled();
+  const encryptionKeyValid = isMasterKeyValid();
+  let plaintextResult: Awaited<
+    ReturnType<typeof countPlaintextRowsDetailed>
+  > | null = null;
+  let plaintextCountError: string | null = null;
+  if (encryptionEnabled && encryptionKeyValid) {
+    try {
+      plaintextResult = await countPlaintextRowsDetailed(admin, organizationId);
+    } catch (error) {
+      plaintextCountError =
+        error instanceof Error && error.message ? error.message : "unknown";
+    }
+  }
+  const plaintextRemaining = plaintextResult
+    ? Object.values(plaintextResult.counts).reduce(
+        (sum, count) => sum + count,
+        0
+      )
+    : 0;
   const connector = process.env.HELP_DESK_CONNECTOR_KEY
     ? await admin
         .from("organization_connectors")
@@ -124,6 +147,21 @@ export async function computePilotReadiness(
       label: "Connector encryption key",
       ready: isConnectorKeyValid(),
       reason: "HELP_DESK_CONNECTOR_KEY must decode to 32 bytes.",
+    },
+    {
+      label: "Data protection",
+      ready:
+        !encryptionEnabled ||
+        (encryptionKeyValid && plaintextCountError === null),
+      reason: !encryptionEnabled
+        ? "disabled"
+        : !encryptionKeyValid
+          ? "HELP_DESK_MASTER_KEY must decode to 32 bytes."
+          : plaintextCountError
+            ? `plaintext count failed: ${plaintextCountError}`
+            : `backfill ${
+                plaintextResult?.truncated ? "1000+" : plaintextRemaining
+              } rows remaining`,
     },
     ...(grantEnabled
       ? [

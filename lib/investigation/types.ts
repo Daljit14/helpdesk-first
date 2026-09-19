@@ -9,6 +9,8 @@ export type InvestigationRow = {
   excluded_steps: StepRef[];
   asked_question_ids?: string[];
   status: "open" | "escalated" | "resolved";
+  evidence?: unknown;
+  evidence_at?: string | null;
   escalation_package: import("./escalation").EscalationPackage | null;
   escalation_package_at: string | null;
   created_at: string;

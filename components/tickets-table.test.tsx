@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   createClient: vi.fn(),
   removeChannel: vi.fn(),
   replace: vi.fn(),
+  listMyTickets: vi.fn(),
   search: "",
 }));
 
@@ -20,6 +21,9 @@ vi.mock("@/lib/supabase/client", () => ({
 }));
 vi.mock("@/lib/supabase/storage", () => ({
   getTicketAttachmentUrl: vi.fn(),
+}));
+vi.mock("@/app/actions/tickets", () => ({
+  listMyTickets: mocks.listMyTickets,
 }));
 vi.mock("next/navigation", () => ({
   usePathname: () => "/tickets",
@@ -67,6 +71,9 @@ describe("TicketsTable", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     setupClient();
+    mocks.listMyTickets.mockResolvedValue([
+      { ...initialTicket, status: "Resolved" },
+    ]);
   });
 
   afterEach(() => {
@@ -77,7 +84,7 @@ describe("TicketsTable", () => {
   });
 
   test("refreshes tickets on the polling interval after realtime failure", async () => {
-    const { builder } = setupClient();
+    setupClient();
     render(<TicketsTable initialTickets={[initialTicket]} userId="user-1" />);
 
     await act(async () => {
@@ -85,14 +92,12 @@ describe("TicketsTable", () => {
       await Promise.resolve();
     });
 
-    expect(builder.order).toHaveBeenCalledWith("created_at", {
-      ascending: false,
-    });
+    expect(mocks.listMyTickets).toHaveBeenCalled();
     expect(screen.getByText("Resolved")).toBeInTheDocument();
   });
 
   test("refreshes tickets when the page becomes visible", async () => {
-    const { builder } = setupClient();
+    setupClient();
     render(<TicketsTable initialTickets={[initialTicket]} userId="user-1" />);
 
     await act(async () => {
@@ -100,7 +105,7 @@ describe("TicketsTable", () => {
       await Promise.resolve();
     });
 
-    expect(builder.order).toHaveBeenCalled();
+    expect(mocks.listMyTickets).toHaveBeenCalled();
   });
 
   test("renders open and previous portal sections with action-needed status", () => {

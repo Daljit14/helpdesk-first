@@ -34,6 +34,7 @@ import {
 } from "@/lib/investigation/escalation";
 import { createKnowledgeDraftForTicket } from "@/lib/knowledge/learning";
 import { credentialPattern } from "@/lib/tickets/scrub";
+import { encryptCommentForWrite } from "@/lib/security/ticket-crypto";
 
 type Result = { error: string } | { success: true };
 const id = z.string().uuid();
@@ -286,7 +287,11 @@ async function addComment(
     author_id: found.session.userId,
     author_type: "employee",
     visibility,
-    message: parsed.data,
+    message: await encryptCommentForWrite(
+      admin,
+      found.session.organizationId,
+      parsed.data
+    ),
   });
   if (result.error) return { error: "Unable to add comment." };
   if (visibility === "public") {

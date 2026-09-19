@@ -21,6 +21,7 @@ import {
 } from "@/lib/tickets/notify";
 import { detectSafetyFlags, routeTicket } from "@/lib/tickets/routing";
 import type { Issue } from "@/lib/issues";
+import { encryptCommentForWrite } from "@/lib/security/ticket-crypto";
 
 export async function triageWorkflowTicket(params: {
   ticketId: string;
@@ -153,7 +154,11 @@ export async function triageWorkflowTicket(params: {
         organization_id: organizationId,
         author_type: "ai",
         visibility: "public",
-        message: `I found an approved guide: ${matched?.title ?? "the recommended guide"}.`,
+        message: await encryptCommentForWrite(
+          admin,
+          organizationId ?? "",
+          `I found an approved guide: ${matched?.title ?? "the recommended guide"}.`
+        ),
       });
     } else {
       const packageSnapshot =

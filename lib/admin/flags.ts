@@ -72,3 +72,7 @@ export function isShadowModeEnabled(): boolean {
 export function isResearchEnabled(): boolean {
   return process.env.HELP_DESK_RESEARCH_ENABLED === "true";
 }
+
+export function isOrgEncryptionEnabled(): boolean {
+  return process.env.HELP_DESK_ORG_ENCRYPTION_ENABLED === "true";
+}

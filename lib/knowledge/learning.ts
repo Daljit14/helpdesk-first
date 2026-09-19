@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getAllIssueSlugs, getIssueBySlug } from "@/lib/search";
 import { ISSUES } from "@/lib/issues";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { decryptTicketRow } from "@/lib/security/ticket-crypto";
 import { isKnowledgeLearningEnabled } from "@/lib/admin/flags";
 import { scrubLearningText } from "@/lib/tickets/scrub";
 import { evaluateLearningEligibility } from "@/lib/knowledge/learning-eligibility";
@@ -378,7 +379,12 @@ export async function generateCandidate(
     .eq("organization_id", organizationId)
     .maybeSingle();
   if (ticketResult.error) throw ticketResult.error;
-  const ticket = ticketResult.data as TicketRow | null;
+  const ticket = ticketResult.data
+    ? await decryptTicketRow(admin, {
+        ...(ticketResult.data as TicketRow),
+        organization_id: organizationId,
+      })
+    : null;
   if (!ticket)
     return { outcome: { kind: "skipped", reason: "ticket_missing" } };
 

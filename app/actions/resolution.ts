@@ -15,6 +15,9 @@ import { completeUserHandoff } from "@/lib/tickets/handoff";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resumeAfterApproval } from "@/lib/autonomy/executor/resume";
 import { createRateLimiter, getRateLimitConfig } from "@/lib/ai/rate-limit";
+import { encryptTicketForWrite } from "@/lib/security/ticket-crypto";
+import { resolveOrganizationForUser } from "@/lib/org/membership";
+import { isOrgEncryptionEnabled } from "@/lib/security/data-protection-config";
 
 type ResolutionActionResult = { error: string };
 const consentLimiter = createRateLimiter(
@@ -127,15 +130,24 @@ export async function startAiTicket(input: {
   if (!issue || !platform) return { error: "Invalid ticket details." };
 
   const supabase = await createClient();
+  const admin = createAdminClient();
+  const organizationId = isOrgEncryptionEnabled()
+    ? (await resolveOrganizationForUser(user.id)).organizationId
+    : null;
   const { data, error } = await supabase
     .from("tickets")
     .insert({
       user_id: user.id,
+      ...(organizationId ? { organization_id: organizationId } : {}),
       issue_id: issue.id,
       issue_title: issue.title,
       category: issue.category,
       platform,
-      message: `Assistant recommended the "${issue.title}" guide.`,
+      message: await encryptTicketForWrite(
+        admin,
+        organizationId ?? "",
+        `Assistant recommended the "${issue.title}" guide.`
+      ),
       status: "In Progress",
       ai_attempted: true,
       ai_attempted_at: new Date().toISOString(),

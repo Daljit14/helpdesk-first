@@ -8,6 +8,7 @@ import {
   isKnowledgeGovernanceEnabled,
   isResolutionCenterEnabled,
   isSecureAttachmentsEnabled,
+  isDeviceAgentEnabled,
 } from "@/lib/admin/flags";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { AdminShell } from "@/components/admin/v2/admin-shell";
@@ -77,6 +78,14 @@ function LegacyAdminLayout({
                       Connectors
                     </Link>
                   )}
+                  {session.role === "org_admin" && isDeviceAgentEnabled() && (
+                    <Link
+                      className="rounded-full px-3 py-2 hover:bg-muted"
+                      href="/admin/devices"
+                    >
+                      Devices
+                    </Link>
+                  )}
                   {session.role === "org_admin" && (
                     <Link
                       className="rounded-full px-3 py-2 hover:bg-muted"
@@ -144,6 +153,7 @@ export default async function AdminLayout({
     knowledgeGovernanceEnabled: isKnowledgeGovernanceEnabled(),
     secureAttachmentsEnabled: isSecureAttachmentsEnabled(),
     resolutionCenterEnabled: isResolutionCenterEnabled(),
+    deviceAgentEnabled: isDeviceAgentEnabled(),
   });
 
   return (

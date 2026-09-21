@@ -76,3 +76,11 @@ export function isResearchEnabled(): boolean {
 export function isOrgEncryptionEnabled(): boolean {
   return process.env.HELP_DESK_ORG_ENCRYPTION_ENABLED === "true";
 }
+
+export function isDeviceAgentEnabled(): boolean {
+  return process.env.HELP_DESK_DEVICE_AGENT_ENABLED === "true";
+}
+
+export function isDeviceExecutionEnabled(): boolean {
+  return process.env.HELP_DESK_DEVICE_EXECUTION_ENABLED === "true";
+}

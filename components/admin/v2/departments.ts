@@ -16,6 +16,7 @@ export type DepartmentFlags = {
   knowledgeGovernanceEnabled: boolean;
   secureAttachmentsEnabled: boolean;
   resolutionCenterEnabled: boolean;
+  deviceAgentEnabled?: boolean;
 };
 
 export function buildDepartments(
@@ -156,6 +157,18 @@ export function buildDepartments(
             available: true,
             keywords: ["integrations", "connections"],
           },
+          ...(flags.deviceAgentEnabled
+            ? [
+                {
+                  id: "devices",
+                  label: "Devices",
+                  href: "/admin/devices",
+                  icon: "laptop",
+                  available: true,
+                  keywords: ["devices", "agent", "diagnostics"],
+                },
+              ]
+            : []),
           {
             id: "settings",
             label: "Settings",

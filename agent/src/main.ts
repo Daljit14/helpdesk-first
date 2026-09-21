@@ -11,8 +11,9 @@ import { postSigned } from "./http";
 import { generateDeviceKeyPair } from "./signer";
 import { configDirectory, loadAgentState, saveAgentState } from "./store";
 import { planShadow } from "./shadow";
+import { AGENT_VERSION } from "./version";
 
-export const AGENT_VERSION = "1.0.0";
+export { AGENT_VERSION };
 
 export function parseArgs(args: string[]): {
   command: string;
@@ -134,5 +135,3 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
   }
   throw new Error("unknown command");
 }
-
-if (process.argv[1]?.endsWith("main.ts")) void main();

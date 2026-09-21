@@ -1,8 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { signRequest } from "./signer";
 import { loadAgentState, loadPrivateKey } from "./store";
-
-const VERSION = "1.0.0";
+import { AGENT_VERSION } from "./version";
 
 export async function postSigned<T>(
   path: string,
@@ -33,7 +32,7 @@ export async function postSigned<T>(
         signal: controller.signal,
         headers: {
           "content-type": "application/json",
-          "user-agent": `helpdesk-agent/${VERSION}`,
+          "user-agent": `helpdesk-agent/${AGENT_VERSION}`,
           "x-hd-device": state.deviceId,
           "x-hd-timestamp": timestamp,
           "x-hd-nonce": nonce,

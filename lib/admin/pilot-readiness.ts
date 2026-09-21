@@ -89,11 +89,17 @@ export async function computePilotReadiness(
       try {
         const devices = await admin
           .from("devices")
-          .select("id", { count: "exact", head: true })
+          .select("id", { count: "exact" })
           .eq("organization_id", organizationId)
-          .eq("status", "active");
-        if (devices.error) throw devices.error;
-        deviceReason = `${devices.count ?? 0} active devices`;
+          .eq("status", "active")
+          .limit(1);
+        if (devices.error || devices.count === null) {
+          deviceReady = false;
+          deviceReason =
+            "active device count unavailable (apply supabase/device-agent.sql)";
+        } else {
+          deviceReason = `${devices.count} active devices`;
+        }
       } catch (error) {
         deviceReady = false;
         deviceReason = `active device count failed: ${

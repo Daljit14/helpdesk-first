@@ -25,7 +25,14 @@ export async function GET(request: Request) {
   if (!authorized(request))
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
-    return NextResponse.json(await backfillEncryption(createAdminClient()));
+    const admin = createAdminClient();
+    const result = await backfillEncryption(admin);
+    const cleanup = await admin
+      .from("device_nonces")
+      .delete()
+      .lt("expires_at", new Date().toISOString());
+    if (cleanup.error) throw cleanup.error;
+    return NextResponse.json(result);
   } catch (error) {
     const dataProtectionError = error instanceof DataProtectionError;
     const code = dataProtectionError ? error.code : "backfill_failed";

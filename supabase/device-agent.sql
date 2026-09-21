@@ -149,7 +149,13 @@ create policy device_shadow_admin_review on public.device_shadow_actions
 revoke all on public.device_enrollment_tokens, public.devices,
   public.device_nonces, public.device_diagnostics, public.device_shadow_actions
   from anon, authenticated;
-grant select on public.devices_public to authenticated;
+grant select (
+  id, organization_id, user_id, device_class, platform, hostname,
+  agent_version, catalog_version, status, enrolled_at, last_seen_at,
+  revoked_at, revoked_by, revoke_reason
+) on public.devices to authenticated;
+grant select on public.device_diagnostics, public.device_shadow_actions
+  to authenticated;
 
 -- Rollback: drop view public.devices_public; drop table public.device_shadow_actions,
 -- device_diagnostics, device_nonces, devices, device_enrollment_tokens;

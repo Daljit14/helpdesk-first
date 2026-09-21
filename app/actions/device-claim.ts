@@ -6,6 +6,12 @@ import { z } from "zod";
 import { getCurrentUser } from "@/lib/supabase/user";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isDeviceAgentEnabled } from "@/lib/admin/flags";
+import { createRateLimiter } from "@/lib/ai/rate-limit";
+
+const claimLimiter = createRateLimiter(
+  { windowMs: 60_000, maxRequests: 10 },
+  "device-claim"
+);
 
 export async function claimDeviceAction(
   code: string,
@@ -14,6 +20,8 @@ export async function claimDeviceAction(
   if (!isDeviceAgentEnabled()) return { error: "Not available." };
   const user = await getCurrentUser();
   if (!user) return { error: "Sign in required." };
+  if (!(await claimLimiter.check(user.id)).allowed)
+    return { error: "Too many claim attempts. Try again later." };
   const parsed = z
     .object({
       code: z.string().regex(/^[a-f0-9]{8}$/),

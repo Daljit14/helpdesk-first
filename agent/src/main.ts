@@ -1,4 +1,5 @@
 import { hostname, platform } from "node:os";
+import { createHash } from "node:crypto";
 import { DEVICE_ACTIONS } from "../../lib/device-agent/catalog";
 import {
   diagnosticsBatchSchema,
@@ -10,6 +11,8 @@ import { postSigned } from "./http";
 import { generateDeviceKeyPair } from "./signer";
 import { configDirectory, loadAgentState, saveAgentState } from "./store";
 import { planShadow } from "./shadow";
+
+export const AGENT_VERSION = "1.0.0";
 
 export function parseArgs(args: string[]): {
   command: string;
@@ -34,7 +37,7 @@ async function enroll(server: string, token: string): Promise<void> {
     method: "POST",
     headers: {
       "content-type": "application/json",
-      "user-agent": "helpdesk-agent/1.0.0",
+      "user-agent": `helpdesk-agent/${AGENT_VERSION}`,
     },
     body: JSON.stringify({
       token,
@@ -45,7 +48,7 @@ async function enroll(server: string, token: string): Promise<void> {
             ? "macos"
             : "linux",
       hostname: hostname(),
-      agentVersion: "1.0.0",
+      agentVersion: AGENT_VERSION,
       publicKey: keys.publicKey,
     }),
     signal: controller.signal,
@@ -76,9 +79,9 @@ async function runLoop(): Promise<void> {
       const heartbeat = await postSigned(
         "/api/agent/heartbeat",
         {
-          agentVersion: "1.0.0",
+          agentVersion: AGENT_VERSION,
           catalogVersion: (await loadAgentState()).catalogVersion,
-          uptimeSec: 0,
+          uptimeSec: Math.floor(process.uptime()),
         },
         (value) => heartbeatResponseSchema.parse(value)
       );
@@ -113,7 +116,7 @@ async function runLoop(): Promise<void> {
 export async function main(args = process.argv.slice(2)): Promise<void> {
   const parsed = parseArgs(args);
   if (parsed.command === "version")
-    return void process.stdout.write("helpdesk-agent 1.0.0\n");
+    return void process.stdout.write(`helpdesk-agent ${AGENT_VERSION}\n`);
   if (parsed.command === "enroll")
     return enroll(parsed.values.server ?? "", parsed.values.token ?? "");
   if (parsed.command === "collect") return collect();
@@ -122,7 +125,6 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
     return void process.stdout.write(`${configDirectory()}\n`);
   if (parsed.command === "claim-code") {
     const state = await loadAgentState();
-    const { createHash } = await import("node:crypto");
     return void process.stdout.write(
       `${state.deviceId.slice(0, 8)} ${createHash("sha256")
         .update(state.deviceId + state.publicKey)

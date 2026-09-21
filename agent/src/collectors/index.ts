@@ -9,6 +9,15 @@ export type Collector = {
   run: (exec: AgentExec) => Promise<DiagnosticRecord>;
 };
 
+export type DiagnosticData = Record<string, string | number | boolean | null>;
+
+export function summaryFromData(data: DiagnosticData): string {
+  return Object.entries(data)
+    .map(([key, value]) => `${key}=${String(value)}`)
+    .join(", ")
+    .slice(0, 512);
+}
+
 export function boundedError(
   kind: DiagnosticKind,
   error: unknown
@@ -26,14 +35,14 @@ export function boundedError(
 
 export function record(
   kind: DiagnosticKind,
-  summary: string,
-  data: Record<string, string | number | boolean | null> = {}
+  data: DiagnosticData,
+  ok = true
 ): DiagnosticRecord {
   return {
     kind,
     collectedAt: new Date().toISOString(),
-    ok: true,
-    summary,
+    ok,
+    summary: summaryFromData(data),
     data,
   };
 }

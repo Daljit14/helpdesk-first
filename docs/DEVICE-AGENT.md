@@ -26,3 +26,25 @@ manifests. Malware quarantine remains excluded until an explicit policy change.
 
 Ed25519 request signing is used instead of mTLS because Vercel cannot terminate
 client-certificate mTLS for this server-to-server transport.
+
+## Structured collectors
+
+The agent persists bounded structured diagnostics, never raw subprocess output:
+
+- `network_status`: `{ adaptersUp, connected }`
+- `dns_resolution`: `{ resolved, failed }`, using Microsoft, Google, and the
+  enrolled server hostname
+- `wifi_status`: `{ connected, ssid }`
+- `vpn_status`: `{ connected, required: false }`
+- `disk_space`: `{ freePercent, freeGb }`
+- `service_status`: statuses only for the catalog allow-list
+- `pending_updates`: `{ available, stuck }`
+- `browser_extensions`: `{ count }`, from current-user Chrome/Edge manifests
+- `security_tool_status`: Windows Defender or macOS Gatekeeper status; Linux
+  reports not applicable
+
+Every parser contains malformed output and command failures. Summaries are
+derived from structured fields and capped at 512 characters. These diagnostics
+can activate deterministic evidence hypotheses, but B1 remains a no-execution
+boundary: all device mutations are shadow-only and execution is blocked until
+B3.

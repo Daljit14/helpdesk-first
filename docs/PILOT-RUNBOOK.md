@@ -100,3 +100,12 @@ the organization paused if evidence is incomplete.
 Set `HELP_DESK_AUTONOMOUS_EXECUTION_ENABLED=false`, keep any automatic pause
 switch enabled, stop new pilot runs, and inspect unresolved runs. Resume only
 after the incident owner confirms the guardrail and verification evidence.
+
+## Device-agent operations
+
+Keep `HELP_DESK_DEVICE_AGENT_ENABLED=false` until enrollment and organization
+ownership are reviewed. When enabled, create a short-lived enrollment token
+from `/admin/devices`, enroll the outbound agent, then have the requester use
+`/devices/claim` with the agent's `claim-code`. Revoke devices immediately when
+lost or compromised. Device execution remains off in B1; diagnostics and
+shadow plans are review-only.

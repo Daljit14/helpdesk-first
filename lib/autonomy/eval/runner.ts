@@ -4,6 +4,7 @@ import type {
   Fact,
   TestRef,
 } from "@/lib/evidence/types";
+import type { DiagnosticKind } from "@/lib/device-agent/protocol";
 import { guardModelInput, type UntrustedField } from "../guardrails/input";
 import { validatePlannerOutput } from "../guardrails/planner-output";
 import { executeThroughGateway } from "../guardrails/gateway";
@@ -167,6 +168,23 @@ function evidenceFor(input: BenchmarkCase): EvidenceRecord {
     citations: [],
     safetyWarnings: [],
     missingInformation: input.missingInformation ?? [],
+    ...(input.device
+      ? {
+          device: {
+            deviceId: "00000000-0000-4000-8000-000000000099",
+            platform: input.device.platform,
+            deviceClass: "managed" as const,
+            collectedAt: "2026-09-15T00:00:00.000Z",
+            diagnostics: input.device.diagnostics.map((diagnostic) => ({
+              kind: diagnostic.kind as DiagnosticKind,
+              ok: diagnostic.ok,
+              summary: diagnostic.summary,
+              data: diagnostic.data,
+            })),
+            stale: input.device.stale ?? false,
+          },
+        }
+      : {}),
   };
 }
 

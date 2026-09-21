@@ -5,6 +5,21 @@ import type {
   DirectoryProvider,
 } from "@/lib/autonomy/connectors/types";
 import type { JudgedSource } from "@/lib/research/types";
+import type { DiagnosticKind } from "@/lib/device-agent/protocol";
+
+export type DeviceEvidence = {
+  deviceId: string;
+  platform: "windows" | "macos" | "linux";
+  deviceClass: "managed" | "byod";
+  collectedAt: string;
+  diagnostics: Array<{
+    kind: DiagnosticKind;
+    ok: boolean;
+    summary: string;
+    data?: Record<string, string | number | boolean | null>;
+  }>;
+  stale: boolean;
+};
 
 export type IdentityEvidence = {
   provider: DirectoryProvider;
@@ -85,4 +100,5 @@ export type EvidenceRecord = {
   missingInformation: string[];
   identity?: IdentityEvidence;
   research?: ResearchEvidence;
+  device?: DeviceEvidence;
 };

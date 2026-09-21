@@ -89,6 +89,28 @@ const research = z
   })
   .strict();
 
+const device = z
+  .object({
+    platform: z.enum(["windows", "macos", "linux"]),
+    stale: z.boolean().optional(),
+    diagnostics: z.array(
+      z
+        .object({
+          kind: z.string(),
+          ok: z.boolean(),
+          summary: z.string(),
+          data: z
+            .record(
+              z.string(),
+              z.union([z.string(), z.number(), z.boolean(), z.null()])
+            )
+            .optional(),
+        })
+        .strict()
+    ),
+  })
+  .strict();
+
 export const benchmarkCaseSchema = z
   .object({
     id: z.string().min(1),
@@ -154,6 +176,7 @@ export const benchmarkCaseSchema = z
       .optional(),
     identity: identity.optional(),
     research: research.optional(),
+    device: device.optional(),
     expected,
   })
   .strict();

@@ -15,17 +15,22 @@ export async function storeDiagnostics(
   const parsed = diagnosticsBatchSchema.parse(batch);
   let ticketId: string | null = null;
   if (parsed.ticketReference && device.user_id) {
-    const ticket = await admin
-      .from("tickets")
-      .select("id")
-      .eq("organization_id", device.organization_id)
-      .eq("user_id", device.user_id)
-      .limit(1000);
-    if (ticket.error) throw ticket.error;
-    const match = (ticket.data as Array<{ id: string }> | null)?.find(
-      (row) => toTicketId(row.id) === parsed.ticketReference
-    );
-    ticketId = match?.id ?? null;
+    const reference = parsed.ticketReference.match(/^TCK-([0-9A-F]{8})$/i);
+    if (reference) {
+      const prefix = reference[1].toLowerCase();
+      const ticket = await admin
+        .from("tickets")
+        .select("id")
+        .eq("organization_id", device.organization_id)
+        .eq("user_id", device.user_id)
+        .ilike("id", `${prefix}%`)
+        .limit(5);
+      if (ticket.error) throw ticket.error;
+      const match = (ticket.data as Array<{ id: string }> | null)?.find(
+        (row) => toTicketId(row.id) === parsed.ticketReference
+      );
+      ticketId = match?.id ?? null;
+    }
   }
   const rows = parsed.records.map((record) => ({
     organization_id: device.organization_id,

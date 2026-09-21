@@ -46,6 +46,9 @@ const expected = z
     researchTrusts: z.array(z.enum(["vendor", "community"])).optional(),
     researchGuardrailEvents: z.number().int().nonnegative().optional(),
     researchParameterLeak: z.boolean().optional(),
+    hypothesisIncludes: z.array(z.string()).optional(),
+    safetyWarningIncludes: z.array(z.string()).optional(),
+    deviceHypothesisConfidenceBelow: z.number().min(0).max(1).optional(),
     executed: z.literal(false),
   })
   .strict();

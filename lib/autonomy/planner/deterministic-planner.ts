@@ -60,6 +60,9 @@ export class DeterministicPlanner implements Planner {
     if (!evidence || evidence.hypotheses.length === 0) {
       return escalate("no_evidence");
     }
+    if (evidence.safetyWarnings.length > 0) {
+      return escalate("safety_warning");
+    }
 
     const text = [
       evidence.description,

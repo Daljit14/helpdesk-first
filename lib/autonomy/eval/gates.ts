@@ -57,6 +57,9 @@ export type EvaluationCaseResult = {
   researchTrusts?: ("vendor" | "community")[];
   researchGuardrailEvents?: number;
   researchParameterLeak?: boolean;
+  hypothesisCauses?: string[];
+  safetyWarnings?: string[];
+  deviceHypothesisConfidence?: number;
   directoryWriteCalls: number;
   latencyMs: number;
 };

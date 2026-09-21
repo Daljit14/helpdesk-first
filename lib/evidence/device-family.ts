@@ -34,7 +34,7 @@ export async function loadDeviceEvidence(
     .eq("organization_id", input.organizationId)
     .eq("device_id", device.data.id)
     .order("collected_at", { ascending: false })
-    .limit(9);
+    .limit(60);
   if (diagnostics.error) return undefined;
   const rows = (diagnostics.data ?? []) as Array<{
     kind: DiagnosticKind;
@@ -43,13 +43,18 @@ export async function loadDeviceEvidence(
     data: Record<string, string | number | boolean | null>;
     collected_at: string;
   }>;
-  const latest = rows[0]?.collected_at ?? new Date(0).toISOString();
+  const latestByKind = new Map<DiagnosticKind, (typeof rows)[number]>();
+  for (const row of rows) {
+    if (!latestByKind.has(row.kind)) latestByKind.set(row.kind, row);
+  }
+  const latestRows = [...latestByKind.values()];
+  const latest = latestRows[0]?.collected_at ?? new Date(0).toISOString();
   return {
     deviceId: device.data.id,
     platform: device.data.platform,
     deviceClass: device.data.device_class,
     collectedAt: latest,
-    diagnostics: rows.map((row) => ({
+    diagnostics: latestRows.map((row) => ({
       kind: row.kind,
       ok: row.ok,
       summary: row.summary,

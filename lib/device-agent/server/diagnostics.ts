@@ -23,7 +23,8 @@ export async function storeDiagnostics(
         .select("id")
         .eq("organization_id", device.organization_id)
         .eq("user_id", device.user_id)
-        .ilike("id", `${prefix}%`)
+        .gte("id", `${prefix}-0000-0000-0000-000000000000`)
+        .lte("id", `${prefix}-ffff-ffff-ffff-ffffffffffff`)
         .limit(5);
       if (ticket.error) throw ticket.error;
       const match = (ticket.data as Array<{ id: string }> | null)?.find(

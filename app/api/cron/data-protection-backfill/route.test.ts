@@ -3,7 +3,15 @@ import { DataProtectionError } from "@/lib/security/field-crypto";
 
 const mocks = vi.hoisted(() => ({
   backfillEncryption: vi.fn(),
-  createAdminClient: vi.fn(() => ({})),
+  cleanup: {
+    error: null,
+    lt: vi.fn(() => ({ error: null })),
+  },
+  createAdminClient: vi.fn(() => ({
+    from: vi.fn(() => ({
+      delete: vi.fn(() => mocks.cleanup),
+    })),
+  })),
 }));
 
 vi.mock("@/lib/security/backfill", () => ({
@@ -35,6 +43,7 @@ describe("data-protection backfill cron", () => {
   test("returns the disabled result", async () => {
     vi.stubEnv("CRON_SECRET", "cron-secret");
     mocks.backfillEncryption.mockResolvedValueOnce({ skipped: "disabled" });
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
 
     const response = await GET(
       new Request("http://localhost/api/cron/data-protection-backfill", {
@@ -43,7 +52,12 @@ describe("data-protection backfill cron", () => {
     );
 
     expect(response.status).toBe(200);
+    expect(error).not.toHaveBeenCalled();
     await expect(response.json()).resolves.toEqual({ skipped: "disabled" });
+    expect(mocks.cleanup.lt).toHaveBeenCalledWith(
+      "expires_at",
+      expect.any(String)
+    );
   });
 
   test("returns 503 for data-protection failures without exposing details", async () => {

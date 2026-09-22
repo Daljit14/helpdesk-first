@@ -17,7 +17,12 @@ import { buildHypotheses } from "./hypotheses";
 import { deriveFacts } from "./facts";
 import { redactEvidenceText } from "./redaction";
 import { deriveSafetyWarnings } from "./safety";
-import type { EvidenceRecord, ResearchEvidence, TestRef } from "./types";
+import type {
+  DeviceEvidence,
+  EvidenceRecord,
+  ResearchEvidence,
+  TestRef,
+} from "./types";
 import type { IdentityEvidence } from "./types";
 
 export type EvidenceInputs = {
@@ -49,6 +54,7 @@ export type EvidenceInputs = {
   now?: Date;
   identity?: IdentityEvidence;
   research?: ResearchEvidence;
+  device?: DeviceEvidence;
 };
 
 function diagnosticAnswers(value: unknown): DiagnosticAnswer[] {
@@ -149,6 +155,51 @@ export function buildEvidence(
     hypothesesFor(inputs.investigation, turn),
     [...facts.tests, ...researchTests]
   );
+  const deviceHypotheses = (inputs.device?.diagnostics ?? []).flatMap(
+    (diagnostic) => {
+      const cause =
+        diagnostic.kind === "dns_resolution" && !diagnostic.ok
+          ? "DNS resolution failing on device"
+          : diagnostic.kind === "wifi_status" &&
+              diagnostic.data?.connected === false
+            ? "Device not connected to Wi-Fi"
+            : diagnostic.kind === "vpn_status" &&
+                diagnostic.data?.connected === false &&
+                diagnostic.data?.required === true
+              ? "VPN disconnected"
+              : diagnostic.kind === "disk_space" &&
+                  typeof diagnostic.data?.freePercent === "number" &&
+                  diagnostic.data.freePercent < 5
+                ? "Disk almost full"
+                : diagnostic.kind === "pending_updates" &&
+                    diagnostic.data?.stuck === true
+                  ? "Stuck OS update"
+                  : diagnostic.kind === "security_tool_status" && !diagnostic.ok
+                    ? "Endpoint protection unhealthy — route to security"
+                    : null;
+      if (!cause) return [];
+      return [
+        {
+          id: `device-${diagnostic.kind}`,
+          cause,
+          guideSlug: null,
+          rawConfidence: inputs.device?.stale ? 0.5 : 0.8,
+          confidence: inputs.device?.stale ? 0.5 : 0.8,
+          explanation: diagnostic.summary,
+          supporting: [
+            {
+              id: `device:${diagnostic.kind}`,
+              kind: "action" as const,
+              summary: diagnostic.summary,
+              result: "supports" as const,
+              at: inputs.device?.collectedAt,
+            },
+          ],
+          rejecting: [],
+        },
+      ];
+    }
+  );
   const topBeforeResearch = buildHypotheses(
     hypothesesFor(inputs.investigation, turn),
     facts.tests
@@ -221,20 +272,29 @@ export function buildEvidence(
       ...researchFacts,
     ],
     unknownFacts: facts.unknownFacts,
-    hypotheses,
+    hypotheses: [...deviceHypotheses, ...hypotheses],
     citations: citationsFor(
       turn?.matched_issue_slug ?? inputs.ticket.issue_id,
       hypothesesFor(inputs.investigation, turn)
     ),
-    safetyWarnings: deriveSafetyWarnings({
-      description: inputs.ticket.message ?? "",
-      redaction,
-      qa: rawAnswers,
-    }),
+    safetyWarnings: [
+      ...deriveSafetyWarnings({
+        description: inputs.ticket.message ?? "",
+        redaction,
+        qa: rawAnswers,
+      }),
+      ...(inputs.device?.diagnostics.some(
+        (diagnostic) =>
+          diagnostic.kind === "security_tool_status" && !diagnostic.ok
+      )
+        ? ["Endpoint protection unhealthy — route to security"]
+        : []),
+    ],
     missingInformation: [...new Set(missingInformation)],
     ...(inputs.identity ? { identity: inputs.identity } : {}),
     ...(inputs.research
       ? { research: { ...inputs.research, contradictsTopHypothesis } }
       : {}),
+    ...(inputs.device ? { device: inputs.device } : {}),
   };
 }

@@ -46,6 +46,9 @@ const expected = z
     researchTrusts: z.array(z.enum(["vendor", "community"])).optional(),
     researchGuardrailEvents: z.number().int().nonnegative().optional(),
     researchParameterLeak: z.boolean().optional(),
+    hypothesisIncludes: z.array(z.string()).optional(),
+    safetyWarningIncludes: z.array(z.string()).optional(),
+    deviceHypothesisConfidenceBelow: z.number().min(0).max(1).optional(),
     executed: z.literal(false),
   })
   .strict();
@@ -86,6 +89,28 @@ const research = z
     enabled: z.boolean().optional(),
     budgetExhausted: z.boolean().optional(),
     familyAllowlisted: z.boolean().optional(),
+  })
+  .strict();
+
+const device = z
+  .object({
+    platform: z.enum(["windows", "macos", "linux"]),
+    stale: z.boolean().optional(),
+    diagnostics: z.array(
+      z
+        .object({
+          kind: z.string(),
+          ok: z.boolean(),
+          summary: z.string(),
+          data: z
+            .record(
+              z.string(),
+              z.union([z.string(), z.number(), z.boolean(), z.null()])
+            )
+            .optional(),
+        })
+        .strict()
+    ),
   })
   .strict();
 
@@ -154,6 +179,7 @@ export const benchmarkCaseSchema = z
       .optional(),
     identity: identity.optional(),
     research: research.optional(),
+    device: device.optional(),
     expected,
   })
   .strict();

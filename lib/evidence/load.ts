@@ -4,6 +4,7 @@ import type { EvidenceInputs } from "./build";
 import { loadIdentityEvidence } from "./identity-family";
 import { decryptInvestigationRow } from "@/lib/security/ticket-crypto";
 import { decryptTicketRow } from "@/lib/security/ticket-crypto";
+import { loadDeviceEvidence } from "./device-family";
 
 type EvidenceClient = ReturnType<typeof createAdminClient>;
 
@@ -22,21 +23,28 @@ export async function loadEvidenceInputs(
     if (ticketResult.error) throw ticketResult.error;
     if (!ticketResult.data) return null;
 
-    const [investigation, stepOutcomes, attachments] = await Promise.all([
-      loadInvestigation(admin, ticketId, organizationId),
-      admin
-        .from("ticket_step_outcomes")
-        .select("guide_slug,step_index,outcome,created_at")
-        .eq("organization_id", organizationId)
-        .eq("ticket_id", ticketId)
-        .order("created_at", { ascending: true }),
-      admin
-        .from("ticket_attachments")
-        .select("id,declared_mime,status,scan_verdict,page_count,width,height")
-        .eq("organization_id", organizationId)
-        .eq("ticket_id", ticketId)
-        .order("created_at", { ascending: true }),
-    ]);
+    const [investigation, stepOutcomes, attachments, device] =
+      await Promise.all([
+        loadInvestigation(admin, ticketId, organizationId),
+        admin
+          .from("ticket_step_outcomes")
+          .select("guide_slug,step_index,outcome,created_at")
+          .eq("organization_id", organizationId)
+          .eq("ticket_id", ticketId)
+          .order("created_at", { ascending: true }),
+        admin
+          .from("ticket_attachments")
+          .select(
+            "id,declared_mime,status,scan_verdict,page_count,width,height"
+          )
+          .eq("organization_id", organizationId)
+          .eq("ticket_id", ticketId)
+          .order("created_at", { ascending: true }),
+        loadDeviceEvidence(admin, {
+          organizationId,
+          requesterUserId: ticketResult.data.user_id,
+        }),
+      ]);
     if (stepOutcomes.error) throw stepOutcomes.error;
     if (attachments.error) throw attachments.error;
     const ticket = await decryptTicketRow(admin, {
@@ -62,6 +70,7 @@ export async function loadEvidenceInputs(
       stepOutcomes: (stepOutcomes.data ?? []) as EvidenceInputs["stepOutcomes"],
       attachments: (attachments.data ?? []) as EvidenceInputs["attachments"],
       ...(identity ? { identity } : {}),
+      ...(device ? { device } : {}),
     };
   } catch (error) {
     console.error("Failed to load evidence inputs.", error);

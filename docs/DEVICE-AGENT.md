@@ -1,0 +1,50 @@
+# Local device agent (Phase B1)
+
+The device agent is an outbound-only Node 20 process. It enrolls with a
+single-use token, generates an Ed25519 keypair locally, and signs every
+subsequent request. The server stores only the public key and rejects stale,
+replayed, unsigned, revoked, or cross-organization requests.
+
+## Threat model
+
+Revoking a device invalidates its key immediately. Nonces are retained for ten
+minutes and timestamps have a five-minute skew window. Enrollment tokens are
+hashed, short-lived, and bounded by use count. The agent never opens an
+inbound port. Responses are schema validated and bounded.
+
+Private keys are stored as mode `0600` PKCS8 PEM in the platform data
+directory. Diagnostics are bounded and redacted before persistence. Device
+actions are a separate catalog, not autonomy capabilities.
+
+## Shadow mode and boundaries
+
+B1 collects diagnostics and records proposed shadow actions only. It never
+executes a device action, and `HELP_DESK_DEVICE_EXECUTION_ENABLED` remains
+blocked until B3. B2 adds dispatch and consent contracts; B3 adds bounded
+execution and verification; B4 adds signed MSI/PKG/DEB packaging and service
+manifests. Malware quarantine remains excluded until an explicit policy change.
+
+Ed25519 request signing is used instead of mTLS because Vercel cannot terminate
+client-certificate mTLS for this server-to-server transport.
+
+## Structured collectors
+
+The agent persists bounded structured diagnostics, never raw subprocess output:
+
+- `network_status`: `{ adaptersUp, connected }`
+- `dns_resolution`: `{ resolved, failed }`, using Microsoft, Google, and the
+  enrolled server hostname
+- `wifi_status`: `{ connected, ssid }`
+- `vpn_status`: `{ connected, required: false }`
+- `disk_space`: `{ freePercent, freeGb }`
+- `service_status`: statuses only for the catalog allow-list
+- `pending_updates`: `{ available, stuck }`
+- `browser_extensions`: `{ count }`, from current-user Chrome/Edge manifests
+- `security_tool_status`: Windows Defender or macOS Gatekeeper status; Linux
+  reports not applicable
+
+Every parser contains malformed output and command failures. Summaries are
+derived from structured fields and capped at 512 characters. These diagnostics
+can activate deterministic evidence hypotheses, but B1 remains a no-execution
+boundary: all device mutations are shadow-only and execution is blocked until
+B3.

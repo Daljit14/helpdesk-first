@@ -6,15 +6,22 @@ vi.mock("@/lib/security/backfill", () => ({
   countPlaintextRowsDetailed: vi.fn(),
 }));
 
-function admin(open = false) {
+function admin(open = false, deviceCount: number | null = 0) {
+  type QueryResult = {
+    data: never[];
+    error: null;
+    count: number | null;
+  };
   const builder = {
     select: vi.fn(() => builder),
     eq: vi.fn(() => builder),
-    then: (resolve: (value: { data: never[]; error: null }) => unknown) =>
+    limit: vi.fn(() => builder),
+    then: (resolve: (value: QueryResult) => unknown) =>
       Promise.resolve(
         resolve({
           data: open ? ([{ state: "open" }] as never[]) : [],
           error: null,
+          count: deviceCount,
         })
       ),
   };
@@ -99,5 +106,19 @@ describe("pilot readiness", () => {
     expect(
       result.items.some((item) => item.label === "Guardrails enforced")
     ).toBe(true);
+  });
+
+  test("blocks when the device count is unavailable", async () => {
+    vi.stubEnv("HELP_DESK_GUARDRAILS_ENFORCED", "true");
+    vi.stubEnv("HELP_DESK_AUTONOMY_ORG_ALLOWLIST", "org-1");
+    vi.stubEnv("HELP_DESK_DEVICE_AGENT_ENABLED", "true");
+
+    const result = await computePilotReadiness(admin(false, null), "org-1");
+    expect(result.items.find((item) => item.label === "Device agent")).toEqual({
+      label: "Device agent",
+      ready: false,
+      reason:
+        "active device count unavailable (apply supabase/device-agent.sql)",
+    });
   });
 });

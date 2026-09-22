@@ -58,3 +58,12 @@ required by the current Next.js rendering. Development adds `'unsafe-eval'`
 for Next tooling; production does not. Server-only Brevo and Anthropic origins
 are intentionally not browser allowances. The required route smoke test found
 no CSP console violations.
+
+## Device-agent review
+
+`HELP_DESK_DEVICE_AGENT_ENABLED` is off by default. Enrollment uses hashed,
+bounded-use tokens and post-enrollment requests use Ed25519 signatures,
+timestamp skew checks, and single-use nonces. `HELP_DESK_DEVICE_EXECUTION_ENABLED`
+must remain false: B1 records diagnostics and shadow plans only. Revoke the
+device and its enrollment token during an incident. Malware quarantine remains
+excluded until an explicit policy change.

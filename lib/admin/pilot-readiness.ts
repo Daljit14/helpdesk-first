@@ -15,6 +15,7 @@ import { getResearchConfig } from "@/lib/autonomy/config";
 import { isOrgEncryptionEnabled } from "@/lib/security/data-protection-config";
 import { isMasterKeyValid } from "@/lib/security/master-key";
 import { countPlaintextRowsDetailed } from "@/lib/security/backfill";
+import { isDeviceAgentEnabled, isDeviceExecutionEnabled } from "./flags";
 
 type Admin = ReturnType<typeof createAdminClient>;
 
@@ -78,6 +79,35 @@ export async function computePilotReadiness(
         0
       )
     : 0;
+  let deviceReady = true;
+  let deviceReason = "disabled";
+  if (isDeviceAgentEnabled()) {
+    if (isDeviceExecutionEnabled()) {
+      deviceReady = false;
+      deviceReason = "device execution is not available before B3";
+    } else {
+      try {
+        const devices = await admin
+          .from("devices")
+          .select("id", { count: "exact" })
+          .eq("organization_id", organizationId)
+          .eq("status", "active")
+          .limit(1);
+        if (devices.error || devices.count === null) {
+          deviceReady = false;
+          deviceReason =
+            "active device count unavailable (apply supabase/device-agent.sql)";
+        } else {
+          deviceReason = `${devices.count} active devices`;
+        }
+      } catch (error) {
+        deviceReady = false;
+        deviceReason = `active device count failed: ${
+          error instanceof Error && error.message ? error.message : "unknown"
+        }`;
+      }
+    }
+  }
   const connector = process.env.HELP_DESK_CONNECTOR_KEY
     ? await admin
         .from("organization_connectors")
@@ -89,6 +119,11 @@ export async function computePilotReadiness(
   const grantEnabled =
     capabilityAllowlist?.includes("grant_group_access") ?? false;
   const items: PilotReadinessItem[] = [
+    {
+      label: "Device agent",
+      ready: deviceReady,
+      reason: deviceReason,
+    },
     {
       label: "External research",
       ready:

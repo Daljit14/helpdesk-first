@@ -4,6 +4,7 @@ import type {
   Fact,
   TestRef,
 } from "@/lib/evidence/types";
+import type { DiagnosticKind } from "@/lib/device-agent/protocol";
 import { guardModelInput, type UntrustedField } from "../guardrails/input";
 import { validatePlannerOutput } from "../guardrails/planner-output";
 import { executeThroughGateway } from "../guardrails/gateway";
@@ -95,6 +96,12 @@ function fieldsFor(input: BenchmarkCase): UntrustedField[] {
       fields.push({ source: "attachment.text", text: attachment.text });
     }
   }
+  for (const diagnostic of input.device?.diagnostics ?? []) {
+    fields.push({
+      source: "event",
+      text: diagnostic.summary,
+    });
+  }
   return fields;
 }
 
@@ -111,6 +118,50 @@ function refs(
 }
 
 function evidenceFor(input: BenchmarkCase): EvidenceRecord {
+  const deviceHypotheses = (input.device?.diagnostics ?? []).flatMap(
+    (diagnostic) => {
+      const cause =
+        diagnostic.kind === "dns_resolution" && !diagnostic.ok
+          ? "DNS resolution failing on device"
+          : diagnostic.kind === "wifi_status" &&
+              diagnostic.data?.connected === false
+            ? "Device not connected to Wi-Fi"
+            : diagnostic.kind === "vpn_status" &&
+                diagnostic.data?.connected === false &&
+                diagnostic.data?.required === true
+              ? "VPN disconnected"
+              : diagnostic.kind === "disk_space" &&
+                  typeof diagnostic.data?.freePercent === "number" &&
+                  diagnostic.data.freePercent < 5
+                ? "Disk almost full"
+                : diagnostic.kind === "pending_updates" &&
+                    diagnostic.data?.stuck === true
+                  ? "Stuck OS update"
+                  : diagnostic.kind === "security_tool_status" && !diagnostic.ok
+                    ? "Endpoint protection unhealthy — route to security"
+                    : null;
+      return cause
+        ? [
+            {
+              id: `device-${diagnostic.kind}`,
+              cause,
+              guideSlug: null,
+              rawConfidence: input.device?.stale ? 0.5 : 0.8,
+              confidence: input.device?.stale ? 0.5 : 0.8,
+              explanation: diagnostic.summary,
+              supporting: [],
+              rejecting: [],
+            },
+          ]
+        : [];
+    }
+  );
+  const deviceSafetyWarnings = (input.device?.diagnostics ?? [])
+    .filter(
+      (diagnostic) =>
+        diagnostic.kind === "security_tool_status" && !diagnostic.ok
+    )
+    .map(() => "Endpoint protection unhealthy — route to security");
   return {
     version: 1,
     generatedAt: "2026-09-15T00:00:00.000Z",
@@ -152,21 +203,41 @@ function evidenceFor(input: BenchmarkCase): EvidenceRecord {
         source: "user_description" as const,
       })),
     unknownFacts: [],
-    hypotheses: input.evidence
-      .filter((fixture) => fixture.kind === "hypothesis")
-      .map((fixture) => ({
-        id: fixture.id,
-        cause: fixture.summary,
-        guideSlug: null,
-        rawConfidence: fixture.confidence,
-        confidence: fixture.confidence,
-        explanation: fixture.summary,
-        supporting: refs(fixture.supporting, "supports"),
-        rejecting: refs(fixture.rejecting, "rejects"),
-      })),
+    hypotheses: [
+      ...deviceHypotheses,
+      ...input.evidence
+        .filter((fixture) => fixture.kind === "hypothesis")
+        .map((fixture) => ({
+          id: fixture.id,
+          cause: fixture.summary,
+          guideSlug: null,
+          rawConfidence: fixture.confidence,
+          confidence: fixture.confidence,
+          explanation: fixture.summary,
+          supporting: refs(fixture.supporting, "supports"),
+          rejecting: refs(fixture.rejecting, "rejects"),
+        })),
+    ],
     citations: [],
-    safetyWarnings: [],
+    safetyWarnings: deviceSafetyWarnings,
     missingInformation: input.missingInformation ?? [],
+    ...(input.device
+      ? {
+          device: {
+            deviceId: "00000000-0000-4000-8000-000000000099",
+            platform: input.device.platform,
+            deviceClass: "managed" as const,
+            collectedAt: "2026-09-15T00:00:00.000Z",
+            diagnostics: input.device.diagnostics.map((diagnostic) => ({
+              kind: diagnostic.kind as DiagnosticKind,
+              ok: diagnostic.ok,
+              summary: diagnostic.summary,
+              data: diagnostic.data,
+            })),
+            stale: input.device.stale ?? false,
+          },
+        }
+      : {}),
   };
 }
 
@@ -522,7 +593,10 @@ async function evaluateCase(
       const candidate = candidateCapability(raw);
       const validation = validatePlannerOutput(raw, {
         runTicketId: harness.ticketId,
-        evidenceIds: input.evidence.map((fixture) => fixture.id),
+        evidenceIds: [
+          ...evidence.confirmedFacts.map((fact) => fact.id),
+          ...evidence.hypotheses.map((hypothesis) => hypothesis.id),
+        ],
         capability: candidate
           ? getCapability(candidate.id, candidate.version)
           : null,
@@ -707,6 +781,11 @@ async function evaluateCase(
     ).filter((row) => row.kind === "guardrail.prompt_injection_detected")
       .length,
     researchParameterLeak,
+    hypothesisCauses: evidence.hypotheses.map((hypothesis) => hypothesis.cause),
+    safetyWarnings: evidence.safetyWarnings,
+    deviceHypothesisConfidence: evidence.hypotheses.find((hypothesis) =>
+      hypothesis.id.startsWith("device-")
+    )?.confidence,
     latencyMs,
   };
 }
@@ -762,6 +841,18 @@ export async function runBenchmark(
         result.researchGuardrailEvents === expected.researchGuardrailEvents) &&
       (expected.researchParameterLeak === undefined ||
         result.researchParameterLeak === expected.researchParameterLeak) &&
+      (expected.hypothesisIncludes === undefined ||
+        expected.hypothesisIncludes.every((value) =>
+          result.hypothesisCauses?.some((cause) => cause.includes(value))
+        )) &&
+      (expected.safetyWarningIncludes === undefined ||
+        expected.safetyWarningIncludes.every((value) =>
+          result.safetyWarnings?.some((warning) => warning.includes(value))
+        )) &&
+      (expected.deviceHypothesisConfidenceBelow === undefined ||
+        (result.deviceHypothesisConfidence !== undefined &&
+          result.deviceHypothesisConfidence <
+            expected.deviceHypothesisConfidenceBelow)) &&
       (expected.gatewayCode === undefined ||
         result.gatewayCode === expected.gatewayCode ||
         (result.gatewayCode === "execution_disabled" &&

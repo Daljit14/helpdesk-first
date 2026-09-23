@@ -58,6 +58,7 @@ export type RunDetail = RunSummary & {
   diagnosis: unknown | null;
   evidenceSummary: unknown | null;
   researchSources: JudgedSourceRow[];
+  deviceJobs: unknown[];
 };
 
 export type JudgedSourceRow = {
@@ -769,6 +770,7 @@ export async function getResolutionRunDetail(
     rollbacks,
     approvals,
     researchSources,
+    deviceJobs,
   ] = await Promise.all([
     admin
       .from("tickets")
@@ -784,6 +786,7 @@ export async function getResolutionRunDetail(
     queryRows(admin, "rollback_runs", session.organizationId, [run.id]),
     queryRows(admin, "approval_requests", session.organizationId, [run.id]),
     queryRows(admin, "research_sources", session.organizationId, [run.id]),
+    queryRows(admin, "device_jobs", session.organizationId, [run.id]),
   ]);
   const ticket = ticketResult.data as RawTicket | null;
   const policyRows = policies;
@@ -816,6 +819,7 @@ export async function getResolutionRunDetail(
       judgement: source.judgement,
       snippet: source.snippet,
     })),
+    deviceJobs,
   };
 }
 

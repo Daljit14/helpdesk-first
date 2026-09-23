@@ -18,3 +18,24 @@ group grants only with user consent and independent verification.
 Connector secrets are AES-256-GCM sealed with `HELP_DESK_CONNECTOR_KEY`.
 Directory results are evidence, not instructions; all execution remains behind
 the capability registry, policy engine, gateway, audit, breaker, and verifier.
+
+## Device jobs
+
+Device capabilities use the same registry, policy, gateway, verification, and
+rollback pipeline. A handler binds each job to its organization, device, run,
+step, capability version, execution, and parameter hash before enqueueing it.
+Agents lease only queued, unexpired jobs for their own device and report
+schema-validated, redacted results.
+
+Read-only jobs collect the required diagnostics. Local-write jobs never mutate
+devices in B2: shadow mode reports what would run and stores a preview snapshot,
+while execute mode reports `unsupported`. `device_job_completed` requires fresh
+post-diagnostics and does not resolve a run from a shadow result. A rollback
+requires the original snapshot hash and enqueues a `rollback` job bound to the
+original job.
+
+Device consent follows three rules: read-only actions never prompt, irreversible
+actions always require user consent, and reversible local-write actions require
+consent unless an organization administrator has preapproved the matching
+device class and category. Global, organization, and capability kill switches
+prevent polling and cancel queued jobs.

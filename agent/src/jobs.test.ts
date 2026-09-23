@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { AgentExec } from "./collectors/index";
 import { createJobRunner, type AgentJob } from "./jobs";
-import type { SnapshotData } from "./executors";
+import type { Executor, SnapshotData } from "./executors";
 
 const now = new Date("2026-09-23T00:00:00.000Z");
 
@@ -10,6 +10,7 @@ function fakeRuntime(options: {
   executionOptIn?: boolean;
   failApply?: boolean;
   snapshot?: SnapshotData | null;
+  executor?: Executor;
 }) {
   const calls: Array<{ file: string; args: string[] }> = [];
   const events: string[] = [];
@@ -32,6 +33,7 @@ function fakeRuntime(options: {
       events.push("snapshot");
     },
     snapshotHash: () => "snapshot-hash",
+    getExecutor: options.executor ? () => options.executor ?? null : undefined,
   });
   return { runner, calls, events };
 }
@@ -156,21 +158,39 @@ describe("agent job execution gates", () => {
   });
 
   it("rejects missing snapshots and irreversible rollbacks", async () => {
+    let applyCalls = 0;
+    let rollbackCalls = 0;
+    const missingExecutor: Executor = {
+      actionId: "device_reset_network_adapter",
+      platform: "linux",
+      snapshot: async () => ({ device: "eth0" }),
+      apply: async () => {
+        applyCalls += 1;
+      },
+      verify: async () => ({ ok: true, summary: "ok" }),
+      rollback: async () => {
+        rollbackCalls += 1;
+      },
+    };
     const missing = fakeRuntime({
       executionEnabled: true,
       executionOptIn: true,
+      executor: missingExecutor,
     });
-    expect(
-      (
-        await missing.runner(
-          job({
-            kind: "rollback",
-            rollbackOf: "00000000-0000-0000-0000-000000000002",
-          }),
-          { executionEnabled: true, now }
-        )
-      ).error
-    ).toBe("snapshot_missing");
+    const missingReport = await missing.runner(
+      job({
+        kind: "rollback",
+        rollbackOf: "00000000-0000-0000-0000-000000000002",
+      }),
+      { executionEnabled: true, now }
+    );
+    expect(missingReport).toMatchObject({
+      status: "failed",
+      error: "snapshot_missing",
+    });
+    expect(missing.calls).toHaveLength(0);
+    expect(applyCalls).toBe(0);
+    expect(rollbackCalls).toBe(0);
     const cleanup = fakeRuntime({
       executionEnabled: true,
       executionOptIn: true,
@@ -188,5 +208,65 @@ describe("agent job execution gates", () => {
         )
       ).error
     ).toBe("irreversible");
+  });
+
+  it("uses non-rollback failure codes for irreversible actions", async () => {
+    const cleanupExecutor: Executor = {
+      actionId: "device_cleanup_temp_files",
+      platform: "linux",
+      snapshot: async () => ({ files: 1 }),
+      apply: async () => {
+        throw new Error("cleanup_failed");
+      },
+      verify: async () => ({
+        ok: false,
+        summary: "cleanup verification failed",
+      }),
+    };
+    const fake = fakeRuntime({
+      executionEnabled: true,
+      executionOptIn: true,
+      executor: cleanupExecutor,
+    });
+    const report = await fake.runner(
+      job({
+        actionId: "device_cleanup_temp_files",
+        snapshotSpec: ["temp_inventory"],
+      }),
+      { executionEnabled: true, now }
+    );
+    expect(report).toMatchObject({
+      status: "failed",
+      error: "apply_failed",
+    });
+    expect(report.output).not.toHaveProperty("rolledBack");
+
+    const verificationExecutor: Executor = {
+      actionId: "device_cleanup_temp_files",
+      platform: "linux",
+      snapshot: async () => ({ files: 1 }),
+      apply: async () => {},
+      verify: async () => ({
+        ok: false,
+        summary: "cleanup verification failed",
+      }),
+    };
+    const verificationFake = fakeRuntime({
+      executionEnabled: true,
+      executionOptIn: true,
+      executor: verificationExecutor,
+    });
+    const verificationReport = await verificationFake.runner(
+      job({
+        actionId: "device_cleanup_temp_files",
+        snapshotSpec: ["temp_inventory"],
+      }),
+      { executionEnabled: true, now }
+    );
+    expect(verificationReport).toMatchObject({
+      status: "failed",
+      error: "verification_failed",
+    });
+    expect(verificationReport.output).not.toHaveProperty("rolledBack");
   });
 });

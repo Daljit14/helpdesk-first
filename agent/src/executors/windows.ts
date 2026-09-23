@@ -1,6 +1,6 @@
 import { tmpdir } from "node:os";
 import { WINDOWS_SERVICE_COMMANDS, type ServiceName } from "../service-maps";
-import type { Executor, SnapshotData } from ".";
+import type { Executor } from ".";
 import { cleanupExecutor } from "./cleanup";
 import {
   requiredString,
@@ -11,6 +11,36 @@ import {
 } from "./shared";
 
 const powershell = ["-NoProfile", "-NonInteractive", "-Command"] as const;
+const SERVICE_COMMAND_PATTERN = /^[A-Za-z0-9_.-]+$/;
+const ADAPTER_NAME_PATTERN = /^[A-Za-z0-9 _().-]{1,64}$/;
+
+if (
+  Object.values(WINDOWS_SERVICE_COMMANDS).some(
+    (command) => !SERVICE_COMMAND_PATTERN.test(command)
+  )
+)
+  throw new Error("invalid_windows_service_command");
+
+function powershellLiteral(value: string, pattern: RegExp, error: string) {
+  if (!pattern.test(value)) throw new Error(error);
+  return `'${value.replaceAll("'", "''")}'`;
+}
+
+function serviceScript(operation: string, command: string): string {
+  return `${operation} -Name ${powershellLiteral(
+    command,
+    SERVICE_COMMAND_PATTERN,
+    "invalid_windows_service_command"
+  )}`;
+}
+
+function adapterScript(name: string): string {
+  return `Restart-NetAdapter -Name ${powershellLiteral(
+    name,
+    ADAPTER_NAME_PATTERN,
+    "adapter_not_found"
+  )}`;
+}
 
 function service(params: Record<string, unknown>): {
   name: ServiceName;
@@ -19,6 +49,11 @@ function service(params: Record<string, unknown>): {
   const name = requiredString(params.serviceName) as ServiceName;
   const command = WINDOWS_SERVICE_COMMANDS[name];
   if (!command) throw new Error("unsupported_on_platform");
+  powershellLiteral(
+    command,
+    SERVICE_COMMAND_PATTERN,
+    "invalid_windows_service_command"
+  );
   return { name, command };
 }
 
@@ -56,7 +91,7 @@ const flushDns: Executor = {
       entries: output.split(/\r?\n/).filter((line) => line.trim()).length,
     };
   },
-  apply: async (exec) => {
+  apply: async (exec, _params, _snapshot) => {
     await exec("ipconfig", ["/flushdns"], { timeoutMs: 30_000 });
   },
   verify: async (exec) => {
@@ -89,18 +124,11 @@ const resetNetworkAdapter: Executor = {
       ipConfig: truncate(ipConfig),
     };
   },
-  apply: async (exec, _params) => {
-    const snapshot = _params.__snapshot;
-    if (!snapshot || typeof snapshot !== "object")
-      throw new Error("snapshot_invalid");
-    const adapterName = snapshotString(snapshot as SnapshotData, "adapterName");
+  apply: async (exec, _params, snapshot) => {
+    const adapterName = snapshotString(snapshot, "adapterName");
     await exec(
       "powershell.exe",
-      [
-        ...powershell,
-        "Restart-NetAdapter -Name $args[0] -Confirm:$false",
-        adapterName,
-      ],
+      [...powershell, `${adapterScript(adapterName)} -Confirm:$false`],
       { timeoutMs: 30_000 }
     );
   },
@@ -116,8 +144,7 @@ const resetNetworkAdapter: Executor = {
       "powershell.exe",
       [
         ...powershell,
-        "Restart-NetAdapter -Name $args[0] -Confirm:$false",
-        snapshotString(snapshot, "adapterName"),
+        `${adapterScript(snapshotString(snapshot, "adapterName"))} -Confirm:$false`,
       ],
       { timeoutMs: 30_000 }
     );
@@ -135,7 +162,7 @@ const resetWifi: Executor = {
       connected: result.data.connected === true,
     };
   },
-  apply: async (exec, params) => {
+  apply: async (exec, params, _snapshot) => {
     const ssid = requiredString(params.ssid);
     await exec("netsh", ["wlan", "disconnect"], { timeoutMs: 30_000 });
     await exec("netsh", ["wlan", "connect", `name=${ssid}`], {
@@ -170,7 +197,7 @@ const restartService: Executor = {
     const { name, command } = service(params);
     const status = await exec(
       "powershell.exe",
-      [...powershell, "(Get-Service -Name $args[0]).Status", command],
+      [...powershell, `(${serviceScript("Get-Service", command)}).Status`],
       { timeoutMs: 30_000 }
     );
     return {
@@ -179,11 +206,11 @@ const restartService: Executor = {
       status: /running/i.test(status) ? "running" : "stopped",
     };
   },
-  apply: async (exec, params) => {
+  apply: async (exec, params, _snapshot) => {
     const { command } = service(params);
     await exec(
       "powershell.exe",
-      [...powershell, "Restart-Service -Name $args[0] -Force", command],
+      [...powershell, `${serviceScript("Restart-Service", command)} -Force`],
       { timeoutMs: 30_000 }
     );
   },
@@ -202,7 +229,7 @@ const restartService: Executor = {
       snapshot.status === "stopped" ? "Stop-Service" : "Start-Service";
     await exec(
       "powershell.exe",
-      [...powershell, `${operation} -Name $args[0]`, command],
+      [...powershell, serviceScript(operation, command)],
       { timeoutMs: 30_000 }
     );
   },

@@ -87,14 +87,24 @@ export function cleanupExecutor(
         freePercentBefore: typeof freePercent === "number" ? freePercent : 0,
       };
     },
-    apply: async () => {
-      for (const file of await findCandidates(roots())) {
+    apply: async (_exec, _params, _snapshot) => {
+      const candidates = await findCandidates(roots());
+      let deleted = 0;
+      let skipped = 0;
+      for (const file of candidates) {
         try {
           await unlink(file.path);
+          deleted += 1;
         } catch {
-          throw new Error("cleanup_failed");
+          skipped += 1;
         }
       }
+      if (
+        candidates.length > 0 &&
+        deleted === 0 &&
+        skipped === candidates.length
+      )
+        throw new Error("cleanup_failed");
     },
     verify: async (exec, _params, before: SnapshotData) => {
       const disk = await runDiagnostic(platform, "disk_space", exec);

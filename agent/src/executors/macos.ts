@@ -1,5 +1,5 @@
 import { MACOS_SERVICE_COMMANDS, type ServiceName } from "../service-maps";
-import type { Executor, SnapshotData } from ".";
+import type { Executor } from ".";
 import { cleanupExecutor } from "./cleanup";
 import {
   requiredString,
@@ -45,7 +45,7 @@ const flushDns: Executor = {
   actionId: "device_flush_dns",
   platform: "macos",
   snapshot: async () => ({ entries: null }),
-  apply: async (exec) => {
+  apply: async (exec, _params, _snapshot) => {
     await exec("dscacheutil", ["-flushcache"], { timeoutMs: 30_000 });
     await exec("killall", ["-HUP", "mDNSResponder"], {
       timeoutMs: 30_000,
@@ -71,11 +71,8 @@ const resetNetworkAdapter: Executor = {
       ipConfig: truncate(await exec("ifconfig", [], { timeoutMs: 30_000 })),
     };
   },
-  apply: async (exec, params) => {
-    const snapshot = params.__snapshot;
-    if (!snapshot || typeof snapshot !== "object")
-      throw new Error("snapshot_invalid");
-    const name = snapshotString(snapshot as SnapshotData, "serviceName");
+  apply: async (exec, _params, snapshot) => {
+    const name = snapshotString(snapshot, "serviceName");
     await exec("networksetup", ["-setnetworkserviceenabled", name, "off"], {
       timeoutMs: 30_000,
     });
@@ -118,12 +115,9 @@ const resetWifi: Executor = {
       wifiDevice: truncate(wifiDevice(hardware)),
     };
   },
-  apply: async (exec, params) => {
+  apply: async (exec, params, snapshot) => {
     const ssid = requiredString(params.ssid);
-    const snapshot = params.__snapshot;
-    if (!snapshot || typeof snapshot !== "object")
-      throw new Error("snapshot_invalid");
-    const device = snapshotString(snapshot as SnapshotData, "wifiDevice");
+    const device = snapshotString(snapshot, "wifiDevice");
     await exec("networksetup", ["-setairportpower", device, "off"], {
       timeoutMs: 30_000,
     });
@@ -175,7 +169,7 @@ const restartService: Executor = {
       status: result.trim() ? "running" : "stopped",
     };
   },
-  apply: async (exec, params) => {
+  apply: async (exec, params, _snapshot) => {
     const { label } = service(params);
     await exec("launchctl", ["kickstart", "-k", `system/${label}`], {
       timeoutMs: 30_000,

@@ -2,7 +2,7 @@ import {
   LINUX_SERVICE_COMMANDS as serviceCommands,
   type ServiceName,
 } from "../service-maps";
-import type { Executor, SnapshotData } from ".";
+import type { Executor } from ".";
 import { cleanupExecutor } from "./cleanup";
 import {
   requiredString,
@@ -39,7 +39,7 @@ const flushDns: Executor = {
   actionId: "device_flush_dns",
   platform: "linux",
   snapshot: async () => ({ entries: null }),
-  apply: async (exec) => {
+  apply: async (exec, _params, _snapshot) => {
     await exec("resolvectl", ["flush-caches"], { timeoutMs: 30_000 });
   },
   verify: async (exec) => {
@@ -68,11 +68,8 @@ const resetNetworkAdapter: Executor = {
       ),
     };
   },
-  apply: async (exec, params) => {
-    const snapshot = params.__snapshot;
-    if (!snapshot || typeof snapshot !== "object")
-      throw new Error("snapshot_invalid");
-    const device = snapshotString(snapshot as SnapshotData, "device");
+  apply: async (exec, _params, snapshot) => {
+    const device = snapshotString(snapshot, "device");
     await exec("nmcli", ["device", "disconnect", device], {
       timeoutMs: 30_000,
     });
@@ -109,7 +106,7 @@ const resetWifi: Executor = {
       connected: result.data.connected === true,
     };
   },
-  apply: async (exec, params) => {
+  apply: async (exec, params, _snapshot) => {
     const ssid = requiredString(params.ssid);
     await exec("nmcli", ["connection", "down", ssid], {
       timeoutMs: 30_000,
@@ -153,7 +150,7 @@ const restartService: Executor = {
       status: /active|running/i.test(status) ? "running" : "stopped",
     };
   },
-  apply: async (exec, params) => {
+  apply: async (exec, params, _snapshot) => {
     const { unit } = service(params);
     await exec("systemctl", ["restart", unit], { timeoutMs: 30_000 });
   },

@@ -11,7 +11,7 @@ import type {
 } from "../../lib/device-agent/protocol";
 import { platformCollectors } from "./collectors";
 import type { AgentExec } from "./collectors/index";
-import { getExecutor, type SnapshotData } from "./executors";
+import { getExecutor, type Executor, type SnapshotData } from "./executors";
 import { loadSnapshot, saveSnapshot, snapshotHash } from "./snapshots";
 import { loadAgentState } from "./store";
 
@@ -29,6 +29,7 @@ type JobRuntime = {
   loadSnapshot: (jobId: string) => Promise<SnapshotData | null>;
   saveSnapshot: (jobId: string, data: SnapshotData) => Promise<void>;
   snapshotHash: (data: SnapshotData) => string;
+  getExecutor?: (actionId: string, platform: DevicePlatform) => Executor | null;
 };
 
 function platformName(): DevicePlatform {
@@ -61,13 +62,6 @@ function errorCode(error: unknown): string {
   return error instanceof Error ? error.message : "executor_failed";
 }
 
-function executorParams(
-  params: Record<string, unknown>,
-  snapshot: SnapshotData
-): Record<string, unknown> {
-  return { ...params, __snapshot: snapshot };
-}
-
 async function collectRequired(
   kinds: readonly DiagnosticRecord["kind"][],
   exec: AgentExec
@@ -87,7 +81,9 @@ async function rollbackAfterFailure(
   params: Record<string, unknown>,
   snapshot: SnapshotData
 ): Promise<boolean> {
-  const executor = getExecutor(actionId, currentPlatform);
+  const executor =
+    runtime.getExecutor?.(actionId, currentPlatform) ??
+    getExecutor(actionId, currentPlatform);
   if (!executor?.rollback) return false;
   try {
     await executor.rollback(runtime.exec, params, snapshot);
@@ -164,7 +160,9 @@ export function createJobRunner(runtime: JobRuntime) {
         error: "execution_disabled_locally",
       };
 
-    const executor = getExecutor(action.id, currentPlatform);
+    const executor =
+      runtime.getExecutor?.(action.id, currentPlatform) ??
+      getExecutor(action.id, currentPlatform);
     if (!executor)
       return { status: "unsupported", output: {}, error: "unknown_action" };
 
@@ -213,11 +211,19 @@ export function createJobRunner(runtime: JobRuntime) {
     }
     await runtime.saveSnapshot(job.id, snapshot);
     const hash = runtime.snapshotHash(snapshot);
-    const params = executorParams(parameters, snapshot);
-
     try {
-      await executor.apply(runtime.exec, params);
+      await executor.apply(runtime.exec, parameters, snapshot);
     } catch {
+      if (action.irreversible || !executor.rollback)
+        return {
+          status: "failed",
+          output: {
+            verified: false,
+            verifySummary: "Apply failed.",
+          },
+          snapshot: { hash, kinds: job.snapshotSpec },
+          error: "apply_failed",
+        };
       const rolledBack = await rollbackAfterFailure(
         runtime,
         action.id,
@@ -249,6 +255,17 @@ export function createJobRunner(runtime: JobRuntime) {
       runtime.exec
     );
     if (!verification.ok) {
+      if (action.irreversible || !executor.rollback)
+        return {
+          status: "failed",
+          output: {
+            verified: false,
+            verifySummary: verification.summary.slice(0, 500),
+          },
+          snapshot: { hash, kinds: job.snapshotSpec },
+          diagnostics,
+          error: "verification_failed",
+        };
       const rolledBack = await rollbackAfterFailure(
         runtime,
         action.id,

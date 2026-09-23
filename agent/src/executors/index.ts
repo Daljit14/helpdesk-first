@@ -14,7 +14,11 @@ export type Executor = {
     exec: AgentExec,
     params: Record<string, unknown>
   ): Promise<SnapshotData>;
-  apply(exec: AgentExec, params: Record<string, unknown>): Promise<void>;
+  apply(
+    exec: AgentExec,
+    params: Record<string, unknown>,
+    snapshot: SnapshotData
+  ): Promise<void>;
   verify(
     exec: AgentExec,
     params: Record<string, unknown>,

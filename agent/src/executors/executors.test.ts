@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { AgentExec } from "../collectors/index";
 import { DEVICE_ACTIONS } from "../../../lib/device-agent/catalog";
+import { WINDOWS_SERVICE_COMMANDS } from "../service-maps";
 import { getExecutor } from ".";
 import { cleanupExecutor } from "./cleanup";
 
@@ -40,8 +41,8 @@ describe("device executors", () => {
     });
     const executor = getExecutor("device_flush_dns", platform);
     expect(executor).not.toBeNull();
-    await executor!.snapshot(fake.exec, {});
-    await executor!.apply(fake.exec, {});
+    const snapshot = await executor!.snapshot(fake.exec, {});
+    await executor!.apply(fake.exec, {}, snapshot);
     expect(fake.calls.map(({ file, args }) => [file, ...args])).toEqual(
       platform === "windows"
         ? [
@@ -75,9 +76,8 @@ describe("device executors", () => {
       const executor = getExecutor("device_reset_network_adapter", platform);
       expect(executor).not.toBeNull();
       const snapshot = await executor!.snapshot(fake.exec, {});
-      const params = { __snapshot: snapshot };
-      await executor!.apply(fake.exec, params);
-      await executor!.rollback?.(fake.exec, params, snapshot);
+      await executor!.apply(fake.exec, {}, snapshot);
+      await executor!.rollback?.(fake.exec, {}, snapshot);
       const calls = fake.calls.map(({ file, args }) => [file, ...args]);
       expect(calls.length).toBeGreaterThanOrEqual(3);
       if (platform === "windows") {
@@ -86,8 +86,7 @@ describe("device executors", () => {
           "-NoProfile",
           "-NonInteractive",
           "-Command",
-          "Restart-NetAdapter -Name $args[0] -Confirm:$false",
-          "Ethernet",
+          "Restart-NetAdapter -Name 'Ethernet' -Confirm:$false",
         ]);
       } else if (platform === "macos") {
         expect(calls.slice(-3)).toEqual([
@@ -104,6 +103,16 @@ describe("device executors", () => {
       }
     }
   );
+
+  it("rejects unsafe Windows adapter names before building PowerShell", async () => {
+    const fake = fakeExec();
+    const executor = getExecutor("device_reset_network_adapter", "windows");
+    expect(executor).not.toBeNull();
+    await expect(
+      executor!.apply(fake.exec, {}, { adapterName: "Ethernet; Write-Host x" })
+    ).rejects.toThrow("adapter_not_found");
+    expect(fake.calls).toHaveLength(0);
+  });
 
   it.each(platforms)(
     "passes Wi-Fi SSID as one argv on %s",
@@ -125,28 +134,47 @@ describe("device executors", () => {
       const executor = getExecutor("device_reset_wifi_profile", platform);
       expect(executor).not.toBeNull();
       const snapshot = await executor!.snapshot(fake.exec, {});
-      await executor!.apply(fake.exec, {
-        ssid: "Office",
-        __snapshot: snapshot,
-      });
+      await executor!.apply(fake.exec, { ssid: "Office" }, snapshot);
       const last = fake.calls.at(-1);
       expect(last?.args.some((arg) => arg.includes("Office"))).toBe(true);
       expect(last?.args.join(" ")).not.toContain("&&");
     }
   );
 
-  it("maps only justified service names and rejects unsupported macOS services", async () => {
+  it("guards Windows service commands and rejects unsupported macOS services", async () => {
+    expect(
+      Object.values(WINDOWS_SERVICE_COMMANDS).every((command) =>
+        /^[A-Za-z0-9_.-]+$/.test(command)
+      )
+    ).toBe(true);
     const fake = fakeExec((file) =>
       file === "launchctl" ? "running" : "active"
     );
     const linux = getExecutor("device_restart_service", "linux");
     expect(linux).not.toBeNull();
-    await linux!.snapshot(fake.exec, { serviceName: "vpn" });
-    await linux!.apply(fake.exec, { serviceName: "vpn" });
+    const linuxSnapshot = await linux!.snapshot(fake.exec, {
+      serviceName: "vpn",
+    });
+    await linux!.apply(fake.exec, { serviceName: "vpn" }, linuxSnapshot);
     expect(fake.calls.slice(-2)).toEqual([
       { file: "systemctl", args: ["is-active", "openvpn"] },
       { file: "systemctl", args: ["restart", "openvpn"] },
     ]);
+    const windows = getExecutor("device_restart_service", "windows");
+    expect(windows).not.toBeNull();
+    const windowsSnapshot = await windows!.snapshot(fake.exec, {
+      serviceName: "vpn",
+    });
+    await windows!.apply(fake.exec, { serviceName: "vpn" }, windowsSnapshot);
+    expect(fake.calls.at(-1)).toEqual({
+      file: "powershell.exe",
+      args: [
+        "-NoProfile",
+        "-NonInteractive",
+        "-Command",
+        "Restart-Service -Name 'RasMan' -Force",
+      ],
+    });
     const mac = getExecutor("device_restart_service", "macos");
     await expect(
       mac!.snapshot(fake.exec, { serviceName: "vpn" })
@@ -164,7 +192,7 @@ describe("device executors", () => {
     const fake = fakeExec(() => "filesystem 100 50 50 50%");
     const snapshot = await executor.snapshot(fake.exec, {});
     expect(snapshot).toMatchObject({ files: 1, bytes: 3 });
-    await executor.apply(fake.exec, {});
+    await executor.apply(fake.exec, {}, snapshot);
     await expect(
       import("node:fs/promises").then(({ stat }) => stat(file))
     ).rejects.toThrow();

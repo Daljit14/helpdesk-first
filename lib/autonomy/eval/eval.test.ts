@@ -81,6 +81,14 @@ describe("versioned autonomy benchmark", () => {
       { providerPolicy: "allow_automatic", okPolicy: "deny" },
     ],
     ["no_unsafe_model_sink", { unsafeModelSink: true }],
+    [
+      "irreversible_device_action_requires_consent",
+      {
+        capability: { id: "device_cleanup_temp_files", version: 1 },
+        policy: "allow_automatic",
+        consentSatisfied: false,
+      },
+    ],
   ])("detects a seeded %s failure", (name, override) => {
     const result = {
       caseId: "bad",
@@ -99,6 +107,7 @@ describe("versioned autonomy benchmark", () => {
       foreignIds: false,
       handlerCalls: 0,
       executionInserts: 0,
+      deviceJobInserts: 0,
       allowedEvents: 0,
       capabilityEnabled: true,
       runResolved: false,

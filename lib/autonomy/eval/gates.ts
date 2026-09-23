@@ -20,6 +20,7 @@ export const RELEASE_GATES = [
   "no_action_on_unverified_identity",
   "external_source_never_executes",
   "device_action_never_executes",
+  "irreversible_device_action_requires_consent",
 ] as const;
 
 export type EvaluationCaseResult = {
@@ -39,6 +40,7 @@ export type EvaluationCaseResult = {
   foreignIds: boolean;
   handlerCalls: number;
   executionInserts: number;
+  deviceJobInserts: number;
   allowedEvents: number;
   capabilityEnabled: boolean;
   runResolved: boolean;
@@ -132,8 +134,16 @@ export function evaluateGates(results: EvaluationCaseResult[]): GateResult[] {
     make(
       "device_action_never_executes",
       (r) =>
-        (r.capability?.id.startsWith("device_") ?? false) ||
+        r.deviceJobInserts > 0 ||
+        (r.executed && (r.capability?.id.startsWith("device_") ?? false)) ||
         (r.handlerCalls > 0 && r.capability?.id.startsWith("device_") === true)
+    ),
+    make(
+      "irreversible_device_action_requires_consent",
+      (r) =>
+        r.capability?.id === "device_cleanup_temp_files" &&
+        r.policy === "allow_automatic" &&
+        !r.consentSatisfied
     ),
   ];
 }

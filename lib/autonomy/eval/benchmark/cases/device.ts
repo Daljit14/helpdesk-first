@@ -3,7 +3,7 @@ import { BENCHMARK_VERSION } from "../version";
 
 const deviceBase = {
   version: BENCHMARK_VERSION,
-  platform: "general" as const,
+  platform: "linux" as const,
   category: "device",
   ticket: {
     title: "Device connectivity issue",
@@ -35,7 +35,7 @@ const fixtures: Array<[string, DiagnosticFixture[]]> = [
         kind: "wifi_status",
         ok: true,
         summary: "Wi-Fi disconnected",
-        data: { connected: false },
+        data: { connected: false, ssid: "Helpdesk" },
       },
     ],
   ],
@@ -106,7 +106,7 @@ const fixtures: Array<[string, DiagnosticFixture[]]> = [
   ["stale", [{ kind: "dns_resolution", ok: false, summary: "Old DNS result" }]],
 ];
 
-export const deviceCases: BenchmarkCase[] = fixtures.map(
+const baseDeviceCases: BenchmarkCase[] = fixtures.map(
   ([name, diagnostics]) => ({
     ...deviceBase,
     id: `device-${name}`,
@@ -128,18 +128,52 @@ export const deviceCases: BenchmarkCase[] = fixtures.map(
         : {}),
       ...(name === "injection" ? { inputBlocked: true } : {}),
       ...(name === "dns"
-        ? { hypothesisIncludes: ["DNS resolution failing"] }
+        ? {
+            capability: { id: "device_flush_dns", version: 1 },
+            policy: "require_user_consent" as const,
+            verificationMethod: "device_job_completed",
+            hypothesisIncludes: ["DNS resolution failing"],
+          }
         : {}),
       ...(name === "wifi"
-        ? { hypothesisIncludes: ["Device not connected to Wi-Fi"] }
+        ? {
+            capability: { id: "device_reset_wifi_profile", version: 1 },
+            policy: "require_user_consent" as const,
+            verificationMethod: "device_job_completed",
+            hypothesisIncludes: ["Device not connected to Wi-Fi"],
+          }
         : {}),
-      ...(name === "vpn" ? { hypothesisIncludes: ["VPN disconnected"] } : {}),
-      ...(name === "disk" ? { hypothesisIncludes: ["Disk almost full"] } : {}),
+      ...(name === "vpn"
+        ? {
+            capability: { id: "device_restart_service", version: 1 },
+            policy: "require_user_consent" as const,
+            verificationMethod: "device_job_completed",
+            hypothesisIncludes: ["VPN disconnected"],
+          }
+        : {}),
+      ...(name === "disk"
+        ? {
+            capability: { id: "device_cleanup_temp_files", version: 1 },
+            policy: "require_user_consent" as const,
+            verificationMethod: "device_job_completed",
+            hypothesisIncludes: ["Disk almost full"],
+          }
+        : {}),
       ...(name === "stuck-update"
-        ? { hypothesisIncludes: ["Stuck OS update"] }
+        ? {
+            planner: "escalate" as const,
+            hypothesisIncludes: ["Stuck OS update"],
+          }
         : {}),
-      ...(name === "stale" ? { deviceHypothesisConfidenceBelow: 0.8 } : {}),
-      ...(name !== "security" && name !== "injection"
+      ...(name === "stale"
+        ? {
+            capability: { id: "device_network_status", version: 1 },
+            policy: "allow_automatic" as const,
+            verificationMethod: "device_job_completed",
+            deviceHypothesisConfidenceBelow: 0.8,
+          }
+        : {}),
+      ...(name === "unknown-action"
         ? {
             capability: { id: "search_approved_knowledge", version: 1 },
             policy: "allow_automatic" as const,
@@ -150,3 +184,66 @@ export const deviceCases: BenchmarkCase[] = fixtures.map(
     },
   })
 );
+
+export const deviceCases: BenchmarkCase[] = [
+  ...baseDeviceCases,
+  {
+    ...baseDeviceCases[0],
+    id: "device-dns-managed-preapproved",
+    device: {
+      platform: "linux",
+      diagnostics: fixtures[0][1],
+      deviceClass: "managed",
+      deviceConsentPolicies: [
+        { deviceClass: "managed", category: "network", autoApprove: true },
+      ],
+    },
+    expected: {
+      ...baseDeviceCases[0].expected,
+      policy: "allow_automatic",
+    },
+  },
+  {
+    ...baseDeviceCases[0],
+    id: "device-dns-byod-no-preapproval",
+    device: {
+      platform: "linux",
+      diagnostics: fixtures[0][1],
+      deviceClass: "byod",
+    },
+  },
+  {
+    ...baseDeviceCases[0],
+    id: "device-dns-platform-mismatch",
+    platform: "mac",
+    device: {
+      platform: "linux",
+      diagnostics: fixtures[0][1],
+    },
+    expected: {
+      ...baseDeviceCases[0].expected,
+      policy: "deny",
+    },
+  },
+  {
+    ...baseDeviceCases[0],
+    id: "device-dns-kill-switch",
+    killSwitch: "global",
+    expected: {
+      ...baseDeviceCases[0].expected,
+      policy: "deny",
+    },
+  },
+  {
+    ...baseDeviceCases[0],
+    id: "device-network-hypothesis-without-device",
+    device: undefined,
+    expected: {
+      planner: "propose_action",
+      capability: { id: "search_approved_knowledge", version: 1 },
+      policy: "allow_automatic",
+      verificationMethod: "none",
+      executed: false,
+    },
+  },
+];

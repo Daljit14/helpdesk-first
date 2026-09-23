@@ -5,6 +5,7 @@ import type {
   TestRef,
 } from "@/lib/evidence/types";
 import type { DiagnosticKind } from "@/lib/device-agent/protocol";
+import { getDeviceAction } from "@/lib/device-agent/catalog";
 import { guardModelInput, type UntrustedField } from "../guardrails/input";
 import { validatePlannerOutput } from "../guardrails/planner-output";
 import { executeThroughGateway } from "../guardrails/gateway";
@@ -366,6 +367,28 @@ function policyFor(
       consentSatisfied: false,
     };
   }
+  if (
+    capabilityId.startsWith("device_") &&
+    input.device &&
+    capabilityPlatform(input.platform) !== null &&
+    evidencePlatformMap[input.platform] !==
+      (
+        {
+          windows: "Windows",
+          macos: "macOS",
+          linux: "Linux",
+        } as const
+      )[input.device.platform]
+  ) {
+    return {
+      decision: "deny",
+      reasons: ["platform_unsupported"],
+      policyVersion: "benchmark",
+      auditLabel: "Denied",
+      userLabel: "Unsupported platform",
+      consentSatisfied: false,
+    };
+  }
   return decidePolicy(
     buildPolicyInput({
       capability,
@@ -395,6 +418,29 @@ function policyFor(
       capabilityStatus: capabilityStatus(capability),
       evidenceContradiction:
         evidence.research?.contradictsTopHypothesis ?? false,
+      ...(capabilityId.startsWith("device_")
+        ? (() => {
+            const action = getDeviceAction(capabilityId, capabilityVersion);
+            if (!action) return {};
+            const deviceClass = input.device?.deviceClass ?? "managed";
+            const preApproved =
+              input.device?.deviceConsentPolicies?.some(
+                (policy) =>
+                  policy.deviceClass === deviceClass &&
+                  policy.category === action.category &&
+                  policy.autoApprove
+              ) ?? false;
+            return {
+              device: {
+                category: action.category,
+                deviceClass,
+                reversible: action.reversible,
+                irreversible: action.irreversible,
+                preApproved,
+              },
+            };
+          })()
+        : {}),
     })
   );
 }
@@ -713,6 +759,7 @@ async function evaluateCase(
     foreignIds,
     handlerCalls: harness.handlerCalls,
     executionInserts: harness.admin.executionInserts,
+    deviceJobInserts: harness.admin.deviceJobInserts,
     allowedEvents: harness.admin.allowedEvents,
     capabilityEnabled: capability
       ? capabilityStatus(

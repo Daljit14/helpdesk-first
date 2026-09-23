@@ -167,6 +167,58 @@ describe("computeResolutionMetrics", () => {
 });
 
 describe("Resolution Center organization boundaries", () => {
+  test("adds device hostname and preserves id fallback data", async () => {
+    const from = vi.fn((table: string) => {
+      if (table === "resolution_runs")
+        return createQuery([
+          {
+            id: "run-1",
+            organization_id: "org-1",
+            ticket_id: "ticket-1",
+            status: "queued",
+            attempts: 0,
+            max_attempts: 3,
+            cost_cents: 0,
+            budget_cents: 10,
+            created_at: "2026-01-01T00:00:00.000Z",
+            updated_at: "2026-01-01T00:00:00.000Z",
+            completed_at: null,
+            escalation_reason: null,
+            initiated_by: "ai",
+          },
+        ]);
+      if (table === "tickets")
+        return createQuery([
+          {
+            id: "ticket-1",
+            issue_title: "Network issue",
+            status: "Open",
+            escalation_package: null,
+          },
+        ]);
+      if (table === "device_jobs")
+        return createQuery([{ device_id: "device-1" }]);
+      if (table === "devices_public")
+        return createQuery([{ id: "device-1", hostname: "laptop-1" }]);
+      return createQuery([]);
+    });
+    supabaseMocks.createAdminClient.mockReturnValue({ from });
+    const result = await getResolutionRunDetail(
+      {
+        userId: "user-1",
+        email: "agent@example.com",
+        role: "support_agent",
+        organizationId: "org-1",
+        displayName: null,
+        isPlatformAdmin: false,
+      },
+      "run-1"
+    );
+    expect(result?.deviceJobs).toEqual([
+      { device_id: "device-1", device_hostname: "laptop-1" },
+    ]);
+  });
+
   test("scopes shadow overview to the organization", async () => {
     const query = createQuery([]);
     supabaseMocks.createAdminClient.mockReturnValue({

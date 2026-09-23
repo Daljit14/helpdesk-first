@@ -3,6 +3,7 @@ import { DataProtectionError } from "@/lib/security/field-crypto";
 
 const mocks = vi.hoisted(() => ({
   backfillEncryption: vi.fn(),
+  expireStaleJobs: vi.fn(),
   cleanup: {
     error: null,
     lt: vi.fn(() => ({ error: null })),
@@ -19,6 +20,9 @@ vi.mock("@/lib/security/backfill", () => ({
 }));
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: mocks.createAdminClient,
+}));
+vi.mock("@/lib/device-agent/server/jobs", () => ({
+  expireStaleJobs: mocks.expireStaleJobs,
 }));
 
 import { GET } from "./route";
@@ -43,6 +47,7 @@ describe("data-protection backfill cron", () => {
   test("returns the disabled result", async () => {
     vi.stubEnv("CRON_SECRET", "cron-secret");
     mocks.backfillEncryption.mockResolvedValueOnce({ skipped: "disabled" });
+    mocks.expireStaleJobs.mockResolvedValueOnce({ expired: 2 });
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
 
     const response = await GET(
@@ -58,6 +63,7 @@ describe("data-protection backfill cron", () => {
       "expires_at",
       expect.any(String)
     );
+    expect(mocks.expireStaleJobs).toHaveBeenCalledTimes(1);
   });
 
   test("returns 503 for data-protection failures without exposing details", async () => {

@@ -171,8 +171,9 @@ export default async function ResolutionRunPage({
                       {String(job.mode ?? "—")} · {String(job.status ?? "—")}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      Device: {String(job.device_id ?? "—")} · Snapshot:{" "}
-                      {String(job.snapshot_hash ?? "—")} · Reported:{" "}
+                      Device:{" "}
+                      {String(job.device_hostname ?? job.device_id ?? "—")} ·
+                      Snapshot: {String(job.snapshot_hash ?? "—")} · Reported:{" "}
                       {String(job.reported_at ?? "—")}
                     </p>
                     {typeof job.error === "string" && (

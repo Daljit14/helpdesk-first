@@ -788,6 +788,31 @@ export async function getResolutionRunDetail(
     queryRows(admin, "research_sources", session.organizationId, [run.id]),
     queryRows(admin, "device_jobs", session.organizationId, [run.id]),
   ]);
+  const deviceIds = (deviceJobs as Record<string, unknown>[])
+    .map((job) => (typeof job.device_id === "string" ? job.device_id : null))
+    .filter((id): id is string => id !== null);
+  const deviceResult =
+    deviceIds.length > 0
+      ? await admin
+          .from("devices_public")
+          .select("id,hostname")
+          .eq("organization_id", session.organizationId)
+          .in("id", deviceIds)
+      : { data: [], error: null };
+  const hostnames = new Map(
+    ((deviceResult.data ?? []) as { id?: string; hostname?: string | null }[])
+      .filter((device) => typeof device.id === "string")
+      .map((device) => [device.id as string, device.hostname ?? null])
+  );
+  const deviceJobsWithHostnames = (deviceJobs as Record<string, unknown>[]).map(
+    (job) => ({
+      ...job,
+      device_hostname:
+        typeof job.device_id === "string"
+          ? (hostnames.get(job.device_id) ?? null)
+          : null,
+    })
+  );
   const ticket = ticketResult.data as RawTicket | null;
   const policyRows = policies;
   const runSummary = summary(
@@ -819,7 +844,7 @@ export async function getResolutionRunDetail(
       judgement: source.judgement,
       snippet: source.snippet,
     })),
-    deviceJobs,
+    deviceJobs: deviceJobsWithHostnames,
   };
 }
 

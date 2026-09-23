@@ -102,7 +102,7 @@ describe("Supabase RLS coverage", () => {
       /create or replace view public\.devices_public\s+with \(security_invoker = true\)/i
     );
     expect(deviceAgent).toMatch(
-      /revoke all on public\.devices_public from public, anon;/i
+      /revoke all on public\.devices_public from public, anon, authenticated;/i
     );
     expect(deviceAgent).toMatch(
       /grant select on public\.devices_public to authenticated, service_role;/i

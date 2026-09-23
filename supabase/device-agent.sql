@@ -81,7 +81,7 @@ select id, organization_id, user_id, device_class, platform, hostname,
        revoked_at, revoked_by, revoke_reason
 from public.devices;
 
-revoke all on public.devices_public from public, anon;
+revoke all on public.devices_public from public, anon, authenticated;
 grant select on public.devices_public to authenticated, service_role;
 
 create or replace function public.device_diagnostics_append_only()

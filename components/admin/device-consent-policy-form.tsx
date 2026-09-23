@@ -23,6 +23,7 @@ export function DeviceConsentPolicyForm({
         disabled={pending}
         onChange={(event) => {
           const value = event.target.checked;
+          const previous = checked;
           setChecked(value);
           startTransition(async () => {
             const result = await upsertDeviceConsentPolicyAction({
@@ -30,9 +31,13 @@ export function DeviceConsentPolicyForm({
               category,
               autoApprove: value,
             });
-            setMessage(
-              "error" in result ? (result.error ?? "Failed") : "Saved"
-            );
+            if ("error" in result) {
+              setChecked(previous);
+              setMessage(result.error ?? "Failed");
+            } else {
+              setChecked(value);
+              setMessage("Saved");
+            }
           });
         }}
       />

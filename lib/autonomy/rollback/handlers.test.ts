@@ -1,5 +1,6 @@
 import { describe, expect, test, vi } from "vitest";
 import { getRollbackHandler } from "./handlers";
+import { DEVICE_ACTIONS } from "@/lib/device-agent/catalog";
 
 function admin() {
   const inserts: unknown[] = [];
@@ -45,5 +46,15 @@ describe("rollback handlers", () => {
 
   test("does not register unsupported capabilities", () => {
     expect(getRollbackHandler("search_approved_knowledge", 1)).toBeNull();
+  });
+
+  test("registers snapshot rollback for every catalog action with snapshots", () => {
+    for (const action of DEVICE_ACTIONS.filter(
+      (candidate) => candidate.snapshotSpec.length > 0
+    )) {
+      expect(getRollbackHandler(action.id, action.version)).toMatchObject({
+        method: "handler:device_restore_snapshot",
+      });
+    }
   });
 });

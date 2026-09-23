@@ -1,4 +1,5 @@
 import { isMoreRestrictive } from "../policy/types";
+import { getDeviceAction } from "@/lib/device-agent/catalog";
 
 export type GateResult = {
   name: string;
@@ -141,8 +142,10 @@ export function evaluateGates(results: EvaluationCaseResult[]): GateResult[] {
     make(
       "irreversible_device_action_requires_consent",
       (r) =>
-        r.capability?.id === "device_cleanup_temp_files" &&
-        r.policy === "allow_automatic" &&
+        r.capability !== null &&
+        getDeviceAction(r.capability.id, r.capability.version)?.irreversible ===
+          true &&
+        r.policy !== "require_user_consent" &&
         !r.consentSatisfied
     ),
   ];

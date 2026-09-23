@@ -380,6 +380,10 @@ const deviceJobCompleted: Verifier = {
     };
     const action = getDeviceAction(job.action_id, job.action_version);
     if (!action) return informational("failed", { reason: "unknown_action" });
+    if (job.status === "queued" || job.status === "leased")
+      return informational("inconclusive", { status: job.status });
+    if (["expired", "failed", "unsupported", "cancelled"].includes(job.status))
+      return informational("failed", { status: job.status });
     const diagnostics = await ctx.admin
       .from("device_diagnostics")
       .select("kind,collected_at")
@@ -394,10 +398,6 @@ const deviceJobCompleted: Verifier = {
       return informational("inconclusive", {
         reason: "post_diagnostics_missing",
       });
-    if (job.status === "queued" || job.status === "leased")
-      return informational("inconclusive", { status: job.status });
-    if (["expired", "failed", "unsupported", "cancelled"].includes(job.status))
-      return informational("failed", { status: job.status });
     if (job.status === "shadowed")
       return informational("passed", { mode: "shadow", wouldRun: true });
     if (job.status === "succeeded" && action.sideEffects === "read_only")

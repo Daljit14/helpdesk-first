@@ -1,4 +1,4 @@
-import { getDeviceAction } from "@/lib/device-agent/catalog";
+import { DEVICE_ACTIONS } from "@/lib/device-agent/catalog";
 import {
   enqueueDeviceJob,
   findDeviceForTicket,
@@ -10,7 +10,7 @@ function failed(error: string): HandlerResult {
 }
 
 export function deviceHandlers(): CapabilityHandler[] {
-  return getDeviceActionList().map((action) => ({
+  return DEVICE_ACTIONS.map((action) => ({
     capabilityId: action.id,
     version: action.version,
     async run(ctx, params) {
@@ -62,25 +62,4 @@ export function deviceHandlers(): CapabilityHandler[] {
       };
     },
   }));
-}
-
-function getDeviceActionList() {
-  return [
-    "device_network_status",
-    "device_dns_resolution_test",
-    "device_wifi_status",
-    "device_vpn_client_status",
-    "device_disk_space_check",
-    "device_pending_updates_check",
-    "device_service_status",
-    "device_browser_extensions_list",
-    "device_security_tool_status",
-    "device_flush_dns",
-    "device_reset_network_adapter",
-    "device_reset_wifi_profile",
-    "device_restart_service",
-    "device_cleanup_temp_files",
-  ]
-    .map((id) => getDeviceAction(id, 1))
-    .filter((action) => action !== null);
 }

@@ -290,6 +290,63 @@ describe("decidePolicy", () => {
     expect(result.reasons).toContain("user_consent_active");
   });
 
+  test("device consent reasons fall through to existing policy safeguards", () => {
+    const conflicting = decidePolicy(
+      input({
+        device: {
+          category: "network",
+          deviceClass: "managed",
+          reversible: true,
+          irreversible: false,
+          preApproved: true,
+        },
+        conflictingEvidence: true,
+      })
+    );
+    expect(conflicting.decision).toBe("require_user_consent");
+    expect(conflicting.reasons).toContain("evidence_conflicting");
+
+    const missingApproval = decidePolicy(
+      input({
+        device: {
+          category: "endpoint",
+          deviceClass: "managed",
+          reversible: true,
+          irreversible: false,
+          preApproved: true,
+        },
+        capability: { orgPolicyRequirements: ["autonomy.notifications"] },
+      })
+    );
+    expect(missingApproval.decision).toBe("require_technician_approval");
+    expect(missingApproval.reasons).toContain(
+      "org_policy_missing:autonomy.notifications"
+    );
+  });
+
+  test("device preapproval satisfies the consent dimension before caution rules", () => {
+    const result = decidePolicy(
+      input({
+        device: {
+          category: "network",
+          deviceClass: "managed",
+          reversible: true,
+          irreversible: false,
+          preApproved: true,
+        },
+        capability: {
+          riskLevel: "caution",
+          sideEffects: "external_write",
+          consent: "user",
+        },
+        deviceOwnership: "org_managed",
+      })
+    );
+    expect(result.decision).toBe("allow_automatic");
+    expect(result.reasons).toContain("device_preapproved:network:managed");
+    expect(result.reasons).not.toContain("user_consent_active");
+  });
+
   test.each([
     ["approval", { capability: { riskLevel: "approval" } }],
     ["specialist", { capability: { riskLevel: "specialist" } }],

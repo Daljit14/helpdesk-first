@@ -111,47 +111,56 @@ export function decidePolicy(input: PolicyInput): PolicyDecision {
     reasons.push("evidence_missing");
   if (reasons.length > 0) return finish("specialist_only", reasons);
 
+  const deviceReasons: string[] = [];
   if (input.device) {
-    if (input.device.irreversible) {
-      if (!input.consent.user) {
-        return finish("require_user_consent", [
-          "device_irreversible_consent_required",
-        ]);
-      }
-      return finish("allow_automatic", [
+    if (input.device.irreversible && !input.consent.user) {
+      return finish("require_user_consent", [
         "device_irreversible_consent_required",
-        "user_consent_active",
       ]);
     }
-    if (input.capability.sideEffects === "read_only")
-      return finish("allow_automatic", ["device_read_only_no_consent"]);
-    if (input.device.preApproved) {
-      return finish("allow_automatic", [
-        `device_preapproved:${input.device.category}:${input.device.deviceClass}`,
-      ]);
-    }
-    if (!input.consent.user) {
+    if (input.capability.sideEffects === "read_only") {
+      deviceReasons.push("device_read_only_no_consent");
+    } else if (input.device.preApproved) {
+      deviceReasons.push(
+        `device_preapproved:${input.device.category}:${input.device.deviceClass}`
+      );
+    } else if (!input.consent.user) {
       return finish("require_user_consent", [
         `device_consent_required:${input.device.category}:${input.device.deviceClass}`,
       ]);
+    } else {
+      deviceReasons.push("device_consent_active");
     }
-    return finish("allow_automatic", ["device_consent_active"]);
+    if (input.device.irreversible) {
+      deviceReasons.push("device_irreversible_consent_required");
+    }
   }
 
   if (input.conflictingEvidence) {
-    return finish("require_user_consent", ["evidence_conflicting"]);
+    return finish("require_user_consent", [
+      ...deviceReasons,
+      "evidence_conflicting",
+    ]);
   }
   if (input.plannerDisagreement && cap.riskLevel !== "safe") {
-    return finish("require_user_consent", ["planner_disagreement"]);
+    return finish("require_user_consent", [
+      ...deviceReasons,
+      "planner_disagreement",
+    ]);
   }
   if (input.evidenceContradiction === true && cap.riskLevel !== "safe") {
-    return finish("require_user_consent", ["evidence_contradiction"]);
+    return finish("require_user_consent", [
+      ...deviceReasons,
+      "evidence_contradiction",
+    ]);
   }
   if (missingOrgPolicies.length > 0) {
     return finish(
       "require_technician_approval",
-      missingOrgPolicies.map(
-        (requirement) => `org_policy_missing:${requirement}`
+      deviceReasons.concat(
+        missingOrgPolicies.map(
+          (requirement) => `org_policy_missing:${requirement}`
+        )
       )
     );
   }
@@ -162,6 +171,7 @@ export function decidePolicy(input: PolicyInput): PolicyDecision {
     reasons.push("capability_requires_technician_consent");
   if (
     cap.sideEffects === "external_write" &&
+    !input.device?.preApproved &&
     input.deviceOwnership !== "org_managed"
   )
     reasons.push(`external_write_on_${input.deviceOwnership}_device`);
@@ -172,11 +182,15 @@ export function decidePolicy(input: PolicyInput): PolicyDecision {
   if (reasons.length > 0) {
     if (input.consent.technician && !org.requireApprovalFor.includes(cap.id)) {
       return finish("allow_automatic", [
+        ...deviceReasons,
         ...reasons,
         "technician_consent_active",
       ]);
     }
-    return finish("require_technician_approval", reasons);
+    return finish("require_technician_approval", [
+      ...deviceReasons,
+      ...reasons,
+    ]);
   }
 
   // 4. User consent.
@@ -192,14 +206,25 @@ export function decidePolicy(input: PolicyInput): PolicyDecision {
     reasons.push("evidence_not_sufficient");
   if (input.priorFailedAttempts >= 1) reasons.push("prior_failed_attempts");
   if (reasons.length > 0) {
-    if (input.consent.user) {
-      return finish("allow_automatic", [...reasons, "user_consent_active"]);
+    const deviceConsentSatisfied =
+      input.device !== undefined &&
+      (input.capability.sideEffects === "read_only" ||
+        input.device.preApproved ||
+        input.consent.user);
+    if (input.consent.user || deviceConsentSatisfied) {
+      return finish(
+        "allow_automatic",
+        input.consent.user
+          ? [...deviceReasons, ...reasons, "user_consent_active"]
+          : [...deviceReasons, ...reasons]
+      );
     }
-    return finish("require_user_consent", reasons);
+    return finish("require_user_consent", [...deviceReasons, ...reasons]);
   }
 
   // 5. Automatic.
   return finish("allow_automatic", [
+    ...deviceReasons,
     "capability_risk_safe",
     "confidence_at_or_above_threshold",
     "evidence_sufficient",

@@ -3,42 +3,22 @@ import { auditVersions } from "../audit/versions";
 import type { RollbackHandler, RollbackResult } from "./types";
 import { getIdentityBinding } from "@/lib/autonomy/connectors/binding";
 import { loadDirectoryForOrganization } from "@/lib/autonomy/connectors";
-import { getDeviceAction } from "@/lib/device-agent/catalog";
+import { DEVICE_ACTIONS, getDeviceAction } from "@/lib/device-agent/catalog";
 import { enqueueDeviceJob } from "@/lib/device-agent/server/jobs";
 
+const deviceHandlers: RollbackHandler[] = DEVICE_ACTIONS.filter(
+  (action) => action.snapshotSpec.length > 0
+).map((action) => ({
+  capabilityId: action.id,
+  version: action.version,
+  method: "handler:device_restore_snapshot",
+  async run(context) {
+    return deviceSnapshotRollback(context);
+  },
+}));
+
 const handlers: RollbackHandler[] = [
-  {
-    capabilityId: "device_flush_dns",
-    version: 1,
-    method: "handler:device_restore_snapshot",
-    async run(context) {
-      return deviceSnapshotRollback(context);
-    },
-  },
-  {
-    capabilityId: "device_reset_network_adapter",
-    version: 1,
-    method: "handler:device_restore_snapshot",
-    async run(context) {
-      return deviceSnapshotRollback(context);
-    },
-  },
-  {
-    capabilityId: "device_reset_wifi_profile",
-    version: 1,
-    method: "handler:device_restore_snapshot",
-    async run(context) {
-      return deviceSnapshotRollback(context);
-    },
-  },
-  {
-    capabilityId: "device_restart_service",
-    version: 1,
-    method: "handler:device_restore_snapshot",
-    async run(context) {
-      return deviceSnapshotRollback(context);
-    },
-  },
+  ...deviceHandlers,
   {
     capabilityId: "grant_group_access",
     version: 1,

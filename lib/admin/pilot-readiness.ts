@@ -80,11 +80,12 @@ export async function computePilotReadiness(
       )
     : 0;
   let deviceReady = true;
-  let deviceReason = "disabled";
+  const deviceExecutionMode = isDeviceExecutionEnabled() ? "live" : "shadow";
+  let deviceReason = `disabled (execution: ${deviceExecutionMode})`;
   if (isDeviceAgentEnabled()) {
     if (isDeviceExecutionEnabled()) {
       deviceReady = false;
-      deviceReason = "device execution is not available before B3";
+      deviceReason = `device execution is not available before B3 (execution: ${deviceExecutionMode})`;
     } else {
       try {
         const devices = await admin
@@ -96,15 +97,16 @@ export async function computePilotReadiness(
         if (devices.error || devices.count === null) {
           deviceReady = false;
           deviceReason =
-            "active device count unavailable (apply supabase/device-agent.sql)";
+            "active device count unavailable (apply supabase/device-agent.sql) " +
+            `(execution: ${deviceExecutionMode})`;
         } else {
-          deviceReason = `${devices.count} active devices`;
+          deviceReason = `${devices.count} active devices (execution: ${deviceExecutionMode})`;
         }
       } catch (error) {
         deviceReady = false;
         deviceReason = `active device count failed: ${
           error instanceof Error && error.message ? error.message : "unknown"
-        }`;
+        } (execution: ${deviceExecutionMode})`;
       }
     }
   }

@@ -118,7 +118,34 @@ describe("pilot readiness", () => {
       label: "Device agent",
       ready: false,
       reason:
-        "active device count unavailable (apply supabase/device-agent.sql)",
+        "active device count unavailable (apply supabase/device-agent.sql) " +
+        "(execution: shadow)",
+    });
+  });
+
+  test("reports shadow execution when the device agent is disabled", async () => {
+    vi.stubEnv("HELP_DESK_GUARDRAILS_ENFORCED", "true");
+    vi.stubEnv("HELP_DESK_AUTONOMY_ORG_ALLOWLIST", "org-1");
+
+    const result = await computePilotReadiness(admin(), "org-1");
+    expect(result.items.find((item) => item.label === "Device agent")).toEqual({
+      label: "Device agent",
+      ready: true,
+      reason: "disabled (execution: shadow)",
+    });
+  });
+
+  test("reports live execution when device execution is enabled", async () => {
+    vi.stubEnv("HELP_DESK_GUARDRAILS_ENFORCED", "true");
+    vi.stubEnv("HELP_DESK_AUTONOMY_ORG_ALLOWLIST", "org-1");
+    vi.stubEnv("HELP_DESK_DEVICE_AGENT_ENABLED", "true");
+    vi.stubEnv("HELP_DESK_DEVICE_EXECUTION_ENABLED", "true");
+
+    const result = await computePilotReadiness(admin(), "org-1");
+    expect(result.items.find((item) => item.label === "Device agent")).toEqual({
+      label: "Device agent",
+      ready: false,
+      reason: "device execution is not available before B3 (execution: live)",
     });
   });
 });

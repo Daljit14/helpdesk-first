@@ -13,16 +13,26 @@ const limiter = createRateLimiter(
   "admin-devices"
 );
 const idSchema = z.string().uuid();
+const RATE_LIMIT_ERROR = "Too many changes. Try again in a minute.";
 
-async function adminSession() {
+type AdminSession = NonNullable<Awaited<ReturnType<typeof getAdminSession>>>;
+
+async function adminSession(): Promise<{
+  session: AdminSession | null;
+  rateLimited: boolean;
+}> {
   const session = await getAdminSession();
-  if (!session || session.role !== "org_admin") return null;
-  if (!(await limiter.check(session.userId)).allowed) return null;
-  return session;
+  if (!session || session.role !== "org_admin")
+    return { session: null, rateLimited: false };
+  if (!(await limiter.check(session.userId)).allowed)
+    return { session: null, rateLimited: true };
+  return { session, rateLimited: false };
 }
 
 export async function createEnrollmentTokenAction(input: unknown) {
-  const session = await adminSession();
+  const auth = await adminSession();
+  if (auth.rateLimited) return { error: RATE_LIMIT_ERROR };
+  const session = auth.session;
   if (!session) return { error: "Organization admin access required." };
   const parsed = z
     .object({
@@ -48,7 +58,9 @@ export async function createEnrollmentTokenAction(input: unknown) {
 }
 
 export async function revokeEnrollmentTokenAction(input: unknown) {
-  const session = await adminSession();
+  const auth = await adminSession();
+  if (auth.rateLimited) return { error: RATE_LIMIT_ERROR };
+  const session = auth.session;
   const id = idSchema.safeParse(input);
   if (!session || !id.success) return { error: "Not authorized." };
   await createAdminClient()
@@ -62,7 +74,9 @@ export async function revokeEnrollmentTokenAction(input: unknown) {
 }
 
 export async function revokeDeviceAction(input: unknown) {
-  const session = await adminSession();
+  const auth = await adminSession();
+  if (auth.rateLimited) return { error: RATE_LIMIT_ERROR };
+  const session = auth.session;
   const parsed = z
     .object({ id: idSchema, reason: z.string().trim().max(500).optional() })
     .safeParse(input);
@@ -83,7 +97,9 @@ export async function revokeDeviceAction(input: unknown) {
 }
 
 export async function reviewDeviceShadowAction(input: unknown) {
-  const session = await adminSession();
+  const auth = await adminSession();
+  if (auth.rateLimited) return { error: RATE_LIMIT_ERROR };
+  const session = auth.session;
   const parsed = z
     .object({
       id: idSchema,
@@ -112,7 +128,9 @@ export async function reviewDeviceShadowAction(input: unknown) {
 }
 
 export async function upsertDeviceConsentPolicyAction(input: unknown) {
-  const session = await adminSession();
+  const auth = await adminSession();
+  if (auth.rateLimited) return { error: RATE_LIMIT_ERROR };
+  const session = auth.session;
   const parsed = z
     .object({
       deviceClass: z.enum(["managed", "byod"]),

@@ -62,6 +62,13 @@ create policy research_sources_staff_read on public.research_sources
   for select to authenticated
   using (public.is_org_staff(organization_id));
 
+revoke all on table public.research_cache, public.research_queries, public.research_sources
+  from public, anon, authenticated;
+grant select on table public.research_cache, public.research_queries, public.research_sources
+  to authenticated;
+grant all on table public.research_cache, public.research_queries, public.research_sources
+  to service_role;
+
 create or replace function public.research_queries_immutable()
 returns trigger language plpgsql as $$
 begin

@@ -1,5 +1,6 @@
 import { ADMIN_DEPARTMENTS } from "../capabilities/types";
 import type { HandlerAdmin } from "./handlers/types";
+import { ticketPlatformToDevicePlatform } from "@/lib/device-agent/catalog";
 
 export type PreconditionsContext = {
   admin: HandlerAdmin;
@@ -132,6 +133,32 @@ async function checkOne(
         )
         ? { ok: false, reason: id }
         : { ok: true };
+    }
+    case "requester_has_active_device": {
+      const ticket = await admin
+        .from("tickets")
+        .select("platform,user_id")
+        .eq("id", ticketId)
+        .eq("organization_id", organizationId)
+        .maybeSingle();
+      if (ticket.error || !ticket.data)
+        return { ok: false, reason: "no_active_device" };
+      const ticketData = ticket.data;
+      const devices = await admin
+        .from("devices_public")
+        .select("id,platform")
+        .eq("organization_id", organizationId)
+        .eq("user_id", ticket.data.user_id)
+        .eq("status", "active");
+      if (devices.error || !devices.data?.length)
+        return { ok: false, reason: "no_active_device" };
+      const platform = ticketPlatformToDevicePlatform(ticketData.platform);
+      if (
+        !platform ||
+        !devices.data.some((device) => device.platform === platform)
+      )
+        return { ok: false, reason: "device_platform_mismatch" };
+      return { ok: true };
     }
     case "department_available":
       return typeof params.department === "string" &&

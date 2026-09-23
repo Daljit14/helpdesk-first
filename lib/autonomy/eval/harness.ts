@@ -13,6 +13,7 @@ type QueryResult = {
 type FakeAdmin = HandlerAdmin & {
   rows: Map<string, Row[]>;
   executionInserts: number;
+  deviceJobInserts: number;
   allowedEvents: number;
   seedReplay: (idempotencyKey: string) => void;
   seedConsent: (parameterHash: string) => void;
@@ -123,6 +124,7 @@ function makeQuery(admin: FakeAdmin, table: string) {
           };
         }
         if (table === "capability_executions") admin.executionInserts += 1;
+        if (table === "device_jobs") admin.deviceJobInserts += 1;
         if (
           table === "resolution_events" &&
           value.kind === "guardrail.execution_allowed" &&
@@ -163,6 +165,7 @@ type Seed = {
 export type BenchmarkHarness = Seed & {
   handlerCalls: number;
   executionInserts: number;
+  deviceJobInserts: number;
   allowedEvents: number;
   killSwitch: BenchmarkCase["killSwitch"] | null;
   replay: boolean;
@@ -363,6 +366,7 @@ export function createBenchmarkHarness(
   const admin = {
     rows,
     executionInserts: 0,
+    deviceJobInserts: 0,
     allowedEvents: 0,
     from: (table: string) => makeQuery(admin, table),
     seedReplay: (idempotencyKey: string) => {
@@ -436,6 +440,7 @@ export function createBenchmarkHarness(
     rows,
     handlerCalls: 0,
     executionInserts: 0,
+    deviceJobInserts: 0,
     allowedEvents: 0,
     killSwitch: benchmarkCase.killSwitch ?? null,
     replay: benchmarkCase.replay === true,

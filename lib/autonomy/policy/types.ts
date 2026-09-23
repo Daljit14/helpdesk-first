@@ -65,6 +65,13 @@ export type PolicyInput = {
     "active" | "deprecated" | "expired" | "unknown" | "disabled";
   plannerDisagreement?: boolean;
   evidenceContradiction?: boolean;
+  device?: {
+    category: "network" | "security" | "endpoint" | "peripheral";
+    deviceClass: "managed" | "byod";
+    reversible: boolean;
+    irreversible: boolean;
+    preApproved: boolean;
+  };
 };
 
 export type PolicyDecision = {

@@ -8,6 +8,7 @@ import { loadDirectoryForOrganization } from "@/lib/autonomy/connectors";
 import { createVerificationLink } from "@/lib/autonomy/verification/links";
 import { hashEmail } from "@/lib/autonomy/connectors/binding";
 import { buildNotification } from "@/lib/notifications/templates";
+import { deviceHandlers } from "./device";
 
 const scalar = (
   output: Record<string, string | number | boolean | null>
@@ -82,6 +83,7 @@ function aborted(ctx: HandlerContext): HandlerResult | null {
 }
 
 const handlers: CapabilityHandler[] = [
+  ...deviceHandlers(),
   {
     capabilityId: "search_approved_knowledge",
     version: 1,

@@ -12,6 +12,8 @@ import { generateDeviceKeyPair } from "./signer";
 import { configDirectory, loadAgentState, saveAgentState } from "./store";
 import { planShadow } from "./shadow";
 import { AGENT_VERSION } from "./version";
+import { jobPollResponseSchema } from "../../lib/device-agent/protocol";
+import { runJob } from "./jobs";
 
 export { AGENT_VERSION };
 
@@ -87,6 +89,19 @@ async function runLoop(): Promise<void> {
         (value) => heartbeatResponseSchema.parse(value)
       );
       if (heartbeat.revoked) return;
+      if (!heartbeat.killSwitch) {
+        const polled = await postSigned("/api/agent/jobs/poll", {}, (value) =>
+          jobPollResponseSchema.parse(value)
+        );
+        for (const job of polled.jobs) {
+          const report = await runJob(job);
+          await postSigned(
+            `/api/agent/jobs/${job.id}/report`,
+            report,
+            (value) => value
+          );
+        }
+      }
       const records = await collectDiagnostics();
       await postSigned(
         "/api/agent/diagnostics",

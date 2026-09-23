@@ -21,6 +21,14 @@ export function isAutonomousExecutionEnabled(): boolean {
   return process.env.HELP_DESK_AUTONOMOUS_EXECUTION_ENABLED === "true";
 }
 
+export function getDeviceExecutionOrgAllowlist(): string[] {
+  return listFromEnv("HELP_DESK_DEVICE_EXECUTION_ORG_ALLOWLIST");
+}
+
+export function getDeviceJobTtlMin(): number {
+  return boundedNumber("HELP_DESK_DEVICE_JOB_TTL_MIN", 30, 5, 240);
+}
+
 export function guardrailsEnforced(): boolean {
   return process.env.HELP_DESK_GUARDRAILS_ENFORCED !== "false";
 }

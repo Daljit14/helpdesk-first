@@ -8,6 +8,7 @@ export type HandlerContext = {
   ticketId: string;
   runId: string;
   stepId: string;
+  executionId?: string | null;
   signal: AbortSignal;
   actor: string;
   escalate: (reason: string) => Promise<void>;

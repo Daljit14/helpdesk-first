@@ -1,6 +1,7 @@
 import type { Verifier, VerifierContext, VerifierResult } from "./types";
 import { loadDirectoryForOrganization } from "@/lib/autonomy/connectors";
 import { getIdentityBinding } from "@/lib/autonomy/connectors/binding";
+import { getDeviceAction } from "@/lib/device-agent/catalog";
 
 export const VERIFIER_VERSION = "1";
 
@@ -350,6 +351,61 @@ const directoryGroupMembership: Verifier = {
   },
 };
 
+const deviceJobCompleted: Verifier = {
+  method: "device_job_completed",
+  version: VERIFIER_VERSION,
+  async verify(ctx) {
+    if (!ctx.executionId)
+      return informational("inconclusive", { reason: "no_execution" });
+    const jobResult = await ctx.admin
+      .from("device_jobs")
+      .select(
+        "status,mode,created_at,result,action_id,action_version,device_id"
+      )
+      .eq("organization_id", ctx.organizationId)
+      .eq("execution_id", ctx.executionId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (jobResult.error || !jobResult.data)
+      return informational("inconclusive", { reason: "job_missing" });
+    const job = jobResult.data as {
+      status: string;
+      mode: string;
+      created_at: string;
+      result: Record<string, unknown>;
+      action_id: string;
+      action_version: number;
+      device_id: string;
+    };
+    const action = getDeviceAction(job.action_id, job.action_version);
+    if (!action) return informational("failed", { reason: "unknown_action" });
+    if (job.status === "queued" || job.status === "leased")
+      return informational("inconclusive", { status: job.status });
+    if (["expired", "failed", "unsupported", "cancelled"].includes(job.status))
+      return informational("failed", { status: job.status });
+    const diagnostics = await ctx.admin
+      .from("device_diagnostics")
+      .select("kind,collected_at")
+      .eq("organization_id", ctx.organizationId)
+      .eq("device_id", job.device_id)
+      .gt("collected_at", job.created_at)
+      .in("kind", action.requiresDiagnostics)
+      .limit(20);
+    const fresh =
+      (diagnostics.data ?? []).length >= action.requiresDiagnostics.length;
+    if (!fresh)
+      return informational("inconclusive", {
+        reason: "post_diagnostics_missing",
+      });
+    if (job.status === "shadowed")
+      return informational("passed", { mode: "shadow", wouldRun: true });
+    if (job.status === "succeeded" && action.sideEffects === "read_only")
+      return informational("passed", { mode: job.mode });
+    return resolving("passed", { mode: job.mode });
+  },
+};
+
 export const VERIFIERS: readonly Verifier[] = [
   none,
   diagnosticAnswerRecorded,
@@ -365,6 +421,7 @@ export const VERIFIERS: readonly Verifier[] = [
   directoryStatusRead,
   directorySignInAfterAction,
   directoryGroupMembership,
+  deviceJobCompleted,
 ];
 
 export function getVerifier(method: string): Verifier | null {

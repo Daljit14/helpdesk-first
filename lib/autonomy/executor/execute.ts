@@ -36,6 +36,8 @@ import { executeThroughGateway } from "../guardrails/gateway";
 import type { PlannerPlanV2 } from "../guardrails/planner-output";
 import { parameterHash } from "../guardrails/hash";
 import { readBoundConsent } from "../guardrails/consent";
+import { getDeviceAction } from "@/lib/device-agent/catalog";
+import { findDeviceForTicket } from "@/lib/device-agent/server/jobs";
 
 type PlanStep = { id: string; detail?: Record<string, unknown> };
 
@@ -418,6 +420,31 @@ export async function evaluatePlanPolicy(
     run.ticket_id,
     run.organization_id
   );
+  const deviceAction = getDeviceAction(capability.id, capability.version);
+  let devicePolicy: PolicyInput["device"] | undefined;
+  if (deviceAction) {
+    const device = await findDeviceForTicket(admin, {
+      organizationId: run.organization_id,
+      ticketId: run.ticket_id,
+      platform: ticket.platform,
+    });
+    if (device) {
+      const policy = await admin
+        .from("device_consent_policies")
+        .select("auto_approve")
+        .eq("organization_id", run.organization_id)
+        .eq("device_class", device.device_class)
+        .eq("category", deviceAction.category)
+        .maybeSingle();
+      devicePolicy = {
+        category: deviceAction.category,
+        deviceClass: device.device_class,
+        reversible: deviceAction.reversible,
+        irreversible: deviceAction.irreversible,
+        preApproved: policy.data?.auto_approve === true,
+      };
+    }
+  }
   const policyInput = buildPolicyInput({
     capability,
     capabilityEnabled: true,
@@ -448,6 +475,7 @@ export async function evaluatePlanPolicy(
     plannerDisagreement: false,
     evidenceContradiction:
       evidence?.research?.contradictsTopHypothesis ?? false,
+    device: devicePolicy,
   });
   return {
     ok: true,

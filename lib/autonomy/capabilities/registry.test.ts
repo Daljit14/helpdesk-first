@@ -13,6 +13,11 @@ import type { CapabilityDefinition } from "./types";
 const ticketId = "00000000-0000-4000-8000-000000000001";
 
 function validInput(id: string): Record<string, unknown> {
+  if (id === "device_service_status" || id === "device_restart_service") {
+    return { serviceName: "vpn" };
+  }
+  if (id === "device_reset_wifi_profile") return { ssid: "Helpdesk" };
+  if (id.startsWith("device_")) return {};
   if (id === "search_approved_knowledge") {
     return { ticketId, query: "wifi" };
   }

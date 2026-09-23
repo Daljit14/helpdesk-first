@@ -196,6 +196,82 @@ export class DeterministicPlanner implements Planner {
       }
     }
 
+    if (evidence.device) {
+      const diagnostic = (kind: string) =>
+        evidence.device?.diagnostics.find((item) => item.kind === kind);
+      const deviceAction = (
+        id: string,
+        parameters: Record<string, string>,
+        summary: string,
+        verificationMethod = "device_job_completed"
+      ): PlannerOutput | null => {
+        const action = allowed(id);
+        if (!action) return null;
+        return {
+          ticketId,
+          diagnosis: diagnosis(summary),
+          decision: "propose_action",
+          capability: { id: action.id, version: action.version, parameters },
+          verificationMethod:
+            getCapability(action.id, action.version)?.verification ??
+            verificationMethod,
+        };
+      };
+      if (evidence.device.stale) {
+        const refresh = deviceAction(
+          "device_network_status",
+          {},
+          "Refresh stale device network diagnostics."
+        );
+        if (refresh) return refresh;
+      } else {
+        const dns = diagnostic("dns_resolution");
+        if (dns?.ok === false) {
+          const action = deviceAction(
+            "device_flush_dns",
+            {},
+            "DNS resolution is failing."
+          );
+          if (action) return action;
+        }
+        const wifi = diagnostic("wifi_status");
+        if (
+          wifi?.data?.connected === false &&
+          typeof wifi.data.ssid === "string"
+        ) {
+          const action = deviceAction(
+            "device_reset_wifi_profile",
+            { ssid: wifi.data.ssid },
+            "The device is disconnected from Wi-Fi."
+          );
+          if (action) return action;
+        }
+        const vpn = diagnostic("vpn_status");
+        if (vpn?.data?.connected === false && vpn.data.required === true) {
+          const action = deviceAction(
+            "device_restart_service",
+            { serviceName: "vpn" },
+            "The required VPN is disconnected."
+          );
+          if (action) return action;
+        }
+        const disk = diagnostic("disk_space");
+        if (
+          typeof disk?.data?.freePercent === "number" &&
+          disk.data.freePercent < 5
+        ) {
+          const action = deviceAction(
+            "device_cleanup_temp_files",
+            {},
+            "Disk space is critically low."
+          );
+          if (action) return action;
+        }
+        const updates = diagnostic("pending_updates");
+        if (updates?.data?.stuck === true) return escalate("stuck_update");
+      }
+    }
+
     const search = allowed("search_approved_knowledge");
     if (search) {
       const top = [...evidence.hypotheses].sort(

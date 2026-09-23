@@ -11,6 +11,7 @@ function makeQuery(options: {
     select: vi.fn(() => query),
     eq: vi.fn(() => query),
     in: vi.fn(() => query),
+    order: vi.fn(() => query),
     limit: vi.fn(() => query),
     maybeSingle: vi.fn(async () => ({
       data: options.maybeSingle ?? null,
@@ -47,6 +48,38 @@ describe("verification verifiers", () => {
     expect(VERIFIERS.length).toBeGreaterThanOrEqual(11);
     expect(getVerifier("not-a-method")).toBeNull();
   });
+
+  test.each([
+    ["expired", "failed"],
+    ["failed", "failed"],
+    ["unsupported", "failed"],
+    ["cancelled", "failed"],
+    ["queued", "inconclusive"],
+    ["leased", "inconclusive"],
+  ] as const)(
+    "device job %s is %s before freshness checks",
+    async (status, outcome) => {
+      const jobs = makeQuery({
+        maybeSingle: {
+          status,
+          mode: "shadow",
+          created_at: "2026-01-01T00:00:00.000Z",
+          result: {},
+          action_id: "device_flush_dns",
+          action_version: 1,
+          device_id: "device-1",
+        },
+      });
+      const diagnostics = makeQuery({ data: [] });
+      const result = await getVerifier("device_job_completed")?.verify(
+        context({ device_jobs: jobs, device_diagnostics: diagnostics })
+      );
+      expect(result?.outcome).toBe(outcome);
+      if (status === "expired" || status === "failed") {
+        expect(diagnostics.select).not.toHaveBeenCalled();
+      }
+    }
+  );
 
   test("none is informational and inconclusive", async () => {
     const result = await getVerifier("none")?.verify(context({}));

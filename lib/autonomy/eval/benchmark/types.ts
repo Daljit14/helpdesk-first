@@ -95,6 +95,18 @@ const research = z
 const device = z
   .object({
     platform: z.enum(["windows", "macos", "linux"]),
+    deviceClass: z.enum(["managed", "byod"]).optional(),
+    deviceConsentPolicies: z
+      .array(
+        z
+          .object({
+            deviceClass: z.enum(["managed", "byod"]),
+            category: z.enum(["network", "security", "endpoint", "peripheral"]),
+            autoApprove: z.boolean(),
+          })
+          .strict()
+      )
+      .optional(),
     stale: z.boolean().optional(),
     diagnostics: z.array(
       z

@@ -1,4 +1,4 @@
-# Local device agent (Phase B1)
+# Local device agent (Phase B1/B2)
 
 The device agent is an outbound-only Node 20 process. It enrolls with a
 single-use token, generates an Ed25519 keypair locally, and signs every
@@ -18,11 +18,21 @@ actions are a separate catalog, not autonomy capabilities.
 
 ## Shadow mode and boundaries
 
-B1 collects diagnostics and records proposed shadow actions only. It never
-executes a device action, and `HELP_DESK_DEVICE_EXECUTION_ENABLED` remains
-blocked until B3. B2 adds dispatch and consent contracts; B3 adds bounded
-execution and verification; B4 adds signed MSI/PKG/DEB packaging and service
-manifests. Malware quarantine remains excluded until an explicit policy change.
+B1 collects diagnostics and records proposed shadow actions only. B2 adds
+queued, organization-bound jobs, consent policies, independent verification,
+and snapshot rollback contracts. Device execution is disabled by default:
+read-only jobs can run collectors, local-write jobs are `shadowed` when
+execution is disabled and `unsupported` in execute mode. No B2 path mutates a
+device. B3 adds bounded execution and B4 adds signed MSI/PKG/DEB packaging and
+service manifests. Malware quarantine remains excluded until an explicit policy
+change.
+
+The execution mode requires both `HELP_DESK_DEVICE_EXECUTION_ENABLED=true` and
+an organization in `HELP_DESK_DEVICE_EXECUTION_ORG_ALLOWLIST`; global,
+organization, and capability kill switches force shadow mode and cancel queued
+jobs. Irreversible actions always require requester consent, read-only actions
+never prompt, and reversible local-write actions require consent unless a
+matching organization device-class/category preapproval exists.
 
 Ed25519 request signing is used instead of mTLS because Vercel cannot terminate
 client-certificate mTLS for this server-to-server transport.

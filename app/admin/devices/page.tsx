@@ -9,6 +9,8 @@ import {
   RevokeDeviceButton,
   RevokeTokenButton,
 } from "@/components/admin/device-actions";
+import { DeviceConsentPolicyForm } from "@/components/admin/device-consent-policy-form";
+import { readConsentPolicies } from "@/lib/device-agent/server/consent-policies";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -33,7 +35,7 @@ export default async function DevicesPage() {
   }
 
   const admin = createAdminClient();
-  const [devices, tokens, shadows] = await Promise.all([
+  const [devices, tokens, shadows, policies] = await Promise.all([
     admin
       .from("devices_public")
       .select(
@@ -54,6 +56,7 @@ export default async function DevicesPage() {
       .eq("organization_id", session.organizationId)
       .order("created_at", { ascending: false })
       .limit(50),
+    readConsentPolicies(admin, session.organizationId),
   ]);
   const deviceRows = devices.data ?? [];
   const diagnosticResults = await Promise.all(
@@ -67,12 +70,35 @@ export default async function DevicesPage() {
         .limit(20)
     )
   );
+  const jobResults = await Promise.all(
+    deviceRows.map((device) =>
+      admin
+        .from("device_jobs")
+        .select("id,action_id,mode,status,snapshot_hash,reported_at,error")
+        .eq("organization_id", session.organizationId)
+        .eq("device_id", device.id)
+        .order("created_at", { ascending: false })
+        .limit(20)
+    )
+  );
   const diagnostics = new Map(
     deviceRows.map((device, index) => [
       device.id,
       diagnosticResults[index].data ?? [],
     ])
   );
+  const jobs = new Map(
+    deviceRows.map((device, index) => [
+      device.id,
+      jobResults[index].error ? [] : (jobResults[index].data ?? []),
+    ])
+  );
+  const policySet = new Set(
+    policies
+      .filter((policy) => policy.auto_approve)
+      .map((policy) => `${policy.device_class}:${policy.category}`)
+  );
+  const categories = ["network", "security", "endpoint", "peripheral"] as const;
 
   return (
     <section className="flex flex-1 flex-col px-4 py-10 sm:px-6 lg:px-8">
@@ -85,6 +111,24 @@ export default async function DevicesPage() {
         <div className="mt-6">
           <DeviceEnrollmentForm />
         </div>
+        <section className="glass-strong mt-6 p-5">
+          <h2 className="font-semibold">Consent pre-approval</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Irreversible actions always ask the user; read-only never asks.
+          </p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            {(["managed", "byod"] as const).flatMap((deviceClass) =>
+              categories.map((category) => (
+                <DeviceConsentPolicyForm
+                  key={`${deviceClass}:${category}`}
+                  deviceClass={deviceClass}
+                  category={category}
+                  enabled={policySet.has(`${deviceClass}:${category}`)}
+                />
+              ))
+            )}
+          </div>
+        </section>
 
         <div className="mt-8 grid gap-6 lg:grid-cols-2">
           <section className="glass-strong p-5">
@@ -196,6 +240,37 @@ export default async function DevicesPage() {
                         </p>
                       </div>
                     ))}
+                  </div>
+                </details>
+                <details className="mt-3 rounded-2xl border border-border/60 p-3">
+                  <summary className="cursor-pointer text-sm font-medium">
+                    Jobs
+                  </summary>
+                  <div className="mt-3 space-y-2">
+                    {(jobs.get(device.id) ?? []).map((job) => (
+                      <div
+                        key={job.id}
+                        className="rounded-xl bg-background/40 p-3 text-xs"
+                      >
+                        <p className="font-medium">
+                          {job.action_id} · {job.mode} · {job.status}
+                        </p>
+                        <p className="text-muted-foreground">
+                          Snapshot: {job.snapshot_hash ?? "—"} · Reported:{" "}
+                          {job.reported_at
+                            ? new Date(job.reported_at).toLocaleString()
+                            : "—"}
+                        </p>
+                        {job.error && (
+                          <p className="text-destructive">{job.error}</p>
+                        )}
+                      </div>
+                    ))}
+                    {(jobs.get(device.id) ?? []).length === 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        No device jobs.
+                      </p>
+                    )}
                   </div>
                 </details>
               </article>

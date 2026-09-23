@@ -20,6 +20,20 @@ describe("committed autonomy benchmark", () => {
       `${JSON.stringify(serializableReport, null, 2)}\n`
     );
     await writeFile(
+      "docs/eval/latest.json",
+      `${JSON.stringify(
+        {
+          version: report.version,
+          cases: report.cases,
+          gatesPassed: report.gates.filter((gate) => gate.passed).length,
+          gatesTotal: report.gates.length,
+          generatedAt: new Date().toISOString(),
+        },
+        null,
+        2
+      )}\n`
+    );
+    await writeFile(
       `docs/eval/${BENCHMARK_VERSION}.md`,
       [
         `# Autonomy benchmark ${BENCHMARK_VERSION}`,

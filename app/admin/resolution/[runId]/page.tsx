@@ -150,6 +150,41 @@ export default async function ResolutionRunPage({
             </ul>
           )}
         </section>
+        <section className="glass space-y-3 p-5">
+          <h2 className="text-lg font-semibold">Device jobs</h2>
+          {detail.deviceJobs.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No device jobs.</p>
+          ) : (
+            <div className="space-y-2">
+              {detail.deviceJobs.map((value, index) => {
+                const job =
+                  typeof value === "object" && value !== null
+                    ? (value as Record<string, unknown>)
+                    : {};
+                return (
+                  <div
+                    key={String(job.id ?? index)}
+                    className="rounded-xl border border-border p-3 text-sm"
+                  >
+                    <p className="font-medium">
+                      {String(job.action_id ?? "unknown")} ·{" "}
+                      {String(job.mode ?? "—")} · {String(job.status ?? "—")}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Device:{" "}
+                      {String(job.device_hostname ?? job.device_id ?? "—")} ·
+                      Snapshot: {String(job.snapshot_hash ?? "—")} · Reported:{" "}
+                      {String(job.reported_at ?? "—")}
+                    </p>
+                    {typeof job.error === "string" && (
+                      <p className="text-xs text-destructive">{job.error}</p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
         {(
           [
             ["Policy decisions", detail.policyDecisions],

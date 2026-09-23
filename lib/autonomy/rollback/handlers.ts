@@ -3,8 +3,22 @@ import { auditVersions } from "../audit/versions";
 import type { RollbackHandler, RollbackResult } from "./types";
 import { getIdentityBinding } from "@/lib/autonomy/connectors/binding";
 import { loadDirectoryForOrganization } from "@/lib/autonomy/connectors";
+import { DEVICE_ACTIONS, getDeviceAction } from "@/lib/device-agent/catalog";
+import { enqueueDeviceJob } from "@/lib/device-agent/server/jobs";
+
+const deviceHandlers: RollbackHandler[] = DEVICE_ACTIONS.filter(
+  (action) => action.snapshotSpec.length > 0
+).map((action) => ({
+  capabilityId: action.id,
+  version: action.version,
+  method: "handler:device_restore_snapshot",
+  async run(context) {
+    return deviceSnapshotRollback(context);
+  },
+}));
 
 const handlers: RollbackHandler[] = [
+  ...deviceHandlers,
   {
     capabilityId: "grant_group_access",
     version: 1,
@@ -93,6 +107,57 @@ const handlers: RollbackHandler[] = [
     },
   },
 ];
+
+async function deviceSnapshotRollback(
+  context: Parameters<RollbackHandler["run"]>[0]
+): Promise<RollbackResult> {
+  const original = await context.admin
+    .from("device_jobs")
+    .select(
+      "id,device_id,action_id,action_version,snapshot_hash,snapshot_kinds"
+    )
+    .eq("organization_id", context.organizationId)
+    .eq("execution_id", context.executionId)
+    .eq("kind", "action")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const row = original.data as {
+    id: string;
+    device_id: string;
+    action_id: string;
+    action_version: number;
+    snapshot_hash: string | null;
+    snapshot_kinds: string[];
+  } | null;
+  if (!row?.snapshot_hash)
+    return { ok: false, output: {}, error: "snapshot_missing" };
+  const action = getDeviceAction(row.action_id, row.action_version);
+  const device = await context.admin
+    .from("devices")
+    .select(
+      "id,organization_id,user_id,device_class,platform,hostname,agent_version,catalog_version,status"
+    )
+    .eq("id", row.device_id)
+    .eq("organization_id", context.organizationId)
+    .maybeSingle();
+  if (!action || !device.data)
+    return { ok: false, output: {}, error: "device_missing" };
+  const job = await enqueueDeviceJob(context.admin, {
+    organizationId: context.organizationId,
+    deviceId: row.device_id,
+    runId: context.runId,
+    executionId: context.executionId,
+    ticketId: context.ticketId,
+    actionId: row.action_id,
+    actionVersion: row.action_version,
+    parameters: context.parameters,
+    kind: "rollback",
+    rollbackOf: row.id,
+    snapshotSpec: row.snapshot_kinds,
+  });
+  return { ok: true, output: { jobId: job.id, status: job.status } };
+}
 
 export function getRollbackHandler(
   capabilityId: string,

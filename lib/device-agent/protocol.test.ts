@@ -6,7 +6,7 @@ import {
 } from "./protocol";
 
 describe("device-agent protocol", () => {
-  it("rejects unknown fields and unsafe heartbeat execution", () => {
+  it("rejects unknown fields and accepts resolved heartbeat execution", () => {
     expect(() =>
       enrollRequestSchema.parse({
         token: "hd1_" + "a".repeat(43),
@@ -17,7 +17,7 @@ describe("device-agent protocol", () => {
         extra: true,
       })
     ).toThrow();
-    expect(() =>
+    expect(
       heartbeatResponseSchema.parse({
         pollIntervalSec: 300,
         killSwitch: false,
@@ -25,7 +25,7 @@ describe("device-agent protocol", () => {
         catalogVersion: "1",
         revoked: false,
       })
-    ).toThrow();
+    ).toMatchObject({ executionEnabled: true });
   });
 
   it("bounds diagnostic batches", () => {

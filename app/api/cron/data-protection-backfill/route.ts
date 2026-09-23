@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { backfillEncryption } from "@/lib/security/backfill";
 import { DataProtectionError } from "@/lib/security/field-crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { expireStaleJobs } from "@/lib/device-agent/server/jobs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,6 +33,7 @@ export async function GET(request: Request) {
       .delete()
       .lt("expires_at", new Date().toISOString());
     if (cleanup.error) throw cleanup.error;
+    await expireStaleJobs(admin);
     return NextResponse.json(result);
   } catch (error) {
     const dataProtectionError = error instanceof DataProtectionError;

@@ -9,6 +9,7 @@ import {
 export type DeviceAction = {
   id: `device_${string}`;
   version: number;
+  category: DeviceActionCategory;
   platforms: DevicePlatform[];
   description: string;
   riskLevel: "safe" | "caution";
@@ -23,25 +24,54 @@ export type DeviceAction = {
   inputSchema: z.ZodType;
 };
 
+export type DeviceActionCategory =
+  "network" | "security" | "endpoint" | "peripheral";
+
+export const DEVICE_ACTION_CATEGORIES: readonly DeviceActionCategory[] = [
+  "network",
+  "security",
+  "endpoint",
+  "peripheral",
+];
+
+export function ticketPlatformToDevicePlatform(
+  platform: string | null | undefined
+): DevicePlatform | null {
+  switch (platform) {
+    case "Windows":
+      return "windows";
+    case "macOS":
+      return "macos";
+    case "Linux":
+      return "linux";
+    default:
+      return null;
+  }
+}
+
 const noInput = z.object({}).strict();
-const serviceInput = z.object({
-  serviceName: z.enum([
-    "vpn",
-    "sso_helper",
-    "print_spooler",
-    "windows_update",
-    "defender",
-  ]),
-});
+const serviceInput = z
+  .object({
+    serviceName: z.enum([
+      "vpn",
+      "sso_helper",
+      "print_spooler",
+      "windows_update",
+      "defender",
+    ]),
+  })
+  .strict();
 const wifiInput = z.object({ ssid: z.string().min(1).max(128) }).strict();
 
 const readOnly = (
   id: DeviceAction["id"],
+  category: DeviceActionCategory,
   description: string,
   requiresDiagnostics: DeviceAction["requiresDiagnostics"]
 ): DeviceAction => ({
   id,
   version: 1,
+  category,
   platforms: ["windows", "macos", "linux"],
   description,
   riskLevel: "safe",
@@ -57,39 +87,55 @@ const readOnly = (
 });
 
 export const DEVICE_ACTIONS: readonly DeviceAction[] = [
-  readOnly("device_network_status", "Read network interface status.", [
-    "network_status",
-  ]),
-  readOnly("device_dns_resolution_test", "Test DNS resolution.", [
+  readOnly(
+    "device_network_status",
+    "network",
+    "Read network interface status.",
+    ["network_status"]
+  ),
+  readOnly("device_dns_resolution_test", "network", "Test DNS resolution.", [
     "dns_resolution",
   ]),
-  readOnly("device_wifi_status", "Read Wi-Fi connection status.", [
+  readOnly("device_wifi_status", "network", "Read Wi-Fi connection status.", [
     "wifi_status",
   ]),
-  readOnly("device_vpn_client_status", "Read VPN client status.", [
+  readOnly("device_vpn_client_status", "network", "Read VPN client status.", [
     "vpn_status",
   ]),
-  readOnly("device_disk_space_check", "Read disk space.", ["disk_space"]),
+  readOnly("device_disk_space_check", "endpoint", "Read disk space.", [
+    "disk_space",
+  ]),
   readOnly(
     "device_pending_updates_check",
+    "endpoint",
     "Read pending operating system updates.",
     ["pending_updates"]
   ),
   {
-    ...readOnly("device_service_status", "Read allow-listed service status.", [
-      "service_status",
-    ]),
+    ...readOnly(
+      "device_service_status",
+      "endpoint",
+      "Read allow-listed service status.",
+      ["service_status"]
+    ),
     inputSchema: serviceInput,
   },
-  readOnly("device_browser_extensions_list", "Read browser extension names.", [
-    "browser_extensions",
-  ]),
-  readOnly("device_security_tool_status", "Read endpoint protection status.", [
-    "security_tool_status",
-  ]),
+  readOnly(
+    "device_browser_extensions_list",
+    "security",
+    "Read browser extension names.",
+    ["browser_extensions"]
+  ),
+  readOnly(
+    "device_security_tool_status",
+    "security",
+    "Read endpoint protection status.",
+    ["security_tool_status"]
+  ),
   {
     ...readOnly(
       "device_flush_dns",
+      "network",
       "Flush the local DNS cache in a later phase.",
       ["dns_resolution"]
     ),
@@ -100,6 +146,7 @@ export const DEVICE_ACTIONS: readonly DeviceAction[] = [
   {
     ...readOnly(
       "device_reset_network_adapter",
+      "network",
       "Reset a network adapter in a later phase.",
       ["network_status"]
     ),
@@ -110,6 +157,7 @@ export const DEVICE_ACTIONS: readonly DeviceAction[] = [
   {
     ...readOnly(
       "device_reset_wifi_profile",
+      "network",
       "Reset a Wi-Fi profile in a later phase.",
       ["wifi_status"]
     ),
@@ -121,6 +169,7 @@ export const DEVICE_ACTIONS: readonly DeviceAction[] = [
   {
     ...readOnly(
       "device_restart_service",
+      "endpoint",
       "Restart an allow-listed service in a later phase.",
       ["service_status"]
     ),
@@ -132,6 +181,7 @@ export const DEVICE_ACTIONS: readonly DeviceAction[] = [
   {
     ...readOnly(
       "device_cleanup_temp_files",
+      "endpoint",
       "Clean temporary files in a later phase.",
       ["disk_space"]
     ),
@@ -157,6 +207,8 @@ export function validateDeviceCatalog(
     if (!action.id.startsWith("device_"))
       errors.push(`${action.id}: invalid id`);
     if (!action.platforms.length) errors.push(`${action.id}: no platforms`);
+    if (!DEVICE_ACTION_CATEGORIES.includes(action.category))
+      errors.push(`${action.id}: invalid category`);
     if (prohibited.test(`${action.id} ${action.description}`))
       errors.push(`${action.id}: prohibited`);
     if (Date.parse(action.reviewDate) <= Date.now())
@@ -177,7 +229,7 @@ export function validateDeviceCatalog(
 const catalogErrors = validateDeviceCatalog(DEVICE_ACTIONS);
 if (catalogErrors.length) throw new Error(catalogErrors.join(", "));
 
-export const DEVICE_CATALOG_VERSION = "2026-09-21.1";
+export const DEVICE_CATALOG_VERSION = "2026-09-21.2";
 
 export function deviceCatalogChecksum(): string {
   return createHash("sha256")

@@ -29,8 +29,8 @@ export const enrollRequestSchema = z
 
 export const enrollResponseSchema = z
   .object({
-    deviceId: z.uuid(),
-    organizationId: z.uuid(),
+    deviceId: z.guid(),
+    organizationId: z.guid(),
     pollIntervalSec: z.number().int().min(60).max(3600),
     catalogVersion: z.string().min(1).max(80),
   })
@@ -119,7 +119,7 @@ export const jobPollResponseSchema = z
     jobs: z.array(
       z
         .object({
-          id: z.uuid(),
+          id: z.guid(),
           actionId: z.string().regex(/^device_[a-z0-9_]+$/),
           actionVersion: z.number().int().positive(),
           parameters: z.record(z.string(), z.unknown()),

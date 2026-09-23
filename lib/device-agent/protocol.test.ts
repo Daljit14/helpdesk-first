@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   diagnosticsBatchSchema,
   enrollRequestSchema,
+  enrollResponseSchema,
   heartbeatResponseSchema,
+  jobPollResponseSchema,
 } from "./protocol";
 
 describe("device-agent protocol", () => {
@@ -26,6 +28,42 @@ describe("device-agent protocol", () => {
         revoked: false,
       })
     ).toMatchObject({ executionEnabled: true });
+  });
+
+  it("accepts non-RFC-version ids for organizations, devices and jobs", () => {
+    const legacyId = "00000000-0000-0000-0000-000000000001";
+    expect(
+      enrollResponseSchema.parse({
+        deviceId: legacyId,
+        organizationId: legacyId,
+        pollIntervalSec: 300,
+        catalogVersion: "1",
+      })
+    ).toMatchObject({ organizationId: legacyId });
+    expect(
+      jobPollResponseSchema.parse({
+        jobs: [
+          {
+            id: legacyId,
+            actionId: "device_network_status",
+            actionVersion: 1,
+            parameters: {},
+            mode: "shadow",
+            kind: "action",
+            expiresAt: new Date().toISOString(),
+            snapshotSpec: [],
+          },
+        ],
+      }).jobs
+    ).toHaveLength(1);
+    expect(() =>
+      enrollResponseSchema.parse({
+        deviceId: "not-a-uuid",
+        organizationId: legacyId,
+        pollIntervalSec: 300,
+        catalogVersion: "1",
+      })
+    ).toThrow();
   });
 
   it("bounds diagnostic batches", () => {

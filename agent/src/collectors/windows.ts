@@ -1,20 +1,6 @@
 import type { DiagnosticKind } from "../../../lib/device-agent/protocol";
 import { boundedError, record, type Collector } from "./index";
-
-const SERVICES = [
-  "vpn",
-  "sso_helper",
-  "print_spooler",
-  "windows_update",
-  "defender",
-] as const;
-const SERVICE_COMMANDS: Record<(typeof SERVICES)[number], string> = {
-  vpn: "RasMan",
-  sso_helper: "sso_helper",
-  print_spooler: "Spooler",
-  windows_update: "wuauserv",
-  defender: "WinDefend",
-};
+import { SERVICE_NAMES, WINDOWS_SERVICE_COMMANDS } from "../service-maps";
 
 function powershell(
   kind: DiagnosticKind,
@@ -101,13 +87,13 @@ export const windowsCollectors: Collector[] = [
     run: async (exec) => {
       const data: Record<string, string> = {};
       let failed = false;
-      for (const service of SERVICES) {
+      for (const service of SERVICE_NAMES) {
         try {
           const output = await exec("powershell.exe", [
             "-NoProfile",
             "-NonInteractive",
             "-Command",
-            `(Get-Service ${SERVICE_COMMANDS[service]}).Status`,
+            `(Get-Service ${WINDOWS_SERVICE_COMMANDS[service]}).Status`,
           ]);
           data[service] = /running/i.test(output) ? "running" : "stopped";
         } catch {

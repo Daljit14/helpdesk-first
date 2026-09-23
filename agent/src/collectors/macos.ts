@@ -1,13 +1,6 @@
 import type { DiagnosticKind } from "../../../lib/device-agent/protocol";
 import { boundedError, record, type Collector } from "./index";
-
-const SERVICES = [
-  "vpn",
-  "sso_helper",
-  "print_spooler",
-  "windows_update",
-  "defender",
-] as const;
+import { MACOS_SERVICE_COMMANDS, SERVICE_NAMES } from "../service-maps";
 
 function commandCollector(
   kind: DiagnosticKind,
@@ -59,12 +52,14 @@ function serviceCollector(): Collector {
     run: async (exec) => {
       const data: Record<string, string> = {};
       let failed = false;
-      for (const service of SERVICES) {
+      for (const service of SERVICE_NAMES) {
+        const label = MACOS_SERVICE_COMMANDS[service];
+        if (!label) {
+          data[service] = "unknown";
+          continue;
+        }
         try {
-          const output = await exec("launchctl", [
-            "print",
-            `system/${service}`,
-          ]);
+          const output = await exec("launchctl", ["print", `system/${label}`]);
           data[service] = output.trim() ? "running" : "stopped";
         } catch {
           data[service] = "unknown";

@@ -34,7 +34,8 @@ checks Microsoft, Google, and the enrolled server host. Browser extension
 enumeration reads current-user Chrome and Edge manifests and caps results at
 40 names.
 
-It never accepts `--exec`, opens an inbound listener, runs arbitrary shell
-input, changes device state, disables security tools, quarantines malware, or
-prints private keys, tokens, nonces, or complete signatures. Mutating catalog
-entries are shadow-only in B1.
+It opens no inbound listener, runs no arbitrary shell input, changes no device
+state outside the bounded B3 executors, disables no security tools, quarantines
+no malware, and prints no private keys, tokens, nonces, or complete
+signatures. Mutating catalog entries remain shadow-only until both the server
+heartbeat and local execution opt-in allow them.

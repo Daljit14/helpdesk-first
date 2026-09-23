@@ -125,6 +125,7 @@ export const jobPollResponseSchema = z
           parameters: z.record(z.string(), z.unknown()),
           mode: z.enum(["shadow", "execute"]),
           kind: z.enum(["action", "rollback"]),
+          rollbackOf: z.uuid().nullable(),
           expiresAt: z.string().datetime(),
           snapshotSpec: z.array(z.string().max(100)).max(10),
         })

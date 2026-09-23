@@ -61,7 +61,11 @@ const serviceInput = z
     ]),
   })
   .strict();
-const wifiInput = z.object({ ssid: z.string().min(1).max(128) }).strict();
+const wifiInput = z
+  .object({
+    ssid: z.string().regex(/^[^\r\n"'`$\\]{1,32}$/),
+  })
+  .strict();
 
 const readOnly = (
   id: DeviceAction["id"],
@@ -133,12 +137,9 @@ export const DEVICE_ACTIONS: readonly DeviceAction[] = [
     ["security_tool_status"]
   ),
   {
-    ...readOnly(
-      "device_flush_dns",
-      "network",
-      "Flush the local DNS cache in a later phase.",
-      ["dns_resolution"]
-    ),
+    ...readOnly("device_flush_dns", "network", "Flush the local DNS cache.", [
+      "dns_resolution",
+    ]),
     riskLevel: "caution",
     sideEffects: "local_write",
     snapshotSpec: ["dns_cache_stats"],
@@ -147,7 +148,7 @@ export const DEVICE_ACTIONS: readonly DeviceAction[] = [
     ...readOnly(
       "device_reset_network_adapter",
       "network",
-      "Reset a network adapter in a later phase.",
+      "Reset the active network adapter.",
       ["network_status"]
     ),
     riskLevel: "caution",
@@ -158,7 +159,7 @@ export const DEVICE_ACTIONS: readonly DeviceAction[] = [
     ...readOnly(
       "device_reset_wifi_profile",
       "network",
-      "Reset a Wi-Fi profile in a later phase.",
+      "Reconnect an allow-listed Wi-Fi profile.",
       ["wifi_status"]
     ),
     riskLevel: "caution",
@@ -170,7 +171,7 @@ export const DEVICE_ACTIONS: readonly DeviceAction[] = [
     ...readOnly(
       "device_restart_service",
       "endpoint",
-      "Restart an allow-listed service in a later phase.",
+      "Restart an allow-listed endpoint service.",
       ["service_status"]
     ),
     riskLevel: "caution",
@@ -182,7 +183,7 @@ export const DEVICE_ACTIONS: readonly DeviceAction[] = [
     ...readOnly(
       "device_cleanup_temp_files",
       "endpoint",
-      "Clean temporary files in a later phase.",
+      "Remove aged files from fixed temporary directories.",
       ["disk_space"]
     ),
     riskLevel: "caution",
@@ -190,6 +191,7 @@ export const DEVICE_ACTIONS: readonly DeviceAction[] = [
     reversible: false,
     irreversible: true,
     consent: "user",
+    snapshotSpec: ["temp_inventory"],
   },
 ];
 
@@ -229,7 +231,7 @@ export function validateDeviceCatalog(
 const catalogErrors = validateDeviceCatalog(DEVICE_ACTIONS);
 if (catalogErrors.length) throw new Error(catalogErrors.join(", "));
 
-export const DEVICE_CATALOG_VERSION = "2026-09-21.2";
+export const DEVICE_CATALOG_VERSION = "2026-09-21.3";
 
 export function deviceCatalogChecksum(): string {
   return createHash("sha256")

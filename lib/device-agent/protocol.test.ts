@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { randomUUID } from "node:crypto";
 import {
   diagnosticsBatchSchema,
   enrollRequestSchema,
   heartbeatResponseSchema,
+  jobPollResponseSchema,
 } from "./protocol";
 
 describe("device-agent protocol", () => {
@@ -42,5 +44,31 @@ describe("device-agent protocol", () => {
         ],
       })
     ).not.toThrow();
+  });
+
+  it("requires rollbackOf on every polled job", () => {
+    const base = {
+      id: randomUUID(),
+      actionId: "device_flush_dns",
+      actionVersion: 1,
+      parameters: {},
+      mode: "execute" as const,
+      kind: "action" as const,
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      snapshotSpec: ["dns_cache_stats"],
+    };
+    expect(() =>
+      jobPollResponseSchema.parse({ jobs: [{ ...base }] })
+    ).toThrow();
+    expect(() =>
+      jobPollResponseSchema.parse({
+        jobs: [{ ...base, rollbackOf: null, unexpected: true }],
+      })
+    ).toThrow();
+    expect(
+      jobPollResponseSchema.parse({
+        jobs: [{ ...base, rollbackOf: null }],
+      }).jobs[0].rollbackOf
+    ).toBeNull();
   });
 });

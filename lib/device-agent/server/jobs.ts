@@ -196,14 +196,31 @@ export async function recordJobResult(
       code: job.status === "queued" ? "not_leased" : "terminal",
     };
   const output = redactAuditDetail(sanitizeOutput(parsed.data.output));
+  let status = parsed.data.status;
+  let error = parsed.data.error ?? null;
+  if (job.kind === "rollback" && job.rollback_of && status === "succeeded") {
+    const original = await admin
+      .from("device_jobs")
+      .select("snapshot_hash")
+      .eq("id", job.rollback_of)
+      .eq("organization_id", device.organization_id)
+      .maybeSingle();
+    const originalHash = (
+      original.data as { snapshot_hash?: string | null } | null
+    )?.snapshot_hash;
+    if (!originalHash || parsed.data.snapshot?.hash !== originalHash) {
+      status = "failed";
+      error = "snapshot_hash_mismatch";
+    }
+  }
   const update = await admin
     .from("device_jobs")
     .update({
-      status: parsed.data.status,
+      status,
       result: output,
       snapshot_hash: parsed.data.snapshot?.hash ?? null,
       snapshot_kinds: parsed.data.snapshot?.kinds ?? [],
-      error: parsed.data.error ?? null,
+      error,
       reported_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     })

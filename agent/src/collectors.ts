@@ -8,9 +8,9 @@ import { browserExtensionsCollector, dnsCollector } from "./collectors/shared";
 import type { AgentExec, Collector } from "./collectors/index";
 
 const runFile = promisify(execFile);
-const exec: AgentExec = async (file, args) => {
+const exec: AgentExec = async (file, args, options) => {
   const result = await runFile(file, args, {
-    timeout: 8_000,
+    timeout: options?.timeoutMs ?? 8_000,
     maxBuffer: 1_000_000,
   });
   return result.stdout;

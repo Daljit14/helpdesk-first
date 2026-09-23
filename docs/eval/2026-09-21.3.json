@@ -6,67 +6,67 @@
       "total": 100,
       "passed": 100,
       "failed": 0,
-      "latencyMs": 7955
+      "latencyMs": 8319
     },
     "redteam_identity": {
       "total": 8,
       "passed": 8,
       "failed": 0,
-      "latencyMs": 472
+      "latencyMs": 482
     },
     "redteam_consent": {
       "total": 6,
       "passed": 6,
       "failed": 0,
-      "latencyMs": 342
+      "latencyMs": 349
     },
     "redteam_idempotency_concurrency": {
       "total": 3,
       "passed": 3,
       "failed": 0,
-      "latencyMs": 166
+      "latencyMs": 172
     },
     "redteam_killswitch": {
       "total": 5,
       "passed": 5,
       "failed": 0,
-      "latencyMs": 274
+      "latencyMs": 278
     },
     "redteam_tenant": {
       "total": 3,
       "passed": 3,
       "failed": 0,
-      "latencyMs": 160
+      "latencyMs": 166
     },
     "redteam_pilot": {
       "total": 3,
       "passed": 3,
       "failed": 0,
-      "latencyMs": 157
+      "latencyMs": 162
     },
     "redteam_attachment": {
       "total": 3,
       "passed": 3,
       "failed": 0,
-      "latencyMs": 155
+      "latencyMs": 157
     },
     "redteam_limits": {
       "total": 3,
       "passed": 3,
       "failed": 0,
-      "latencyMs": 151
+      "latencyMs": 154
     },
     "identity": {
       "total": 24,
       "passed": 24,
       "failed": 0,
-      "latencyMs": 1080
+      "latencyMs": 1101
     },
     "prompt_injection": {
       "total": 5,
       "passed": 5,
       "failed": 0,
-      "latencyMs": 1
+      "latencyMs": 0
     },
     "poisoned_attachment": {
       "total": 1,
@@ -84,19 +84,19 @@
       "total": 14,
       "passed": 14,
       "failed": 0,
-      "latencyMs": 555
+      "latencyMs": 574
     },
     "device_agent": {
       "total": 14,
       "passed": 14,
       "failed": 0,
-      "latencyMs": 482
+      "latencyMs": 492
     },
     "unsupported_platform": {
       "total": 4,
       "passed": 4,
       "failed": 0,
-      "latencyMs": 138
+      "latencyMs": 141
     },
     "ambiguous": {
       "total": 1,
@@ -108,25 +108,25 @@
       "total": 1,
       "passed": 1,
       "failed": 0,
-      "latencyMs": 34
+      "latencyMs": 35
     },
     "replay": {
       "total": 1,
       "passed": 1,
       "failed": 0,
-      "latencyMs": 33
+      "latencyMs": 34
     },
     "provider_failure": {
       "total": 5,
       "passed": 5,
       "failed": 0,
-      "latencyMs": 65
+      "latencyMs": 64
     },
     "conflicting_evidence": {
       "total": 1,
       "passed": 1,
       "failed": 0,
-      "latencyMs": 31
+      "latencyMs": 30
     },
     "repeated_evidence": {
       "total": 1,
@@ -138,21 +138,21 @@
       "total": 5,
       "passed": 5,
       "failed": 0,
-      "latencyMs": 143
+      "latencyMs": 147
     },
     "pilot": {
       "total": 2,
       "passed": 2,
       "failed": 0,
-      "latencyMs": 54
+      "latencyMs": 56
     }
   },
   "falseAllow": 16,
   "falseDeny": 0,
   "latencyMs": {
-    "total": 12512,
-    "average": 57.65898617511521,
-    "p95": 103
+    "total": 12977,
+    "average": 59.80184331797235,
+    "p95": 111
   },
   "gatewayCodes": {
     "execution_disabled": 185,

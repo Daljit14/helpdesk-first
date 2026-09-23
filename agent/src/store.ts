@@ -8,6 +8,7 @@ export type AgentState = {
   serverUrl: string;
   publicKey: string;
   catalogVersion: string;
+  executionOptIn?: boolean;
 };
 
 export function configDirectory(): string {
@@ -38,6 +39,16 @@ export async function loadAgentState(): Promise<AgentState> {
   return JSON.parse(
     await readFile(join(configDirectory(), "state.json"), "utf8")
   ) as AgentState;
+}
+
+export async function updateAgentState(
+  patch: Partial<AgentState>
+): Promise<AgentState> {
+  const state = { ...(await loadAgentState()), ...patch };
+  const path = join(configDirectory(), "state.json");
+  await writeFile(path, `${JSON.stringify(state)}\n`, { mode: 0o600 });
+  await chmod(path, 0o600);
+  return state;
 }
 
 export async function loadPrivateKey(): Promise<string> {

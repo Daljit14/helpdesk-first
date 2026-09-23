@@ -9,7 +9,12 @@ import {
 import { collectDiagnostics } from "./collectors";
 import { postSigned } from "./http";
 import { generateDeviceKeyPair } from "./signer";
-import { configDirectory, loadAgentState, saveAgentState } from "./store";
+import {
+  configDirectory,
+  loadAgentState,
+  saveAgentState,
+  updateAgentState,
+} from "./store";
 import { planShadow } from "./shadow";
 import { AGENT_VERSION } from "./version";
 import { jobPollResponseSchema } from "../../lib/device-agent/protocol";
@@ -26,7 +31,6 @@ export function parseArgs(args: string[]): {
   for (let index = 0; index < rest.length; index += 2) {
     const key = rest[index];
     const value = rest[index + 1];
-    if (key === "--exec") throw new Error("execution is not supported");
     if (key?.startsWith("--") && value) values[key.slice(2)] = value;
   }
   return { command, values };
@@ -94,7 +98,10 @@ async function runLoop(): Promise<void> {
           jobPollResponseSchema.parse(value)
         );
         for (const job of polled.jobs) {
-          const report = await runJob(job);
+          const report = await runJob(job, {
+            executionEnabled: heartbeat.executionEnabled,
+            now: new Date(),
+          });
           await postSigned(
             `/api/agent/jobs/${job.id}/report`,
             report,
@@ -137,6 +144,14 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
     return enroll(parsed.values.server ?? "", parsed.values.token ?? "");
   if (parsed.command === "collect") return collect();
   if (parsed.command === "run") return runLoop();
+  if (parsed.command === "enable-execution") {
+    await updateAgentState({ executionOptIn: true });
+    return void process.stdout.write("execution enabled\n");
+  }
+  if (parsed.command === "disable-execution") {
+    await updateAgentState({ executionOptIn: false });
+    return void process.stdout.write("execution disabled\n");
+  }
   if (parsed.command === "status")
     return void process.stdout.write(`${configDirectory()}\n`);
   if (parsed.command === "claim-code") {

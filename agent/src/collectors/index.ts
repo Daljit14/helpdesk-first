@@ -3,7 +3,15 @@ import type {
   DiagnosticKind,
 } from "../../../lib/device-agent/protocol";
 
-export type AgentExec = (file: string, args: string[]) => Promise<string>;
+export type AgentExecOptions = {
+  timeoutMs?: number;
+};
+
+export type AgentExec = (
+  file: string,
+  args: string[],
+  options?: AgentExecOptions
+) => Promise<string>;
 export type Collector = {
   kind: DiagnosticKind;
   run: (exec: AgentExec) => Promise<DiagnosticRecord>;

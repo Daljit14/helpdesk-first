@@ -1,13 +1,6 @@
 import type { DiagnosticKind } from "../../../lib/device-agent/protocol";
 import { boundedError, record, type Collector } from "./index";
-
-const SERVICES = [
-  "vpn",
-  "sso_helper",
-  "print_spooler",
-  "windows_update",
-  "defender",
-] as const;
+import { LINUX_SERVICE_COMMANDS, SERVICE_NAMES } from "../service-maps";
 
 function commandCollector(
   kind: DiagnosticKind,
@@ -65,9 +58,14 @@ function serviceCollector(): Collector {
     run: async (exec) => {
       const data: Record<string, string> = {};
       let failed = false;
-      for (const service of SERVICES) {
+      for (const service of SERVICE_NAMES) {
+        const unit = LINUX_SERVICE_COMMANDS[service];
+        if (!unit) {
+          data[service] = "unknown";
+          continue;
+        }
         try {
-          const output = await exec("systemctl", ["is-active", service]);
+          const output = await exec("systemctl", ["is-active", unit]);
           data[service] = /active|running/i.test(output)
             ? "running"
             : "stopped";

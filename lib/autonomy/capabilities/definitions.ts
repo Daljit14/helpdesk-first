@@ -6,6 +6,7 @@ import {
   uuid,
 } from "./schemas";
 import type { CapabilityDefinition } from "./types";
+import { deviceCapabilityDefinitions } from "./device-definitions";
 
 const OWNER = "platform";
 const REVIEW_DATE = "2026-12-31";
@@ -389,4 +390,5 @@ export const CAPABILITY_DEFINITIONS: readonly CapabilityDefinition[] =
     verifyGroupAccess,
     grantGroupAccess,
     checkSsoHealth,
+    ...deviceCapabilityDefinitions(),
   ]);

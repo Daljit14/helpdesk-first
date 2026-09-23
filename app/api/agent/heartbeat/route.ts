@@ -7,6 +7,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { isDeviceAgentEnabled } from "@/lib/admin/flags";
 import { DEVICE_CATALOG_VERSION } from "@/lib/device-agent/catalog";
 import { readKillSwitches } from "@/lib/autonomy/kill-switches";
+import { resolveJobMode } from "@/lib/device-agent/server/jobs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,10 +27,13 @@ export async function POST(request: Request): Promise<Response> {
   try {
     heartbeatRequestSchema.parse(JSON.parse(rawBody));
     const switches = await readKillSwitches(admin, auth.device.organization_id);
+    const mode = await resolveJobMode(admin, {
+      organizationId: auth.device.organization_id,
+    });
     const response = heartbeatResponseSchema.parse({
       pollIntervalSec: 300,
       killSwitch: switches.anyActive,
-      executionEnabled: false,
+      executionEnabled: mode === "execute" && !switches.anyActive,
       catalogVersion: DEVICE_CATALOG_VERSION,
       revoked: auth.device.status === "revoked",
     });

@@ -48,7 +48,7 @@ export const heartbeatResponseSchema = z
   .object({
     pollIntervalSec: z.number().int().min(60).max(3600),
     killSwitch: z.boolean(),
-    executionEnabled: z.literal(false),
+    executionEnabled: z.boolean(),
     catalogVersion: z.string().min(1).max(80),
     revoked: z.boolean(),
   })
@@ -107,10 +107,53 @@ export const shadowBatchSchema = z
   .object({ actions: z.array(shadowActionSchema).min(1).max(10) })
   .strict();
 
+const jobOutputSchema = z
+  .record(
+    z.string().max(80),
+    z.union([z.string().max(500), z.number(), z.boolean(), z.null()])
+  )
+  .refine((value) => Object.keys(value).length <= 40);
+
+export const jobPollResponseSchema = z
+  .object({
+    jobs: z.array(
+      z
+        .object({
+          id: z.uuid(),
+          actionId: z.string().regex(/^device_[a-z0-9_]+$/),
+          actionVersion: z.number().int().positive(),
+          parameters: z.record(z.string(), z.unknown()),
+          mode: z.enum(["shadow", "execute"]),
+          kind: z.enum(["action", "rollback"]),
+          expiresAt: z.string().datetime(),
+          snapshotSpec: z.array(z.string().max(100)).max(10),
+        })
+        .strict()
+    ),
+  })
+  .strict();
+
+export const jobReportSchema = z
+  .object({
+    status: z.enum(["succeeded", "failed", "shadowed", "unsupported"]),
+    output: jobOutputSchema.default({}),
+    snapshot: z
+      .object({
+        hash: z.string().min(1).max(200),
+        kinds: z.array(z.string().max(100)).max(10),
+      })
+      .strict()
+      .optional(),
+    diagnostics: z.array(diagnosticRecordSchema).max(20).optional(),
+    error: z.string().max(500).optional(),
+  })
+  .strict();
+
 export const deviceActionPublicSchema = z
   .object({
     id: z.string().regex(/^device_/),
     version: z.number().int().positive(),
+    category: z.enum(["network", "security", "endpoint", "peripheral"]),
     platforms: z.array(devicePlatformSchema),
     description: z.string(),
     riskLevel: z.enum(["safe", "caution"]),
@@ -155,3 +198,5 @@ export type DiagnosticRecord = z.infer<typeof diagnosticRecordSchema>;
 export type DiagnosticsBatch = z.infer<typeof diagnosticsBatchSchema>;
 export type ShadowAction = z.infer<typeof shadowActionSchema>;
 export type ShadowBatch = z.infer<typeof shadowBatchSchema>;
+export type JobPollResponse = z.infer<typeof jobPollResponseSchema>;
+export type JobReport = z.infer<typeof jobReportSchema>;

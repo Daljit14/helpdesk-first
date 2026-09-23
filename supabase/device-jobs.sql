@@ -21,6 +21,7 @@ create table if not exists public.device_jobs (
   lease_expires_at timestamptz,
   expires_at timestamptz not null,
   result jsonb not null default '{}',
+  snapshot_spec text[] not null default '{}',
   snapshot_hash text,
   snapshot_kinds text[] not null default '{}',
   error text,
@@ -28,6 +29,9 @@ create table if not exists public.device_jobs (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.device_jobs
+  add column if not exists snapshot_spec text[] not null default '{}';
 
 create table if not exists public.device_consent_policies (
   id uuid primary key default gen_random_uuid(),

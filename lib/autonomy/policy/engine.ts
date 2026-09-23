@@ -111,6 +111,33 @@ export function decidePolicy(input: PolicyInput): PolicyDecision {
     reasons.push("evidence_missing");
   if (reasons.length > 0) return finish("specialist_only", reasons);
 
+  if (input.device) {
+    if (input.device.irreversible) {
+      if (!input.consent.user) {
+        return finish("require_user_consent", [
+          "device_irreversible_consent_required",
+        ]);
+      }
+      return finish("allow_automatic", [
+        "device_irreversible_consent_required",
+        "user_consent_active",
+      ]);
+    }
+    if (input.capability.sideEffects === "read_only")
+      return finish("allow_automatic", ["device_read_only_no_consent"]);
+    if (input.device.preApproved) {
+      return finish("allow_automatic", [
+        `device_preapproved:${input.device.category}:${input.device.deviceClass}`,
+      ]);
+    }
+    if (!input.consent.user) {
+      return finish("require_user_consent", [
+        `device_consent_required:${input.device.category}:${input.device.deviceClass}`,
+      ]);
+    }
+    return finish("allow_automatic", ["device_consent_active"]);
+  }
+
   if (input.conflictingEvidence) {
     return finish("require_user_consent", ["evidence_conflicting"]);
   }

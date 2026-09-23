@@ -458,6 +458,7 @@ export async function executeThroughGateway(
         ticketId: req.run.ticket_id,
         runId: req.run.id,
         stepId: req.stepId,
+        executionId,
         signal,
         actor: req.actor,
         escalate: async () => undefined,

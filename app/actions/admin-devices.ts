@@ -6,6 +6,7 @@ import { createRateLimiter } from "@/lib/ai/rate-limit";
 import { getAdminSession, recordAudit } from "@/lib/admin/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createEnrollmentToken } from "@/lib/device-agent/server/enroll";
+import { upsertConsentPolicy } from "@/lib/device-agent/server/consent-policies";
 
 const limiter = createRateLimiter(
   { windowMs: 60_000, maxRequests: 30 },
@@ -106,6 +107,31 @@ export async function reviewDeviceShadowAction(input: unknown) {
   if (result.error || !result.data)
     return { error: "Shadow action not found." };
   await recordAudit(session, "device.shadow_reviewed", parsed.data.id);
+  revalidatePath("/admin/devices");
+  return { success: true };
+}
+
+export async function upsertDeviceConsentPolicyAction(input: unknown) {
+  const session = await adminSession();
+  const parsed = z
+    .object({
+      deviceClass: z.enum(["managed", "byod"]),
+      category: z.enum(["network", "security", "endpoint", "peripheral"]),
+      autoApprove: z.boolean(),
+    })
+    .safeParse(input);
+  if (!session || !parsed.success) return { error: "Not authorized." };
+  const ok = await upsertConsentPolicy(createAdminClient(), {
+    organizationId: session.organizationId,
+    updatedBy: session.userId,
+    ...parsed.data,
+  });
+  if (!ok) return { error: "Unable to update consent policy." };
+  await recordAudit(
+    session,
+    "device.consent_policy_updated",
+    `${parsed.data.deviceClass}:${parsed.data.category}`
+  );
   revalidatePath("/admin/devices");
   return { success: true };
 }

@@ -26,6 +26,7 @@ export type BuildPolicyInputParams = {
   securityIncident?: boolean;
   plannerDisagreement?: boolean;
   evidenceContradiction?: boolean;
+  device?: PolicyInput["device"];
 };
 
 function ownershipFor(
@@ -93,6 +94,7 @@ export function buildPolicyInput({
   securityIncident = false,
   plannerDisagreement = false,
   evidenceContradiction = false,
+  device,
 }: BuildPolicyInputParams): PolicyInput {
   const redaction = evidence?.redaction ?? {};
   return {
@@ -134,5 +136,6 @@ export function buildPolicyInput({
     capabilityStatus: capabilityStatus ?? "active",
     plannerDisagreement,
     evidenceContradiction,
+    ...(device ? { device } : {}),
   };
 }

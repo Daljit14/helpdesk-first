@@ -34,6 +34,21 @@ export const DEVICE_ACTION_CATEGORIES: readonly DeviceActionCategory[] = [
   "peripheral",
 ];
 
+export function ticketPlatformToDevicePlatform(
+  platform: string | null | undefined
+): DevicePlatform | null {
+  switch (platform) {
+    case "Windows":
+      return "windows";
+    case "macOS":
+      return "macos";
+    case "Linux":
+      return "linux";
+    default:
+      return null;
+  }
+}
+
 const noInput = z.object({}).strict();
 const serviceInput = z
   .object({

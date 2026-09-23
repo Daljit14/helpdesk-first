@@ -65,4 +65,17 @@ describe("Supabase RLS coverage", () => {
       missingPolicies: [],
     });
   });
+
+  test("restricts the device job leasing RPC to service role", async () => {
+    const source = await readFile(
+      join(process.cwd(), "supabase/device-jobs.sql"),
+      "utf8"
+    );
+    expect(source).toMatch(
+      /revoke execute on function public\.lease_device_jobs\(uuid, integer\)\s+from public, anon, authenticated;/i
+    );
+    expect(source).toMatch(
+      /grant execute on function public\.lease_device_jobs\(uuid, integer\)\s+to service_role;/i
+    );
+  });
 });

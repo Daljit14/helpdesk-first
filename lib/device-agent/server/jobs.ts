@@ -1,5 +1,8 @@
 import { createHash } from "node:crypto";
-import { DEVICE_CATALOG_VERSION } from "@/lib/device-agent/catalog";
+import {
+  DEVICE_CATALOG_VERSION,
+  ticketPlatformToDevicePlatform,
+} from "@/lib/device-agent/catalog";
 import {
   getDeviceExecutionOrgAllowlist,
   getDeviceJobTtlMin,
@@ -246,7 +249,8 @@ export async function findDeviceForTicket(
     .eq("id", input.ticketId)
     .maybeSingle();
   const userId = (ticket.data as { user_id?: string | null } | null)?.user_id;
-  if (!userId || !input.platform) return null;
+  const platform = ticketPlatformToDevicePlatform(input.platform);
+  if (!userId || !platform) return null;
   const result = await admin
     .from("devices_public")
     .select(
@@ -254,7 +258,7 @@ export async function findDeviceForTicket(
     )
     .eq("organization_id", input.organizationId)
     .eq("user_id", userId)
-    .eq("platform", input.platform.toLowerCase())
+    .eq("platform", platform)
     .eq("status", "active")
     .order("last_seen_at", { ascending: false })
     .limit(1)

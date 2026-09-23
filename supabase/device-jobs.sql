@@ -64,6 +64,10 @@ begin
   )
   returning public.device_jobs.*;
 end $$;
+revoke execute on function public.lease_device_jobs(uuid, integer)
+  from public, anon, authenticated;
+grant execute on function public.lease_device_jobs(uuid, integer)
+  to service_role;
 
 create or replace function public.device_jobs_terminal_immutable()
 returns trigger language plpgsql as $$

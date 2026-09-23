@@ -1,6 +1,6 @@
 import { ADMIN_DEPARTMENTS } from "../capabilities/types";
 import type { HandlerAdmin } from "./handlers/types";
-import { findDeviceForTicket } from "@/lib/device-agent/server/jobs";
+import { ticketPlatformToDevicePlatform } from "@/lib/device-agent/catalog";
 
 export type PreconditionsContext = {
   admin: HandlerAdmin;
@@ -152,16 +152,12 @@ async function checkOne(
         .eq("status", "active");
       if (devices.error || !devices.data?.length)
         return { ok: false, reason: "no_active_device" };
+      const platform = ticketPlatformToDevicePlatform(ticketData.platform);
       if (
-        !devices.data.some((device) => device.platform === ticketData.platform)
+        !platform ||
+        !devices.data.some((device) => device.platform === platform)
       )
         return { ok: false, reason: "device_platform_mismatch" };
-      const device = await findDeviceForTicket(admin, {
-        organizationId,
-        ticketId,
-        platform: ticket.data.platform,
-      });
-      if (!device) return { ok: false, reason: "no_active_device" };
       return { ok: true };
     }
     case "department_available":

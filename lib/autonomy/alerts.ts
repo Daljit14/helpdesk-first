@@ -16,7 +16,7 @@ export function isAlertingConfigured(): boolean {
 export type SecurityAlertInput = {
   organizationId: string;
   ticketId: string;
-  runId: string;
+  runId: string | null;
   kind: string;
   detail?: Record<string, unknown>;
 };
@@ -56,19 +56,26 @@ export async function alertSecurityEvent(
       dedupeKey: `autonomy:${input.runId}:${input.kind}`,
     });
   } catch (error) {
-    await admin.from("resolution_events").insert({
-      organization_id: input.organizationId,
-      run_id: input.runId,
-      ticket_id: input.ticketId,
-      kind: "alert.failed",
-      actor: "orchestrator",
-      detail: redactAuditDetail({
+    if (input.runId && input.ticketId) {
+      await admin.from("resolution_events").insert({
+        organization_id: input.organizationId,
+        run_id: input.runId,
+        ticket_id: input.ticketId,
+        kind: "alert.failed",
+        actor: "orchestrator",
+        detail: redactAuditDetail({
+          kind: input.kind,
+          error: error instanceof Error ? error.message : "alert failed",
+          detail: input.detail ?? {},
+        }),
+        initiated_by: "ai",
+        versions: auditVersions(),
+      });
+    } else {
+      console.error("requester agent security alert failed", {
+        organizationId: input.organizationId,
         kind: input.kind,
-        error: error instanceof Error ? error.message : "alert failed",
-        detail: input.detail ?? {},
-      }),
-      initiated_by: "ai",
-      versions: auditVersions(),
-    });
+      });
+    }
   }
 }

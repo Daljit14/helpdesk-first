@@ -84,3 +84,28 @@ export function isDeviceAgentEnabled(): boolean {
 export function isDeviceExecutionEnabled(): boolean {
   return process.env.HELP_DESK_DEVICE_EXECUTION_ENABLED === "true";
 }
+
+export function isRequesterAgentEnabled(): boolean {
+  return process.env.HELP_DESK_REQUESTER_AGENT_ENABLED === "true";
+}
+
+export function isRequesterAgentEnabledForOrg(organizationId: string): boolean {
+  if (!isRequesterAgentEnabled()) return false;
+  const allowlist = (process.env.HELP_DESK_REQUESTER_AGENT_ORG_ALLOWLIST ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  return allowlist.includes(organizationId);
+}
+
+export function isRequesterAgentActionsEnabled(): boolean {
+  return false;
+}
+
+export function isRequesterAgentAutorunEnabled(): boolean {
+  return false;
+}
+
+export function isRequesterAgentVisionEnabled(): boolean {
+  return false;
+}

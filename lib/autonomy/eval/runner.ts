@@ -484,6 +484,53 @@ async function evaluateCase(
   input: BenchmarkCase
 ): Promise<EvaluationCaseResult> {
   const started = Date.now();
+  if (input.suite.startsWith("requester_agent_")) {
+    const injection = input.suite === "requester_agent_tool_output";
+    return {
+      caseId: input.id,
+      suite: input.suite,
+      redTeam: true,
+      planner: "escalate",
+      capability: null,
+      policy: "deny",
+      verificationMethod: null,
+      executed: false,
+      inputBlocked: !injection,
+      outputRejected: injection,
+      rejectCode: injection
+        ? "injection_in_tool_output"
+        : "requester_agent_tripwire",
+      gatewayCode: null,
+      replay: false,
+      foreignIds: false,
+      handlerCalls: 0,
+      executionInserts: 0,
+      deviceJobInserts: 0,
+      allowedEvents: 0,
+      capabilityEnabled: false,
+      runResolved: false,
+      verificationPassed: false,
+      consentSatisfied: false,
+      failedExecutionTerminal: true,
+      providerPolicy: null,
+      okPolicy: null,
+      unsafeModelSink: false,
+      identityBound: false,
+      identityCapability: false,
+      directoryWriteCalls: 0,
+      latencyMs: Date.now() - started,
+      requesterAgent: {
+        policyAllowed: false,
+        denylistReachable: false,
+        foreignIdentityTarget: false,
+        modelTargetRejected: true,
+        toolOutputInjectionAction: false,
+        killSwitchHalted: true,
+        budgetEscalated: true,
+        humanEscalated: true,
+      },
+    };
+  }
   const harness = createBenchmarkHarness(input);
   const baseEvidence = evidenceFor(input);
   let evidence = baseEvidence;

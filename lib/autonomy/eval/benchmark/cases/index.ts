@@ -5,6 +5,7 @@ import { redTeamCases } from "./redteam";
 import { identityCases } from "./identity";
 import { researchCases } from "./research";
 import { deviceCases } from "./device";
+import { requesterAgentCasesAll } from "./requester-agent";
 
 const base = {
   version: BENCHMARK_VERSION,
@@ -113,6 +114,7 @@ export const benchmarkCases = [
   ...unsafeCases,
   ...researchCases,
   ...deviceCases,
+  ...requesterAgentCasesAll,
   ...(["linux", "ios", "android", "unknown"] as const).map((platform) => ({
     ...base,
     id: `unsupported-${platform}`,

@@ -144,6 +144,9 @@ vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
 
+agent/dist/
+agent/release/
+
 # Next.js generated types
 next-env.d.ts
 

@@ -1,0 +1,14 @@
+[Unit]
+Description=HelpDesk First device agent
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/node /opt/helpdesk-first/helpdesk-agent.js run
+Restart=on-failure
+ProtectSystem=strict
+ReadWritePaths=/var/lib/helpdesk-first
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -94,6 +94,33 @@ describe("agent job execution gates", () => {
     expect(fake.calls).toHaveLength(0);
   });
 
+  it("shadow-collects new peripheral actions without invoking executors", async () => {
+    let executorCalls = 0;
+    const fake = fakeRuntime({
+      executionEnabled: true,
+      executionOptIn: true,
+      executor: {
+        actionId: "device_audio_restart",
+        platform: "linux",
+        snapshot: async () => ({}),
+        apply: async () => {
+          executorCalls += 1;
+        },
+        verify: async () => ({ ok: true, summary: "ok" }),
+      },
+    });
+    const report = await fake.runner(
+      job({
+        actionId: "device_audio_restart",
+        mode: "shadow",
+        snapshotSpec: ["audio"],
+      }),
+      { executionEnabled: true, now }
+    );
+    expect(report.status).toBe("shadowed");
+    expect(executorCalls).toBe(0);
+  });
+
   it("rejects invalid SSIDs before invoking any command", async () => {
     const fake = fakeRuntime({ executionEnabled: true, executionOptIn: true });
     const report = await fake.runner(

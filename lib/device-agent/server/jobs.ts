@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import {
   DEVICE_CATALOG_VERSION,
+  getDeviceAction,
   ticketPlatformToDevicePlatform,
 } from "@/lib/device-agent/catalog";
 import {
@@ -90,6 +91,10 @@ export async function enqueueDeviceJob(
     snapshotSpec?: string[];
   }
 ): Promise<DeviceJob> {
+  const action = getDeviceAction(input.actionId, input.actionVersion);
+  if (!action) throw new Error("unknown_device_action");
+  if (!action.inputSchema.safeParse(input.parameters).success)
+    throw new Error("invalid_device_parameters");
   const mode = await resolveJobMode(admin, {
     organizationId: input.organizationId,
     capabilityId: input.actionId,

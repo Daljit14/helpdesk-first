@@ -16,7 +16,7 @@ export type DeviceEvidence = {
     kind: DiagnosticKind;
     ok: boolean;
     summary: string;
-    data?: Record<string, string | number | boolean | null>;
+    data?: Record<string, string | number | boolean | null | string[]>;
   }>;
   stale: boolean;
 };

@@ -1,6 +1,7 @@
 import { MACOS_SERVICE_COMMANDS, type ServiceName } from "../service-maps";
 import type { Executor } from ".";
 import { cleanupExecutor } from "./cleanup";
+import { macosPeripheralExecutors } from "./peripherals";
 import {
   requiredString,
   runDiagnostic,
@@ -199,4 +200,5 @@ export const macosExecutors: readonly Executor[] = [
   resetWifi,
   restartService,
   cleanup,
+  ...macosPeripheralExecutors,
 ];

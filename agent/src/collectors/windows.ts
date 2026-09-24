@@ -52,6 +52,55 @@ function parseDisk(output: string) {
   });
 }
 
+function parseJson(output: string): unknown {
+  try {
+    return JSON.parse(output);
+  } catch {
+    return null;
+  }
+}
+
+function parsePrinters(output: string, spoolerOutput: string) {
+  const parsed = parseJson(output);
+  const rows = Array.isArray(parsed) ? parsed : parsed ? [parsed] : [];
+  const names: string[] = [];
+  const jobCounts: string[] = [];
+  for (const row of rows) {
+    if (!row || typeof row !== "object") continue;
+    const value = row as Record<string, unknown>;
+    const name =
+      typeof value.Name === "string" ? value.Name.trim().slice(0, 80) : "";
+    if (!name) continue;
+    names.push(name);
+    const count =
+      typeof value.Jobs === "number" && Number.isFinite(value.Jobs)
+        ? Math.max(0, Math.trunc(value.Jobs))
+        : 0;
+    jobCounts.push(`${name}:${count}`);
+  }
+  return record("printers", {
+    names: names.slice(0, 40),
+    jobCounts: jobCounts.slice(0, 40),
+    jobCount: jobCounts.reduce((total, value) => {
+      const count = Number(value.split(":").at(-1));
+      return total + (Number.isFinite(count) ? count : 0);
+    }, 0),
+    spooler: /running/i.test(spoolerOutput) ? "running" : "stopped",
+  });
+}
+
+function parseAudio(output: string) {
+  const services = output
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => /running|stopped/i.test(line));
+  return record("audio", {
+    services: services.slice(0, 4).map((line) => line.slice(0, 80)),
+    running:
+      services.length > 0 && services.every((line) => /running/i.test(line)),
+  });
+}
+
 export const windowsCollectors: Collector[] = [
   powershell(
     "network_status",
@@ -106,7 +155,7 @@ export const windowsCollectors: Collector[] = [
   },
   powershell(
     "security_tool_status",
-    "Get-MpComputerStatus | Select-Object RealTimeProtectionEnabled",
+    "Get-MpComputerStatus | Select-Object RealTimeProtectionEnabled; [pscustomobject]@{ ThreatCount=@(Get-MpThreatDetection).Count }",
     (output) =>
       record("security_tool_status", {
         realTimeProtection: /true/i.test(output)
@@ -114,6 +163,47 @@ export const windowsCollectors: Collector[] = [
           : /false/i.test(output)
             ? false
             : null,
+        threatCount: Number(
+          output.match(/ThreatCount\s*[:=]\s*(\d+)/i)?.[1] ?? 0
+        ),
       })
   ),
+  {
+    kind: "printers",
+    run: async (exec) => {
+      try {
+        const printers = await exec("powershell.exe", [
+          "-NoProfile",
+          "-NonInteractive",
+          "-Command",
+          "Get-Printer | ForEach-Object { [pscustomobject]@{ Name=$_.Name; Jobs=@(Get-PrintJob -PrinterName $_.Name).Count } } | ConvertTo-Json -Compress",
+        ]);
+        const spooler = await exec("powershell.exe", [
+          "-NoProfile",
+          "-NonInteractive",
+          "-Command",
+          "(Get-Service Spooler).Status",
+        ]);
+        return parsePrinters(printers, spooler);
+      } catch (error) {
+        return boundedError("printers", error);
+      }
+    },
+  },
+  {
+    kind: "audio",
+    run: async (exec) => {
+      try {
+        const output = await exec("powershell.exe", [
+          "-NoProfile",
+          "-NonInteractive",
+          "-Command",
+          "Get-Service Audiosrv,AudioEndpointBuilder | Select-Object Name,Status | ConvertTo-Csv -NoTypeInformation",
+        ]);
+        return parseAudio(output);
+      } catch (error) {
+        return boundedError("audio", error);
+      }
+    },
+  },
 ];

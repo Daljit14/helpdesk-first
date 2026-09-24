@@ -2,6 +2,8 @@ import { tmpdir } from "node:os";
 import { WINDOWS_SERVICE_COMMANDS, type ServiceName } from "../service-maps";
 import type { Executor } from ".";
 import { cleanupExecutor } from "./cleanup";
+import { windowsPeripheralExecutors } from "./peripherals";
+import { windowsSecurityExecutors } from "./security";
 import {
   requiredString,
   runDiagnostic,
@@ -246,4 +248,6 @@ export const windowsExecutors: readonly Executor[] = [
   resetWifi,
   restartService,
   cleanup,
+  ...windowsSecurityExecutors,
+  ...windowsPeripheralExecutors,
 ];

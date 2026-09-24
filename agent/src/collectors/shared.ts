@@ -104,7 +104,10 @@ export function browserExtensionsCollector(): Collector {
               ];
       const names: string[] = [];
       for (const root of roots) await extensionNames(root, names);
-      return record("browser_extensions", { count: names.length });
+      return record("browser_extensions", {
+        count: names.length,
+        names: names.slice(0, 40).map((name) => name.slice(0, 80)),
+      });
     },
   };
 }

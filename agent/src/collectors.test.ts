@@ -73,7 +73,7 @@ describe("platform collectors", () => {
     const records = await Promise.all(
       collectors.map((collector) => collector.run(fakeExec({})))
     );
-    expect(records).toHaveLength(7);
+    expect(records).toHaveLength(9);
     expect(records.every((record) => record.summary.length <= 512)).toBe(true);
     expect(
       records.find((record) => record.kind === "network_status")?.data

@@ -52,6 +52,35 @@ function parseDisk(output: string) {
   });
 }
 
+function parsePrinters(printers: string, jobs: string, cups: string) {
+  const names = printers
+    .split(/\r?\n/)
+    .filter((line) => /^printer\s+/i.test(line))
+    .map((line) => line.replace(/^printer\s+/i, "").split(/\s+/)[0])
+    .filter(Boolean)
+    .slice(0, 40)
+    .map((name) => name.slice(0, 80));
+  return record("printers", {
+    names,
+    jobCount: jobs.split(/\r?\n/).filter(Boolean).length,
+    cups: /active|running/i.test(cups) ? "running" : "stopped",
+  });
+}
+
+function parseAudio(pipewire: string, pulse: string, pactl: string) {
+  const statuses = [pipewire.trim(), pulse.trim()].filter(Boolean);
+  return record("audio", {
+    pipewire: pipewire.trim().slice(0, 80) || "unknown",
+    pulseaudio: pulse.trim().slice(0, 80) || "unknown",
+    defaultSink:
+      pactl
+        .match(/^\s*Default Sink:\s*(.+)$/im)?.[1]
+        ?.trim()
+        .slice(0, 80) ?? null,
+    running: statuses.some((status) => /active|running/i.test(status)),
+  });
+}
+
 function serviceCollector(): Collector {
   return {
     kind: "service_status",
@@ -107,5 +136,39 @@ export const linuxCollectors: Collector[] = [
   {
     kind: "security_tool_status",
     run: async () => record("security_tool_status", { applicable: false }),
+  },
+  {
+    kind: "printers",
+    run: async (exec) => {
+      try {
+        const printers = await exec("lpstat", ["-p"]);
+        const jobs = await exec("lpstat", ["-o"]);
+        const cups = await exec("systemctl", ["is-active", "cups"]);
+        return parsePrinters(printers, jobs, cups);
+      } catch (error) {
+        return boundedError("printers", error);
+      }
+    },
+  },
+  {
+    kind: "audio",
+    run: async (exec) => {
+      try {
+        const pipewire = await exec("systemctl", [
+          "--user",
+          "is-active",
+          "pipewire",
+        ]);
+        const pulse = await exec("systemctl", [
+          "--user",
+          "is-active",
+          "pulseaudio",
+        ]);
+        const pactl = await exec("pactl", ["info"]);
+        return parseAudio(pipewire, pulse, pactl);
+      } catch (error) {
+        return boundedError("audio", error);
+      }
+    },
   },
 ];

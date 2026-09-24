@@ -27,9 +27,11 @@ function fakeExec(
 const platforms = ["windows", "macos", "linux"] as const;
 
 describe("device executors", () => {
-  it.each(platforms)("registers every B3 executor on %s", (platform) => {
+  it.each(platforms)("registers every catalog executor on %s", (platform) => {
     for (const action of DEVICE_ACTIONS.filter(
-      (candidate) => candidate.sideEffects === "local_write"
+      (candidate) =>
+        candidate.sideEffects === "local_write" &&
+        candidate.platforms.includes(platform)
     ))
       expect(getExecutor(action.id, platform)).not.toBeNull();
   });
@@ -56,6 +58,60 @@ describe("device executors", () => {
             ]
           : [["resolvectl", "flush-caches"]]
     );
+  });
+
+  it("uses bounded Defender and printer commands on Windows", async () => {
+    const fake = fakeExec((file, args) => {
+      if (file === "powershell.exe" && args.at(-1)?.includes("DisableRealtime"))
+        return '{"DisableRealtimeMonitoring":true}';
+      return "";
+    });
+    const security = getExecutor(
+      "device_security_enable_realtime_protection",
+      "windows"
+    );
+    expect(security).not.toBeNull();
+    const securitySnapshot = await security!.snapshot(fake.exec, {});
+    await security!.apply(fake.exec, {}, securitySnapshot);
+    expect(fake.calls.slice(0, 2)).toEqual([
+      {
+        file: "powershell.exe",
+        args: [
+          "-NoProfile",
+          "-NonInteractive",
+          "-Command",
+          "Get-MpPreference | Select-Object DisableRealtimeMonitoring | ConvertTo-Json -Compress",
+        ],
+      },
+      {
+        file: "powershell.exe",
+        args: [
+          "-NoProfile",
+          "-NonInteractive",
+          "-Command",
+          "Set-MpPreference -DisableRealtimeMonitoring $false",
+        ],
+      },
+    ]);
+    const printer = getExecutor("device_printer_clear_queue", "windows");
+    expect(printer).not.toBeNull();
+    await printer!.snapshot(fake.exec, {});
+    expect(fake.calls.at(-1)?.args.at(-1)).toContain("Get-Printer");
+  });
+
+  it("requires non-interactive sudo before restarting macOS audio", async () => {
+    const calls: Call[] = [];
+    const exec: AgentExec = async (file, args) => {
+      calls.push({ file, args });
+      if (file === "sudo") throw new Error("sudo unavailable");
+      return "";
+    };
+    const executor = getExecutor("device_audio_restart", "macos");
+    expect(executor).not.toBeNull();
+    await expect(executor!.apply(exec, {}, {})).rejects.toThrow(
+      "requires_privilege"
+    );
+    expect(calls).toEqual([{ file: "sudo", args: ["-n", "true"] }]);
   });
 
   it.each(platforms)(

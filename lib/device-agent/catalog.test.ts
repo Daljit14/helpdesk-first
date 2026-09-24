@@ -15,7 +15,7 @@ describe("device-agent catalog", () => {
     expect(getDeviceAction("device_flush_dns", 1)?.sideEffects).toBe(
       "local_write"
     );
-    expect(DEVICE_CATALOG_VERSION).toBe("2026-09-21.3");
+    expect(DEVICE_CATALOG_VERSION).toBe("2026-09-21.4");
     expect(
       getDeviceAction("device_cleanup_temp_files", 1)?.snapshotSpec
     ).toEqual(["temp_inventory"]);

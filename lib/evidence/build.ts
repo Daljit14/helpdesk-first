@@ -176,7 +176,14 @@ export function buildEvidence(
                   ? "Stuck OS update"
                   : diagnostic.kind === "security_tool_status" && !diagnostic.ok
                     ? "Endpoint protection unhealthy — route to security"
-                    : null;
+                    : diagnostic.kind === "printers" &&
+                        typeof diagnostic.data?.jobCount === "number" &&
+                        diagnostic.data.jobCount > 0
+                      ? "Printer queue is stuck"
+                      : diagnostic.kind === "audio" &&
+                          diagnostic.data?.running === false
+                        ? "Audio service is stopped"
+                        : null;
       if (!cause) return [];
       return [
         {

@@ -19,11 +19,19 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default async function OperationsPage() {
+export default async function OperationsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ showExcluded?: string }>;
+}) {
   const session = await requireAdminPage("/admin/operations");
   if (isTicketWorkflowEnabled())
     void notifyOverdueTickets(session.organizationId);
-  const snapshot = await getOperationsData(session, defaultAdminFilters());
+  const params = await searchParams;
+  const snapshot = await getOperationsData(session, {
+    ...defaultAdminFilters(),
+    showExcluded: session.role === "org_admin" && params.showExcluded === "1",
+  });
   const organizationPolicy = await getOrganizationPolicy(
     session.organizationId
   );

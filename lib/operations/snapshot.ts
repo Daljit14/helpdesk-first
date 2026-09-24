@@ -62,9 +62,20 @@ const emptyTraffic = (timestamp = new Date().toISOString()): TrafficPoint => ({
   ticketsCreatedPerMin: 0,
 });
 
-export async function getOperationsSnapshot(): Promise<OperationsSnapshot> {
+export async function getOperationsSnapshot(
+  opts: { includeExcluded?: boolean } = {}
+): Promise<OperationsSnapshot> {
   const generatedAt = new Date().toISOString();
   const admin = createAdminClient();
+  const exclusions = opts.includeExcluded
+    ? { data: [] as { record_id: string }[] }
+    : await admin
+        .from("record_exclusions")
+        .select("record_id")
+        .eq("table_name", "tickets");
+  const excludedIds = new Set(
+    (exclusions.data ?? []).map((row) => String(row.record_id))
+  );
   const { data, error } = await admin
     .from("tickets")
     .select(
@@ -94,26 +105,28 @@ export async function getOperationsSnapshot(): Promise<OperationsSnapshot> {
     };
   }
 
-  const tickets: OperationsTicket[] = (data ?? []).map((row) => {
-    const status = normalizeStatus(row.status);
-    const priority = normalizePriority(row.priority);
-    return {
-      ticketId: toTicketId(row.id),
-      createdAt: row.created_at,
-      updatedAt: row.updated_at ?? row.created_at,
-      status,
-      priority,
-      category: getCategoryLabel(row.issue_id),
-      issueTitle: row.issue_title,
-      userKey: pseudonymizeUser(row.user_id),
-      assignedAgent: row.assigned_agent ?? "",
-      slaDue: slaDue(row.created_at, priority),
-      firstResponseAt: row.first_response_at ?? null,
-      resolvedAt: row.resolved_at ?? null,
-      platform: normalizePlatform(row.platform),
-      hasAttachment: Boolean(row.attachment_path),
-    };
-  });
+  const tickets: OperationsTicket[] = (data ?? [])
+    .filter((row) => !excludedIds.has(row.id))
+    .map((row) => {
+      const status = normalizeStatus(row.status);
+      const priority = normalizePriority(row.priority);
+      return {
+        ticketId: toTicketId(row.id),
+        createdAt: row.created_at,
+        updatedAt: row.updated_at ?? row.created_at,
+        status,
+        priority,
+        category: getCategoryLabel(row.issue_id),
+        issueTitle: row.issue_title,
+        userKey: pseudonymizeUser(row.user_id),
+        assignedAgent: row.assigned_agent ?? "",
+        slaDue: slaDue(row.created_at, priority),
+        firstResponseAt: row.first_response_at ?? null,
+        resolvedAt: row.resolved_at ?? null,
+        platform: normalizePlatform(row.platform),
+        hasAttachment: Boolean(row.attachment_path),
+      };
+    });
 
   return {
     generatedAt,

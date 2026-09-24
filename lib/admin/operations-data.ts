@@ -10,6 +10,7 @@ import {
 } from "@/lib/operations/transform";
 import type { AdminSession } from "./auth";
 import { isResolutionTrackingEnabled } from "./flags";
+import { getExcludedRecordIds } from "./record-exclusions";
 
 export type AdminMetric = {
   activeUsers: number;
@@ -60,6 +61,7 @@ export type AdminFilters = {
   minConfidence?: number;
   risk?: "low" | "medium" | "high";
   handoffReason?: string;
+  showExcluded?: boolean;
   page: number;
   pageSize: number;
 };
@@ -242,6 +244,7 @@ type TicketQuery = {
   order(column: string, options: { ascending: boolean }): TicketQuery;
   in(column: string, values: string[]): TicketQuery;
   is(column: string, value: null): TicketQuery;
+  not(column: string, operator: string, value: string): TicketQuery;
   ilike(column: string, value: string): TicketQuery;
   limit(value: number): Promise<{
     data: WorkflowTicketRow[] | null;
@@ -373,6 +376,10 @@ export async function getOperationsData(
   filters: AdminFilters
 ): Promise<OperationsData> {
   const admin = createAdminClient();
+  const excluded =
+    filters.showExcluded && session.role === "org_admin"
+      ? new Set<string>()
+      : await getExcludedRecordIds(admin, session.organizationId, "tickets");
   const { data: metricData, error: metricError } = await admin.rpc(
     "admin_operations_metrics",
     { org: session.organizationId }
@@ -416,6 +423,8 @@ export async function getOperationsData(
     .eq("organization_id", session.organizationId)
     .gte("created_at", filters.from)
     .order("created_at", { ascending: false });
+  if (excluded.size > 0)
+    filteredQuery.not("id", "in", `(${[...excluded].join(",")})`);
   let activeQuery = filteredQuery;
   if (filters.to) activeQuery = activeQuery.lte("created_at", filters.to);
 

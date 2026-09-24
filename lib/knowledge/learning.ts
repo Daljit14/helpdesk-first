@@ -387,6 +387,16 @@ export async function generateCandidate(
     : null;
   if (!ticket)
     return { outcome: { kind: "skipped", reason: "ticket_missing" } };
+  const exclusion = await admin
+    .from("record_exclusions")
+    .select("id")
+    .eq("organization_id", organizationId)
+    .eq("table_name", "tickets")
+    .eq("record_id", ticketId)
+    .maybeSingle();
+  if (exclusion.error) throw exclusion.error;
+  if (exclusion.data)
+    return { outcome: { kind: "skipped", reason: "excluded_record" } };
 
   const report = resolutionReportSchema.safeParse(ticket.resolution_report);
   const eligibility = evaluateLearningEligibility({

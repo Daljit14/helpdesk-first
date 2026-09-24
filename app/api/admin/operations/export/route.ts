@@ -29,7 +29,9 @@ export async function GET(request: Request) {
   if (!matchesSecret(key, expected)) {
     return Response.json({ error: "Unauthorized." }, { status: 401 });
   }
-  const snapshot = await getOperationsSnapshot();
+  const includeExcluded =
+    new URL(request.url).searchParams.get("include_excluded") === "1";
+  const snapshot = await getOperationsSnapshot({ includeExcluded });
   return Response.json(snapshot, {
     headers: { "Cache-Control": "no-store" },
   });

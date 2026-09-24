@@ -258,7 +258,15 @@ stable
 set search_path = public
 as $$
   with scoped as (
-    select * from public.tickets where organization_id = org
+    select t.* from public.tickets t
+    where t.organization_id = org
+      and not exists (
+        select 1
+        from public.record_exclusions x
+        where x.organization_id = t.organization_id
+          and x.table_name = 'tickets'
+          and x.record_id = t.id
+      )
   ),
   open_tickets as (
     select * from scoped where lower(status) in (
@@ -322,7 +330,17 @@ grant execute on function public.admin_operations_metrics(uuid) to service_role;
 
 create or replace function public.admin_workflow_metrics(org uuid)
 returns jsonb language sql security definer stable set search_path = public as $$
-with scoped as (select * from public.tickets where organization_id = org)
+with scoped as (
+  select t.* from public.tickets t
+  where t.organization_id = org
+    and not exists (
+      select 1
+      from public.record_exclusions x
+      where x.organization_id = t.organization_id
+        and x.table_name = 'tickets'
+        and x.record_id = t.id
+    )
+)
 select jsonb_build_object(
   'needsHuman', count(*) filter (where lower(status) = 'needs human'),
   'aiResolving', count(*) filter (where lower(status) = 'ai resolving'),
@@ -407,9 +425,16 @@ stable
 set search_path = public
 as $$
   with scoped as (
-    select *
-    from public.tickets
-    where organization_id = org
+    select t.*
+    from public.tickets t
+    where t.organization_id = org
+      and not exists (
+        select 1
+        from public.record_exclusions x
+        where x.organization_id = t.organization_id
+          and x.table_name = 'tickets'
+          and x.record_id = t.id
+      )
   ),
   completed as (
     select *

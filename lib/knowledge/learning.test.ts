@@ -173,6 +173,9 @@ function makeWorkflowAdmin(options: {
     },
   });
   const comments = makeQuery({ result: { data: [], error: null } });
+  const exclusions = makeQuery({
+    maybeSingle: { data: null, error: null },
+  });
   const admin = {
     events,
     drafts,
@@ -181,6 +184,7 @@ function makeWorkflowAdmin(options: {
       if (table === "tickets") return tickets;
       if (table === "ticket_step_outcomes") return outcomes;
       if (table === "knowledge_drafts") return drafts;
+      if (table === "record_exclusions") return exclusions;
       if (table === "ticket_comments") {
         if (options.ticketComments === false) {
           throw new Error("ticket_comments must not be read");
@@ -258,6 +262,9 @@ function makeReviewAdmin(row: Record<string, unknown> | null) {
   const outcomes = makeQuery({
     result: { data: inputs().stepOutcomes, error: null },
   });
+  const exclusions = makeQuery({
+    maybeSingle: { data: null, error: null },
+  });
   const admin = {
     drafts,
     guides,
@@ -268,6 +275,7 @@ function makeReviewAdmin(row: Record<string, unknown> | null) {
       if (table === "knowledge_guide_revisions") return revisions;
       if (table === "tickets") return tickets;
       if (table === "ticket_step_outcomes") return outcomes;
+      if (table === "record_exclusions") return exclusions;
       throw new Error(`Unexpected table: ${table}`);
     }),
   };

@@ -51,6 +51,7 @@ describe("device-agent protocol", () => {
             parameters: {},
             mode: "shadow",
             kind: "action",
+            rollbackOf: null,
             expiresAt: new Date().toISOString(),
             snapshotSpec: [],
           },

@@ -15,12 +15,14 @@ export const metadata: Metadata = {
 export default async function ResolutionCenterPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{ status?: string; showExcluded?: string }>;
 }) {
   if (!isResolutionCenterEnabled()) notFound();
   const session = await requireAdminPage("/admin/resolution");
   const params = await searchParams;
-  const overview = await getResolutionCenterOverview(session);
+  const overview = await getResolutionCenterOverview(session, {
+    showExcluded: session.role === "org_admin" && params.showExcluded === "1",
+  });
   const status = params.status?.toLowerCase();
   const runs = overview.runs.filter((run) => {
     if (!status) return true;
@@ -48,7 +50,13 @@ export default async function ResolutionCenterPage({
             and safe staff controls.
           </p>
         </div>
-        <ResolutionCenterTable runs={runs} metrics={overview.metrics} />
+        <ResolutionCenterTable
+          runs={runs}
+          metrics={overview.metrics}
+          showExcluded={
+            session.role === "org_admin" && params.showExcluded === "1"
+          }
+        />
       </div>
     </section>
   );

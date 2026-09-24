@@ -39,9 +39,11 @@ function formatMetric(
 export function ResolutionCenterTable({
   runs,
   metrics,
+  showExcluded,
 }: {
   runs: RunSummary[];
   metrics: ResolutionMetrics;
+  showExcluded?: boolean;
 }) {
   return (
     <div className="space-y-6">
@@ -78,6 +80,16 @@ export function ResolutionCenterTable({
           className="v2-touch rounded-full border border-border px-3 py-2 text-sm hover:bg-muted"
         >
           All
+        </Link>
+        <Link
+          href={
+            showExcluded
+              ? "/admin/resolution"
+              : "/admin/resolution?showExcluded=1"
+          }
+          className="v2-touch rounded-full border border-border px-3 py-2 text-sm hover:bg-muted"
+        >
+          {showExcluded ? "Hide excluded" : "Show excluded"}
         </Link>
         <Link
           href="/admin/resolution/guardrails"

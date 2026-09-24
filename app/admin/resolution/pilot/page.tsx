@@ -93,6 +93,15 @@ export default async function PilotPage() {
             </div>
           ))}
         </div>
+        <section className="mt-6 rounded-lg border p-4">
+          <h2 className="font-semibold">Device jobs</h2>
+          <div className="mt-3 grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
+            <div>Total: {overview.deviceJobs.total}</div>
+            <div>Real: {overview.deviceJobs.real}</div>
+            <div>Shadow: {overview.deviceJobs.shadow}</div>
+            <div>Executed: {overview.deviceJobs.executed}</div>
+          </div>
+        </section>
         {overview.error && (
           <p className="mt-6 rounded-lg border border-border bg-muted/40 p-4 text-sm text-muted-foreground">
             Pilot data is unavailable: {overview.error}

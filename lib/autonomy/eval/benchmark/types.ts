@@ -117,7 +117,13 @@ const device = z
           data: z
             .record(
               z.string(),
-              z.union([z.string(), z.number(), z.boolean(), z.null()])
+              z.union([
+                z.string(),
+                z.number(),
+                z.boolean(),
+                z.null(),
+                z.array(z.string().max(80)).max(40),
+              ])
             )
             .optional(),
         })

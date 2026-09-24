@@ -269,6 +269,49 @@ export class DeterministicPlanner implements Planner {
         }
         const updates = diagnostic("pending_updates");
         if (updates?.data?.stuck === true) return escalate("stuck_update");
+        const security = diagnostic("security_tool_status");
+        if (security?.data?.realTimeProtection === false) {
+          const action = deviceAction(
+            "device_security_enable_realtime_protection",
+            {},
+            "Endpoint real-time protection is disabled."
+          );
+          if (action) return action;
+        }
+        if (
+          typeof security?.data?.threatCount === "number" &&
+          security.data.threatCount > 0
+        ) {
+          const action = deviceAction(
+            "device_security_remove_detected_threats",
+            {},
+            "Detected endpoint threats require review."
+          );
+          if (action) return action;
+        }
+        const printers = diagnostic("printers");
+        if (
+          typeof printers?.data?.jobCount === "number" &&
+          printers.data.jobCount > 0 &&
+          printers.data.spooler !== "running" &&
+          printers.data.cups !== "running"
+        ) {
+          const action = deviceAction(
+            "device_printer_clear_queue",
+            {},
+            "Printer jobs are queued while the print service is stopped."
+          );
+          if (action) return action;
+        }
+        const audio = diagnostic("audio");
+        if (audio?.data?.running === false) {
+          const action = deviceAction(
+            "device_audio_restart",
+            {},
+            "The audio service is not running."
+          );
+          if (action) return action;
+        }
       }
     }
 

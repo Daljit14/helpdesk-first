@@ -24,7 +24,7 @@ and snapshot rollback contracts. Device execution is disabled by default:
 read-only jobs can run collectors, local-write jobs are `shadowed` when
 execution is disabled and `unsupported` in execute mode. B3 adds bounded
 execution while retaining the default-off boundary, and B4 adds signed
-MSI/PKG/DEB packaging and service manifests. Malware quarantine remains
+tarball packaging and service manifests. Malware quarantine remains
 excluded until an explicit policy change.
 
 The execution mode requires both `HELP_DESK_DEVICE_EXECUTION_ENABLED=true` and
@@ -77,11 +77,46 @@ The agent persists bounded structured diagnostics, never raw subprocess output:
 - `disk_space`: `{ freePercent, freeGb }`
 - `service_status`: statuses only for the catalog allow-list
 - `pending_updates`: `{ available, stuck }`
-- `browser_extensions`: `{ count }`, from current-user Chrome/Edge manifests
+- `browser_extensions`: `{ count, names }`, from current-user Chrome/Edge
+  manifests, capped at 40 names and 80 characters per name
 - `security_tool_status`: Windows Defender or macOS Gatekeeper status; Linux
   reports not applicable
+- `printers`: bounded printer names, queue counts, and spooler/CUPS status
+- `audio`: bounded platform audio-service status and default output name
 
 Every parser contains malformed output and command failures. Summaries are
 derived from structured fields and capped at 512 characters. These diagnostics
 can activate deterministic evidence hypotheses, while local-write execution
 remains blocked unless all B3 switches are enabled.
+
+## Packaging and deployment (B4)
+
+`npm run agent:package` builds the outbound agent and creates a versioned
+`agent/release/helpdesk-agent-<version>.tar.gz` containing the bundle,
+platform service/install artifacts, and `SHA256SUMS`. When
+`HELP_DESK_AGENT_SIGNING_KEY` is set to a base64 Ed25519 seed, the package also
+contains a detached `SHA256SUMS.sig`. Verify a package with:
+
+```text
+npm run agent:verify-package -- agent/release/helpdesk-agent-<version>.tar.gz <public-key>
+```
+
+For Windows, deploy `packaging/windows/install.ps1` as an Intune Win32 app.
+It registers the agent as a SYSTEM startup Scheduled Task. For macOS, run
+`packaging/install.sh` from a Jamf policy; it installs the launchd plist.
+Linux VMs use the included systemd unit. Google Admin and ChromeOS are not
+supported; Linux VMs are the supported Linux target.
+
+Native MSI, PKG, and DEB toolchains and signing certificates are not present,
+so native packages remain deferred. The package artifacts are the supported
+interim deployment path.
+
+The B4 catalog adds security, printer, and audio read-only diagnostics plus
+bounded security and peripheral actions. Read-only actions require no consent;
+irreversible actions require requester consent; reversible local-write actions
+retain the existing organization-preapproval policy. Display reset is
+explicitly out of scope because safely scripting it would require logging the
+user out. The existing `security_tool_status` diagnostic enum is retained for
+security actions because the protocol did not previously expose a separate
+`security` value. Execution remains disabled by default and new actions remain
+shadow-first.

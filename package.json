@@ -14,7 +14,9 @@
     "eval:autonomy": "vitest run --config vitest.eval.config.ts scripts/eval-autonomy.test.ts",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "agent:build": "esbuild agent/src/cli.ts --bundle --platform=node --target=node20 --outfile=agent/dist/helpdesk-agent.js"
+    "agent:build": "esbuild agent/src/cli.ts --bundle --platform=node --target=node20 --outfile=agent/dist/helpdesk-agent.js",
+    "agent:package": "npm run agent:build && node scripts/agent-package.mjs",
+    "agent:verify-package": "node scripts/agent-package.mjs verify"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

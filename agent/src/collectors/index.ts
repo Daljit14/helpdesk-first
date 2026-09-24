@@ -17,7 +17,10 @@ export type Collector = {
   run: (exec: AgentExec) => Promise<DiagnosticRecord>;
 };
 
-export type DiagnosticData = Record<string, string | number | boolean | null>;
+export type DiagnosticData = Record<
+  string,
+  string | number | boolean | null | string[]
+>;
 
 export function summaryFromData(data: DiagnosticData): string {
   return Object.entries(data)

@@ -43,7 +43,7 @@ function platformName(): DevicePlatform {
 const runFile = promisify(execFile);
 const execForAgent: AgentExec = async (file, args, options) => {
   const result = await runFile(file, args, {
-    timeout: options?.timeoutMs ?? 8_000,
+    timeout: Math.min(options?.timeoutMs ?? 8_000, 120_000),
     maxBuffer: 1_000_000,
   });
   return result.stdout;

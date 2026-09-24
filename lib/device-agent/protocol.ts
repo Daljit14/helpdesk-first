@@ -13,7 +13,13 @@ const base64url = z.string().regex(/^[A-Za-z0-9_-]+$/);
 const boundedData = z
   .record(
     z.string().max(80),
-    z.union([z.string().max(500), z.number(), z.boolean(), z.null()])
+    z.union([
+      z.string().max(500),
+      z.number(),
+      z.boolean(),
+      z.null(),
+      z.array(z.string().max(80)).max(40),
+    ])
   )
   .refine((value) => Object.keys(value).length <= 40);
 
@@ -64,6 +70,8 @@ export const diagnosticKindSchema = z.enum([
   "service_status",
   "browser_extensions",
   "security_tool_status",
+  "printers",
+  "audio",
 ]);
 export type DiagnosticKind = z.infer<typeof diagnosticKindSchema>;
 

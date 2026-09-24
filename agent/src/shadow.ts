@@ -57,6 +57,45 @@ export function planShadow(
       reason: "Disk is almost full.",
       kinds: ["disk_space"],
     });
+  const security = find("security_tool_status");
+  if (security?.data.realTimeProtection === false)
+    actions.push({
+      id: "device_security_enable_realtime_protection",
+      params: {},
+      reason: "Endpoint real-time protection is disabled.",
+      kinds: ["security_tool_status"],
+    });
+  if (
+    typeof security?.data.threatCount === "number" &&
+    security.data.threatCount > 0
+  )
+    actions.push({
+      id: "device_security_remove_detected_threats",
+      params: {},
+      reason: "Detected endpoint threats require review.",
+      kinds: ["security_tool_status"],
+    });
+  const printers = find("printers");
+  if (
+    typeof printers?.data.jobCount === "number" &&
+    printers.data.jobCount > 0 &&
+    printers.data.spooler !== "running" &&
+    printers.data.cups !== "running"
+  )
+    actions.push({
+      id: "device_printer_clear_queue",
+      params: {},
+      reason: "Printer jobs are queued while the print service is stopped.",
+      kinds: ["printers"],
+    });
+  const audio = find("audio");
+  if (audio?.data.running === false)
+    actions.push({
+      id: "device_audio_restart",
+      params: {},
+      reason: "The audio service is not running.",
+      kinds: ["audio"],
+    });
   return actions.flatMap((item) => {
     const action = catalog.find(
       (candidate) =>

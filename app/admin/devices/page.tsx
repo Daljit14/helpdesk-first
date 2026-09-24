@@ -230,8 +230,8 @@ export default async function DevicesPage() {
                       {device.last_seen_at
                         ? new Date(device.last_seen_at).toLocaleString()
                         : "never"}
-                      {device.user_id
-                        ? ` · owner ${owners.get(device.user_id) ?? "unknown"}`
+                      {owners.get(device.user_id ?? "")
+                        ? ` · owner ${owners.get(device.user_id ?? "")}`
                         : " · unclaimed"}
                     </p>
                   </div>

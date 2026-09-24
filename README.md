@@ -42,6 +42,25 @@ Set `HELP_DESK_AI_PROVIDER=mock` (or `anthropic`/`shadow` with a server-only
 `supabase/knowledge-governance.sql`; this enables approved-guide governance,
 citations, provider telemetry, and the admin Knowledge page.
 
+## Requester agent (Phase C1)
+
+The optional requester-side agent is disabled by default. Apply
+`supabase/requester-agent.sql`, then set
+`HELP_DESK_REQUESTER_AGENT_ENABLED=true` and explicitly allow organizations
+with `HELP_DESK_REQUESTER_AGENT_ORG_ALLOWLIST`. C1 is read-only: it searches
+approved guides, reads stored diagnostics, reads the signed-in requester's
+directory status, and reads that requester's ticket history. It never changes
+device, account, ticket, or organization state. Keep actions, autorun, and
+vision disabled.
+
+Use `HELP_DESK_AI_PROVIDER=mock` for a deterministic Wi-Fi smoke test. The
+agent uses bounded budgets, untrusted-data wrapping, denylist/tripwire safety
+halts, kill-switch checks, and an append-only encrypted session audit. Set
+the C1 budget variables in `.env.example`; enable only with a pilot watch and
+the existing human handoff path. The legacy assistant remains unchanged when
+UI v2 or the requester-agent flag is off. Research and live device collection
+are deferred to C2.
+
 ## Operations export
 
 Apply [`supabase/operations.sql`](supabase/operations.sql), then set

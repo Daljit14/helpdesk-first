@@ -1,3 +1,13 @@
+## Requester agent C1
+
+C1 is off by default and organization allowlisted. Tool schemas are strict,
+identity-target parameters are rejected, tool output is wrapped as untrusted,
+and denylisted or injection-sensitive requests halt to a human ticket.
+Budgets, kill switches, organization-scoped RLS, append-only steps, and
+encryption dual-read/write controls apply. No C1 tool mutates state or
+executes through the autonomy gateway. Research, live collection, and
+state-changing actions are deferred.
+
 | External page injection | Research snippets are guarded as untrusted input and dropped on injection or executable content. |
 | Spoofed vendor domains | Vendor trust requires HTTPS and exact hostname/subdomain matching. |
 | Query data exfiltration | Queries are built only from category, platform, hypotheses, and guide titles. |

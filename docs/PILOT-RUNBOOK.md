@@ -1,3 +1,15 @@
+## Requester agent C1 pilot
+
+1. Apply `supabase/requester-agent.sql` after the prerequisite migrations.
+2. Keep `HELP_DESK_REQUESTER_AGENT_ACTIONS_ENABLED`,
+   `HELP_DESK_REQUESTER_AGENT_AUTORUN_ENABLED`, and
+   `HELP_DESK_REQUESTER_AGENT_VISION_ENABLED` false.
+3. Set the global flag and allow one organization UUID.
+4. Use the mock provider and exercise a Wi-Fi request, a human handoff, and
+   a kill-switch halt while watching `agent_sessions` and `agent_steps`.
+5. Disable the global flag or set the organization kill switch immediately if
+   safety telemetry, rate limits, or escalation behavior is unexpected.
+
 ### Enabling external research for one organization
 
 Keep `HELP_DESK_RESEARCH_ENABLED=false` globally until the provider key, budget, and

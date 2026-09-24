@@ -15,7 +15,11 @@ import { getResearchConfig } from "@/lib/autonomy/config";
 import { isOrgEncryptionEnabled } from "@/lib/security/data-protection-config";
 import { isMasterKeyValid } from "@/lib/security/master-key";
 import { countPlaintextRowsDetailed } from "@/lib/security/backfill";
-import { isDeviceAgentEnabled, isDeviceExecutionEnabled } from "./flags";
+import {
+  isDeviceAgentEnabled,
+  isDeviceExecutionEnabled,
+  isRequesterAgentEnabled,
+} from "./flags";
 
 type Admin = ReturnType<typeof createAdminClient>;
 
@@ -121,6 +125,18 @@ export async function computePilotReadiness(
   const grantEnabled =
     capabilityAllowlist?.includes("grant_group_access") ?? false;
   const items: PilotReadinessItem[] = [
+    {
+      label: "Requester agent",
+      ready: true,
+      reason: isRequesterAgentEnabled()
+        ? `on for ${
+            (process.env.HELP_DESK_REQUESTER_AGENT_ORG_ALLOWLIST ?? "")
+              .split(",")
+              .map((value) => value.trim())
+              .filter(Boolean).length
+          } orgs; tables present`
+        : "off (flag); tables must be applied before enabling",
+    },
     {
       label: "Device agent",
       ready: deviceReady,

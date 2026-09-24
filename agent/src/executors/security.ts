@@ -1,13 +1,15 @@
 import type { Executor } from ".";
+import { parseJsonRows } from "../collectors/shared";
 import { truncate } from "./shared";
 
 const powershell = ["-NoProfile", "-NonInteractive", "-Command"] as const;
 
-function statusValue(output: string, key: string): boolean | null {
-  const value = output.match(
-    new RegExp(`${key}\\s*[:=]\\s*(true|false)`, "i")
-  )?.[1];
-  return value ? value.toLowerCase() === "true" : null;
+function statusValue(output: string, key?: string): boolean | null {
+  const scalar = output.trim().match(/^(true|false)$/i)?.[1];
+  if (scalar) return scalar.toLowerCase() === "true";
+  if (!key) return null;
+  const value = parseJsonRows(output)[0]?.[key];
+  return typeof value === "boolean" ? value : null;
 }
 
 const enableRealtime: Executor = {
@@ -16,16 +18,12 @@ const enableRealtime: Executor = {
   snapshot: async (exec) => {
     const output = await exec(
       "powershell.exe",
-      [
-        ...powershell,
-        "Get-MpPreference | Select-Object DisableRealtimeMonitoring | ConvertTo-Json -Compress",
-      ],
+      [...powershell, "(Get-MpPreference).DisableRealtimeMonitoring"],
       { timeoutMs: 30_000 }
     );
     return {
       security: truncate(output),
-      realtimeDisabled:
-        statusValue(output, "DisableRealtimeMonitoring") ?? false,
+      realtimeDisabled: statusValue(output) ?? false,
     };
   },
   apply: async (exec) => {
@@ -38,13 +36,10 @@ const enableRealtime: Executor = {
   verify: async (exec) => {
     const output = await exec(
       "powershell.exe",
-      [
-        ...powershell,
-        "Get-MpComputerStatus | Select-Object RealTimeProtectionEnabled",
-      ],
+      [...powershell, "(Get-MpComputerStatus).RealTimeProtectionEnabled"],
       { timeoutMs: 30_000 }
     );
-    const enabled = statusValue(output, "RealTimeProtectionEnabled");
+    const enabled = statusValue(output);
     return {
       ok: enabled === true,
       summary: `RealTimeProtectionEnabled=${String(enabled)}`,
@@ -70,11 +65,11 @@ const updateSignatures: Executor = {
       "powershell.exe",
       [
         ...powershell,
-        "Get-MpComputerStatus | Select-Object AntivirusSignatureLastUpdated",
+        "(Get-MpComputerStatus).AntivirusSignatureLastUpdated.ToUniversalTime().ToString('o')",
       ],
       { timeoutMs: 30_000 }
     );
-    return { signatureTimestamp: truncate(output) };
+    return { signatureTimestamp: output.trim().slice(0, 500) };
   },
   apply: async (exec) => {
     await exec("powershell.exe", [...powershell, "Update-MpSignature"], {
@@ -86,23 +81,22 @@ const updateSignatures: Executor = {
       "powershell.exe",
       [
         ...powershell,
-        "Get-MpComputerStatus | Select-Object AntivirusSignatureLastUpdated",
+        "(Get-MpComputerStatus).AntivirusSignatureLastUpdated.ToUniversalTime().ToString('o')",
       ],
       { timeoutMs: 30_000 }
     );
-    const before = snapshot.signatureTimestamp;
     const beforeDate =
-      typeof before === "string" ? Date.parse(before) : Number.NaN;
-    const currentMatch = output.match(
-      /AntivirusSignatureLastUpdated\s*[:=]\s*(.+)/i
-    );
-    const currentDate = currentMatch?.[1] ? Date.parse(currentMatch[1]) : NaN;
+      typeof snapshot.signatureTimestamp === "string"
+        ? Date.parse(snapshot.signatureTimestamp)
+        : Number.NaN;
+    const currentTimestamp = output.trim();
+    const currentDate = Date.parse(currentTimestamp);
     const ok =
       Number.isFinite(currentDate) &&
       (!Number.isFinite(beforeDate) || currentDate >= beforeDate);
     return {
       ok,
-      summary: `AntivirusSignatureLastUpdated=${currentMatch?.[1]?.trim() ?? "unknown"}`,
+      summary: `AntivirusSignatureLastUpdated=${currentTimestamp || "unknown"}`,
     };
   },
 };
@@ -135,9 +129,18 @@ const removeThreats: Executor = {
       ],
       { timeoutMs: 30_000 }
     );
-    const rows = output.match(/ActionSuccess\s*[:=]\s*(true|false)/gi) ?? [];
+    const trimmed = output.trim();
+    let parsed: unknown;
+    try {
+      parsed = trimmed ? JSON.parse(trimmed) : [];
+    } catch {
+      parsed = null;
+    }
+    const rows = parseJsonRows(output);
     const ok =
-      rows.length === 0 || rows.every((row) => /true$/i.test(row.trim()));
+      Array.isArray(parsed) && parsed.length === 0
+        ? true
+        : rows.length > 0 && rows.every((row) => row.ActionSuccess === true);
     return {
       ok,
       summary: ok ? "No active threats reported." : truncate(output),

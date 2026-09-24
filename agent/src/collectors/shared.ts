@@ -4,6 +4,19 @@ import { homedir, platform } from "node:os";
 import { join } from "node:path";
 import { record, type Collector } from "./index";
 
+export function parseJsonRows(output: string): Record<string, unknown>[] {
+  try {
+    const parsed: unknown = JSON.parse(output);
+    const values = Array.isArray(parsed) ? parsed : [parsed];
+    return values.filter(
+      (value): value is Record<string, unknown> =>
+        value !== null && typeof value === "object" && !Array.isArray(value)
+    );
+  } catch {
+    return [];
+  }
+}
+
 export function dnsCollector(serverHost?: string): Collector {
   return {
     kind: "dns_resolution",

@@ -115,9 +115,15 @@ const windowsAudioRestart: Executor = {
 const macosAudioRestart: Executor = {
   actionId: "device_audio_restart",
   platform: "macos",
-  snapshot: async (exec) => ({
-    audio: truncate(await exec("pgrep", ["coreaudiod"], { timeoutMs: 30_000 })),
-  }),
+  snapshot: async (exec) => {
+    let output = "";
+    try {
+      output = await exec("pgrep", ["coreaudiod"], { timeoutMs: 30_000 });
+    } catch {
+      output = "";
+    }
+    return { audio: truncate(output) };
+  },
   apply: async (exec) => {
     try {
       await exec("sudo", ["-n", "true"], { timeoutMs: 30_000 });
@@ -129,36 +135,44 @@ const macosAudioRestart: Executor = {
     });
   },
   verify: async (exec) => {
-    const output = await exec("pgrep", ["coreaudiod"], { timeoutMs: 30_000 });
-    return { ok: output.trim().length > 0, summary: truncate(output) };
+    let output = "";
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      try {
+        output = await exec("pgrep", ["coreaudiod"], { timeoutMs: 30_000 });
+      } catch {
+        output = "";
+      }
+      if (output.trim()) {
+        return { ok: true, summary: truncate(output) };
+      }
+      if (attempt < 4)
+        await new Promise((resolve) => setTimeout(resolve, 1_000));
+    }
+    return { ok: false, summary: truncate(output) };
   },
 };
 
 const linuxAudioRestart: Executor = {
   actionId: "device_audio_restart",
   platform: "linux",
-  snapshot: async (exec) => ({
-    audio: truncate(
-      await exec("systemctl", ["--user", "is-active", "pipewire"], {
-        timeoutMs: 30_000,
-      })
-    ),
-  }),
-  apply: async (exec) => {
-    let pipewireActive = false;
+  snapshot: async (exec) => {
+    let output = "";
     try {
-      pipewireActive =
-        (
-          await exec("systemctl", ["--user", "is-active", "pipewire"], {
-            timeoutMs: 30_000,
-          })
-        )
-          .trim()
-          .toLowerCase() === "active";
+      output = await exec("systemctl", ["--user", "is-active", "pipewire"], {
+        timeoutMs: 30_000,
+      });
     } catch {
-      pipewireActive = false;
+      output = "inactive";
     }
-    if (pipewireActive) {
+    return {
+      audio: truncate(output.trim() || "inactive"),
+      backend: /^(active|running)$/i.test(output.trim())
+        ? "pipewire"
+        : "pulseaudio",
+    };
+  },
+  apply: async (exec, _params, snapshot) => {
+    if (snapshot.backend === "pipewire") {
       await exec(
         "systemctl",
         ["--user", "restart", "pipewire", "pipewire-pulse", "wireplumber"],
@@ -169,12 +183,22 @@ const linuxAudioRestart: Executor = {
       await exec("pulseaudio", ["--start"], { timeoutMs: 30_000 });
     }
   },
-  verify: async (exec) => {
-    const output = await exec("systemctl", ["--user", "is-active", "pipewire"]);
-    return {
-      ok: /active|running/i.test(output),
-      summary: truncate(output),
-    };
+  verify: async (exec, _params, snapshot) => {
+    try {
+      const output =
+        snapshot.backend === "pipewire"
+          ? await exec("systemctl", ["--user", "is-active", "pipewire"])
+          : await exec("pulseaudio", ["--check"]);
+      return {
+        ok:
+          snapshot.backend === "pipewire"
+            ? /active|running/i.test(output)
+            : true,
+        summary: truncate(output),
+      };
+    } catch (error) {
+      return { ok: false, summary: truncate(String(error)) };
+    }
   },
 };
 

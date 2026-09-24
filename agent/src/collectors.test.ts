@@ -93,4 +93,47 @@ describe("platform collectors", () => {
     expect(result.ok).toBe(false);
     expect(result.summary).toBe("Diagnostic unavailable.");
   });
+
+  it("parses Windows Defender JSON status and threat count", async () => {
+    const collector = windowsCollectors.find(
+      (candidate) => candidate.kind === "security_tool_status"
+    );
+    const result = await collector!.run(async () =>
+      JSON.stringify({ RealTimeProtectionEnabled: false, ThreatCount: 2 })
+    );
+    expect(result.data).toEqual({
+      realTimeProtection: false,
+      threatCount: 2,
+    });
+  });
+
+  it("keeps Linux printer and audio diagnostics useful when probes exit non-zero", async () => {
+    const exec = async (file: string): Promise<string> => {
+      if (file === "systemctl" || file === "lpstat") {
+        throw new Error("inactive");
+      }
+      return "";
+    };
+    const printers = linuxCollectors.find(
+      (collector) => collector.kind === "printers"
+    );
+    const audio = linuxCollectors.find(
+      (collector) => collector.kind === "audio"
+    );
+    const printerResult = await printers!.run(exec);
+    const audioResult = await audio!.run(exec);
+    expect(printerResult.ok).toBe(true);
+    expect(printerResult.data).toEqual({
+      names: [],
+      jobCount: 0,
+      cups: "stopped",
+    });
+    expect(audioResult.ok).toBe(true);
+    expect(audioResult.data).toEqual({
+      pipewire: "unknown",
+      pulseaudio: "unknown",
+      defaultSink: null,
+      running: false,
+    });
+  });
 });

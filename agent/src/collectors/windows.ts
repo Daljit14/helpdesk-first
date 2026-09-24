@@ -1,6 +1,7 @@
 import type { DiagnosticKind } from "../../../lib/device-agent/protocol";
 import { boundedError, record, type Collector } from "./index";
 import { SERVICE_NAMES, WINDOWS_SERVICE_COMMANDS } from "../service-maps";
+import { parseJsonRows } from "./shared";
 
 function powershell(
   kind: DiagnosticKind,
@@ -52,17 +53,8 @@ function parseDisk(output: string) {
   });
 }
 
-function parseJson(output: string): unknown {
-  try {
-    return JSON.parse(output);
-  } catch {
-    return null;
-  }
-}
-
 function parsePrinters(output: string, spoolerOutput: string) {
-  const parsed = parseJson(output);
-  const rows = Array.isArray(parsed) ? parsed : parsed ? [parsed] : [];
+  const rows = parseJsonRows(output);
   const names: string[] = [];
   const jobCounts: string[] = [];
   for (const row of rows) {
@@ -155,18 +147,21 @@ export const windowsCollectors: Collector[] = [
   },
   powershell(
     "security_tool_status",
-    "Get-MpComputerStatus | Select-Object RealTimeProtectionEnabled; [pscustomobject]@{ ThreatCount=@(Get-MpThreatDetection).Count }",
-    (output) =>
-      record("security_tool_status", {
-        realTimeProtection: /true/i.test(output)
-          ? true
-          : /false/i.test(output)
-            ? false
+    "[pscustomobject]@{ RealTimeProtectionEnabled=(Get-MpComputerStatus).RealTimeProtectionEnabled; ThreatCount=@(Get-MpThreatDetection).Count } | ConvertTo-Json -Compress",
+    (output) => {
+      const row = parseJsonRows(output)[0] ?? {};
+      return record("security_tool_status", {
+        realTimeProtection:
+          typeof row.RealTimeProtectionEnabled === "boolean"
+            ? row.RealTimeProtectionEnabled
             : null,
-        threatCount: Number(
-          output.match(/ThreatCount\s*[:=]\s*(\d+)/i)?.[1] ?? 0
-        ),
-      })
+        threatCount:
+          typeof row.ThreatCount === "number" &&
+          Number.isFinite(row.ThreatCount)
+            ? Math.max(0, Math.trunc(row.ThreatCount))
+            : 0,
+      });
+    }
   ),
   {
     kind: "printers",

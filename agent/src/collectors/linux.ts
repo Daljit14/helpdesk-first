@@ -140,35 +140,37 @@ export const linuxCollectors: Collector[] = [
   {
     kind: "printers",
     run: async (exec) => {
+      let printers = "";
+      let jobs = "";
+      let cups = "";
       try {
-        const printers = await exec("lpstat", ["-p"]);
-        const jobs = await exec("lpstat", ["-o"]);
-        const cups = await exec("systemctl", ["is-active", "cups"]);
-        return parsePrinters(printers, jobs, cups);
-      } catch (error) {
-        return boundedError("printers", error);
-      }
+        printers = await exec("lpstat", ["-p"]);
+      } catch {}
+      try {
+        jobs = await exec("lpstat", ["-o"]);
+      } catch {}
+      try {
+        cups = await exec("systemctl", ["is-active", "cups"]);
+      } catch {}
+      return parsePrinters(printers, jobs, cups);
     },
   },
   {
     kind: "audio",
     run: async (exec) => {
+      let pipewire = "";
+      let pulse = "";
+      let pactl = "";
       try {
-        const pipewire = await exec("systemctl", [
-          "--user",
-          "is-active",
-          "pipewire",
-        ]);
-        const pulse = await exec("systemctl", [
-          "--user",
-          "is-active",
-          "pulseaudio",
-        ]);
-        const pactl = await exec("pactl", ["info"]);
-        return parseAudio(pipewire, pulse, pactl);
-      } catch (error) {
-        return boundedError("audio", error);
-      }
+        pipewire = await exec("systemctl", ["--user", "is-active", "pipewire"]);
+      } catch {}
+      try {
+        pulse = await exec("systemctl", ["--user", "is-active", "pulseaudio"]);
+      } catch {}
+      try {
+        pactl = await exec("pactl", ["info"]);
+      } catch {}
+      return parseAudio(pipewire || "unknown", pulse || "unknown", pactl);
     },
   },
 ];

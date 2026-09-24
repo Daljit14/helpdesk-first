@@ -47,6 +47,20 @@ export const AGENT_TOOLS = [
 
 export type AgentToolName = (typeof AGENT_TOOLS)[number]["name"];
 
+export type AgentToolResult =
+  | {
+      ok: true;
+      value: unknown;
+      modelText: string;
+      userSummary: string;
+    }
+  | {
+      ok: false;
+      code: string;
+      modelText: string;
+      userSummary: string;
+    };
+
 function hasTargetKey(value: unknown): boolean {
   if (!value || typeof value !== "object") return false;
   for (const [key, child] of Object.entries(value)) {
@@ -72,16 +86,15 @@ export async function runTool(
   ctx: AgentContext,
   name: string,
   input: unknown
-): Promise<
-  | { ok: true; value: unknown; summary: string }
-  | { ok: false; code: string; summary: string }
-> {
+): Promise<AgentToolResult> {
   const definition = AGENT_TOOLS.find((tool) => tool.name === name);
   if (!definition || hasTargetKey(input)) {
+    const userSummary = "That read-only tool request was rejected.";
     return {
       ok: false,
       code: "tool_rejected",
-      summary: "That read-only tool request was rejected.",
+      modelText: userSummary,
+      userSummary,
     };
   }
   const parsed =
@@ -91,18 +104,22 @@ export async function runTool(
         ? historySchema.safeParse(input)
         : emptySchema.safeParse(input);
   if (!parsed.success) {
+    const userSummary = "The tool parameters were invalid.";
     return {
       ok: false,
       code: "tool_rejected",
-      summary: "The tool parameters were invalid.",
+      modelText: userSummary,
+      userSummary,
     };
   }
   const switches = await readKillSwitches(ctx.admin, ctx.organizationId);
   if (switches.global || switches.organization || switches.explicit) {
+    const userSummary = "Read-only tools are paused for safety.";
     return {
       ok: false,
       code: "kill_switch",
-      summary: "Read-only tools are paused for safety.",
+      modelText: userSummary,
+      userSummary,
     };
   }
   try {
@@ -144,32 +161,43 @@ export async function runTool(
         ctx.requesterId
       );
       if (!requester.ok) {
+        const userSummary = "Account status is unavailable for this identity.";
         return {
           ok: false,
           code: "identity_denied",
-          summary: "Account status is unavailable for this identity.",
+          modelText: userSummary,
+          userSummary,
         };
       }
       const loaded = await loadDirectoryForOrganization(
         ctx.admin,
         ctx.organizationId
       );
-      if (!loaded)
+      if (!loaded) {
+        const userSummary = "No directory connector is configured.";
         return {
           ok: true,
           value: { available: false, reason: "no_connector" },
-          summary: "No directory connector is configured.",
+          modelText: wrapUntrusted("tool:get_account_status", {
+            available: false,
+            reason: "no_connector",
+          }).slice(0, 6000),
+          userSummary,
         };
+      }
       const result = await loaded.directory.lookupUserByEmail(
         requester.email,
         ctx.signal
       );
-      if (!result.ok)
+      if (!result.ok) {
+        const userSummary = "The directory did not authorize this lookup.";
         return {
           ok: false,
           code: "identity_denied",
-          summary: "The directory did not authorize this lookup.",
+          modelText: userSummary,
+          userSummary,
         };
+      }
       value = {
         enabled: result.value.enabled,
         suspended: result.value.suspended,
@@ -212,24 +240,86 @@ export async function runTool(
       );
     }
     const wrapped = wrapUntrusted(`tool:${name}`, value);
+    const modelText = wrapped.slice(0, 6000);
+    const userSummary = toolUserSummary(name, value);
     return {
       ok: true,
       value,
-      summary: sanitizeForUser(wrapped).slice(0, 500),
+      modelText,
+      userSummary,
     };
   } catch (error) {
-    if (error instanceof Error && error.message === "injection_in_tool_output")
+    if (
+      error instanceof Error &&
+      error.message === "injection_in_tool_output"
+    ) {
+      const userSummary = "A tool result was blocked for safety.";
       return {
         ok: false,
         code: "injection_in_tool_output",
-        summary: "A tool result was blocked for safety.",
+        modelText: userSummary,
+        userSummary,
       };
+    }
+    const userSummary = "The read-only tool was unavailable.";
     return {
       ok: false,
       code: "tool_failed",
-      summary: "The read-only tool was unavailable.",
+      modelText: userSummary,
+      userSummary,
     };
   }
+}
+
+function toolUserSummary(name: string, value: unknown): string {
+  if (name === "search_guides" && Array.isArray(value)) {
+    const slugs = value
+      .map((item) =>
+        item && typeof item === "object" && "slug" in item
+          ? String(item.slug)
+          : null
+      )
+      .filter(Boolean)
+      .slice(0, 5);
+    return sanitizeForUser(
+      `${value.length} guides found${slugs.length ? `: ${slugs.join(", ")}` : ""}`
+    ).slice(0, 300);
+  }
+  if (name === "get_device_diagnostics") {
+    const record =
+      value && typeof value === "object"
+        ? (value as Record<string, unknown>)
+        : {};
+    const collectedAt =
+      typeof record.collectedAt === "string"
+        ? Date.parse(record.collectedAt)
+        : NaN;
+    const ageMinutes = Number.isFinite(collectedAt)
+      ? Math.max(0, Math.round((Date.now() - collectedAt) / 60_000))
+      : null;
+    return `Diagnostics from a device collected ${
+      ageMinutes === null ? "recently" : `${ageMinutes} min ago`
+    }${record.stale === true ? " (stale)" : ""}.`.slice(0, 300);
+  }
+  if (name === "get_account_status") {
+    const record =
+      value && typeof value === "object"
+        ? (value as Record<string, unknown>)
+        : {};
+    const account = record.enabled === true ? "enabled" : "not enabled";
+    const mfa =
+      record.mfaRegistered === true
+        ? "MFA registered"
+        : record.mfaRegistered === false
+          ? "MFA not registered"
+          : "MFA status unavailable";
+    return `Account: ${account}, ${mfa}.`.slice(0, 300);
+  }
+  if (name === "get_ticket_history" && Array.isArray(value))
+    return `${value.length} recent tickets.`.slice(0, 300);
+  return sanitizeForUser(
+    JSON.stringify(value) || "Read-only result unavailable."
+  ).slice(0, 300);
 }
 
 export function toolParamsHash(name: string, input: unknown): string {

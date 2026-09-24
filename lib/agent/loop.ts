@@ -9,7 +9,14 @@ import { createAgentModel, type AgentMessage, type AgentModel } from "./model";
 import { AGENT_SYSTEM_PROMPT } from "./prompt";
 import { detectTripwire } from "./tripwires";
 import { isDenylisted } from "./denylist";
-import { escalate, halt, updateSession, writeStep } from "./session";
+import { sanitizeForUser } from "./untrusted";
+import {
+  escalate,
+  halt,
+  loadSessionContext,
+  updateSession,
+  writeStep,
+} from "./session";
 import type { AgentEvent, AgentSession } from "./types";
 import type { createAdminClient } from "@/lib/supabase/admin";
 
@@ -32,6 +39,32 @@ function safeFinalText(value: string): { text: string; stripped: boolean } {
   };
 }
 
+export type AgentLoopDeps = {
+  budgetExceeded: typeof budgetExceeded;
+  readKillSwitches: typeof readKillSwitches;
+  checkDailyBudget: typeof checkAndConsumeDailyBudget;
+  runTool: typeof runTool;
+  writeStep: typeof writeStep;
+  updateSession: typeof updateSession;
+  escalate: typeof escalate;
+  halt: typeof halt;
+  alert: typeof alertSecurityEvent;
+  loadContext: typeof loadSessionContext;
+};
+
+const defaultDeps: AgentLoopDeps = {
+  budgetExceeded,
+  readKillSwitches,
+  checkDailyBudget: checkAndConsumeDailyBudget,
+  runTool,
+  writeStep,
+  updateSession,
+  escalate,
+  halt,
+  alert: alertSecurityEvent,
+  loadContext: loadSessionContext,
+};
+
 export async function runAgentTurn(input: {
   admin: Admin;
   session: AgentSession;
@@ -40,16 +73,18 @@ export async function runAgentTurn(input: {
   platform?: string;
   emit: (event: AgentEvent) => void;
   signal: AbortSignal;
+  deps?: Partial<AgentLoopDeps>;
 }): Promise<void> {
   const { admin, session, userMessage, emit, signal } = input;
+  const deps = { ...defaultDeps, ...input.deps };
   const guarded = guardModelInput([{ source: "event", text: userMessage }]);
   const safety = checkUserMessageSafety({ message: userMessage });
   const tripwire = detectTripwire(userMessage);
   if (guarded.blocked || !safety.allowed || tripwire) {
     const reason =
       tripwire ?? guarded.blockReason ?? safety.category ?? "unsafe_input";
-    const ticketId = await halt(admin, session, reason, userMessage, true);
-    await alertSecurityEvent(admin, {
+    const ticketId = await deps.halt(admin, session, reason, userMessage, true);
+    await deps.alert(admin, {
       organizationId: session.organization_id,
       ticketId,
       runId: null,
@@ -59,14 +94,17 @@ export async function runAgentTurn(input: {
     return;
   }
 
-  await writeStep(admin, session, {
+  await deps.writeStep(admin, session, {
     kind: "user_message",
     resultSummary: userMessage,
   });
-  await updateSession(admin, session, { last_user_message: userMessage });
+  await deps.updateSession(admin, session, { last_user_message: userMessage });
 
   const model = input.model ?? createAgentModel(userMessage);
-  const messages: AgentMessage[] = [{ role: "user", content: userMessage }];
+  const messages: AgentMessage[] = [
+    ...(await deps.loadContext(admin, session)),
+    { role: "user", content: userMessage },
+  ];
   const toolResults: string[] = [];
   const seen = new Map<string, number>();
   let invalid = 0;
@@ -75,15 +113,23 @@ export async function runAgentTurn(input: {
   let identityFailures = 0;
 
   while (!signal.aborted) {
-    const switches = await readKillSwitches(admin, session.organization_id);
+    const switches = await deps.readKillSwitches(
+      admin,
+      session.organization_id
+    );
     if (switches.global || switches.organization || switches.explicit) {
-      const ticketId = await halt(admin, session, "kill_switch", userMessage);
+      const ticketId = await deps.halt(
+        admin,
+        session,
+        "kill_switch",
+        userMessage
+      );
       emit({ type: "halted", reason: "kill_switch", ticketId });
       return;
     }
-    const budget = budgetExceeded(session);
+    const budget = deps.budgetExceeded(session);
     if (budget) {
-      const ticketId = await escalate(
+      const ticketId = await deps.escalate(
         admin,
         session,
         `budget:${budget}`,
@@ -92,8 +138,8 @@ export async function runAgentTurn(input: {
       emit({ type: "escalated", ticketId, reason: `budget:${budget}` });
       return;
     }
-    if (!(await checkAndConsumeDailyBudget())) {
-      const ticketId = await escalate(
+    if (!(await deps.checkDailyBudget())) {
+      const ticketId = await deps.escalate(
         admin,
         session,
         "budget:daily_ai",
@@ -104,7 +150,7 @@ export async function runAgentTurn(input: {
     }
     modelTurns += 1;
     session.model_turn_count = modelTurns;
-    await updateSession(admin, session, { model_turn_count: modelTurns });
+    await deps.updateSession(admin, session, { model_turn_count: modelTurns });
     const result = await model.next({
       system: AGENT_SYSTEM_PROMPT,
       messages,
@@ -118,12 +164,12 @@ export async function runAgentTurn(input: {
     });
     if (result.kind === "invalid") {
       invalid += 1;
-      await writeStep(admin, session, {
+      await deps.writeStep(admin, session, {
         kind: "tool_rejected",
         resultSummary: "The model returned invalid output.",
       });
       if (invalid >= 2) {
-        const ticketId = await escalate(
+        const ticketId = await deps.escalate(
           admin,
           session,
           "model_invalid_output",
@@ -138,15 +184,15 @@ export async function runAgentTurn(input: {
     if (result.kind === "final") {
       const confidence = Math.max(0, Math.min(1, result.confidence));
       const finalText = safeFinalText(result.text);
-      const text = summary(finalText.text);
+      const text = sanitizeForUser(finalText.text).slice(0, 1200);
       if (finalText.stripped) {
-        await writeStep(admin, session, {
-          kind: "error",
-          resultSummary: `claim_stripped: ${text}`,
+        await deps.writeStep(admin, session, {
+          kind: "claim_stripped",
+          resultSummary: text,
         });
       }
       if (confidence < 0.8) {
-        const ticketId = await escalate(
+        const ticketId = await deps.escalate(
           admin,
           session,
           "low_confidence",
@@ -155,13 +201,11 @@ export async function runAgentTurn(input: {
         emit({ type: "escalated", ticketId, reason: "low_confidence" });
         return;
       }
-      await writeStep(admin, session, {
+      await deps.writeStep(admin, session, {
         kind: "final",
         resultSummary: text,
       });
-      await updateSession(admin, session, {
-        status: "resolved",
-        ended_at: new Date().toISOString(),
+      await deps.updateSession(admin, session, {
         resolution_summary: text,
       });
       emit({
@@ -173,14 +217,14 @@ export async function runAgentTurn(input: {
       return;
     }
     if (isDenylisted(result.name)) {
-      const ticketId = await halt(
+      const ticketId = await deps.halt(
         admin,
         session,
         "model_proposed_denylisted",
         userMessage,
         true
       );
-      await alertSecurityEvent(admin, {
+      await deps.alert(admin, {
         organizationId: session.organization_id,
         ticketId,
         runId: null,
@@ -197,7 +241,7 @@ export async function runAgentTurn(input: {
     const repeats = (seen.get(key) ?? 0) + 1;
     seen.set(key, repeats);
     if (repeats >= 3) {
-      const ticketId = await escalate(
+      const ticketId = await deps.escalate(
         admin,
         session,
         "loop_detected",
@@ -207,13 +251,13 @@ export async function runAgentTurn(input: {
       return;
     }
     const thinking = summary(result.summary);
-    await writeStep(admin, session, {
+    await deps.writeStep(admin, session, {
       kind: "thinking_summary",
       resultSummary: thinking,
     });
     emit({ type: "thinking_summary", text: thinking });
     emit({ type: "tool_started", tool: result.name });
-    await writeStep(admin, session, {
+    await deps.writeStep(admin, session, {
       kind: "tool_started",
       toolName: result.name,
       paramsHash: toolParamsHash(result.name, result.input),
@@ -224,9 +268,10 @@ export async function runAgentTurn(input: {
         ? {
             ok: true as const,
             value: null,
-            summary: "Already retrieved this read-only result.",
+            modelText: "Already retrieved this read-only result.",
+            userSummary: "Already retrieved this read-only result.",
           }
-        : await runTool(
+        : await deps.runTool(
             {
               admin,
               session,
@@ -239,8 +284,8 @@ export async function runAgentTurn(input: {
             result.name,
             result.input
           );
-    const toolSummary = summary(tool.summary);
-    await writeStep(admin, session, {
+    const toolSummary = tool.userSummary;
+    await deps.writeStep(admin, session, {
       kind: tool.ok ? "tool_result" : "tool_rejected",
       toolName: result.name,
       paramsHash: toolParamsHash(result.name, result.input),
@@ -248,15 +293,21 @@ export async function runAgentTurn(input: {
     });
     toolCalls += 1;
     session.tool_call_count = toolCalls;
-    await updateSession(admin, session, { tool_call_count: toolCalls });
+    await deps.updateSession(admin, session, { tool_call_count: toolCalls });
     emit({
       type: "tool_result_summary",
       tool: result.name,
       summary: toolSummary,
     });
     if (!tool.ok && tool.code === "injection_in_tool_output") {
-      const ticketId = await halt(admin, session, tool.code, userMessage, true);
-      await alertSecurityEvent(admin, {
+      const ticketId = await deps.halt(
+        admin,
+        session,
+        tool.code,
+        userMessage,
+        true
+      );
+      await deps.alert(admin, {
         organizationId: session.organization_id,
         ticketId,
         runId: null,
@@ -266,21 +317,21 @@ export async function runAgentTurn(input: {
       return;
     }
     if (!tool.ok && tool.code === "kill_switch") {
-      const ticketId = await halt(admin, session, tool.code, userMessage);
+      const ticketId = await deps.halt(admin, session, tool.code, userMessage);
       emit({ type: "halted", reason: tool.code, ticketId });
       return;
     }
     if (!tool.ok && tool.code === "identity_denied") {
       identityFailures += 1;
       if (identityFailures >= 2) {
-        const ticketId = await halt(
+        const ticketId = await deps.halt(
           admin,
           session,
           "repeated_identity_failure",
           userMessage,
           true
         );
-        await alertSecurityEvent(admin, {
+        await deps.alert(admin, {
           organizationId: session.organization_id,
           ticketId,
           runId: null,
@@ -309,7 +360,11 @@ export async function runAgentTurn(input: {
           },
         ],
       },
-      { role: "tool_result", tool_use_id: result.id, content: toolSummary }
+      {
+        role: "tool_result",
+        tool_use_id: result.id,
+        content: tool.modelText,
+      }
     );
   }
 }

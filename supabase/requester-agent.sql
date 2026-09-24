@@ -22,7 +22,7 @@ create table if not exists public.agent_steps (
   session_id uuid not null references public.agent_sessions(id) on delete cascade,
   organization_id uuid not null references public.organizations(id) on delete cascade,
   seq integer not null,
-  kind text not null check (kind in ('user_message','thinking_summary','tool_started','tool_result','tool_rejected','final','escalated','halted','error')),
+  kind text not null check (kind in ('user_message','thinking_summary','tool_started','tool_result','tool_rejected','final','claim_stripped','escalated','halted','error')),
   tool_name text,
   capability_id text,
   params_hash text,

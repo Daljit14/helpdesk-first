@@ -120,6 +120,36 @@ export async function updateSession(
     .eq("status", "active");
 }
 
+export async function loadSessionContext(
+  admin: Admin,
+  session: AgentSession
+): Promise<Array<{ role: "user" | "assistant"; content: string }>> {
+  const result = await admin
+    .from("agent_steps")
+    .select("kind,result_summary,seq")
+    .eq("session_id", session.id)
+    .in("kind", ["user_message", "final"])
+    .order("seq", { ascending: true })
+    .limit(20);
+  const steps = (result.data ?? []).slice(-10);
+  const messages: Array<{ role: "user" | "assistant"; content: string }> = [];
+  for (const step of steps) {
+    const content = await decryptAgentText(
+      admin,
+      session.organization_id,
+      "agent_steps",
+      "result_summary",
+      step.result_summary
+    );
+    if (!content) continue;
+    messages.push({
+      role: step.kind === "user_message" ? "user" : "assistant",
+      content,
+    });
+  }
+  return messages;
+}
+
 export async function escalate(
   admin: Admin,
   session: AgentSession,

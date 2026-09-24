@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { readKillSwitches } from "@/lib/autonomy/kill-switches";
 import {
   killSwitchBlocksDeviceJob,
+  enqueueDeviceJob,
   leaseJobsForDevice,
   recordJobResult,
 } from "./jobs";
@@ -91,6 +92,38 @@ describe("recordJobResult", () => {
       status: "failed",
       error: "snapshot_hash_mismatch",
     });
+  });
+});
+
+describe("enqueueDeviceJob", () => {
+  it("rejects actions absent from the catalog", async () => {
+    await expect(
+      enqueueDeviceJob({} as never, {
+        organizationId: "org-1",
+        deviceId: "device-1",
+        runId: "run-1",
+        ticketId: "ticket-1",
+        actionId: "device_not_in_catalog",
+        actionVersion: 1,
+        parameters: {},
+        kind: "action",
+      })
+    ).rejects.toThrow("unknown_device_action");
+  });
+
+  it("rejects parameters that fail the catalog schema", async () => {
+    await expect(
+      enqueueDeviceJob({} as never, {
+        organizationId: "org-1",
+        deviceId: "device-1",
+        runId: "run-1",
+        ticketId: "ticket-1",
+        actionId: "device_restart_service",
+        actionVersion: 1,
+        parameters: { serviceName: "not-allow-listed" },
+        kind: "action",
+      })
+    ).rejects.toThrow("invalid_device_parameters");
   });
 });
 

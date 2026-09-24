@@ -1,6 +1,7 @@
 import type { DiagnosticKind } from "../../../lib/device-agent/protocol";
 import { boundedError, record, type Collector } from "./index";
 import { SERVICE_NAMES, WINDOWS_SERVICE_COMMANDS } from "../service-maps";
+import { parseJsonRows } from "./shared";
 
 function powershell(
   kind: DiagnosticKind,
@@ -49,6 +50,46 @@ function parseDisk(output: string) {
   return record("disk_space", {
     freePercent: Math.max(0, Math.min(100, (freeBytes / totalBytes) * 100)),
     freeGb: freeBytes / 1024 / 1024 / 1024,
+  });
+}
+
+function parsePrinters(output: string, spoolerOutput: string) {
+  const rows = parseJsonRows(output);
+  const names: string[] = [];
+  const jobCounts: string[] = [];
+  for (const row of rows) {
+    if (!row || typeof row !== "object") continue;
+    const value = row as Record<string, unknown>;
+    const name =
+      typeof value.Name === "string" ? value.Name.trim().slice(0, 80) : "";
+    if (!name) continue;
+    names.push(name);
+    const count =
+      typeof value.Jobs === "number" && Number.isFinite(value.Jobs)
+        ? Math.max(0, Math.trunc(value.Jobs))
+        : 0;
+    jobCounts.push(`${name}:${count}`);
+  }
+  return record("printers", {
+    names: names.slice(0, 40),
+    jobCounts: jobCounts.slice(0, 40),
+    jobCount: jobCounts.reduce((total, value) => {
+      const count = Number(value.split(":").at(-1));
+      return total + (Number.isFinite(count) ? count : 0);
+    }, 0),
+    spooler: /running/i.test(spoolerOutput) ? "running" : "stopped",
+  });
+}
+
+function parseAudio(output: string) {
+  const services = output
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => /running|stopped/i.test(line));
+  return record("audio", {
+    services: services.slice(0, 4).map((line) => line.slice(0, 80)),
+    running:
+      services.length > 0 && services.every((line) => /running/i.test(line)),
   });
 }
 
@@ -106,14 +147,58 @@ export const windowsCollectors: Collector[] = [
   },
   powershell(
     "security_tool_status",
-    "Get-MpComputerStatus | Select-Object RealTimeProtectionEnabled",
-    (output) =>
-      record("security_tool_status", {
-        realTimeProtection: /true/i.test(output)
-          ? true
-          : /false/i.test(output)
-            ? false
+    "[pscustomobject]@{ RealTimeProtectionEnabled=(Get-MpComputerStatus).RealTimeProtectionEnabled; ThreatCount=@(Get-MpThreatDetection).Count } | ConvertTo-Json -Compress",
+    (output) => {
+      const row = parseJsonRows(output)[0] ?? {};
+      return record("security_tool_status", {
+        realTimeProtection:
+          typeof row.RealTimeProtectionEnabled === "boolean"
+            ? row.RealTimeProtectionEnabled
             : null,
-      })
+        threatCount:
+          typeof row.ThreatCount === "number" &&
+          Number.isFinite(row.ThreatCount)
+            ? Math.max(0, Math.trunc(row.ThreatCount))
+            : 0,
+      });
+    }
   ),
+  {
+    kind: "printers",
+    run: async (exec) => {
+      try {
+        const printers = await exec("powershell.exe", [
+          "-NoProfile",
+          "-NonInteractive",
+          "-Command",
+          "Get-Printer | ForEach-Object { [pscustomobject]@{ Name=$_.Name; Jobs=@(Get-PrintJob -PrinterName $_.Name).Count } } | ConvertTo-Json -Compress",
+        ]);
+        const spooler = await exec("powershell.exe", [
+          "-NoProfile",
+          "-NonInteractive",
+          "-Command",
+          "(Get-Service Spooler).Status",
+        ]);
+        return parsePrinters(printers, spooler);
+      } catch (error) {
+        return boundedError("printers", error);
+      }
+    },
+  },
+  {
+    kind: "audio",
+    run: async (exec) => {
+      try {
+        const output = await exec("powershell.exe", [
+          "-NoProfile",
+          "-NonInteractive",
+          "-Command",
+          "Get-Service Audiosrv,AudioEndpointBuilder | Select-Object Name,Status | ConvertTo-Csv -NoTypeInformation",
+        ]);
+        return parseAudio(output);
+      } catch (error) {
+        return boundedError("audio", error);
+      }
+    },
+  },
 ];

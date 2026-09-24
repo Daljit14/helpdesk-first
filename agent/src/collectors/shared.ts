@@ -4,6 +4,19 @@ import { homedir, platform } from "node:os";
 import { join } from "node:path";
 import { record, type Collector } from "./index";
 
+export function parseJsonRows(output: string): Record<string, unknown>[] {
+  try {
+    const parsed: unknown = JSON.parse(output);
+    const values = Array.isArray(parsed) ? parsed : [parsed];
+    return values.filter(
+      (value): value is Record<string, unknown> =>
+        value !== null && typeof value === "object" && !Array.isArray(value)
+    );
+  } catch {
+    return [];
+  }
+}
+
 export function dnsCollector(serverHost?: string): Collector {
   return {
     kind: "dns_resolution",
@@ -104,7 +117,10 @@ export function browserExtensionsCollector(): Collector {
               ];
       const names: string[] = [];
       for (const root of roots) await extensionNames(root, names);
-      return record("browser_extensions", { count: names.length });
+      return record("browser_extensions", {
+        count: names.length,
+        names: names.slice(0, 40).map((name) => name.slice(0, 80)),
+      });
     },
   };
 }

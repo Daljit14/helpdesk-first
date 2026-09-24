@@ -46,6 +46,30 @@ function parseDisk(output: string) {
   });
 }
 
+function parsePrinters(printers: string, jobs: string, cups: string) {
+  const names = printers
+    .split(/\r?\n/)
+    .filter((line) => /^printer\s+/i.test(line))
+    .map((line) => line.replace(/^printer\s+/i, "").split(/\s+/)[0])
+    .filter(Boolean)
+    .slice(0, 40)
+    .map((name) => name.slice(0, 80));
+  return record("printers", {
+    names,
+    jobCount: jobs.split(/\r?\n/).filter(Boolean).length,
+    cups: cups.trim() ? "running" : "stopped",
+  });
+}
+
+function parseAudio(processes: string, profile: string) {
+  const defaultOutput =
+    profile.match(/"(_name|name)"\s*:\s*"([^"]+)"/i)?.[2] ?? null;
+  return record("audio", {
+    coreaudiod: processes.trim().length > 0,
+    defaultOutput: defaultOutput?.slice(0, 80) ?? null,
+  });
+}
+
 function serviceCollector(): Collector {
   return {
     kind: "service_status",
@@ -98,4 +122,35 @@ export const macosCollectors: Collector[] = [
       gatekeeper: /assessments enabled/i.test(output),
     })
   ),
+  {
+    kind: "printers",
+    run: async (exec) => {
+      try {
+        const printers = await exec("lpstat", ["-p"]);
+        const jobs = await exec("lpstat", ["-o"]);
+        const cups = await exec("launchctl", [
+          "print",
+          "system/org.cups.cupsd",
+        ]);
+        return parsePrinters(printers, jobs, cups);
+      } catch (error) {
+        return boundedError("printers", error);
+      }
+    },
+  },
+  {
+    kind: "audio",
+    run: async (exec) => {
+      try {
+        const processes = await exec("pgrep", ["coreaudiod"]);
+        const profile = await exec("system_profiler", [
+          "SPAudioDataType",
+          "-json",
+        ]);
+        return parseAudio(processes, profile);
+      } catch (error) {
+        return boundedError("audio", error);
+      }
+    },
+  },
 ];

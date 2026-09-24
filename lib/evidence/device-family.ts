@@ -4,7 +4,7 @@ import type { DiagnosticKind } from "@/lib/device-agent/protocol";
 import type { DeviceEvidence } from "./types";
 
 const DEVICE_WORDS =
-  /\b(network|wi[\s-]?fi|vpn|dns|slow|disk|update|printer)\b/i;
+  /\b(network|wi[\s-]?fi|vpn|dns|slow|disk|update|printer|audio|security)\b/i;
 
 export function isDeviceFamily(
   category: string | null,
@@ -40,7 +40,7 @@ export async function loadDeviceEvidence(
     kind: DiagnosticKind;
     ok: boolean;
     summary: string;
-    data: Record<string, string | number | boolean | null>;
+    data: Record<string, string | number | boolean | null | string[]>;
     collected_at: string;
   }>;
   const latestByKind = new Map<DiagnosticKind, (typeof rows)[number]>();

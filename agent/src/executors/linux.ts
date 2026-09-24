@@ -4,6 +4,7 @@ import {
 } from "../service-maps";
 import type { Executor } from ".";
 import { cleanupExecutor } from "./cleanup";
+import { linuxPeripheralExecutors } from "./peripherals";
 import {
   requiredString,
   runDiagnostic,
@@ -175,4 +176,5 @@ export const linuxExecutors: readonly Executor[] = [
   resetWifi,
   restartService,
   cleanup,
+  ...linuxPeripheralExecutors,
 ];

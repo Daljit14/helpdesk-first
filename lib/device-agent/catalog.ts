@@ -136,6 +136,21 @@ export const DEVICE_ACTIONS: readonly DeviceAction[] = [
     "Read endpoint protection status.",
     ["security_tool_status"]
   ),
+  readOnly(
+    "device_browser_extensions_report",
+    "security",
+    "Read bounded Chrome and Edge extension names.",
+    ["browser_extensions"]
+  ),
+  readOnly(
+    "device_printer_status",
+    "peripheral",
+    "Read printer and queue status.",
+    ["printers"]
+  ),
+  readOnly("device_audio_status", "peripheral", "Read audio service status.", [
+    "audio",
+  ]),
   {
     ...readOnly("device_flush_dns", "network", "Flush the local DNS cache.", [
       "dns_resolution",
@@ -193,6 +208,69 @@ export const DEVICE_ACTIONS: readonly DeviceAction[] = [
     consent: "user",
     snapshotSpec: ["temp_inventory"],
   },
+  {
+    ...readOnly(
+      "device_security_enable_realtime_protection",
+      "security",
+      "Enable Windows real-time endpoint protection.",
+      ["security_tool_status"]
+    ),
+    platforms: ["windows"],
+    riskLevel: "caution",
+    sideEffects: "local_write",
+    snapshotSpec: ["security"],
+  },
+  {
+    ...readOnly(
+      "device_security_update_signatures",
+      "security",
+      "Update Windows endpoint protection signatures.",
+      ["security_tool_status"]
+    ),
+    platforms: ["windows"],
+    riskLevel: "caution",
+    sideEffects: "local_write",
+  },
+  {
+    ...readOnly(
+      "device_security_remove_detected_threats",
+      "security",
+      "Remove detected Windows endpoint threats.",
+      ["security_tool_status"]
+    ),
+    platforms: ["windows"],
+    riskLevel: "caution",
+    sideEffects: "local_write",
+    reversible: false,
+    irreversible: true,
+    consent: "user",
+    snapshotSpec: ["security"],
+  },
+  {
+    ...readOnly(
+      "device_printer_clear_queue",
+      "peripheral",
+      "Clear the local printer queue.",
+      ["printers"]
+    ),
+    riskLevel: "caution",
+    sideEffects: "local_write",
+    reversible: false,
+    irreversible: true,
+    consent: "user",
+    snapshotSpec: ["printers"],
+  },
+  {
+    ...readOnly(
+      "device_audio_restart",
+      "peripheral",
+      "Restart the local audio service.",
+      ["audio"]
+    ),
+    riskLevel: "caution",
+    sideEffects: "local_write",
+    snapshotSpec: ["audio"],
+  },
 ];
 
 export function validateDeviceCatalog(
@@ -231,7 +309,7 @@ export function validateDeviceCatalog(
 const catalogErrors = validateDeviceCatalog(DEVICE_ACTIONS);
 if (catalogErrors.length) throw new Error(catalogErrors.join(", "));
 
-export const DEVICE_CATALOG_VERSION = "2026-09-21.3";
+export const DEVICE_CATALOG_VERSION = "2026-09-21.4";
 
 export function deviceCatalogChecksum(): string {
   return createHash("sha256")

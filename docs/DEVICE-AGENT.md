@@ -30,9 +30,14 @@ excluded until an explicit policy change.
 The execution mode requires both `HELP_DESK_DEVICE_EXECUTION_ENABLED=true` and
 an organization in `HELP_DESK_DEVICE_EXECUTION_ORG_ALLOWLIST`; global,
 organization, and capability kill switches force shadow mode and cancel queued
-jobs. Irreversible actions always require requester consent, read-only actions
-never prompt, and reversible local-write actions require consent unless a
-matching organization device-class/category preapproval exists.
+jobs when explicit. Irreversible actions always require requester consent,
+read-only actions never prompt, and reversible local-write actions require
+consent unless a matching organization device-class/category preapproval exists.
+
+When autonomy is disabled by environment, shadow jobs may still be leased
+because they cannot mutate the device; execute jobs remain blocked. Explicit
+database kill switches and switch-read failures block both modes, fail closed,
+and are surfaced separately from the environment-disabled state.
 
 ## Execution (B3)
 

@@ -25,6 +25,8 @@ export async function readKillSwitches(
   capability: boolean;
   provider: boolean;
   anyActive: boolean;
+  envDisabled: boolean;
+  explicit: boolean;
   reasons: string[];
 }> {
   const reasons: string[] = [];
@@ -69,6 +71,8 @@ export async function readKillSwitches(
       capability,
       provider,
       anyActive: global || organization || capability || provider,
+      envDisabled: globalByEnv,
+      explicit: rows.length > 0 || capabilityByEnv || providerByEnv,
       reasons,
     };
   } catch {
@@ -78,6 +82,8 @@ export async function readKillSwitches(
       capability: capabilityByEnv,
       provider: providerByEnv,
       anyActive: true,
+      envDisabled: globalByEnv,
+      explicit: true,
       reasons: [
         "switch_read_failed",
         ...(capabilityByEnv ? ["capability_env_disabled"] : []),

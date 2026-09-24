@@ -32,6 +32,8 @@ describe("autonomy kill switches", () => {
     expect(result).toMatchObject({
       global: true,
       anyActive: true,
+      envDisabled: true,
+      explicit: false,
       reasons: ["autonomy_disabled"],
     });
   });
@@ -50,6 +52,8 @@ describe("autonomy kill switches", () => {
       organization: true,
       capability: true,
       anyActive: true,
+      envDisabled: false,
+      explicit: true,
       reasons: ["maintenance", "unsafe"],
     });
   });
@@ -61,6 +65,8 @@ describe("autonomy kill switches", () => {
     expect(result).toMatchObject({
       global: true,
       anyActive: true,
+      envDisabled: false,
+      explicit: true,
       reasons: ["switch_read_failed"],
     });
   });
@@ -73,6 +79,8 @@ describe("autonomy kill switches", () => {
       readKillSwitches(admin as never, "org-1", "reset")
     ).resolves.toMatchObject({
       capability: true,
+      envDisabled: false,
+      explicit: true,
       reasons: ["capability_env_disabled"],
     });
   });

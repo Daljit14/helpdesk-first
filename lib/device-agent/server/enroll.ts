@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import {
   deviceClassSchema,
   enrollRequestSchema,
+  enrollResponseSchema,
   type EnrollRequest,
 } from "@/lib/device-agent/protocol";
 import { DEVICE_CATALOG_VERSION } from "@/lib/device-agent/catalog";
@@ -88,6 +89,13 @@ export async function enrollDevice(
     new Date(token.expires_at) <= new Date()
   )
     throw new Error("invalid_token");
+  const deviceId = randomUUID();
+  const response = enrollResponseSchema.parse({
+    deviceId,
+    organizationId: token.organization_id,
+    pollIntervalSec: 300,
+    catalogVersion: DEVICE_CATALOG_VERSION,
+  });
   const used = await admin
     .from("device_enrollment_tokens")
     .update({ used_count: token.used_count + 1 })
@@ -97,7 +105,6 @@ export async function enrollDevice(
     .select("id")
     .maybeSingle();
   if (used.error || !used.data) throw new Error("invalid_token");
-  const deviceId = randomUUID();
   const inserted = await admin.from("devices").insert({
     id: deviceId,
     organization_id: token.organization_id,
@@ -108,7 +115,18 @@ export async function enrollDevice(
     public_key: parsed.publicKey,
     catalog_version: DEVICE_CATALOG_VERSION,
   });
-  if (inserted.error) throw inserted.error;
+  if (inserted.error) {
+    try {
+      await admin
+        .from("device_enrollment_tokens")
+        .update({ used_count: token.used_count })
+        .eq("id", token.id)
+        .eq("used_count", token.used_count + 1);
+    } catch {
+      // The original insert error remains the enrollment outcome.
+    }
+    throw inserted.error;
+  }
   await admin.from("operations_audit").insert({
     organization_id: token.organization_id,
     actor_user_id: token.created_by,
@@ -116,12 +134,7 @@ export async function enrollDevice(
     action: "device.enrolled",
     target: deviceId,
   });
-  return {
-    deviceId,
-    organizationId: token.organization_id,
-    pollIntervalSec: 300,
-    catalogVersion: DEVICE_CATALOG_VERSION,
-  };
+  return response;
 }
 
 export { getClientIp };

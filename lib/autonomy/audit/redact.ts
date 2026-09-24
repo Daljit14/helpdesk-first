@@ -9,7 +9,7 @@ function redactString(value: string): string {
     .text.replace(/\b(?:sk|pk)[_-][A-Za-z0-9_-]{6,}\b/gi, "[token removed]")
     .replace(/\bAKIA[A-Z0-9]{16}\b/g, "[aws key removed]")
     .replace(/\b\d{4}(?:[ -]\d{4}){3}\b/g, "[card removed]")
-    .replace(/\b(?:\d[ -]*?){13,19}\b/g, "[card removed]")
+    .replace(/(?<![\d.])(?:\d[ -]*?){13,19}(?![\d.])/g, "[card removed]")
     .replace(
       /\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g,
       "[jwt removed]"

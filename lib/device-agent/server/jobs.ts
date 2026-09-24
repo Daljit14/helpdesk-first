@@ -41,6 +41,16 @@ export type DeviceJob = {
   [key: string]: unknown;
 };
 
+export function killSwitchBlocksDeviceJob(
+  switches: Pick<
+    Awaited<ReturnType<typeof readKillSwitches>>,
+    "anyActive" | "explicit"
+  >,
+  mode: DeviceJobMode
+): boolean {
+  return mode === "execute" ? switches.anyActive : switches.explicit;
+}
+
 function hashParameters(parameters: Record<string, unknown>): string {
   return createHash("sha256")
     .update(JSON.stringify(parameters, Object.keys(parameters).sort()))
@@ -121,7 +131,7 @@ export async function leaseJobsForDevice(
   limit = 3
 ): Promise<DeviceJob[]> {
   const globalSwitches = await readKillSwitches(admin, device.organization_id);
-  if (globalSwitches.anyActive) {
+  if (globalSwitches.explicit) {
     await admin
       .from("device_jobs")
       .update({
@@ -136,12 +146,16 @@ export async function leaseJobsForDevice(
   }
   const queued = await admin
     .from("device_jobs")
-    .select("id,action_id")
+    .select("id,action_id,mode")
     .eq("organization_id", device.organization_id)
     .eq("device_id", device.id)
     .eq("status", "queued")
     .gt("expires_at", new Date().toISOString());
-  const rows = (queued.data ?? []) as Array<{ id: string; action_id: string }>;
+  const rows = (queued.data ?? []) as Array<{
+    id: string;
+    action_id: string;
+    mode: DeviceJobMode;
+  }>;
   const active = new Set<string>();
   for (const row of rows) {
     const switches = await readKillSwitches(
@@ -149,7 +163,13 @@ export async function leaseJobsForDevice(
       device.organization_id,
       row.action_id
     );
-    if (switches.anyActive) active.add(row.id);
+    if (
+      killSwitchBlocksDeviceJob(switches, row.mode) ||
+      (globalSwitches.envDisabled &&
+        !globalSwitches.explicit &&
+        row.mode === "execute")
+    )
+      active.add(row.id);
   }
   if (active.size)
     await admin

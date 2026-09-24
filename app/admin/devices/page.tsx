@@ -39,7 +39,7 @@ export default async function DevicesPage() {
     admin
       .from("devices_public")
       .select(
-        "id,device_class,platform,hostname,agent_version,catalog_version,status,last_seen_at"
+        "id,user_id,device_class,platform,hostname,agent_version,catalog_version,status,last_seen_at"
       )
       .eq("organization_id", session.organizationId)
       .order("last_seen_at", { ascending: false }),
@@ -59,6 +59,27 @@ export default async function DevicesPage() {
     readConsentPolicies(admin, session.organizationId),
   ]);
   const deviceRows = devices.data ?? [];
+  const ownerIds = [
+    ...new Set(
+      deviceRows
+        .map((device) => device.user_id)
+        .filter((userId): userId is string => Boolean(userId))
+    ),
+  ];
+  const ownerResults = await Promise.all(
+    ownerIds.map(async (userId) => {
+      try {
+        const result = await admin.auth.admin.getUserById(userId);
+        return [
+          userId,
+          result.error ? undefined : result.data.user?.email,
+        ] as const;
+      } catch {
+        return [userId, undefined] as const;
+      }
+    })
+  );
+  const owners = new Map(ownerResults);
   const diagnosticResults = await Promise.all(
     deviceRows.map((device) =>
       admin
@@ -209,6 +230,9 @@ export default async function DevicesPage() {
                       {device.last_seen_at
                         ? new Date(device.last_seen_at).toLocaleString()
                         : "never"}
+                      {device.user_id
+                        ? ` · owner ${owners.get(device.user_id) ?? "unknown"}`
+                        : " · unclaimed"}
                     </p>
                   </div>
                   {device.status === "active" && (

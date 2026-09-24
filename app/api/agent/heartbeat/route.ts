@@ -32,7 +32,7 @@ export async function POST(request: Request): Promise<Response> {
     });
     const response = heartbeatResponseSchema.parse({
       pollIntervalSec: 300,
-      killSwitch: switches.anyActive,
+      killSwitch: switches.explicit,
       executionEnabled: mode === "execute" && !switches.anyActive,
       catalogVersion: DEVICE_CATALOG_VERSION,
       revoked: auth.device.status === "revoked",

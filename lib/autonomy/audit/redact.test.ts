@@ -28,4 +28,26 @@ describe("audit redaction", () => {
     cyclic.self = cyclic;
     expect(() => redactAuditDetail(cyclic)).not.toThrow();
   });
+
+  test("redacts spaced and compact payment cards", () => {
+    const result = redactAuditDetail({
+      spaced: "4111 1111 1111 1111",
+      compact: "4111111111111111",
+    });
+    expect(result).toEqual({
+      spaced: "[card removed]",
+      compact: "[card removed]",
+    });
+  });
+
+  test("preserves long decimal values and scientific notation", () => {
+    const result = redactAuditDetail({
+      freePercent: "freePercent=72.53241234567891",
+      exponent: "1.2345678901234567e-5",
+    });
+    expect(result).toEqual({
+      freePercent: "freePercent=72.53241234567891",
+      exponent: "1.2345678901234567e-5",
+    });
+  });
 });

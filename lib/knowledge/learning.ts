@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getAllIssueSlugs, getIssueBySlug } from "@/lib/search";
 import { ISSUES } from "@/lib/issues";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isRecordExcluded } from "@/lib/admin/record-exclusions";
 import { decryptTicketRow } from "@/lib/security/ticket-crypto";
 import { isKnowledgeLearningEnabled } from "@/lib/admin/flags";
 import { scrubLearningText } from "@/lib/tickets/scrub";
@@ -387,15 +388,7 @@ export async function generateCandidate(
     : null;
   if (!ticket)
     return { outcome: { kind: "skipped", reason: "ticket_missing" } };
-  const exclusion = await admin
-    .from("record_exclusions")
-    .select("id")
-    .eq("organization_id", organizationId)
-    .eq("table_name", "tickets")
-    .eq("record_id", ticketId)
-    .maybeSingle();
-  if (exclusion.error) throw exclusion.error;
-  if (exclusion.data)
+  if (await isRecordExcluded(admin, organizationId, "tickets", ticketId))
     return { outcome: { kind: "skipped", reason: "excluded_record" } };
 
   const report = resolutionReportSchema.safeParse(ticket.resolution_report);

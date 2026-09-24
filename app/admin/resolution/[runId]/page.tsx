@@ -10,6 +10,7 @@ import { DeviceJobCancel } from "@/components/admin/device-job-cancel";
 import { isRealDeviceJob } from "@/lib/device-agent/server/job-status";
 import { RecordExclusionControl } from "@/components/admin/record-exclusion-control";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isRecordExcluded } from "@/lib/admin/record-exclusions";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -39,13 +40,12 @@ export default async function ResolutionRunPage({
   const detail = await getResolutionRunDetail(session, runId);
   if (!detail) notFound();
   const admin = createAdminClient();
-  const { data: exclusion } = await admin
-    .from("record_exclusions")
-    .select("id")
-    .eq("organization_id", session.organizationId)
-    .eq("table_name", "resolution_runs")
-    .eq("record_id", runId)
-    .maybeSingle();
+  const excluded = await isRecordExcluded(
+    admin,
+    session.organizationId,
+    "resolution_runs",
+    runId
+  );
   const terminal = ["resolved", "escalated", "failed"].includes(detail.status);
   return (
     <section className="flex flex-1 flex-col px-4 py-8 sm:px-6 lg:px-8">
@@ -71,7 +71,7 @@ export default async function ResolutionRunPage({
                 table="resolution_runs"
                 recordId={runId}
                 canExclude={session.role === "org_admin"}
-                excluded={Boolean(exclusion)}
+                excluded={excluded}
               />
               <p className="mt-2 text-muted-foreground">
                 {detail.status} · ticket status: {detail.ticketStatus}
@@ -172,7 +172,21 @@ export default async function ResolutionRunPage({
           )}
         </section>
         <section className="glass space-y-3 p-5">
-          <h2 className="text-lg font-semibold">Device jobs</h2>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-lg font-semibold">Device jobs</h2>
+            <Link
+              href={
+                query.showAllJobs === "1"
+                  ? `/admin/resolution/${runId}`
+                  : `/admin/resolution/${runId}?showAllJobs=1`
+              }
+              className="text-xs underline-offset-4 hover:underline"
+            >
+              {query.showAllJobs === "1"
+                ? "Hide cancelled/expired jobs"
+                : "Show cancelled/expired jobs"}
+            </Link>
+          </div>
           {detail.deviceJobs.filter(
             (job) =>
               query.showAllJobs === "1" ||

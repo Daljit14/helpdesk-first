@@ -1,6 +1,11 @@
 import { describe, expect, test, vi } from "vitest";
 import type { createAdminClient } from "@/lib/supabase/admin";
-import { excludeRecord, withoutExcluded } from "./record-exclusions";
+import {
+  excludeRecord,
+  getExcludedRecordIds,
+  isRecordExcluded,
+  withoutExcluded,
+} from "./record-exclusions";
 
 describe("record exclusions", () => {
   test("filters only explicitly excluded records", () => {
@@ -26,5 +31,53 @@ describe("record exclusions", () => {
         excludedBy: "user",
       })
     ).resolves.toEqual({ ok: true });
+  });
+
+  test("degrades when the migration is not applied", async () => {
+    const query = {
+      select: vi.fn(() => query),
+      eq: vi.fn(() => query),
+      maybeSingle: vi.fn(async () => ({
+        data: null,
+        error: { code: "42P01", message: "record_exclusions does not exist" },
+      })),
+      then: (
+        resolve: (value: {
+          data: null;
+          error: { code: string; message: string };
+        }) => unknown
+      ) =>
+        Promise.resolve(
+          resolve({
+            data: null,
+            error: {
+              code: "42P01",
+              message: "record_exclusions does not exist",
+            },
+          })
+        ),
+    };
+    const admin = {
+      from: vi.fn(() => query),
+    };
+    await expect(
+      getExcludedRecordIds(
+        admin as unknown as ReturnType<
+          typeof import("@/lib/supabase/admin").createAdminClient
+        >,
+        "org",
+        "tickets"
+      )
+    ).resolves.toEqual(new Set());
+    await expect(
+      isRecordExcluded(
+        admin as unknown as ReturnType<
+          typeof import("@/lib/supabase/admin").createAdminClient
+        >,
+        "org",
+        "tickets",
+        "ticket"
+      )
+    ).resolves.toBe(false);
   });
 });

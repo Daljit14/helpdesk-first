@@ -419,12 +419,16 @@ export async function getOperationsData(
           "id, user_id, issue_id, issue_title, category, status, priority, assigned_agent, platform, created_at, updated_at, first_response_at, resolved_at, attachment_path, resolution_source, ai_attempted, escalated",
           { count: "exact" }
         )) as unknown as TicketQuery;
-  const filteredQuery = query
+  let filteredQuery = query
     .eq("organization_id", session.organizationId)
     .gte("created_at", filters.from)
     .order("created_at", { ascending: false });
   if (excluded.size > 0)
-    filteredQuery.not("id", "in", `(${[...excluded].join(",")})`);
+    filteredQuery = filteredQuery.not(
+      "id",
+      "in",
+      `(${[...excluded].join(",")})`
+    );
   let activeQuery = filteredQuery;
   if (filters.to) activeQuery = activeQuery.lte("created_at", filters.to);
 

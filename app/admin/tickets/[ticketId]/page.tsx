@@ -45,6 +45,7 @@ import {
   decryptTicketRow,
 } from "@/lib/security/ticket-crypto";
 import { RecordExclusionControl } from "@/components/admin/record-exclusion-control";
+import { isRecordExcluded } from "@/lib/admin/record-exclusions";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -227,13 +228,12 @@ export default async function AdminTicketPage({
   const exceptionDetails = verificationExceptionDetails(
     ticket.resolution_report
   );
-  const { data: exclusion } = await admin
-    .from("record_exclusions")
-    .select("id")
-    .eq("organization_id", session.organizationId)
-    .eq("table_name", "tickets")
-    .eq("record_id", uuid)
-    .maybeSingle();
+  const excluded = await isRecordExcluded(
+    admin,
+    session.organizationId,
+    "tickets",
+    uuid
+  );
 
   const { data: events } = await admin
     .from("ticket_events")
@@ -406,7 +406,7 @@ export default async function AdminTicketPage({
             table="tickets"
             recordId={uuid}
             canExclude={session.role === "org_admin"}
-            excluded={Boolean(exclusion)}
+            excluded={excluded}
           />
         </div>
         {uiV2 && (

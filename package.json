@@ -11,7 +11,7 @@
     "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "eval:autonomy": "vitest run --config vitest.eval.config.ts scripts/eval-autonomy.test.ts",
+    "eval:autonomy": "vitest run --config vitest.eval.config.mts scripts/eval-autonomy.test.ts",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "agent:build": "esbuild agent/src/cli.ts --bundle --platform=node --target=node20 --outfile=agent/dist/helpdesk-agent.js",
@@ -58,6 +58,6 @@
     "tailwindcss": "^4",
     "typescript": "^5",
     "vite-tsconfig-paths": "^4.3.2",
-    "vitest": "^2.1.0"
+    "vitest": "^4.1.11"
   }
 }

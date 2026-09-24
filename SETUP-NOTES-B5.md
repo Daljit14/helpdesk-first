@@ -19,5 +19,36 @@ Do not apply these files to production without a reviewed migration window.
 - Cancel a queued or leased job from Devices and confirm the append-only audit row.
 - Run the reclaim RPC twice and confirm the second call returns no rows.
 
+## Verification SQL
+
+```sql
+select id,status,error,result->>'reclaimed_at'
+from device_jobs
+where id='0559be6c-24bb-4bef-ab59-0f9ce1f1b857';
+
+select action,target,created_at
+from operations_audit
+where target like 'job:0559be6c%'
+order by created_at;
+
+select table_name,record_id,reason
+from record_exclusions
+where organization_id='00000000-0000-0000-0000-000000000001';
+```
+
+Reclaim runs automatically on the next agent poll or
+`/api/cron/resolution-runs`. It can also be run manually in the SQL editor:
+
+```sql
+select * from public.reclaim_expired_device_jobs();
+```
+
+The function writes its own audit rows.
+
+## Not covered
+
+- There is no DB-seeded Playwright coverage for admin cancellation or shadow
+  activity.
+
 The existing “requeue once” requirement cannot be implemented without an attempts/retry
 model. B5 deliberately keeps the settled `leased -> expired` transition.

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireAdminPage } from "@/lib/admin/auth";
 import { isDeviceAgentEnabled } from "@/lib/admin/flags";
@@ -21,6 +22,11 @@ export const metadata: Metadata = {
   title: "Devices",
   robots: { index: false, follow: false },
 };
+
+function formatShadowDate(value: string): string {
+  const timestamp = Date.parse(value);
+  return Number.isNaN(timestamp) ? value : new Date(timestamp).toLocaleString();
+}
 
 export default async function DevicesPage({
   searchParams,
@@ -57,7 +63,9 @@ export default async function DevicesPage({
       .select("id,label,device_class,expires_at,used_count,max_uses,revoked_at")
       .eq("organization_id", session.organizationId)
       .order("created_at", { ascending: false }),
-    getDeviceShadowActivity(admin, session.organizationId),
+    getDeviceShadowActivity(admin, session.organizationId, {
+      includeNonReal: params.showAllJobs === "1",
+    }),
     readConsentPolicies(admin, session.organizationId),
   ]);
   const deviceRows = devices.data ?? [];
@@ -179,32 +187,70 @@ export default async function DevicesPage({
           </section>
 
           <section className="glass-strong p-5">
-            <h2 className="font-semibold">Shadow actions</h2>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="font-semibold">Shadow actions</h2>
+              <Link
+                href={
+                  params.showAllJobs === "1"
+                    ? "/admin/devices"
+                    : "/admin/devices?showAllJobs=1"
+                }
+                className="text-xs underline-offset-4 hover:underline"
+              >
+                {params.showAllJobs === "1"
+                  ? "Hide cancelled/expired jobs"
+                  : "Show cancelled/expired jobs"}
+              </Link>
+            </div>
             <div className="mt-4 space-y-3">
-              {shadows
-                .filter((shadow) => shadow.source === "shadow_plan")
-                .map((shadow) => (
-                  <div
-                    key={shadow.id}
-                    className="rounded-2xl border border-border/60 p-3"
-                  >
-                    <div className="flex flex-wrap justify-between gap-2">
-                      <p className="font-medium">
-                        {shadow.actionId} ·{" "}
-                        {shadow.source === "shadow_plan"
-                          ? "agent plan"
-                          : "device job"}
-                      </p>
-                      <span className="text-xs text-muted-foreground">
-                        {shadow.status}
+              {shadows.map((shadow) => (
+                <div
+                  key={shadow.id}
+                  className="rounded-2xl border border-border/60 p-3"
+                >
+                  <div className="flex flex-wrap justify-between gap-2">
+                    <p className="font-medium">
+                      <span className="mr-1 rounded-full border px-2 py-0.5 text-[10px]">
+                        Shadow
                       </span>
-                    </div>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {shadow.paramsSummary}
+                      {shadow.actionId}@{shadow.actionVersion ?? "?"} ·{" "}
+                      {shadow.source === "shadow_plan"
+                        ? "agent plan"
+                        : "device job"}
                     </p>
-                    <DeviceShadowReviewForm id={shadow.id} />
+                    <span className="text-xs text-muted-foreground">
+                      {shadow.status}
+                    </span>
                   </div>
-                ))}
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Device:{" "}
+                    {shadow.hostname ??
+                      (shadow.deviceId
+                        ? shadow.deviceId.slice(0, 8)
+                        : "unknown")}{" "}
+                    · owner {shadow.ownerEmail ?? "unclaimed"}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Params: {shadow.paramsSummary} · Would have:{" "}
+                    {shadow.wouldHave}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Policy: {shadow.policyDecision} ·{" "}
+                    {formatShadowDate(shadow.createdAt)}
+                  </p>
+                  {shadow.runId && (
+                    <Link
+                      href={`/admin/resolution/${shadow.runId}`}
+                      className="mt-2 inline-block text-xs underline-offset-4 hover:underline"
+                    >
+                      View resolution run
+                    </Link>
+                  )}
+                  {shadow.source === "shadow_plan" && (
+                    <DeviceShadowReviewForm id={shadow.id} />
+                  )}
+                </div>
+              ))}
               {shadows.length === 0 && (
                 <p className="text-sm text-muted-foreground">
                   No shadow actions.

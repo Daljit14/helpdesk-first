@@ -4,6 +4,7 @@ import type { RunStatus } from "@/lib/autonomy/state-machine";
 import { getPilotLimits } from "@/lib/autonomy/config";
 import type { Judgement, TrustTier } from "@/lib/research/types";
 import { getDeviceShadowActivity } from "./device-shadow";
+import { isRealDeviceJob } from "@/lib/device-agent/server/job-status";
 import { getExcludedRecordIds, withoutExcluded } from "./record-exclusions";
 
 type JsonRecord = Record<string, unknown>;
@@ -413,17 +414,17 @@ export async function getPilotOverview(session: AdminSession): Promise<{
       })),
       deviceJobs: {
         total: deviceJobs.data?.length ?? 0,
-        real: (deviceJobs.data ?? []).filter(
-          (row) => !["cancelled", "expired"].includes(String(row.status))
+        real: (deviceJobs.data ?? []).filter((row) =>
+          isRealDeviceJob({ status: String(row.status) })
         ).length,
         shadow: (deviceJobs.data ?? []).filter(
           (row) =>
-            !["cancelled", "expired"].includes(String(row.status)) &&
+            isRealDeviceJob({ status: String(row.status) }) &&
             row.mode === "shadow"
         ).length,
         executed: (deviceJobs.data ?? []).filter(
           (row) =>
-            !["cancelled", "expired"].includes(String(row.status)) &&
+            isRealDeviceJob({ status: String(row.status) }) &&
             row.mode === "execute"
         ).length,
       },
@@ -868,7 +869,7 @@ export async function getResolutionRunDetail(
   const shadowJobs = await getDeviceShadowActivity(
     admin,
     session.organizationId,
-    { runId }
+    { runId, includeNonReal: true }
   );
   return {
     ...runSummary,

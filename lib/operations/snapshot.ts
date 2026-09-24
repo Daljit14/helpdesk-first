@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import type { ExcludableTable } from "@/lib/admin/record-exclusions";
 import {
   buildAgentQueue,
   categoryLabel as getCategoryLabel,
@@ -62,20 +63,16 @@ const emptyTraffic = (timestamp = new Date().toISOString()): TrafficPoint => ({
   ticketsCreatedPerMin: 0,
 });
 
+let missingTableWarningShown = false;
+
 export async function getOperationsSnapshot(
   opts: { includeExcluded?: boolean } = {}
 ): Promise<OperationsSnapshot> {
   const generatedAt = new Date().toISOString();
   const admin = createAdminClient();
-  const exclusions = opts.includeExcluded
-    ? { data: [] as { record_id: string }[] }
-    : await admin
-        .from("record_exclusions")
-        .select("record_id")
-        .eq("table_name", "tickets");
-  const excludedIds = new Set(
-    (exclusions.data ?? []).map((row) => String(row.record_id))
-  );
+  const excludedIds = opts.includeExcluded
+    ? new Set<string>()
+    : await getAllExcludedRecordIds(admin, "tickets");
   const { data, error } = await admin
     .from("tickets")
     .select(
@@ -134,4 +131,35 @@ export async function getOperationsSnapshot(
     trafficTimeline,
     agentQueue: buildAgentQueue(tickets, new Date(generatedAt)),
   };
+}
+
+export async function getAllExcludedRecordIds(
+  admin: ReturnType<typeof createAdminClient>,
+  table: ExcludableTable
+): Promise<Set<string>> {
+  const result = await admin
+    .from("record_exclusions")
+    .select("record_id")
+    .eq("table_name", table);
+  if (result.error) {
+    if (
+      result.error.code === "42P01" ||
+      (/record_exclusions/i.test(result.error.message ?? "") &&
+        /does not exist|schema cache/i.test(result.error.message ?? ""))
+    ) {
+      if (!missingTableWarningShown) {
+        missingTableWarningShown = true;
+        console.warn(
+          "record_exclusions is unavailable; continuing without record exclusions until the migration is applied"
+        );
+      }
+      return new Set();
+    }
+    throw result.error;
+  }
+  return new Set(
+    ((result.data ?? []) as { record_id: string }[]).map(
+      ({ record_id }) => record_id
+    )
+  );
 }

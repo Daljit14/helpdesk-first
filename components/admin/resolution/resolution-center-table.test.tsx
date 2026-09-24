@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, test } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, test } from "vitest";
 import { ResolutionCenterTable } from "./resolution-center-table";
 import type {
   ResolutionMetrics,
@@ -41,6 +41,10 @@ const metrics: ResolutionMetrics = {
   costPerVerifiedCents: 0,
   byCapability: [],
 };
+
+afterEach(() => {
+  cleanup();
+});
 
 describe("ResolutionCenterTable", () => {
   test("renders an empty state", () => {

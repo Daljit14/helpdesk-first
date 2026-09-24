@@ -7,12 +7,8 @@ import {
   isRequesterAgentEnabledForOrg,
 } from "@/lib/admin/flags";
 import { createRateLimiter, checkRateLimit } from "@/lib/ai/rate-limit";
-import {
-  createSession,
-  escalate,
-  loadActiveSession,
-} from "@/lib/agent/session";
-import { runAgentTurn } from "@/lib/agent/loop";
+import { createSession, loadActiveSession } from "@/lib/agent/session";
+import { handleAgentRequest } from "@/lib/agent/turn";
 import type { AgentEvent } from "@/lib/agent/types";
 
 export const runtime = "nodejs";
@@ -84,24 +80,15 @@ export async function POST(request: Request): Promise<Response> {
       );
       request.signal.addEventListener("abort", close, { once: true });
       try {
-        if (parsed.data.humanRequested) {
-          const ticketId = await escalate(
-            admin,
-            session,
-            "user_requested_human",
-            parsed.data.message
-          );
-          emit({ type: "escalated", ticketId, reason: "user_requested_human" });
-        } else {
-          await runAgentTurn({
-            admin,
-            session,
-            userMessage: parsed.data.message,
-            platform: parsed.data.platform,
-            emit,
-            signal: request.signal,
-          });
-        }
+        await handleAgentRequest({
+          admin,
+          session,
+          message: parsed.data.message,
+          humanRequested: parsed.data.humanRequested,
+          platform: parsed.data.platform,
+          emit,
+          signal: request.signal,
+        });
       } catch {
         emit({
           type: "error",

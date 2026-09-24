@@ -1,5 +1,6 @@
 import type { AgentModel, AgentModelOutput } from "./model";
 import { runAgentTurn, type AgentLoopDeps } from "./loop";
+import { handleAgentRequest, type AgentTurnDeps } from "./turn";
 import { budgetExceeded } from "./budgets";
 import type { AgentEvent, AgentSession } from "./types";
 import type { AgentToolResult } from "./tools";
@@ -30,6 +31,8 @@ export type AgentEvalHarness = {
   steps: Array<{ kind: string; resultSummary?: string; toolName?: string }>;
   toolCalls: number;
   sideEffectCalls: number;
+  executedInputs: unknown[];
+  executedTools: string[];
   alerts: number;
   run: () => Promise<void>;
 };
@@ -61,6 +64,7 @@ export function createAgentEvalHarness(input: {
   killSwitchAfterTool?: boolean;
   maxToolCalls?: number;
   message?: string;
+  humanRequested?: boolean;
   context?: Array<{ role: "user" | "assistant"; content: string }>;
 }): AgentEvalHarness {
   const current = session();
@@ -70,6 +74,8 @@ export function createAgentEvalHarness(input: {
   const toolResults = [...(input.toolResults ?? [])];
   let toolCalls = 0;
   let sideEffectCalls = 0;
+  const executedInputs: unknown[] = [];
+  const executedTools: string[] = [];
   let alerts = 0;
   const admin = {} as HarnessAdmin;
   const ticketId = "00000000-0000-4000-8000-000000000004";
@@ -99,7 +105,7 @@ export function createAgentEvalHarness(input: {
     target.halt_reason = status === "halted" ? reason : target.halt_reason;
     target.security_flag = security;
   };
-  const deps: Partial<AgentLoopDeps> = {
+  const deps: AgentTurnDeps = {
     budgetExceeded: (target) =>
       input.maxToolCalls !== undefined &&
       target.tool_call_count >= input.maxToolCalls
@@ -119,7 +125,7 @@ export function createAgentEvalHarness(input: {
     loadContext: async () => input.context ?? [],
     writeStep,
     updateSession,
-    runTool: async () => {
+    runTool: async (_context, name, input) => {
       toolCalls += 1;
       const scripted = toolResults.shift() ?? {
         ok: true as const,
@@ -128,7 +134,11 @@ export function createAgentEvalHarness(input: {
           '<untrusted_data source="scripted">{"result":"scripted"}</untrusted_data>',
         userSummary: "Scripted read-only result.",
       };
-      if (scripted.ok && scripted.sideEffects) sideEffectCalls += 1;
+      if (scripted.ok) {
+        executedInputs.push(input);
+        executedTools.push(name);
+        if (scripted.sideEffects) sideEffectCalls += 1;
+      }
       return scripted;
     },
     escalate: async (_admin, target, reason) => {
@@ -154,18 +164,24 @@ export function createAgentEvalHarness(input: {
     get sideEffectCalls() {
       return sideEffectCalls;
     },
+    executedInputs,
+    executedTools,
     get alerts() {
       return alerts;
     },
     run: () =>
-      runAgentTurn({
+      handleAgentRequest({
         admin: admin as never,
         session: current,
-        userMessage: input.message ?? "Wi-Fi keeps dropping",
-        model,
+        message: input.message ?? "Wi-Fi keeps dropping",
+        humanRequested: input.humanRequested,
         emit: (event) => events.push(event),
         signal: new AbortController().signal,
-        deps,
+        deps: {
+          ...deps,
+          runAgentTurn: async (turnInput) =>
+            runAgentTurn({ ...turnInput, model }),
+        },
       }),
   };
 }

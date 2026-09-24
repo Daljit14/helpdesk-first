@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
   createAdminClient: vi.fn(),
   createSession: vi.fn(),
   loadActiveSession: vi.fn(),
-  runAgentTurn: vi.fn(),
+  handleAgentRequest: vi.fn(),
   escalate: vi.fn(),
 }));
 
@@ -36,7 +36,9 @@ vi.mock("@/lib/agent/session", () => ({
   loadActiveSession: mocks.loadActiveSession,
   escalate: mocks.escalate,
 }));
-vi.mock("@/lib/agent/loop", () => ({ runAgentTurn: mocks.runAgentTurn }));
+vi.mock("@/lib/agent/turn", () => ({
+  handleAgentRequest: mocks.handleAgentRequest,
+}));
 
 import { POST } from "./route";
 
@@ -65,7 +67,7 @@ beforeEach(() => {
   mocks.createSession.mockResolvedValue(session);
   mocks.loadActiveSession.mockResolvedValue(session);
   mocks.createAdminClient.mockReturnValue({});
-  mocks.runAgentTurn.mockResolvedValue(undefined);
+  mocks.handleAgentRequest.mockResolvedValue(undefined);
   mocks.escalate.mockResolvedValue("ticket-id");
 });
 

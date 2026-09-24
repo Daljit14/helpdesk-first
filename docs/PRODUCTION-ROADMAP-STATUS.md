@@ -27,6 +27,7 @@ created through the GitHub UI; they contributed no independent code.
 
 | PR  | Title                                                                                        | Branch                                      | State                 | Merge on `main`                                             |
 | --- | -------------------------------------------------------------------------------------------- | ------------------------------------------- | --------------------- | ----------------------------------------------------------- |
+| B5  | Device-job reclaim, cancellation, exclusions, and shadow activity                            | `devin/1790268220-b5-prephase-c-fixes`      | in progress           | —                                                           |
 | 1   | feat: repository foundation for HelpDesk First                                               | `devin/helpdesk-first-foundation`           | closed unmerged       | — (superseded by #2)                                        |
 | 2   | feat: repository foundation for HelpDesk First                                               | `feature/project-foundation`                | merged                | `bcb3fce2`                                                  |
 | 3   | feat: Level-1 IT support homepage                                                            | `feature/level1-homepage`                   | merged                | `843b5a7b`                                                  |
@@ -530,6 +531,10 @@ Recorded decisions require legal review before school rollout.
 ---
 
 ## Part E — Known gaps, TODOs and rollback notes carried forward
+
+- Phase B5 adds bounded device-job lease reclaim, admin cancellation,
+  organization-scoped record exclusions, and unified shadow activity. Apply
+  `device-jobs.sql`, `record-exclusions.sql`, then `ticket-workflow.sql`.
 
 - Legacy bucket `ticket-attachments` and `tickets.attachment_path` (#17)
   remain for tickets created before #30; UI hides the legacy URL when

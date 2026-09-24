@@ -206,6 +206,18 @@ You do not need to run the website on `localhost` to use the live public version
 
 ## Available scripts
 
+### Device job lifecycle & cleanup
+
+Device jobs use bounded leases and terminal reclaim transitions. Expired leases
+are audited, revoked devices expire open jobs, and organization admins can
+cancel queued or leased jobs without deleting audit history.
+
+### Record exclusions
+
+Organization admins can append an exclusion for known test tickets or resolution
+runs. Operations, Resolution Center, exports, and knowledge learning omit
+excluded records by default; excluded rows remain immutable and auditable.
+
 | Script                 | Purpose                              |
 | ---------------------- | ------------------------------------ |
 | `npm run dev`          | Run the Next.js development server   |

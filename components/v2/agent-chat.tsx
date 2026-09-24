@@ -43,7 +43,12 @@ export function AgentChat({
   );
 
   async function send(humanRequested = false) {
-    if (pending || terminal || (!message.trim() && !humanRequested)) return;
+    if (
+      pending ||
+      (terminal && !humanRequested) ||
+      (!message.trim() && !humanRequested)
+    )
+      return;
     setPending(true);
     setItems([]);
     const response = await fetch("/api/ai/agent", {
@@ -203,7 +208,7 @@ export function AgentChat({
           <Button
             variant="outline"
             onClick={() => void send(true)}
-            disabled={pending || terminal}
+            disabled={pending}
           >
             <LifeBuoy className="mr-2 size-4" /> Talk to a human
           </Button>

@@ -26,7 +26,7 @@ export async function POST(request: Request): Promise<Response> {
           mode: job.mode,
           kind: job.kind,
           rollbackOf: job.rollback_of,
-          expiresAt: job.expires_at,
+          expiresAt: new Date(job.expires_at).toISOString(),
           snapshotSpec: job.snapshot_spec,
         })),
       })

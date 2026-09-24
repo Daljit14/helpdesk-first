@@ -109,4 +109,24 @@ describe("device-agent protocol", () => {
       }).jobs[0].rollbackOf
     ).toBeNull();
   });
+
+  it("accepts offset timestamps on polled jobs", () => {
+    expect(
+      jobPollResponseSchema.parse({
+        jobs: [
+          {
+            id: randomUUID(),
+            actionId: "device_flush_dns",
+            actionVersion: 1,
+            parameters: {},
+            mode: "shadow",
+            kind: "action",
+            rollbackOf: null,
+            expiresAt: "2026-09-23T14:39:39.000+00:00",
+            snapshotSpec: [],
+          },
+        ],
+      }).jobs[0].expiresAt
+    ).toBe("2026-09-23T14:39:39.000+00:00");
+  });
 });

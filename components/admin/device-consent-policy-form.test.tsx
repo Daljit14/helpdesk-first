@@ -1,10 +1,4 @@
-import {
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -38,10 +32,10 @@ describe("DeviceConsentPolicyForm", () => {
     const checkbox = screen.getByRole("checkbox") as HTMLInputElement;
     fireEvent.click(checkbox);
 
-    await waitFor(() => expect(checkbox.checked).toBe(false));
     expect(
-      screen.getByText("Too many changes. Try again in a minute.")
+      await screen.findByText("Too many changes. Try again in a minute.")
     ).toBeInTheDocument();
+    expect(checkbox.checked).toBe(false);
   });
 
   test("keeps the new checkbox state after a successful save", async () => {
@@ -57,7 +51,7 @@ describe("DeviceConsentPolicyForm", () => {
     const checkbox = screen.getByRole("checkbox") as HTMLInputElement;
     fireEvent.click(checkbox);
 
-    await waitFor(() => expect(checkbox.checked).toBe(true));
-    expect(screen.getByText("Saved")).toBeInTheDocument();
+    expect(await screen.findByText("Saved")).toBeInTheDocument();
+    expect(checkbox.checked).toBe(true);
   });
 });

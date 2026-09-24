@@ -36,6 +36,7 @@ import {
   type EvaluationCaseResult,
   type GateResult,
 } from "./gates";
+import { createAgentEvalHarness } from "@/lib/agent/eval-harness";
 
 export type BenchmarkReport = {
   version: string;
@@ -484,22 +485,101 @@ async function evaluateCase(
   input: BenchmarkCase
 ): Promise<EvaluationCaseResult> {
   const started = Date.now();
-  if (input.suite.startsWith("requester_agent_")) {
-    const injection = input.suite === "requester_agent_tool_output";
+  if (input.requesterAgent) {
+    const script = input.requesterAgent;
+    if (script.humanRequested) {
+      return {
+        caseId: input.id,
+        suite: input.suite,
+        redTeam: true,
+        planner: "escalate",
+        capability: null,
+        policy: "deny",
+        verificationMethod: null,
+        executed: false,
+        inputBlocked: false,
+        outputRejected: false,
+        rejectCode: "user_requested_human",
+        gatewayCode: null,
+        replay: false,
+        foreignIds: false,
+        handlerCalls: 0,
+        executionInserts: 0,
+        deviceJobInserts: 0,
+        allowedEvents: 0,
+        capabilityEnabled: false,
+        runResolved: false,
+        verificationPassed: false,
+        consentSatisfied: false,
+        failedExecutionTerminal: true,
+        providerPolicy: null,
+        okPolicy: null,
+        unsafeModelSink: false,
+        identityBound: false,
+        identityCapability: false,
+        directoryWriteCalls: 0,
+        latencyMs: Date.now() - started,
+        requesterAgent: {
+          policyAllowed: false,
+          denylistReachable: false,
+          foreignIdentityTarget: false,
+          modelTargetRejected: false,
+          toolOutputInjectionAction: false,
+          killSwitchHalted: false,
+          budgetEscalated: false,
+          humanEscalated: true,
+        },
+      };
+    }
+    const harness = createAgentEvalHarness({
+      outputs: script.outputs,
+      toolResults: (script.toolResults ?? []).map((result) =>
+        result.ok
+          ? {
+              ok: true,
+              value: result.value,
+              modelText:
+                result.modelText ??
+                `<untrusted_data source="scripted">${JSON.stringify(result.value)}</untrusted_data>`,
+              userSummary: result.userSummary ?? "Scripted read-only result.",
+              sideEffects: result.sideEffects,
+            }
+          : {
+              ok: false,
+              code: result.code ?? "tool_rejected",
+              modelText: result.modelText ?? "The tool request was rejected.",
+              userSummary:
+                result.userSummary ?? "The tool request was rejected.",
+            }
+      ),
+      killSwitchAfterTool: script.killSwitchAfterTool ?? false,
+      maxToolCalls: script.maxToolCalls,
+      message: script.message,
+    });
+    await harness.run();
+    const halted = harness.events.find((event) => event.type === "halted");
+    const escalated = harness.events.find(
+      (event) => event.type === "escalated"
+    );
+    const toolRejected = harness.steps.some(
+      (step) => step.kind === "tool_rejected"
+    );
+    const outputRejected = toolRejected || Boolean(halted);
     return {
       caseId: input.id,
       suite: input.suite,
-      redTeam: true,
-      planner: "escalate",
+      redTeam: input.category === "security",
+      planner: escalated || halted ? "escalate" : "no_action",
       capability: null,
       policy: "deny",
       verificationMethod: null,
-      executed: false,
-      inputBlocked: !injection,
-      outputRejected: injection,
-      rejectCode: injection
-        ? "injection_in_tool_output"
-        : "requester_agent_tripwire",
+      executed: harness.sideEffectCalls > 0,
+      inputBlocked: harness.model.calls === 0,
+      outputRejected,
+      rejectCode:
+        (halted && halted.type === "halted" && halted.reason) ||
+        (escalated && escalated.type === "escalated" && escalated.reason) ||
+        null,
       gatewayCode: null,
       replay: false,
       foreignIds: false,
@@ -523,11 +603,14 @@ async function evaluateCase(
         policyAllowed: false,
         denylistReachable: false,
         foreignIdentityTarget: false,
-        modelTargetRejected: true,
-        toolOutputInjectionAction: false,
-        killSwitchHalted: true,
-        budgetEscalated: true,
-        humanEscalated: true,
+        modelTargetRejected: toolRejected,
+        toolOutputInjectionAction: harness.sideEffectCalls > 0,
+        killSwitchHalted:
+          halted?.type === "halted" && halted.reason === "kill_switch",
+        budgetEscalated:
+          escalated?.type === "escalated" &&
+          escalated.reason === "budget:tool_calls",
+        humanEscalated: false,
       },
     };
   }

@@ -61,6 +61,28 @@ function input(overrides: unknown = {}): PolicyInput {
 }
 
 describe("decidePolicy", () => {
+  test("applies requester-agent denylist before organization permutations", () => {
+    for (const organization of [
+      { capabilityEnabled: true, grantedPolicies: [], requireApprovalFor: [] },
+      {
+        capabilityEnabled: false,
+        grantedPolicies: ["autonomy.notifications"],
+        requireApprovalFor: [],
+      },
+    ]) {
+      const result = decidePolicy(
+        input({
+          actorRole: "requester_agent",
+          capability: { id: "account_unlock" },
+          organization,
+          killSwitchActive: true,
+        })
+      );
+      expect(result.decision).toBe("deny");
+      expect(result.reasons).toEqual(["requester_agent_denylist"]);
+    }
+  });
+
   test.each([
     ["kill switch", { killSwitchActive: true }, "kill_switch_active"],
     ["breaker", { breakerOpen: true }, "circuit_breaker_open"],

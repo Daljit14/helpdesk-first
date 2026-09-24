@@ -3,6 +3,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import type { RunStatus } from "@/lib/autonomy/state-machine";
 import { getPilotLimits } from "@/lib/autonomy/config";
 import type { Judgement, TrustTier } from "@/lib/research/types";
+import { getDeviceShadowActivity } from "./device-shadow";
+import { isRealDeviceJob } from "@/lib/device-agent/server/job-status";
+import { getExcludedRecordIds, withoutExcluded } from "./record-exclusions";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -297,6 +300,12 @@ export async function getPilotOverview(session: AdminSession): Promise<{
   reviews: PilotReview[];
   reviewCounts: Record<PilotReview["reviewStatus"], number>;
   perCapability: { id: string; count: number }[];
+  deviceJobs: {
+    total: number;
+    real: number;
+    shadow: number;
+    executed: number;
+  };
   error: string | null;
 }> {
   const admin = createAdminClient();
@@ -309,7 +318,7 @@ export async function getPilotOverview(session: AdminSession): Promise<{
   ).toISOString();
   const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
   try {
-    const [switchResult, executions, reviewsResult, verifications] =
+    const [switchResult, executions, reviewsResult, verifications, deviceJobs] =
       await Promise.all([
         admin
           .from("ai_kill_switches")
@@ -334,18 +343,24 @@ export async function getPilotOverview(session: AdminSession): Promise<{
           .select("outcome")
           .eq("organization_id", session.organizationId)
           .gte("created_at", since),
+        admin
+          .from("device_jobs")
+          .select("status,mode")
+          .eq("organization_id", session.organizationId),
       ]);
     if (
       switchResult.error ||
       executions.error ||
       reviewsResult.error ||
-      verifications.error
+      verifications.error ||
+      deviceJobs.error
     )
       throw (
         switchResult.error ??
         executions.error ??
         reviewsResult.error ??
-        verifications.error
+        verifications.error ??
+        deviceJobs.error
       );
     const reviews = (
       (reviewsResult.data ?? []) as Record<string, unknown>[]
@@ -397,6 +412,22 @@ export async function getPilotOverview(session: AdminSession): Promise<{
         id,
         count,
       })),
+      deviceJobs: {
+        total: deviceJobs.data?.length ?? 0,
+        real: (deviceJobs.data ?? []).filter((row) =>
+          isRealDeviceJob({ status: String(row.status) })
+        ).length,
+        shadow: (deviceJobs.data ?? []).filter(
+          (row) =>
+            isRealDeviceJob({ status: String(row.status) }) &&
+            row.mode === "shadow"
+        ).length,
+        executed: (deviceJobs.data ?? []).filter(
+          (row) =>
+            isRealDeviceJob({ status: String(row.status) }) &&
+            row.mode === "execute"
+        ).length,
+      },
       error: null,
     };
   } catch (error) {
@@ -410,6 +441,7 @@ export async function getPilotOverview(session: AdminSession): Promise<{
       reviews: [],
       reviewCounts: { pending: 0, confirmed: 0, incorrect: 0, unsafe: 0 },
       perCapability: [],
+      deviceJobs: { total: 0, real: 0, shadow: 0, executed: 0 },
       error: error instanceof Error ? error.message : "Pilot data unavailable.",
     };
   }
@@ -663,7 +695,7 @@ async function queryRows(
 
 export async function getResolutionCenterOverview(
   session: AdminSession,
-  opts: { windowDays?: number } = {}
+  opts: { windowDays?: number; showExcluded?: boolean } = {}
 ): Promise<{ runs: RunSummary[]; metrics: ResolutionMetrics }> {
   const admin = createAdminClient();
   const windowDays = opts.windowDays ?? 30;
@@ -674,7 +706,18 @@ export async function getResolutionCenterOverview(
     .eq("organization_id", session.organizationId)
     .gte("created_at", start)
     .order("created_at", { ascending: false });
-  const rawRuns = (runResult.data ?? []) as RawRun[];
+  const excludedRuns =
+    opts.showExcluded && session.role === "org_admin"
+      ? new Set<string>()
+      : await getExcludedRecordIds(
+          admin,
+          session.organizationId,
+          "resolution_runs"
+        );
+  const rawRuns = withoutExcluded(
+    (runResult.data ?? []) as RawRun[],
+    excludedRuns
+  );
   const runIds = rawRuns.map((run) => run.id);
   const ticketIds = rawRuns.map((run) => run.ticket_id);
   const [
@@ -804,15 +847,15 @@ export async function getResolutionRunDetail(
       .filter((device) => typeof device.id === "string")
       .map((device) => [device.id as string, device.hostname ?? null])
   );
-  const deviceJobsWithHostnames = (deviceJobs as Record<string, unknown>[]).map(
-    (job) => ({
+  const deviceJobsWithHostnames = (deviceJobs as Record<string, unknown>[])
+    .filter((job) => job.mode !== "shadow")
+    .map((job) => ({
       ...job,
       device_hostname:
         typeof job.device_id === "string"
           ? (hostnames.get(job.device_id) ?? null)
           : null,
-    })
-  );
+    }));
   const ticket = ticketResult.data as RawTicket | null;
   const policyRows = policies;
   const runSummary = summary(
@@ -822,6 +865,11 @@ export async function getResolutionRunDetail(
     policyRows,
     approvals as unknown as RawApproval[],
     ticket?.status === "Reopened"
+  );
+  const shadowJobs = await getDeviceShadowActivity(
+    admin,
+    session.organizationId,
+    { runId, includeNonReal: true }
   );
   return {
     ...runSummary,
@@ -844,7 +892,7 @@ export async function getResolutionRunDetail(
       judgement: source.judgement,
       snippet: source.snippet,
     })),
-    deviceJobs: deviceJobsWithHostnames,
+    deviceJobs: [...deviceJobsWithHostnames, ...shadowJobs],
   };
 }
 

@@ -1,4 +1,5 @@
 import {
+  DEVICE_POLL_INTERVAL_SEC,
   heartbeatRequestSchema,
   heartbeatResponseSchema,
 } from "@/lib/device-agent/protocol";
@@ -31,7 +32,7 @@ export async function POST(request: Request): Promise<Response> {
       organizationId: auth.device.organization_id,
     });
     const response = heartbeatResponseSchema.parse({
-      pollIntervalSec: 300,
+      pollIntervalSec: DEVICE_POLL_INTERVAL_SEC,
       killSwitch: switches.explicit,
       executionEnabled: mode === "execute" && !switches.anyActive,
       catalogVersion: DEVICE_CATALOG_VERSION,

@@ -7,6 +7,7 @@ import { getAdminSession, recordAudit } from "@/lib/admin/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createEnrollmentToken } from "@/lib/device-agent/server/enroll";
 import { upsertConsentPolicy } from "@/lib/device-agent/server/consent-policies";
+import { expireOpenJobsForDevice } from "@/lib/device-agent/server/jobs";
 
 const limiter = createRateLimiter(
   { windowMs: 60_000, maxRequests: 30 },
@@ -81,7 +82,8 @@ export async function revokeDeviceAction(input: unknown) {
     .object({ id: idSchema, reason: z.string().trim().max(500).optional() })
     .safeParse(input);
   if (!session || !parsed.success) return { error: "Not authorized." };
-  await createAdminClient()
+  const admin = createAdminClient();
+  const deviceUpdate = await admin
     .from("devices")
     .update({
       status: "revoked",
@@ -91,9 +93,39 @@ export async function revokeDeviceAction(input: unknown) {
     })
     .eq("id", parsed.data.id)
     .eq("organization_id", session.organizationId);
+  if (deviceUpdate.error) return { error: "Unable to revoke device." };
+  await expireOpenJobsForDevice(admin, {
+    organizationId: session.organizationId,
+    deviceId: parsed.data.id,
+    actorUserId: session.userId,
+    reason: "device_revoked",
+  });
   await recordAudit(session, "device.revoked", parsed.data.id);
   revalidatePath("/admin/devices");
   return { success: true };
+}
+
+export async function cancelDeviceJobAction(input: unknown) {
+  const auth = await adminSession();
+  const parsed = z
+    .object({ jobId: idSchema, reason: z.string().trim().min(3).max(300) })
+    .safeParse(input);
+  if (!auth.session || auth.session.role !== "org_admin" || !parsed.success)
+    return { error: "forbidden" as const };
+  const session = auth.session;
+  const result = await createAdminClient().rpc("cancel_device_job", {
+    p_job_id: parsed.data.jobId,
+    p_organization_id: session.organizationId,
+    p_actor: session.userId,
+    p_reason: parsed.data.reason,
+  });
+  if (result.error) return { error: "invalid_state" as const };
+  const rows = (result.data ?? []) as { run_id?: string }[];
+  if (rows.length === 0) return { error: "invalid_state" as const };
+  revalidatePath("/admin/devices");
+  revalidatePath("/admin/resolution");
+  if (rows[0]?.run_id) revalidatePath(`/admin/resolution/${rows[0].run_id}`);
+  return { success: true as const };
 }
 
 export async function reviewDeviceShadowAction(input: unknown) {

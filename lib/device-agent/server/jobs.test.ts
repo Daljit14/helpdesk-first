@@ -217,9 +217,17 @@ describe("device job kill-switch handling", () => {
       admin as unknown as ReturnType<typeof createAdminClient>,
       device
     );
+    expect(admin.rpc).toHaveBeenCalledWith(
+      "reclaim_expired_device_jobs",
+      expect.objectContaining({
+        p_organization_id: "org-1",
+        p_device_id: "device-1",
+      })
+    );
     expect(admin.rpc).toHaveBeenCalledWith("lease_device_jobs", {
       device: "device-1",
       n: 3,
+      p_lease_seconds: 600,
     });
     expect(admin.updates).toContainEqual(
       expect.objectContaining({
@@ -239,7 +247,10 @@ describe("device job kill-switch handling", () => {
       admin as unknown as ReturnType<typeof createAdminClient>,
       device
     );
-    expect(admin.rpc).not.toHaveBeenCalled();
+    expect(admin.rpc).toHaveBeenCalledWith(
+      "reclaim_expired_device_jobs",
+      expect.anything()
+    );
     expect(admin.updates).toContainEqual(
       expect.objectContaining({
         status: "cancelled",

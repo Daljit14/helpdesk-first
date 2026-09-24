@@ -13,7 +13,11 @@ import { readKillSwitches } from "@/lib/autonomy/kill-switches";
 import { redactAuditDetail } from "@/lib/autonomy/audit/redact";
 import { sanitizeOutput } from "@/lib/autonomy/executor/sanitize";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { jobReportSchema, type JobReport } from "@/lib/device-agent/protocol";
+import {
+  DEVICE_JOB_LEASE_SECONDS,
+  jobReportSchema,
+  type JobReport,
+} from "@/lib/device-agent/protocol";
 import type { DeviceRow } from "./auth";
 import { storeDiagnostics } from "./diagnostics";
 
@@ -41,6 +45,8 @@ export type DeviceJob = {
   snapshot_spec: string[];
   [key: string]: unknown;
 };
+
+const SYSTEM_ACTOR_ID = "00000000-0000-0000-0000-000000000000";
 
 export function killSwitchBlocksDeviceJob(
   switches: Pick<
@@ -135,6 +141,10 @@ export async function leaseJobsForDevice(
   device: DeviceRow,
   limit = 3
 ): Promise<DeviceJob[]> {
+  await reclaimExpiredDeviceJobs(admin, {
+    organizationId: device.organization_id,
+    deviceId: device.id,
+  });
   const globalSwitches = await readKillSwitches(admin, device.organization_id);
   if (globalSwitches.explicit) {
     await admin
@@ -188,6 +198,7 @@ export async function leaseJobsForDevice(
   const result = await admin.rpc("lease_device_jobs", {
     device: device.id,
     n: Math.max(1, Math.min(limit, 10)),
+    p_lease_seconds: DEVICE_JOB_LEASE_SECONDS,
   });
   if (result.error) throw result.error;
   return (result.data ?? []) as DeviceJob[];
@@ -202,7 +213,12 @@ export async function recordJobResult(
   | { ok: true }
   | {
       ok: false;
-      code: "wrong_device" | "not_leased" | "terminal" | "invalid_report";
+      code:
+        | "wrong_device"
+        | "not_leased"
+        | "terminal"
+        | "lease_expired"
+        | "invalid_report";
     }
 > {
   const parsed = jobReportSchema.safeParse(report);
@@ -214,12 +230,26 @@ export async function recordJobResult(
     .maybeSingle();
   if (found.error || !found.data) return { ok: false, code: "not_leased" };
   const job = found.data as DeviceJob;
-  if (job.device_id !== device.id) return { ok: false, code: "wrong_device" };
-  if (job.status !== "leased")
-    return {
-      ok: false,
-      code: job.status === "queued" ? "not_leased" : "terminal",
-    };
+  if (job.device_id !== device.id) {
+    await auditRejectedJob(admin, device, job, "wrong_device");
+    return { ok: false, code: "wrong_device" };
+  }
+  if (job.status !== "leased") {
+    const code = job.status === "queued" ? "not_leased" : "terminal";
+    await auditRejectedJob(admin, device, job, code);
+    return { ok: false, code };
+  }
+  if (
+    typeof job.lease_expires_at === "string" &&
+    new Date(job.lease_expires_at).getTime() < Date.now()
+  ) {
+    await reclaimExpiredDeviceJobs(admin, {
+      organizationId: device.organization_id,
+      deviceId: device.id,
+    });
+    await auditRejectedJob(admin, device, job, "lease_expired");
+    return { ok: false, code: "lease_expired" };
+  }
   const output = redactAuditDetail(sanitizeOutput(parsed.data.output));
   let status = parsed.data.status;
   let error = parsed.data.error ?? null;
@@ -252,7 +282,10 @@ export async function recordJobResult(
     .eq("id", job.id)
     .eq("device_id", device.id)
     .eq("status", "leased");
-  if (update.error) return { ok: false, code: "not_leased" };
+  if (update.error) {
+    await auditRejectedJob(admin, device, job, "not_leased");
+    return { ok: false, code: "not_leased" };
+  }
   if (parsed.data.diagnostics?.length) {
     await storeDiagnostics(admin, device, {
       records: parsed.data.diagnostics,
@@ -271,13 +304,59 @@ export async function recordJobResult(
 export async function expireStaleJobs(
   admin: Admin
 ): Promise<{ expired: number }> {
-  const result = await admin
-    .from("device_jobs")
-    .update({ status: "expired", updated_at: new Date().toISOString() })
-    .in("status", ["queued", "leased"])
-    .lt("expires_at", new Date().toISOString())
-    .select("id");
-  return { expired: result.data?.length ?? 0 };
+  const rows = await reclaimExpiredDeviceJobs(admin);
+  return { expired: rows.length };
+}
+
+export async function reclaimExpiredDeviceJobs(
+  admin: Admin,
+  scope: {
+    organizationId?: string;
+    deviceId?: string;
+    actorUserId?: string;
+  } = {}
+): Promise<DeviceJob[]> {
+  const result = await admin.rpc("reclaim_expired_device_jobs", {
+    p_organization_id: scope.organizationId ?? null,
+    p_device_id: scope.deviceId ?? null,
+    p_actor: scope.actorUserId ?? null,
+  });
+  if (result.error) throw result.error;
+  return (result.data ?? []) as DeviceJob[];
+}
+
+export async function expireOpenJobsForDevice(
+  admin: Admin,
+  input: {
+    organizationId: string;
+    deviceId: string;
+    actorUserId: string;
+    reason: string;
+  }
+): Promise<DeviceJob[]> {
+  const result = await admin.rpc("expire_device_jobs_for_device", {
+    p_device_id: input.deviceId,
+    p_organization_id: input.organizationId,
+    p_actor: input.actorUserId,
+    p_reason: input.reason,
+  });
+  if (result.error) throw result.error;
+  return (result.data ?? []) as DeviceJob[];
+}
+
+async function auditRejectedJob(
+  admin: Admin,
+  device: DeviceRow,
+  job: DeviceJob,
+  reason: string
+) {
+  await admin.from("operations_audit").insert({
+    organization_id: device.organization_id,
+    actor_user_id: device.user_id ?? SYSTEM_ACTOR_ID,
+    actor_role: "device_agent",
+    action: "device.job_report_rejected",
+    target: `job:${job.id} reason:${reason} status:${job.status}`,
+  });
 }
 
 export async function findDeviceForTicket(

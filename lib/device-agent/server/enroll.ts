@@ -2,6 +2,7 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { createRateLimiter, getClientIp } from "@/lib/ai/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
+  DEVICE_POLL_INTERVAL_SEC,
   deviceClassSchema,
   enrollRequestSchema,
   enrollResponseSchema,
@@ -93,7 +94,7 @@ export async function enrollDevice(
   const response = enrollResponseSchema.parse({
     deviceId,
     organizationId: token.organization_id,
-    pollIntervalSec: 300,
+    pollIntervalSec: DEVICE_POLL_INTERVAL_SEC,
     catalogVersion: DEVICE_CATALOG_VERSION,
   });
   const used = await admin

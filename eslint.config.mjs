@@ -19,6 +19,8 @@ const eslintConfig = defineConfig([
     "playwright-report/**",
     "test-results/**",
     "tests-examples/**",
+    "agent/dist/**",
+    "agent/release/**",
   ]),
   eslintConfigPrettier,
 ]);

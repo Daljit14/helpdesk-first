@@ -1,6 +1,8 @@
 import { z } from "zod";
 
 export const PROTOCOL_VERSION = 1;
+export const DEVICE_POLL_INTERVAL_SEC = 300;
+export const DEVICE_JOB_LEASE_SECONDS = DEVICE_POLL_INTERVAL_SEC * 2;
 
 export const devicePlatformSchema = z.enum(["windows", "macos", "linux"]);
 export type DevicePlatform = z.infer<typeof devicePlatformSchema>;

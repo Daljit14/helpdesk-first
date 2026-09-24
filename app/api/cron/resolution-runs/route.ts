@@ -2,6 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import { isAutonomyEnabled } from "@/lib/autonomy/config";
 import { processDueRuns, reapExpiredLeases } from "@/lib/autonomy/orchestrator";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { reclaimExpiredDeviceJobs } from "@/lib/device-agent/server/jobs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,9 +34,10 @@ export async function GET(request: Request) {
   try {
     const admin = createAdminClient();
     const leases = await reapExpiredLeases(admin);
+    const deviceJobs = await reclaimExpiredDeviceJobs(admin);
     const runs = await processDueRuns(admin);
     return Response.json(
-      { leases, runs },
+      { leases, runs, deviceJobsReclaimed: deviceJobs.length },
       { headers: { "Cache-Control": "no-store" } }
     );
   } catch (error) {

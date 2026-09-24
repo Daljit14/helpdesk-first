@@ -72,10 +72,29 @@ describe("Supabase RLS coverage", () => {
       "utf8"
     );
     expect(source).toMatch(
-      /revoke execute on function public\.lease_device_jobs\(uuid, integer\)\s+from public, anon, authenticated;/i
+      /revoke execute on function public\.lease_device_jobs\(uuid, integer, integer\)\s+from public, anon, authenticated;/i
     );
     expect(source).toMatch(
-      /grant execute on function public\.lease_device_jobs\(uuid, integer\)\s+to service_role;/i
+      /grant execute on function public\.lease_device_jobs\(uuid, integer, integer\)\s+to service_role;/i
+    );
+  });
+
+  test("protects record exclusions and reclaim lifecycle", async () => {
+    const exclusions = await readFile(
+      join(process.cwd(), "supabase/record-exclusions.sql"),
+      "utf8"
+    );
+    expect(exclusions).toMatch(/enable row level security/i);
+    expect(exclusions).toMatch(/record_exclusions_service[\s\S]*for all/i);
+    expect(exclusions).toMatch(/before update or delete/i);
+    const jobs = await readFile(
+      join(process.cwd(), "supabase/device-jobs.sql"),
+      "utf8"
+    );
+    expect(jobs).toMatch(/reclaim_expired_device_jobs/i);
+    expect(jobs).toMatch(/p_lease_seconds/i);
+    expect(jobs).not.toMatch(
+      /reclaim_expired_device_jobs[\s\S]*status\s*=\s*'queued'/i
     );
   });
 

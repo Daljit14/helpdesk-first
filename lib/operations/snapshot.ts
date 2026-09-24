@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import type { ExcludableTable } from "@/lib/admin/record-exclusions";
 import {
   buildAgentQueue,
   categoryLabel as getCategoryLabel,
@@ -62,9 +63,16 @@ const emptyTraffic = (timestamp = new Date().toISOString()): TrafficPoint => ({
   ticketsCreatedPerMin: 0,
 });
 
-export async function getOperationsSnapshot(): Promise<OperationsSnapshot> {
+let missingTableWarningShown = false;
+
+export async function getOperationsSnapshot(
+  opts: { includeExcluded?: boolean } = {}
+): Promise<OperationsSnapshot> {
   const generatedAt = new Date().toISOString();
   const admin = createAdminClient();
+  const excludedIds = opts.includeExcluded
+    ? new Set<string>()
+    : await getAllExcludedRecordIds(admin, "tickets");
   const { data, error } = await admin
     .from("tickets")
     .select(
@@ -94,26 +102,28 @@ export async function getOperationsSnapshot(): Promise<OperationsSnapshot> {
     };
   }
 
-  const tickets: OperationsTicket[] = (data ?? []).map((row) => {
-    const status = normalizeStatus(row.status);
-    const priority = normalizePriority(row.priority);
-    return {
-      ticketId: toTicketId(row.id),
-      createdAt: row.created_at,
-      updatedAt: row.updated_at ?? row.created_at,
-      status,
-      priority,
-      category: getCategoryLabel(row.issue_id),
-      issueTitle: row.issue_title,
-      userKey: pseudonymizeUser(row.user_id),
-      assignedAgent: row.assigned_agent ?? "",
-      slaDue: slaDue(row.created_at, priority),
-      firstResponseAt: row.first_response_at ?? null,
-      resolvedAt: row.resolved_at ?? null,
-      platform: normalizePlatform(row.platform),
-      hasAttachment: Boolean(row.attachment_path),
-    };
-  });
+  const tickets: OperationsTicket[] = (data ?? [])
+    .filter((row) => !excludedIds.has(row.id))
+    .map((row) => {
+      const status = normalizeStatus(row.status);
+      const priority = normalizePriority(row.priority);
+      return {
+        ticketId: toTicketId(row.id),
+        createdAt: row.created_at,
+        updatedAt: row.updated_at ?? row.created_at,
+        status,
+        priority,
+        category: getCategoryLabel(row.issue_id),
+        issueTitle: row.issue_title,
+        userKey: pseudonymizeUser(row.user_id),
+        assignedAgent: row.assigned_agent ?? "",
+        slaDue: slaDue(row.created_at, priority),
+        firstResponseAt: row.first_response_at ?? null,
+        resolvedAt: row.resolved_at ?? null,
+        platform: normalizePlatform(row.platform),
+        hasAttachment: Boolean(row.attachment_path),
+      };
+    });
 
   return {
     generatedAt,
@@ -121,4 +131,35 @@ export async function getOperationsSnapshot(): Promise<OperationsSnapshot> {
     trafficTimeline,
     agentQueue: buildAgentQueue(tickets, new Date(generatedAt)),
   };
+}
+
+export async function getAllExcludedRecordIds(
+  admin: ReturnType<typeof createAdminClient>,
+  table: ExcludableTable
+): Promise<Set<string>> {
+  const result = await admin
+    .from("record_exclusions")
+    .select("record_id")
+    .eq("table_name", table);
+  if (result.error) {
+    if (
+      result.error.code === "42P01" ||
+      (/record_exclusions/i.test(result.error.message ?? "") &&
+        /does not exist|schema cache/i.test(result.error.message ?? ""))
+    ) {
+      if (!missingTableWarningShown) {
+        missingTableWarningShown = true;
+        console.warn(
+          "record_exclusions is unavailable; continuing without record exclusions until the migration is applied"
+        );
+      }
+      return new Set();
+    }
+    throw result.error;
+  }
+  return new Set(
+    ((result.data ?? []) as { record_id: string }[]).map(
+      ({ record_id }) => record_id
+    )
+  );
 }

@@ -27,7 +27,9 @@ export async function POST(
           ? 403
           : result.code === "terminal"
             ? 409
-            : 400;
+            : result.code === "lease_expired"
+              ? 409
+              : 400;
       return Response.json({ error: result.code }, { status });
     }
     return Response.json({ ok: true });

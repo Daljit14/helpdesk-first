@@ -52,6 +52,7 @@ const querySchema = z
     minConfidence: z.coerce.number().int().min(0).max(100).optional(),
     risk: z.enum(["low", "medium", "high"]).optional(),
     handoffReason: z.string().trim().min(1).max(80).optional(),
+    showExcluded: z.coerce.boolean().optional(),
     page: z.coerce.number().int().min(1).default(1),
     pageSize: z.coerce.number().int().min(10).max(100).default(25),
   })
@@ -96,6 +97,7 @@ function parseFilters(request: Request): AdminFilters {
     minConfidence: parsed.minConfidence,
     risk: parsed.risk,
     handoffReason: parsed.handoffReason,
+    showExcluded: parsed.showExcluded,
     queue: isTicketWorkflowEnabled() ? parsed.queue : undefined,
     page: parsed.page,
     pageSize: parsed.pageSize,

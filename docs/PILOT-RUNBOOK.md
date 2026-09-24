@@ -109,3 +109,20 @@ from `/admin/devices`, enroll the outbound agent, then have the requester use
 `/devices/claim` with the agent's `claim-code`. Revoke devices immediately when
 lost or compromised. Device execution remains off in B1; diagnostics and
 shadow plans are review-only.
+
+### Lease expiry and reclaim
+
+Jobs have bounded leases. The resolution cron reclaims leased or TTL-expired
+jobs into the terminal `expired` state and writes an append-only audit event.
+Reclaim is not requeue: there is no retry-attempt model.
+
+### Cancelling device jobs
+
+Organization admins can cancel queued or leased jobs from `/admin/devices` or
+the Resolution Center. Cancellation is audited and never deletes the job.
+
+### Excluding test records
+
+Organization admins can mark fixture tickets and resolution runs as test data.
+Excluded records remain present for audit but are omitted from operational
+metrics, queues, learning, and exports by default.

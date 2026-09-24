@@ -17,7 +17,8 @@ export type LearningIneligibleReason =
   | "verification_exception"
   | "incomplete_report"
   | "sensitive_topic"
-  | "credentials_present";
+  | "credentials_present"
+  | "excluded_record";
 
 export type LearningEligibility =
   | { eligible: true }

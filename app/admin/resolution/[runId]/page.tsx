@@ -6,6 +6,11 @@ import { RunControls } from "@/components/admin/resolution/run-controls";
 import { requireAdminPage } from "@/lib/admin/auth";
 import { isResolutionCenterEnabled } from "@/lib/admin/flags";
 import { getResolutionRunDetail } from "@/lib/admin/resolution-center";
+import { DeviceJobCancel } from "@/components/admin/device-job-cancel";
+import { isRealDeviceJob } from "@/lib/device-agent/server/job-status";
+import { RecordExclusionControl } from "@/components/admin/record-exclusion-control";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { isRecordExcluded } from "@/lib/admin/record-exclusions";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -23,14 +28,24 @@ function JsonBlock({ value }: { value: unknown }) {
 
 export default async function ResolutionRunPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ runId: string }>;
+  searchParams: Promise<{ showAllJobs?: string }>;
 }) {
   if (!isResolutionCenterEnabled()) notFound();
   const { runId } = await params;
+  const query = await searchParams;
   const session = await requireAdminPage(`/admin/resolution/${runId}`);
   const detail = await getResolutionRunDetail(session, runId);
   if (!detail) notFound();
+  const admin = createAdminClient();
+  const excluded = await isRecordExcluded(
+    admin,
+    session.organizationId,
+    "resolution_runs",
+    runId
+  );
   const terminal = ["resolved", "escalated", "failed"].includes(detail.status);
   return (
     <section className="flex flex-1 flex-col px-4 py-8 sm:px-6 lg:px-8">
@@ -52,6 +67,12 @@ export default async function ResolutionRunPage({
             <div>
               <p className="text-sm text-muted-foreground">Ticket & stage</p>
               <h1 className="mt-1 text-3xl font-bold">{detail.ticketTitle}</h1>
+              <RecordExclusionControl
+                table="resolution_runs"
+                recordId={runId}
+                canExclude={session.role === "org_admin"}
+                excluded={excluded}
+              />
               <p className="mt-2 text-muted-foreground">
                 {detail.status} · ticket status: {detail.ticketStatus}
               </p>
@@ -151,37 +172,84 @@ export default async function ResolutionRunPage({
           )}
         </section>
         <section className="glass space-y-3 p-5">
-          <h2 className="text-lg font-semibold">Device jobs</h2>
-          {detail.deviceJobs.length === 0 ? (
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-lg font-semibold">Device jobs</h2>
+            <Link
+              href={
+                query.showAllJobs === "1"
+                  ? `/admin/resolution/${runId}`
+                  : `/admin/resolution/${runId}?showAllJobs=1`
+              }
+              className="text-xs underline-offset-4 hover:underline"
+            >
+              {query.showAllJobs === "1"
+                ? "Hide cancelled/expired jobs"
+                : "Show cancelled/expired jobs"}
+            </Link>
+          </div>
+          {detail.deviceJobs.filter(
+            (job) =>
+              query.showAllJobs === "1" ||
+              (typeof job === "object" &&
+                job !== null &&
+                isRealDeviceJob({
+                  status: String((job as Record<string, unknown>).status),
+                }))
+          ).length === 0 ? (
             <p className="text-sm text-muted-foreground">No device jobs.</p>
           ) : (
             <div className="space-y-2">
-              {detail.deviceJobs.map((value, index) => {
-                const job =
-                  typeof value === "object" && value !== null
-                    ? (value as Record<string, unknown>)
-                    : {};
-                return (
-                  <div
-                    key={String(job.id ?? index)}
-                    className="rounded-xl border border-border p-3 text-sm"
-                  >
-                    <p className="font-medium">
-                      {String(job.action_id ?? "unknown")} ·{" "}
-                      {String(job.mode ?? "—")} · {String(job.status ?? "—")}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Device:{" "}
-                      {String(job.device_hostname ?? job.device_id ?? "—")} ·
-                      Snapshot: {String(job.snapshot_hash ?? "—")} · Reported:{" "}
-                      {String(job.reported_at ?? "—")}
-                    </p>
-                    {typeof job.error === "string" && (
-                      <p className="text-xs text-destructive">{job.error}</p>
-                    )}
-                  </div>
-                );
-              })}
+              {detail.deviceJobs
+                .filter(
+                  (value) =>
+                    query.showAllJobs === "1" ||
+                    (typeof value === "object" &&
+                      value !== null &&
+                      isRealDeviceJob({
+                        status: String(
+                          (value as Record<string, unknown>).status
+                        ),
+                      }))
+                )
+                .map((value, index) => {
+                  const job =
+                    typeof value === "object" && value !== null
+                      ? (value as Record<string, unknown>)
+                      : {};
+                  return (
+                    <div
+                      key={String(job.id ?? index)}
+                      className="rounded-xl border border-border p-3 text-sm"
+                    >
+                      <p className="font-medium">
+                        {job.source === "device_job" ||
+                        job.mode === "shadow" ? (
+                          <span className="mr-1 rounded-full border px-2 py-0.5 text-[10px]">
+                            Shadow
+                          </span>
+                        ) : null}
+                        {String(job.action_id ?? job.actionId ?? "unknown")} ·{" "}
+                        {String(job.mode ?? "—")} · {String(job.status ?? "—")}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Device:{" "}
+                        {String(job.device_hostname ?? job.device_id ?? "—")} ·
+                        Snapshot: {String(job.snapshot_hash ?? "—")} · Reported:{" "}
+                        {String(job.reported_at ?? "—")}
+                      </p>
+                      {typeof job.error === "string" && (
+                        <p className="text-xs text-destructive">{job.error}</p>
+                      )}
+                      {typeof job.id === "string" &&
+                        ["queued", "leased"].includes(String(job.status)) && (
+                          <DeviceJobCancel
+                            jobId={job.id}
+                            canCancel={session.role === "org_admin"}
+                          />
+                        )}
+                    </div>
+                  );
+                })}
             </div>
           )}
         </section>

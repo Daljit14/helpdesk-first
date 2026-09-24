@@ -86,13 +86,17 @@ for each row execute function public.device_jobs_terminal_immutable();
 
 alter table public.device_jobs enable row level security;
 alter table public.device_consent_policies enable row level security;
+drop policy if exists device_jobs_staff on public.device_jobs;
 create policy device_jobs_staff on public.device_jobs
   for select using (public.is_org_staff(organization_id));
+drop policy if exists device_jobs_service on public.device_jobs;
 create policy device_jobs_service on public.device_jobs
   for all to service_role using (true) with check (true);
+drop policy if exists device_consent_policies_admin on public.device_consent_policies;
 create policy device_consent_policies_admin on public.device_consent_policies
   for all using (public.is_org_admin(organization_id))
   with check (public.is_org_admin(organization_id));
+drop policy if exists device_consent_policies_service on public.device_consent_policies;
 create policy device_consent_policies_service on public.device_consent_policies
   for all to service_role using (true) with check (true);
 revoke all on public.device_jobs, public.device_consent_policies from anon, authenticated;

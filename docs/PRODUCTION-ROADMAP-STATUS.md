@@ -1,3 +1,11 @@
+## Phase C1 — requester-side read-only agent
+
+Implemented behind `HELP_DESK_REQUESTER_AGENT_ENABLED` and the explicit
+organization allowlist. The SSE loop has no state-changing tools and retains
+the v1 assistant fallback. Apply `supabase/requester-agent.sql` before
+enabling; use the mock provider for the initial pilot. Research, live device
+collection, consented actions, verification, and autorun remain deferred.
+
 # Production Roadmap Status
 
 Roadmap version audited: **2.0** (Phase 0 / proposed PR #31).

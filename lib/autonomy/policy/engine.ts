@@ -5,6 +5,7 @@ import {
   type PolicyDecisionValue,
   type PolicyInput,
 } from "./types";
+import { isDenylisted } from "@/lib/agent/denylist";
 
 export const AUTOMATIC_CONFIDENCE_THRESHOLD = 0.8;
 
@@ -67,6 +68,13 @@ function riskAtLeast(risk: StepRisk, floor: StepRisk): boolean {
 export function decidePolicy(input: PolicyInput): PolicyDecision {
   const { capability: cap, organization: org, sensitivity } = input;
   const reasons: string[] = [];
+
+  if (
+    input.actorRole === "requester_agent" &&
+    isDenylisted(input.capability.id)
+  ) {
+    return finish("deny", ["requester_agent_denylist"]);
+  }
 
   // 1. Hard stops → deny.
   if (input.killSwitchActive) reasons.push("kill_switch_active");

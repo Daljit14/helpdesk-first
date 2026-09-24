@@ -1,3 +1,21 @@
+## Requester agent C1
+
+C1 is off by default and organization allowlisted. Tool schemas are strict,
+identity-target parameters are rejected, tool output is wrapped as untrusted,
+and denylisted or injection-sensitive requests halt to a human ticket.
+Budgets, kill switches, organization-scoped RLS, append-only steps, and
+encryption dual-read/write controls apply. No C1 tool mutates state or
+executes through the autonomy gateway. Research, live collection, and
+state-changing actions are deferred.
+
+C1 normal final answers update the encrypted resolution summary but leave the
+session `active`; C1 never marks a session `resolved` and has no `abandoned`
+transition. Resolution requires a verifier and explicit requester confirmation
+in C2. Deviations D1–D8 and pilot setup details are recorded in
+`SETUP-NOTES-C1.md`. The benchmark harness uses scripted model/tool
+dependencies and in-memory persistence, and its version is bumped when these
+cases or gates change.
+
 | External page injection | Research snippets are guarded as untrusted input and dropped on injection or executable content. |
 | Spoofed vendor domains | Vendor trust requires HTTPS and exact hostname/subdomain matching. |
 | Query data exfiltration | Queries are built only from category, platform, hypotheses, and guide titles. |

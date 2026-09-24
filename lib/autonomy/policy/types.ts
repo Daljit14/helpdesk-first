@@ -22,7 +22,7 @@ export type PolicyDecisionValue =
   | "deny";
 
 export type PolicyActorRole =
-  "system" | "requester" | "support_agent" | "org_admin";
+  "system" | "requester" | "requester_agent" | "support_agent" | "org_admin";
 
 export type DeviceOwnership = "org_managed" | "byod" | "unknown";
 

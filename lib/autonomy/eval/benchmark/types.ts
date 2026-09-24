@@ -132,6 +132,51 @@ const device = z
   })
   .strict();
 
+const requesterAgentOutput = z.discriminatedUnion("kind", [
+  z
+    .object({
+      kind: z.literal("tool_use"),
+      id: z.string(),
+      name: z.string(),
+      input: z.unknown(),
+      summary: z.string(),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("final"),
+      text: z.string(),
+      confidence: z.number(),
+      summary: z.string(),
+    })
+    .strict(),
+  z.object({ kind: z.literal("invalid"), raw: z.string() }).strict(),
+]);
+
+const requesterAgent = z
+  .object({
+    message: z.string().min(1),
+    outputs: z.array(requesterAgentOutput),
+    toolResults: z
+      .array(
+        z
+          .object({
+            ok: z.boolean(),
+            value: z.unknown().optional(),
+            modelText: z.string().optional(),
+            userSummary: z.string().optional(),
+            code: z.string().optional(),
+            sideEffects: z.boolean().optional(),
+          })
+          .strict()
+      )
+      .optional(),
+    killSwitchAfterTool: z.boolean().optional(),
+    maxToolCalls: z.number().int().positive().optional(),
+    humanRequested: z.boolean().optional(),
+  })
+  .strict();
+
 export const benchmarkCaseSchema = z
   .object({
     id: z.string().min(1),
@@ -198,6 +243,7 @@ export const benchmarkCaseSchema = z
     identity: identity.optional(),
     research: research.optional(),
     device: device.optional(),
+    requesterAgent: requesterAgent.optional(),
     expected,
   })
   .strict();

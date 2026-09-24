@@ -8,6 +8,35 @@ import type {
 
 type Admin = ReturnType<typeof createAdminClient>;
 
+export async function checkRequesterEmailForOrg(
+  admin: Admin,
+  organizationId: string,
+  userId: string
+): Promise<{ ok: true; email: string } | { ok: false; reason: string }> {
+  const user = await admin.auth.admin.getUserById(userId);
+  const email = user.data.user?.email?.trim().toLowerCase();
+  if (
+    user.error ||
+    !user.data.user ||
+    !email ||
+    !user.data.user.email_confirmed_at
+  ) {
+    return { ok: false, reason: "email_not_verified" };
+  }
+  const at = email.lastIndexOf("@");
+  if (at < 1) return { ok: false, reason: "invalid_email" };
+  const verified = await admin
+    .from("organization_domains")
+    .select("id")
+    .eq("organization_id", organizationId)
+    .eq("domain", email.slice(at + 1))
+    .eq("verified", true)
+    .maybeSingle();
+  if (verified.error || !verified.data)
+    return { ok: false, reason: "domain_not_verified" };
+  return { ok: true, email };
+}
+
 export function hashEmail(email: string): string {
   return createHash("sha256").update(email.trim().toLowerCase()).digest("hex");
 }
@@ -22,48 +51,21 @@ export async function bindRequesterIdentity(
     userId: string;
   }
 ): Promise<ConnectorResult<IdentityBinding>> {
-  const user = await admin.auth.admin.getUserById(input.userId);
-  const email = user.data.user?.email?.trim().toLowerCase();
-  if (
-    user.error ||
-    !user.data.user ||
-    !email ||
-    !user.data.user.email_confirmed_at
-  ) {
-    return {
-      ok: false,
-      error: {
-        kind: "unauthorized",
-        message: "Requester email is not verified",
-      },
-    };
-  }
-  const at = email.lastIndexOf("@");
-  if (at < 1)
+  const requester = await checkRequesterEmailForOrg(
+    admin,
+    input.organizationId,
+    input.userId
+  );
+  if (!requester.ok) {
     return {
       ok: false,
       error: {
         kind: "invalid_response",
-        message: "Requester email is invalid",
-      },
-    };
-  const domain = email.slice(at + 1);
-  const verified = await admin
-    .from("organization_domains")
-    .select("id")
-    .eq("organization_id", input.organizationId)
-    .eq("domain", domain)
-    .eq("verified", true)
-    .maybeSingle();
-  if (verified.error || !verified.data) {
-    return {
-      ok: false,
-      error: {
-        kind: "unauthorized",
-        message: "Requester domain is not verified",
+        message: requester.reason,
       },
     };
   }
+  const email = requester.email;
   const lookup = await directory.lookupUserByEmail(
     email,
     AbortSignal.timeout(8000)

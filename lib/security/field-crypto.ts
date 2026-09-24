@@ -9,7 +9,9 @@ export type FieldRef = {
     | "tickets"
     | "ticket_comments"
     | "ticket_investigations"
-    | "ticket_attachments";
+    | "ticket_attachments"
+    | "agent_sessions"
+    | "agent_steps";
   column: string;
 };
 

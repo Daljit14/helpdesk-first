@@ -22,6 +22,7 @@ import {
   encryptText,
   isEncryptedField,
 } from "./field-crypto";
+import { decryptAgentText, encryptAgentTextForWrite } from "./ticket-crypto";
 
 describe("field crypto", () => {
   beforeEach(() => {
@@ -79,6 +80,39 @@ describe("field crypto", () => {
       )
     ).toEqual({ fact: "private" });
   });
+
+  test.each(["agent_sessions", "agent_steps"] as const)(
+    "round trips encrypted %s text and reads legacy plaintext",
+    async (table) => {
+      const admin = {} as Parameters<typeof encryptText>[0];
+      const encrypted = await encryptAgentTextForWrite(
+        admin,
+        "org-a",
+        table,
+        table === "agent_sessions" ? "last_user_message" : "result_summary",
+        "private agent text"
+      );
+      expect(encrypted).toMatch(/^enc:1:/);
+      await expect(
+        decryptAgentText(
+          admin,
+          "org-a",
+          table,
+          table === "agent_sessions" ? "last_user_message" : "result_summary",
+          encrypted
+        )
+      ).resolves.toBe("private agent text");
+      await expect(
+        decryptAgentText(
+          admin,
+          "org-a",
+          table,
+          table === "agent_sessions" ? "last_user_message" : "result_summary",
+          "legacy plaintext"
+        )
+      ).resolves.toBe("legacy plaintext");
+    }
+  );
 
   test("passes through writes when disabled and decrypts prefixed values", async () => {
     const admin = {} as Parameters<typeof encryptText>[0];

@@ -25,7 +25,12 @@ function reportDecryptFailure(table: string, column: string): void {
 async function decryptTextForRead(
   admin: Admin,
   organizationId: string,
-  table: "tickets" | "ticket_comments" | "ticket_attachments",
+  table:
+    | "tickets"
+    | "ticket_comments"
+    | "ticket_attachments"
+    | "agent_sessions"
+    | "agent_steps",
   column: string,
   stored: string | null
 ): Promise<string | null> {
@@ -36,6 +41,26 @@ async function decryptTextForRead(
     reportDecryptFailure(table, column);
     return ENCRYPTED_KEY_UNAVAILABLE;
   }
+}
+
+export async function encryptAgentTextForWrite(
+  admin: Admin,
+  organizationId: string,
+  table: "agent_sessions" | "agent_steps",
+  column: string,
+  text: string
+): Promise<string> {
+  return encryptText(admin, organizationId, { table, column }, text);
+}
+
+export async function decryptAgentText(
+  admin: Admin,
+  organizationId: string,
+  table: "agent_sessions" | "agent_steps",
+  column: string,
+  stored: string | null
+): Promise<string | null> {
+  return decryptTextForRead(admin, organizationId, table, column, stored);
 }
 
 async function decryptJsonForRead(

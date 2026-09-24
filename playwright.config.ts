@@ -65,23 +65,47 @@ export default defineConfig({
         baseURL: "http://localhost:3100",
       },
     },
-  ],
-  webServer: [
     {
-      command: "npm run dev",
-      env: sharedEnv,
-      url: "http://localhost:3000",
-      reuseExistingServer: !process.env.CI,
-    },
-    {
-      command: "HELP_DESK_NEXT_DIST_DIR=.next-v2 npm run dev -- --port 3100",
-      env: {
-        ...sharedEnv,
-        HELP_DESK_NEXT_DIST_DIR: ".next-v2",
-        NEXT_PUBLIC_UI_V2_ENABLED: "true",
-      },
-      url: "http://localhost:3100",
-      reuseExistingServer: !process.env.CI,
+      name: "requester-agent",
+      testMatch: /v2\/agent\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"], baseURL: "http://localhost:3101" },
     },
   ],
+  webServer: process.argv.includes("--project=requester-agent")
+    ? [
+        {
+          command:
+            "HELP_DESK_NEXT_DIST_DIR=.next-requester-agent npm run dev -- --port 3101",
+          env: {
+            ...sharedEnv,
+            HELP_DESK_NEXT_DIST_DIR: ".next-requester-agent",
+            NEXT_PUBLIC_UI_V2_ENABLED: "true",
+            HELP_DESK_REQUESTER_AGENT_ENABLED: "true",
+            HELP_DESK_AI_PROVIDER: "mock",
+            HELP_DESK_REQUESTER_AGENT_ORG_ALLOWLIST:
+              process.env.E2E_ORG_ID ?? "",
+          },
+          url: "http://localhost:3101",
+          reuseExistingServer: !process.env.CI,
+        },
+      ]
+    : [
+        {
+          command: "npm run dev",
+          env: sharedEnv,
+          url: "http://localhost:3000",
+          reuseExistingServer: !process.env.CI,
+        },
+        {
+          command:
+            "HELP_DESK_NEXT_DIST_DIR=.next-v2 npm run dev -- --port 3100",
+          env: {
+            ...sharedEnv,
+            HELP_DESK_NEXT_DIST_DIR: ".next-v2",
+            NEXT_PUBLIC_UI_V2_ENABLED: "true",
+          },
+          url: "http://localhost:3100",
+          reuseExistingServer: !process.env.CI,
+        },
+      ],
 });

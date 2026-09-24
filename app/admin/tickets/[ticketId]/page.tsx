@@ -42,6 +42,7 @@ import { isUiV2Enabled } from "@/lib/ui-v2";
 import { AdminBreadcrumbs } from "@/components/admin/v2/breadcrumbs";
 import {
   decryptCommentRows,
+  decryptAgentText,
   decryptTicketRow,
 } from "@/lib/security/ticket-crypto";
 import { RecordExclusionControl } from "@/components/admin/record-exclusion-control";
@@ -346,6 +347,48 @@ export default async function AdminTicketPage({
     isInvestigationEnabled() && workflowEnabled
       ? await loadInvestigation(admin, uuid)
       : null;
+  let agentSession: {
+    id: string;
+    steps: Array<{
+      kind: string;
+      tool_name: string | null;
+      result_summary: string | null;
+      created_at: string;
+    }>;
+  } | null = null;
+  try {
+    const agentResult = await admin
+      .from("agent_sessions")
+      .select("id,organization_id")
+      .eq("organization_id", session.organizationId)
+      .eq("escalation_ticket_id", uuid)
+      .maybeSingle();
+    if (agentResult.data) {
+      const stepsResult = await admin
+        .from("agent_steps")
+        .select("kind,tool_name,result_summary,created_at")
+        .eq("organization_id", session.organizationId)
+        .eq("session_id", agentResult.data.id)
+        .order("seq", { ascending: true });
+      agentSession = {
+        id: agentResult.data.id,
+        steps: await Promise.all(
+          (stepsResult.data ?? []).map(async (step) => ({
+            ...step,
+            result_summary: await decryptAgentText(
+              admin,
+              session.organizationId,
+              "agent_steps",
+              "result_summary",
+              step.result_summary
+            ),
+          }))
+        ),
+      };
+    }
+  } catch {
+    agentSession = null;
+  }
   const escalationEnabled = isEscalationPackageEnabled() && workflowEnabled;
   const shouldShowEscalation =
     escalationEnabled &&
@@ -590,6 +633,38 @@ export default async function AdminTicketPage({
                       turns={investigation.turns}
                     />
                   ))}
+                {agentSession && (
+                  <div className="glass p-5">
+                    <h2 className="font-semibold">Agent session</h2>
+                    <div className="mt-3 space-y-2 text-sm">
+                      {agentSession.steps.length === 0 ? (
+                        <p className="text-muted-foreground">
+                          No agent steps recorded.
+                        </p>
+                      ) : (
+                        agentSession.steps.map((step, index) => (
+                          <div
+                            key={`${step.kind}-${step.created_at}-${index}`}
+                            className="rounded-xl border border-border/60 p-3"
+                          >
+                            <p className="font-medium">
+                              {step.kind}
+                              {step.tool_name ? ` · ${step.tool_name}` : ""}
+                            </p>
+                            {step.result_summary && (
+                              <p className="mt-1 text-muted-foreground">
+                                {step.result_summary}
+                              </p>
+                            )}
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              {new Date(step.created_at).toLocaleString()}
+                            </p>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
                 {uiV2 && (
                   <div id="restricted-steps" className="glass p-5">
                     <h2 className="font-semibold">Withheld/restricted steps</h2>

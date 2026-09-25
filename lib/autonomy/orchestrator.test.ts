@@ -140,6 +140,24 @@ describe("resolution orchestrator", () => {
     expect(runs.eq).toHaveBeenCalledWith("organization_id", "org-1");
   });
 
+  test("creates a fresh run after the previous run is terminal", async () => {
+    const nextRun = { ...run, id: "run-2", status: "queued" as const };
+    const runs = makeQuery({ single: { data: nextRun, error: null } });
+    const admin = makeAdmin({
+      resolution_runs: runs,
+      resolution_events: makeQuery({}),
+    });
+    const result = await startRun(admin as never, {
+      ticketId: "ticket-1",
+      organizationId: "org-1",
+      initiatedBy: "ai",
+    });
+    expect(result).toEqual({ run: nextRun, created: true });
+    expect(runs.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ ticket_id: "ticket-1", status: "queued" })
+    );
+  });
+
   test("transition filters updates by organization and writes an event", async () => {
     const runs = makeQuery({
       single: { data: { ...run, status: "investigating" }, error: null },

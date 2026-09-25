@@ -34,7 +34,7 @@ describe("requester agent safety contracts", () => {
     expect(
       proposeActionSchema.safeParse({
         capability_id: "device_flush_dns",
-        params: { email: "other@example.com" },
+        params: {},
         hypothesis_id: "ev-2",
         rationale: "diagnostics",
       }).success

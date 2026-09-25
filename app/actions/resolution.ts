@@ -39,6 +39,9 @@ export async function consumeAiConsent(
         run_id: string;
         ticket_id: string;
         type: string;
+        capability_id: string | null;
+        parameter_hash: string | null;
+        step_id: string | null;
         status: string;
         expires_at: string | null;
       };
@@ -47,7 +50,9 @@ export async function consumeAiConsent(
 > {
   const request = await admin
     .from("approval_requests")
-    .select("id,organization_id,run_id,ticket_id,type,status,expires_at")
+    .select(
+      "id,organization_id,run_id,ticket_id,step_id,type,capability_id,parameter_hash,status,expires_at"
+    )
     .eq("id", requestId)
     .maybeSingle();
   if (request.error || !request.data || request.data.type !== "user_consent")

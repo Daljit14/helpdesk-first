@@ -41,6 +41,7 @@ export type AgentSession = {
   id: string;
   organization_id: string;
   requester_id: string;
+  platform?: string | null;
   status: "active" | "resolved" | "escalated" | "abandoned" | "halted";
   started_at: string;
   ended_at: string | null;

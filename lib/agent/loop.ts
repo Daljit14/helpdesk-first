@@ -85,7 +85,7 @@ export async function runAgentTurn(input: {
   signal: AbortSignal;
   deps?: Partial<AgentLoopDeps>;
 }): Promise<void> {
-  const { admin, session, userMessage, emit, signal } = input;
+  const { admin, session, userMessage, platform, emit, signal } = input;
   const deps = { ...defaultDeps, ...input.deps };
   const guarded = guardModelInput([{ source: "event", text: userMessage }]);
   const safety = checkUserMessageSafety({ message: userMessage });
@@ -265,7 +265,11 @@ export async function runAgentTurn(input: {
           hypothesisId: String(actionInput.hypothesis_id ?? ""),
           rationale: String(actionInput.rationale ?? ""),
         },
-        { evidence, actor: `requester_agent:${session.id}` }
+        {
+          evidence,
+          actor: `requester_agent:${session.id}`,
+          platform,
+        }
       );
       if (action.kind === "consent_required") {
         emit({

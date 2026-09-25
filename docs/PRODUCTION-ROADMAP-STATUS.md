@@ -1,3 +1,10 @@
+## C2 requester-agent status
+
+Requester-agent C2 is implemented behind separate default-off flags. The
+flow includes consent-bound action execution, verification, rollback,
+requester confirmation, and append-only provenance. Production enablement
+still requires organization allowlisting and pilot-runbook checks.
+
 ## Phase C1 — requester-side read-only agent
 
 Implemented behind `HELP_DESK_REQUESTER_AGENT_ENABLED` and the explicit

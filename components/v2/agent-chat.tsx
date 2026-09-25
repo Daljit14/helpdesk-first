@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   Bot,
@@ -39,9 +39,14 @@ export function AgentChat({
   const [pending, setPending] = useState(false);
   const [terminal, setTerminal] = useState(false);
   const [consentDecided, setConsentDecided] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
   const readerRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(
     null
   );
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   async function send(
     humanRequested = false,
@@ -162,7 +167,11 @@ export function AgentChat({
                   )}
                 </div>
               );
-            if (event.type === "consent_required")
+            if (event.type === "consent_required") {
+              const expiresAt = new Date(event.card.expiresAt).getTime();
+              const remaining = Math.max(0, expiresAt - now);
+              const expired = remaining === 0;
+              const disabled = consentDecided || expired;
               return (
                 <div
                   key={event.id}
@@ -174,10 +183,15 @@ export function AgentChat({
                     Affected {event.card.target.kind}: {event.card.target.label}
                     . Reversible: {event.card.reversible ? "yes" : "no"}.
                   </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {expired
+                      ? "This approval has expired."
+                      : `Expires in ${Math.ceil(remaining / 1000)} seconds.`}
+                  </p>
                   <div className="mt-3 flex gap-2">
                     <Button
                       size="sm"
-                      disabled={consentDecided || false}
+                      disabled={disabled}
                       onClick={() => {
                         setConsentDecided(true);
                         void send(false, {
@@ -193,7 +207,7 @@ export function AgentChat({
                     <Button
                       size="sm"
                       variant="outline"
-                      disabled={consentDecided}
+                      disabled={disabled}
                       onClick={() => {
                         setConsentDecided(true);
                         void send(false, {
@@ -209,6 +223,7 @@ export function AgentChat({
                   </div>
                 </div>
               );
+            }
             if (event.type === "action_executing")
               return (
                 <div key={event.id} className="flex items-center gap-2 text-sm">

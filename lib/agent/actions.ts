@@ -16,6 +16,7 @@ import {
   resolutionStepPosition,
   type ResolutionRun,
 } from "@/lib/autonomy/orchestrator";
+import { getPlannerProvider } from "@/lib/autonomy/config";
 import { executePlan } from "@/lib/autonomy/executor/execute";
 import { resumeAfterApproval } from "@/lib/autonomy/executor/resume";
 import { verifyRun } from "@/lib/autonomy/verification/engine";
@@ -101,7 +102,8 @@ async function actionStep(
 
 async function ensureBackingRun(
   admin: Admin,
-  session: AgentSession
+  session: AgentSession,
+  platform?: string
 ): Promise<ResolutionRun | null> {
   let ticketId = session.backing_ticket_id;
   if (!ticketId) {
@@ -110,8 +112,10 @@ async function ensureBackingRun(
         0,
         2000
       ),
-      platform: "Other",
+      platform: platform ?? "Other",
       diagnosticAnswers: [],
+      source: "requester_agent",
+      skipTriage: true,
     });
     if (!("ticketId" in created) || !created.ticketId) return null;
     ticketId = created.ticketId;
@@ -185,7 +189,11 @@ export async function proposeAction(
   admin: Admin,
   session: AgentSession,
   input: ProposeActionInput,
-  ctx: { evidence: Array<{ id: string; tool: string }>; actor: string }
+  ctx: {
+    evidence: Array<{ id: string; tool: string }>;
+    actor: string;
+    platform?: string;
+  }
 ): Promise<ProposeOutcome> {
   const paramsHash = hashParams(input.params);
   const switches = await readKillSwitches(
@@ -274,7 +282,7 @@ export async function proposeAction(
           .gte("created_at", start.toISOString());
   if ((daily.data ?? []).length >= getRequesterAgentUserDailyActionCap())
     return reject("user_daily_cap", "The daily action limit has been reached.");
-  const run = await ensureBackingRun(admin, session);
+  const run = await ensureBackingRun(admin, session, ctx.platform);
   if (!run || !run.ticket_id)
     return { kind: "escalate", reason: "backing_run_unavailable" };
   const plan = {
@@ -306,7 +314,12 @@ export async function proposeAction(
       kind: "plan",
       position: resolutionStepPosition(run.attempts, "plan"),
       status: "done",
-      detail: { plan, planner: "requester_agent", plannerVersion: "c2" },
+      detail: {
+        plan,
+        planner: "requester_agent",
+        plannerVersion: 1,
+        plannerProvider: getPlannerProvider(),
+      },
     })
     .select("id")
     .single();
@@ -334,7 +347,7 @@ export async function proposeAction(
   if (result.status === "awaiting_consent") {
     const approval = await admin
       .from("approval_requests")
-      .select("id,expires_at")
+      .select("id,run_id,step_id,capability_id,parameter_hash,expires_at")
       .eq("run_id", run.id)
       .eq("organization_id", session.organization_id)
       .order("created_at", { ascending: false })
@@ -401,6 +414,27 @@ export async function decideConsent(
     session.pending_approval_id !== input.approvalRequestId
   )
     return "invalid";
+  const approval = await admin
+    .from("approval_requests")
+    .select("id,run_id,step_id,capability_id,parameter_hash,status,expires_at")
+    .eq("id", input.approvalRequestId)
+    .eq("organization_id", session.organization_id)
+    .eq("ticket_id", session.backing_ticket_id)
+    .maybeSingle();
+  if (
+    approval.error ||
+    !approval.data ||
+    approval.data.run_id !== session.resolution_run_id
+  )
+    return "invalid";
+  const runResult = await admin
+    .from("resolution_runs")
+    .select("*")
+    .eq("id", session.resolution_run_id)
+    .eq("organization_id", session.organization_id)
+    .maybeSingle();
+  if (!runResult.data || runResult.data.status !== "awaiting_consent")
+    return "invalid";
   const consumed = await consumeAiConsent(
     admin,
     input.approvalRequestId,
@@ -408,32 +442,38 @@ export async function decideConsent(
     input.decision === "approve" ? "grant" : "deny"
   );
   if (!consumed.ok) return "invalid";
-  const runResult = await admin
-    .from("resolution_runs")
-    .select("*")
-    .eq("id", session.resolution_run_id)
-    .eq("organization_id", session.organization_id)
-    .maybeSingle();
-  if (!runResult.data) return "invalid";
+  if (
+    consumed.request.run_id !== session.resolution_run_id ||
+    consumed.request.id !== approval.data.id
+  )
+    return "invalid";
   const run = runResult.data as ResolutionRun;
+  const capabilityId = approval.data.capability_id ?? "requested_action";
+  const paramsHash = approval.data.parameter_hash ?? "";
   await writeStep(admin, session, {
     kind: "consent_decided",
+    capabilityId,
+    paramsHash,
+    consentId: approval.data.id,
     resultSummary: input.decision,
   });
   await updateSession(admin, session, { pending_approval_id: null });
   session.pending_approval_id = null;
   if (input.decision === "decline") {
-    await resumeAfterApproval(
-      admin,
-      { ...run, status: "awaiting_consent" },
-      { actor: input.userId }
-    );
-    emit({ type: "consent_declined", capabilityId: "requested_action" });
+    await resumeAfterApproval(admin, run, { actor: input.userId });
+    await writeStep(admin, session, {
+      kind: "consent_declined",
+      capabilityId,
+      paramsHash,
+      consentId: approval.data.id,
+      resultSummary: "Consent declined",
+    });
+    emit({ type: "consent_declined", capabilityId });
     return "declined";
   }
   emit({
     type: "action_executing",
-    capabilityId: "requested_action",
+    capabilityId,
     text: "Running the approved action…",
   });
   const actionCount = (session.action_count ?? 0) + 1;
@@ -441,16 +481,15 @@ export async function decideConsent(
   session.action_count = actionCount;
   await writeStep(admin, session, {
     kind: "action_executing",
+    capabilityId,
+    paramsHash,
+    consentId: approval.data.id,
     resultSummary: "Action executing",
   });
-  const resumed = await resumeAfterApproval(
-    admin,
-    { ...run, status: "awaiting_consent" },
-    {
-      actor: `requester_agent:${session.id}`,
-      consent: { type: "user_consent", userId: input.userId },
-    }
-  );
+  const resumed = await resumeAfterApproval(admin, run, {
+    actor: `requester_agent:${session.id}`,
+    consent: { type: "user_consent", userId: input.userId },
+  });
   if (!resumed || resumed.status === "escalated") return "escalated";
   const deadline =
     Date.now() +
@@ -473,6 +512,9 @@ export async function decideConsent(
       session.verified_execution_id = row.data.execution_id;
       await writeStep(admin, session, {
         kind: "verification_result",
+        capabilityId,
+        paramsHash,
+        consentId: approval.data.id,
         resultSummary: "passed",
       });
       emit({
@@ -489,23 +531,90 @@ export async function decideConsent(
       return "executed_verified_passed";
     }
     if (row.data?.outcome === "failed") {
-      await updateSession(admin, session, {
-        failed_hypotheses: (session.failed_hypotheses ?? 0) + 1,
-      });
+      const rollback = await admin
+        .from("rollback_runs")
+        .select("status")
+        .eq("organization_id", session.organization_id)
+        .eq("run_id", current.id)
+        .eq("execution_id", row.data.execution_id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const rollbackStatus =
+        rollback.data?.status === "succeeded" ||
+        rollback.data?.status === "failed" ||
+        rollback.data?.status === "unsupported"
+          ? rollback.data.status
+          : "none";
       await writeStep(admin, session, {
         kind: "verification_result",
+        capabilityId,
+        paramsHash,
+        consentId: approval.data.id,
         resultSummary: "failed",
       });
+      await writeStep(admin, session, {
+        kind: "rollback_result",
+        capabilityId,
+        paramsHash,
+        consentId: approval.data.id,
+        resultSummary: rollbackStatus,
+      });
+      if (rollbackStatus === "failed") {
+        await alertSecurityEvent(admin, {
+          organizationId: session.organization_id,
+          ticketId: session.backing_ticket_id ?? "",
+          runId: current.id,
+          kind: "requester_agent_rollback_failed",
+          detail: { capabilityId, executionId: row.data.execution_id },
+        });
+        const ticketId = await escalate(
+          admin,
+          session,
+          "rollback_failed",
+          "The attempted rollback failed."
+        );
+        emit({ type: "escalated", ticketId, reason: "rollback_failed" });
+        return "escalated";
+      }
+      const failedHypotheses = (session.failed_hypotheses ?? 0) + 1;
+      await updateSession(admin, session, {
+        failed_hypotheses: failedHypotheses,
+      });
+      session.failed_hypotheses = failedHypotheses;
       emit({
         type: "verification_result",
         status: "failed",
-        rollback: "none",
+        rollback: rollbackStatus,
         text: "The verification check failed.",
       });
+      if (failedHypotheses >= getRequesterAgentMaxFailedHypotheses()) {
+        const ticketId = await escalate(
+          admin,
+          session,
+          "hypotheses_exhausted",
+          "The available fixes did not resolve the issue."
+        );
+        emit({ type: "escalated", ticketId, reason: "hypotheses_exhausted" });
+        return "escalated";
+      }
       return "executed_verified_failed";
     }
     await new Promise((resolve) => setTimeout(resolve, 3_000));
   }
+  await writeStep(admin, session, {
+    kind: "verification_result",
+    capabilityId,
+    paramsHash,
+    consentId: approval.data.id,
+    resultSummary: "inconclusive",
+  });
+  emit({
+    type: "verification_result",
+    status: "inconclusive",
+    rollback: "none",
+    text: "The verification check did not complete.",
+  });
   const ticketId = await escalate(
     admin,
     session,

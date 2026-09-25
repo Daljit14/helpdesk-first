@@ -1,14 +1,31 @@
 import type { createAdminClient } from "@/lib/supabase/admin";
 
+export type ConsentCard = {
+  approvalRequestId: string;
+  capabilityId: string;
+  title: string;
+  whatHappens: string;
+  target: { kind: "device" | "account"; label: string };
+  reversible: boolean;
+  expiresAt: string;
+};
+
 export type AgentEvent =
   | { type: "session"; sessionId: string }
   | { type: "thinking_summary"; text: string }
   | { type: "tool_started"; tool: string }
   | { type: "tool_result_summary"; tool: string; summary: string }
-  | { type: "action_proposed"; text: string }
-  | { type: "consent_required"; text: string }
-  | { type: "action_executing"; text: string }
-  | { type: "verification_result"; text: string }
+  | { type: "action_proposed"; capabilityId: string; text: string }
+  | { type: "consent_required"; card: ConsentCard }
+  | { type: "consent_declined"; capabilityId: string }
+  | { type: "action_executing"; capabilityId: string; text: string }
+  | {
+      type: "verification_result";
+      status: "passed" | "failed" | "inconclusive";
+      rollback: "none" | "succeeded" | "failed" | "unsupported";
+      text: string;
+    }
+  | { type: "confirm_required"; text: string }
   | { type: "resolved"; text: string }
   | {
       type: "final_answer";
@@ -30,12 +47,18 @@ export type AgentSession = {
   last_user_message: string | null;
   resolution_summary: string | null;
   escalation_ticket_id: string | null;
+  backing_ticket_id?: string | null;
+  resolution_run_id?: string | null;
+  pending_approval_id?: string | null;
   action_count: number;
+  failed_hypotheses?: number;
   tool_call_count: number;
   model_turn_count: number;
   token_count: number;
   halt_reason: string | null;
   security_flag: boolean;
+  verified_execution_id?: string | null;
+  user_confirmed_at?: string | null;
   updated_at: string;
 };
 

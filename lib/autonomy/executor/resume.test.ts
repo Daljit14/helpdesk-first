@@ -292,6 +292,7 @@ describe("resumeAfterApproval", () => {
       actor: "user-1",
     });
 
+    expect(approval.step_id).toBe("step-1");
     expect(result?.status).toBe("verifying");
     expect(handler.run).toHaveBeenCalledTimes(1);
     expect(

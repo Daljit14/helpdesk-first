@@ -38,19 +38,26 @@ export function AgentChat({
   const [sessionId, setSessionId] = useState<string>();
   const [pending, setPending] = useState(false);
   const [terminal, setTerminal] = useState(false);
+  const [consentDecided, setConsentDecided] = useState(false);
   const readerRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(
     null
   );
 
-  async function send(humanRequested = false) {
+  async function send(
+    humanRequested = false,
+    action?: {
+      consent?: { approvalRequestId: string; decision: "approve" | "decline" };
+      confirm?: "yes" | "no";
+    }
+  ) {
     if (
       pending ||
       (terminal && !humanRequested) ||
-      (!message.trim() && !humanRequested)
+      (!message.trim() && !humanRequested && !action)
     )
       return;
     setPending(true);
-    setItems([]);
+    if (!action) setItems([]);
     const response = await fetch("/api/ai/agent", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -59,13 +66,14 @@ export function AgentChat({
         message: message.trim() || "I would like to speak with a human.",
         platform: initialPlatform,
         humanRequested,
+        ...action,
       }),
     });
     if (!response.ok || !response.body) {
       setPending(false);
       setItems([
         {
-          id: Date.now(),
+          id: 0,
           type: "error",
           message: "The assistant is unavailable.",
         },
@@ -89,11 +97,15 @@ export function AgentChat({
             .find((value) => value.startsWith("data: "));
           if (!line) continue;
           const event = JSON.parse(line.slice(6)) as AgentEvent;
-          setItems((current) => [
-            ...current,
-            { ...event, id: Date.now() + current.length },
-          ]);
+          setItems((current) => [...current, { ...event, id: current.length }]);
           if (event.type === "session") setSessionId(event.sessionId);
+          if (event.type === "consent_required") setConsentDecided(false);
+          if (event.type === "consent_declined") {
+            setConsentDecided(true);
+          }
+          if (event.type === "resolved") {
+            setTerminal(true);
+          }
           if (event.type === "escalated" || event.type === "halted") {
             setTerminal(true);
           }
@@ -148,6 +160,106 @@ export function AgentChat({
                       </ul>
                     </div>
                   )}
+                </div>
+              );
+            if (event.type === "consent_required")
+              return (
+                <div
+                  key={event.id}
+                  className="rounded-2xl border border-primary/30 bg-primary/5 p-4"
+                >
+                  <p className="font-medium">Approval needed</p>
+                  <p className="mt-2 text-sm">{event.card.whatHappens}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Affected {event.card.target.kind}: {event.card.target.label}
+                    . Reversible: {event.card.reversible ? "yes" : "no"}.
+                  </p>
+                  <div className="mt-3 flex gap-2">
+                    <Button
+                      size="sm"
+                      disabled={consentDecided || false}
+                      onClick={() => {
+                        setConsentDecided(true);
+                        void send(false, {
+                          consent: {
+                            approvalRequestId: event.card.approvalRequestId,
+                            decision: "approve",
+                          },
+                        });
+                      }}
+                    >
+                      Approve
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={consentDecided}
+                      onClick={() => {
+                        setConsentDecided(true);
+                        void send(false, {
+                          consent: {
+                            approvalRequestId: event.card.approvalRequestId,
+                            decision: "decline",
+                          },
+                        });
+                      }}
+                    >
+                      Decline
+                    </Button>
+                  </div>
+                </div>
+              );
+            if (event.type === "action_executing")
+              return (
+                <div key={event.id} className="flex items-center gap-2 text-sm">
+                  <span className="size-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                  {event.text}
+                </div>
+              );
+            if (event.type === "verification_result")
+              return (
+                <div
+                  key={event.id}
+                  className="rounded-2xl border border-border/60 p-4 text-sm"
+                >
+                  <p className="font-medium">
+                    Verification{" "}
+                    {event.status === "passed" ? "passed" : event.status}
+                  </p>
+                  <p className="mt-1 text-muted-foreground">{event.text}</p>
+                </div>
+              );
+            if (event.type === "confirm_required")
+              return (
+                <div
+                  key={event.id}
+                  className="rounded-2xl border border-primary/30 bg-primary/5 p-4"
+                >
+                  <p className="font-medium">{event.text}</p>
+                  <div className="mt-3 flex gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => void send(false, { confirm: "yes" })}
+                    >
+                      Yes
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => void send(false, { confirm: "no" })}
+                    >
+                      No, still broken
+                    </Button>
+                  </div>
+                </div>
+              );
+            if (event.type === "resolved")
+              return (
+                <div
+                  key={event.id}
+                  className="rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-4"
+                >
+                  <p className="font-medium">{event.text}</p>
                 </div>
               );
             if (event.type === "escalated" || event.type === "halted")

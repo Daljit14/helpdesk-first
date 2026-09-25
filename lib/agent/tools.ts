@@ -10,6 +10,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { AgentContext } from "./types";
 import { wrapUntrusted, sanitizeForUser } from "./untrusted";
 import { parameterHash } from "@/lib/autonomy/guardrails/hash";
+import { isRequesterAgentActionsEnabled } from "@/lib/admin/flags";
 
 const querySchema = z
   .object({
@@ -20,6 +21,17 @@ const querySchema = z
 const emptySchema = z.object({}).strict();
 const historySchema = z
   .object({ limit: z.number().int().min(1).max(10).default(10) })
+  .strict();
+const paramsSchema = z
+  .record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()]))
+  .refine((value) => Object.keys(value).length <= 10);
+export const proposeActionSchema = z
+  .object({
+    capability_id: z.string().trim().min(1).max(80),
+    params: paramsSchema,
+    hypothesis_id: z.string().regex(/^ev-\d+$/),
+    rationale: z.string().trim().min(1).max(300),
+  })
   .strict();
 
 export const AGENT_TOOLS = [
@@ -45,7 +57,23 @@ export const AGENT_TOOLS = [
   },
 ] as const;
 
-export type AgentToolName = (typeof AGENT_TOOLS)[number]["name"];
+export function getAgentTools(
+  actionsEnabled = isRequesterAgentActionsEnabled()
+) {
+  return actionsEnabled
+    ? [
+        ...AGENT_TOOLS,
+        {
+          name: "propose_action" as const,
+          description: "Propose one consent-gated state-changing action.",
+          input_schema: z.toJSONSchema(proposeActionSchema, { io: "input" }),
+        },
+      ]
+    : AGENT_TOOLS;
+}
+
+export type AgentToolName =
+  (typeof AGENT_TOOLS)[number]["name"] | "propose_action";
 
 export type AgentToolResult =
   | {

@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/supabase/user";
 import { resolveOrganizationForUser } from "@/lib/org/membership";
 import {
   isRequesterAgentEnabled,
+  isRequesterAgentActionsEnabled,
   isRequesterAgentEnabledForOrg,
 } from "@/lib/admin/flags";
 import { createRateLimiter, checkRateLimit } from "@/lib/ai/rate-limit";
@@ -21,9 +22,16 @@ const limiter = createRateLimiter(
 const inputSchema = z
   .object({
     sessionId: z.string().uuid().optional(),
-    message: z.string().trim().min(1).max(2000),
+    message: z.string().trim().max(2000).optional(),
     platform: z.string().trim().max(40).optional(),
     humanRequested: z.boolean().optional(),
+    consent: z
+      .object({
+        approvalRequestId: z.string().uuid(),
+        decision: z.enum(["approve", "decline"]),
+      })
+      .optional(),
+    confirm: z.enum(["yes", "no"]).optional(),
   })
   .strict();
 
@@ -52,6 +60,17 @@ export async function POST(request: Request): Promise<Response> {
   const parsed = inputSchema.safeParse(body);
   if (!parsed.success)
     return Response.json({ error: "Invalid request" }, { status: 400 });
+  if (
+    !parsed.data.message &&
+    parsed.data.consent === undefined &&
+    parsed.data.confirm === undefined
+  )
+    return Response.json({ error: "Invalid request" }, { status: 400 });
+  if (
+    (parsed.data.consent !== undefined || parsed.data.confirm !== undefined) &&
+    !isRequesterAgentActionsEnabled()
+  )
+    return Response.json({ error: "Not found" }, { status: 404 });
   const admin = createAdminClient();
   const session = parsed.data.sessionId
     ? await loadActiveSession(admin, parsed.data.sessionId, user.id)
@@ -83,7 +102,9 @@ export async function POST(request: Request): Promise<Response> {
         await handleAgentRequest({
           admin,
           session,
-          message: parsed.data.message,
+          message: parsed.data.message ?? "",
+          consent: parsed.data.consent,
+          confirm: parsed.data.confirm,
           humanRequested: parsed.data.humanRequested,
           platform: parsed.data.platform,
           emit,

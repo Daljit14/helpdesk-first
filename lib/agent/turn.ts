@@ -1,5 +1,6 @@
 import { escalate } from "./session";
 import { runAgentTurn, type AgentLoopDeps } from "./loop";
+import { decideConsent, confirmOutcome } from "./actions";
 import type { AgentEvent, AgentSession } from "./types";
 import type { createAdminClient } from "@/lib/supabase/admin";
 
@@ -13,6 +14,11 @@ export async function handleAgentRequest(input: {
   admin: Admin;
   session: AgentSession;
   message: string;
+  consent?: {
+    approvalRequestId: string;
+    decision: "approve" | "decline";
+  };
+  confirm?: "yes" | "no";
   humanRequested?: boolean;
   platform?: string;
   emit: (event: AgentEvent) => void;
@@ -32,6 +38,41 @@ export async function handleAgentRequest(input: {
       ticketId,
       reason: "user_requested_human",
     });
+    return;
+  }
+  if (input.consent) {
+    const result = await decideConsent(
+      admin,
+      session,
+      { ...input.consent, userId: session.requester_id },
+      emit,
+      signal
+    );
+    if (result === "invalid")
+      emit({
+        type: "error",
+        message: "That consent request is no longer available.",
+      });
+    return;
+  }
+  if (input.confirm) {
+    const result = await confirmOutcome(admin, session, input.confirm);
+    if (result === "resolved")
+      emit({
+        type: "resolved",
+        text: "Your support request has been resolved.",
+      });
+    else if (result === "rejected_no_verification")
+      emit({
+        type: "error",
+        message: "I can't mark this resolved without a passing check",
+      });
+    else if (result === "escalated")
+      emit({
+        type: "escalated",
+        ticketId: session.escalation_ticket_id ?? "",
+        reason: "max_failed_hypotheses",
+      });
     return;
   }
 

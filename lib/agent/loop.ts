@@ -3,10 +3,10 @@ import { checkUserMessageSafety } from "@/lib/ai/safety-policy";
 import { guardModelInput } from "@/lib/autonomy/guardrails/input";
 import { readKillSwitches } from "@/lib/autonomy/kill-switches";
 import { checkAndConsumeDailyBudget } from "@/lib/ai/budget";
-import { AGENT_TOOLS, runTool, toolParamsHash } from "./tools";
+import { getAgentTools, runTool, toolParamsHash } from "./tools";
 import { budgetExceeded } from "./budgets";
 import { createAgentModel, type AgentMessage, type AgentModel } from "./model";
-import { AGENT_SYSTEM_PROMPT } from "./prompt";
+import { requesterAgentActionPrompt } from "./prompt";
 import { detectTripwire } from "./tripwires";
 import { isDenylisted } from "./denylist";
 import { sanitizeForUser } from "./untrusted";
@@ -14,9 +14,15 @@ import {
   escalate,
   halt,
   loadSessionContext,
+  loadSessionEvidence,
   updateSession,
   writeStep,
 } from "./session";
+import { proposeAction } from "./actions";
+import {
+  isRequesterAgentActionsEnabled,
+  isRequesterAgentEnabledForOrg,
+} from "@/lib/admin/flags";
 import type { AgentEvent, AgentSession } from "./types";
 import type { createAdminClient } from "@/lib/supabase/admin";
 
@@ -50,6 +56,8 @@ export type AgentLoopDeps = {
   halt: typeof halt;
   alert: typeof alertSecurityEvent;
   loadContext: typeof loadSessionContext;
+  loadEvidence: typeof loadSessionEvidence;
+  proposeAction: typeof proposeAction;
 };
 
 const defaultDeps: AgentLoopDeps = {
@@ -63,6 +71,8 @@ const defaultDeps: AgentLoopDeps = {
   halt,
   alert: alertSecurityEvent,
   loadContext: loadSessionContext,
+  loadEvidence: loadSessionEvidence,
+  proposeAction,
 };
 
 export async function runAgentTurn(input: {
@@ -105,6 +115,10 @@ export async function runAgentTurn(input: {
     ...(await deps.loadContext(admin, session)),
     { role: "user", content: userMessage },
   ];
+  const evidence = await deps.loadEvidence(admin, session);
+  const actionToolsEnabled =
+    isRequesterAgentActionsEnabled() &&
+    isRequesterAgentEnabledForOrg(session.organization_id);
   const toolResults: string[] = [];
   const seen = new Map<string, number>();
   let invalid = 0;
@@ -152,9 +166,9 @@ export async function runAgentTurn(input: {
     session.model_turn_count = modelTurns;
     await deps.updateSession(admin, session, { model_turn_count: modelTurns });
     const result = await model.next({
-      system: AGENT_SYSTEM_PROMPT,
+      system: requesterAgentActionPrompt(actionToolsEnabled),
       messages,
-      tools: AGENT_TOOLS.map((tool) => ({
+      tools: getAgentTools(actionToolsEnabled).map((tool) => ({
         name: tool.name,
         description: tool.description,
         input_schema: tool.input_schema as Record<string, unknown>,
@@ -237,6 +251,77 @@ export async function runAgentTurn(input: {
       });
       return;
     }
+    if (result.name === "propose_action") {
+      const actionInput = result.input as Record<string, unknown>;
+      const action = await deps.proposeAction(
+        admin,
+        session,
+        {
+          capabilityId: String(actionInput.capability_id ?? ""),
+          params:
+            actionInput.params && typeof actionInput.params === "object"
+              ? (actionInput.params as Record<string, unknown>)
+              : {},
+          hypothesisId: String(actionInput.hypothesis_id ?? ""),
+          rationale: String(actionInput.rationale ?? ""),
+        },
+        { evidence, actor: `requester_agent:${session.id}` }
+      );
+      if (action.kind === "consent_required") {
+        emit({
+          type: "action_proposed",
+          capabilityId: action.card.capabilityId,
+          text: action.card.title,
+        });
+        emit({ type: "consent_required", card: action.card });
+        return;
+      }
+      if (action.kind === "escalate") {
+        if (action.reason === "denylisted") {
+          const ticketId = await deps.halt(
+            admin,
+            session,
+            "denylisted",
+            userMessage,
+            true
+          );
+          emit({ type: "halted", reason: "denylisted", ticketId });
+          return;
+        }
+        const ticketId = await deps.escalate(
+          admin,
+          session,
+          action.reason,
+          userMessage
+        );
+        emit({ type: "escalated", ticketId, reason: action.reason });
+        return;
+      }
+      toolCalls += 1;
+      session.tool_call_count = toolCalls;
+      await deps.updateSession(admin, session, { tool_call_count: toolCalls });
+      const rejection = `Action rejected: ${action.code} — ${action.message}`;
+      await deps.writeStep(admin, session, {
+        kind: "action_rejected",
+        toolName: result.name,
+        resultSummary: rejection,
+      });
+      messages.push(
+        {
+          role: "assistant",
+          content: [
+            {
+              type: "tool_use",
+              id: result.id,
+              name: result.name,
+              input: result.input,
+            },
+          ],
+        },
+        { role: "tool_result", tool_use_id: result.id, content: rejection }
+      );
+      continue;
+    }
     const key = `${result.name}:${toolParamsHash(result.name, result.input)}`;
     const repeats = (seen.get(key) ?? 0) + 1;
     seen.set(key, repeats);
@@ -285,15 +370,20 @@ export async function runAgentTurn(input: {
             result.input
           );
     const toolSummary = tool.userSummary;
+    const evidenceId = tool.ok ? `ev-${toolCalls + 1}` : null;
+    const persistedSummary = evidenceId
+      ? `[evidence id: ${evidenceId}] ${toolSummary}`
+      : toolSummary;
     await deps.writeStep(admin, session, {
       kind: tool.ok ? "tool_result" : "tool_rejected",
       toolName: result.name,
       paramsHash: toolParamsHash(result.name, result.input),
-      resultSummary: toolSummary,
+      resultSummary: persistedSummary,
     });
     toolCalls += 1;
     session.tool_call_count = toolCalls;
     await deps.updateSession(admin, session, { tool_call_count: toolCalls });
+    if (evidenceId) evidence.push({ id: evidenceId, tool: result.name });
     emit({
       type: "tool_result_summary",
       tool: result.name,
@@ -363,7 +453,9 @@ export async function runAgentTurn(input: {
       {
         role: "tool_result",
         tool_use_id: result.id,
-        content: tool.modelText,
+        content: evidenceId
+          ? `${tool.modelText}\n[evidence id: ${evidenceId}]`
+          : tool.modelText,
       }
     );
   }

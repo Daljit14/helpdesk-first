@@ -27,6 +27,24 @@ export function getRequesterAgentBudgets() {
   };
 }
 
+export function getRequesterAgentUserDailyActionCap(): number {
+  const value = Number(
+    process.env.HELP_DESK_REQUESTER_AGENT_USER_DAILY_ACTIONS
+  );
+  return Number.isFinite(value)
+    ? Math.max(0, Math.min(Math.floor(value), 100))
+    : 10;
+}
+
+export function getRequesterAgentMaxFailedHypotheses(): number {
+  const value = Number(
+    process.env.HELP_DESK_REQUESTER_AGENT_MAX_FAILED_HYPOTHESES
+  );
+  return Number.isFinite(value)
+    ? Math.max(1, Math.min(Math.floor(value), 10))
+    : 3;
+}
+
 export function budgetExceeded(session: {
   tool_call_count: number;
   model_turn_count: number;

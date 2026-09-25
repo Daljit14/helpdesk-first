@@ -68,6 +68,21 @@ describe("requester agent tools", () => {
     expect(result.userSummary).not.toContain("secret-host");
   });
 
+  test("returns a structured result when no device is enrolled", async () => {
+    mocks.loadDeviceEvidence.mockResolvedValue(undefined);
+    mocks.readKillSwitches.mockResolvedValue({});
+    const result = await runTool(context, "get_device_diagnostics", {});
+    expect(result).toMatchObject({
+      ok: true,
+      value: {
+        status: "no_device",
+        summary: "No enrolled device is linked to this account.",
+      },
+      userSummary: "No enrolled device is linked to this account.",
+    });
+    expect(result).not.toMatchObject({ code: "tool_failed" });
+  });
+
   test.each([
     ["unknown", "run_command", {}],
     ["target", "search_guides", { user_id: "other" }],

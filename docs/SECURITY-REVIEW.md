@@ -1,3 +1,10 @@
+C2 requester-agent actions are default-off and organization allowlisted.
+State-changing actions require deterministic policy approval, short-lived
+consent bound to the run and plan step, gateway execution, verification,
+rollback handling, and requester confirmation. Research-only evidence cannot
+authorize an action; recursive target fields and denylisted capabilities halt
+the session. Rollback failures alert security and escalate.
+
 ## Requester agent C1
 
 C1 is off by default and organization allowlisted. Tool schemas are strict,

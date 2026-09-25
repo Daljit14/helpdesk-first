@@ -174,6 +174,9 @@ const requesterAgent = z
     killSwitchAfterTool: z.boolean().optional(),
     maxToolCalls: z.number().int().positive().optional(),
     humanRequested: z.boolean().optional(),
+    actionOutcome: z.unknown().optional(),
+    consentResult: z.string().optional(),
+    confirmResult: z.string().optional(),
   })
   .strict();
 

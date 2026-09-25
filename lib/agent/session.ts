@@ -63,7 +63,10 @@ export async function writeStep(
   input: {
     kind: string;
     toolName?: string;
+    capabilityId?: string;
     paramsHash?: string;
+    policyDecision?: string;
+    consentId?: string;
     resultSummary?: string;
   }
 ): Promise<void> {
@@ -90,7 +93,10 @@ export async function writeStep(
     seq,
     kind: input.kind,
     tool_name: input.toolName ?? null,
+    capability_id: input.capabilityId ?? null,
     params_hash: input.paramsHash ?? null,
+    policy_decision: input.policyDecision ?? null,
+    consent_id: input.consentId ?? null,
     result_summary: encrypted,
   });
 }
@@ -150,6 +156,38 @@ export async function loadSessionContext(
   return messages;
 }
 
+export async function loadSessionEvidence(
+  admin: Admin,
+  session: AgentSession
+): Promise<Array<{ id: string; tool: string }>> {
+  if (!admin || typeof admin.from !== "function") return [];
+  const result = await admin
+    .from("agent_steps")
+    .select("tool_name,result_summary")
+    .eq("session_id", session.id)
+    .eq("kind", "tool_result")
+    .order("seq", { ascending: true })
+    .limit(50);
+  const entries = await Promise.all(
+    (result.data ?? []).map(async (step) => {
+      const summary = await decryptAgentText(
+        admin,
+        session.organization_id,
+        "agent_steps",
+        "result_summary",
+        step.result_summary
+      );
+      const match = String(summary ?? "").match(/\[evidence id: (ev-\d+)\]/);
+      return match && step.tool_name
+        ? { id: match[1], tool: step.tool_name }
+        : null;
+    })
+  );
+  return entries.filter(
+    (value): value is { id: string; tool: string } => value !== null
+  );
+}
+
 export async function escalate(
   admin: Admin,
   session: AgentSession,
@@ -168,15 +206,17 @@ export async function escalate(
   const transcript = (steps.data ?? [])
     .map((step) => `${step.kind}${step.tool_name ? `:${step.tool_name}` : ""}`)
     .join(", ");
-  const created = await createWorkflowTicket({
-    message:
-      `Escalated from AI assistant session ${session.id}: ${reason}\n\n${lastMessage}\n\nRead-only steps: ${transcript}`.slice(
-        0,
-        2000
-      ),
-    platform: "Other",
-    diagnosticAnswers: [],
-  });
+  const created = session.backing_ticket_id
+    ? { ticketId: session.backing_ticket_id }
+    : await createWorkflowTicket({
+        message:
+          `Escalated from AI assistant session ${session.id}: ${reason}\n\n${lastMessage}\n\nRead-only steps: ${transcript}`.slice(
+            0,
+            2000
+          ),
+        platform: "Other",
+        diagnosticAnswers: [],
+      });
   if (!("ticketId" in created) || !created.ticketId)
     throw new Error("agent_escalation_ticket_failed");
   const client = await createClient();
@@ -194,6 +234,7 @@ export async function escalate(
     status: terminalStatus,
     ended_at: new Date().toISOString(),
     escalation_ticket_id: created.ticketId,
+    backing_ticket_id: session.backing_ticket_id ?? created.ticketId,
     resolution_summary: reason,
     ...terminalFields,
   });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   Bot,
@@ -38,38 +38,85 @@ export function AgentChat({
   const [sessionId, setSessionId] = useState<string>();
   const [pending, setPending] = useState(false);
   const [terminal, setTerminal] = useState(false);
+  const [answeredCards, setAnsweredCards] = useState<Record<number, boolean>>(
+    {}
+  );
+  const itemsRef = useRef<TimelineItem[]>([]);
+  const answeredCardsRef = useRef<Record<number, boolean>>({});
+  const [now, setNow] = useState(() => Date.now());
   const readerRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(
     null
   );
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
-  async function send(humanRequested = false) {
+  function clearTranscript() {
+    itemsRef.current = [];
+    answeredCardsRef.current = {};
+    setItems([]);
+    setAnsweredCards({});
+  }
+
+  function appendEvent(event: AgentEvent) {
+    const current = itemsRef.current;
+    const answered = { ...answeredCardsRef.current };
+    current.forEach((item) => {
+      if (
+        item.type === "consent_required" ||
+        item.type === "confirm_required"
+      ) {
+        answered[item.id] = true;
+      }
+    });
+    const next = [...current, { ...event, id: current.length }];
+    itemsRef.current = next;
+    answeredCardsRef.current = answered;
+    setAnsweredCards(answered);
+    setItems(next);
+  }
+
+  function answerCard(id: number) {
+    const answered = { ...answeredCardsRef.current, [id]: true };
+    answeredCardsRef.current = answered;
+    setAnsweredCards(answered);
+  }
+
+  async function send(
+    humanRequested = false,
+    action?: {
+      consent?: { approvalRequestId: string; decision: "approve" | "decline" };
+      confirm?: "yes" | "no";
+    }
+  ) {
     if (
       pending ||
       (terminal && !humanRequested) ||
-      (!message.trim() && !humanRequested)
+      (!message.trim() && !humanRequested && !action)
     )
       return;
     setPending(true);
-    setItems([]);
+    if (!action && !humanRequested) clearTranscript();
+    const body: Record<string, unknown> = {
+      sessionId,
+      message: message.trim() || "I would like to speak with a human.",
+      humanRequested,
+      ...action,
+    };
+    if (typeof initialPlatform === "string") body.platform = initialPlatform;
     const response = await fetch("/api/ai/agent", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        sessionId,
-        message: message.trim() || "I would like to speak with a human.",
-        platform: initialPlatform,
-        humanRequested,
-      }),
+      body: JSON.stringify(body),
     });
     if (!response.ok || !response.body) {
       setPending(false);
-      setItems([
-        {
-          id: Date.now(),
-          type: "error",
-          message: "The assistant is unavailable.",
-        },
-      ]);
+      if (!humanRequested) clearTranscript();
+      appendEvent({
+        type: "error",
+        message: "The assistant is unavailable.",
+      });
       return;
     }
     const reader = response.body.getReader();
@@ -89,28 +136,26 @@ export function AgentChat({
             .find((value) => value.startsWith("data: "));
           if (!line) continue;
           const event = JSON.parse(line.slice(6)) as AgentEvent;
-          setItems((current) => [
-            ...current,
-            { ...event, id: Date.now() + current.length },
-          ]);
+          appendEvent(event);
           if (event.type === "session") setSessionId(event.sessionId);
-          if (event.type === "escalated" || event.type === "halted") {
+          if (event.type === "resolved") {
             setTerminal(true);
           }
-          if (event.type === "final_answer" || event.type === "error")
+          if (
+            event.type === "escalated" ||
+            event.type === "halted" ||
+            event.type === "error"
+          ) {
             setTerminal(true);
+          }
         }
       }
     } catch {
       if (!terminal)
-        setItems((current) => [
-          ...current,
-          {
-            id: Date.now(),
-            type: "error",
-            message: "The connection ended unexpectedly.",
-          },
-        ]);
+        appendEvent({
+          type: "error",
+          message: "The connection ended unexpectedly.",
+        });
     } finally {
       readerRef.current = null;
       setPending(false);
@@ -148,6 +193,124 @@ export function AgentChat({
                       </ul>
                     </div>
                   )}
+                </div>
+              );
+            if (event.type === "consent_required") {
+              const expiresAt = new Date(event.card.expiresAt).getTime();
+              const remaining = Math.max(0, expiresAt - now);
+              const expired = remaining === 0;
+              const disabled = answeredCards[event.id] || expired;
+              return (
+                <div
+                  key={event.id}
+                  className="rounded-2xl border border-primary/30 bg-primary/5 p-4"
+                >
+                  <p className="font-medium">Approval needed</p>
+                  <p className="mt-2 text-sm">{event.card.whatHappens}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Affected {event.card.target.kind}: {event.card.target.label}
+                    . Reversible: {event.card.reversible ? "yes" : "no"}.
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {expired
+                      ? "This approval has expired."
+                      : `Expires in ${Math.ceil(remaining / 1000)} seconds.`}
+                  </p>
+                  <div className="mt-3 flex gap-2">
+                    <Button
+                      size="sm"
+                      disabled={disabled}
+                      onClick={() => {
+                        answerCard(event.id);
+                        void send(false, {
+                          consent: {
+                            approvalRequestId: event.card.approvalRequestId,
+                            decision: "approve",
+                          },
+                        });
+                      }}
+                    >
+                      Approve
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={disabled}
+                      onClick={() => {
+                        answerCard(event.id);
+                        void send(false, {
+                          consent: {
+                            approvalRequestId: event.card.approvalRequestId,
+                            decision: "decline",
+                          },
+                        });
+                      }}
+                    >
+                      Decline
+                    </Button>
+                  </div>
+                </div>
+              );
+            }
+            if (event.type === "action_executing")
+              return (
+                <div key={event.id} className="flex items-center gap-2 text-sm">
+                  <span className="size-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                  {event.text}
+                </div>
+              );
+            if (event.type === "verification_result")
+              return (
+                <div
+                  key={event.id}
+                  className="rounded-2xl border border-border/60 p-4 text-sm"
+                >
+                  <p className="font-medium">
+                    Verification:{" "}
+                    {event.status === "passed" ? "passed" : event.status}
+                  </p>
+                  <p className="mt-1 text-muted-foreground">{event.text}</p>
+                </div>
+              );
+            if (event.type === "confirm_required")
+              return (
+                <div
+                  key={event.id}
+                  className="rounded-2xl border border-primary/30 bg-primary/5 p-4"
+                >
+                  <p className="font-medium">{event.text}</p>
+                  <div className="mt-3 flex gap-2">
+                    <Button
+                      size="sm"
+                      disabled={answeredCards[event.id]}
+                      onClick={() => {
+                        answerCard(event.id);
+                        void send(false, { confirm: "yes" });
+                      }}
+                    >
+                      Yes
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={answeredCards[event.id]}
+                      onClick={() => {
+                        answerCard(event.id);
+                        void send(false, { confirm: "no" });
+                      }}
+                    >
+                      No, still broken
+                    </Button>
+                  </div>
+                </div>
+              );
+            if (event.type === "resolved")
+              return (
+                <div
+                  key={event.id}
+                  className="rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-4"
+                >
+                  <p className="font-medium">{event.text}</p>
                 </div>
               );
             if (event.type === "escalated" || event.type === "halted")
@@ -208,7 +371,7 @@ export function AgentChat({
           <Button
             variant="outline"
             onClick={() => void send(true)}
-            disabled={pending}
+            disabled={pending || terminal}
           >
             <LifeBuoy className="mr-2 size-4" /> Talk to a human
           </Button>

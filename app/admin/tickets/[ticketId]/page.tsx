@@ -636,6 +636,32 @@ export default async function AdminTicketPage({
                 {agentSession && (
                   <div className="glass p-5">
                     <h2 className="font-semibold">Agent session</h2>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Actions proposed:{" "}
+                      {
+                        agentSession.steps.filter(
+                          (step) => step.kind === "action_proposed"
+                        ).length
+                      }{" "}
+                      · consented:{" "}
+                      {
+                        agentSession.steps.filter(
+                          (step) =>
+                            step.kind === "consent_decided" &&
+                            step.result_summary?.toLowerCase().includes("grant")
+                        ).length
+                      }{" "}
+                      · verified:{" "}
+                      {
+                        agentSession.steps.filter(
+                          (step) =>
+                            step.kind === "verification_result" &&
+                            step.result_summary
+                              ?.toLowerCase()
+                              .includes("passed")
+                        ).length
+                      }
+                    </p>
                     <div className="mt-3 space-y-2 text-sm">
                       {agentSession.steps.length === 0 ? (
                         <p className="text-muted-foreground">

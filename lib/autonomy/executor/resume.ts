@@ -73,7 +73,7 @@ export async function resumeAfterApproval(
   return executePlan(admin, run, plan, {
     ...deps,
     stepId: step.data.id,
-    consent: {
+    consent: deps.consent ?? {
       type:
         run.status === "awaiting_consent"
           ? "user_consent"

@@ -99,7 +99,7 @@ export function isRequesterAgentEnabledForOrg(organizationId: string): boolean {
 }
 
 export function isRequesterAgentActionsEnabled(): boolean {
-  return false;
+  return process.env.HELP_DESK_REQUESTER_AGENT_ACTIONS_ENABLED === "true";
 }
 
 export function isRequesterAgentAutorunEnabled(): boolean {

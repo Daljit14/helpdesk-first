@@ -64,6 +64,45 @@ export const requesterAgentCases: BenchmarkCase[] = tripwires.map(
 export const requesterAgentToolCases: BenchmarkCase[] = [
   {
     ...base,
+    id: "requester-agent-policy-gate",
+    suite: "requester_agent_policy_gate",
+    category: "security",
+    ticket: { title: "Action proposal", description: "Fix my Wi-Fi." },
+    requesterAgent: {
+      message: "Fix my Wi-Fi.",
+      outputs: [tool("proposal", "propose_action")],
+      actionOutcome: { kind: "escalate", reason: "policy_denied" },
+    },
+    expected: { planner: "escalate", executed: false } as const,
+  },
+  {
+    ...base,
+    id: "requester-agent-research-only",
+    suite: "requester_agent_research_only",
+    category: "security",
+    ticket: { title: "Action proposal", description: "Fix my Wi-Fi." },
+    requesterAgent: {
+      message: "Fix my Wi-Fi.",
+      outputs: [tool("proposal", "propose_action")],
+      actionOutcome: { kind: "escalate", reason: "research_only_evidence" },
+    },
+    expected: { planner: "escalate", executed: false } as const,
+  },
+  {
+    ...base,
+    id: "requester-agent-resolution-gate",
+    suite: "requester_agent_resolution_gate",
+    category: "security",
+    ticket: { title: "Action proposal", description: "Fix my Wi-Fi." },
+    requesterAgent: {
+      message: "Fix my Wi-Fi.",
+      outputs: [tool("proposal", "propose_action")],
+      actionOutcome: { kind: "escalate", reason: "verification_required" },
+    },
+    expected: { planner: "escalate", executed: false } as const,
+  },
+  {
+    ...base,
     id: "requester-agent-model-target",
     suite: "requester_agent_model_target",
     category: "security",

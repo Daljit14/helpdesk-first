@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { getAiModel, getAiProviderKind } from "@/lib/ai/config";
 import { getProviderTimeoutMs } from "@/lib/ai/safety-policy";
 import { sanitizeForUser } from "./untrusted";
+import { isRequesterAgentActionsEnabled } from "@/lib/admin/flags";
 
 export type AgentMessage =
   | { role: "user"; content: string }
@@ -88,6 +89,24 @@ export class MockAgentModel implements AgentModel {
         name: "get_device_diagnostics",
         input: {},
         summary: "I’m checking stored device diagnostics.",
+      };
+    }
+    if (
+      this.diagnosticCalled &&
+      isRequesterAgentActionsEnabled() &&
+      /wi[\s-]?fi|wireless|network/i.test(this.firstMessage)
+    ) {
+      return {
+        kind: "tool_use",
+        id: "mock-propose-action",
+        name: "propose_action",
+        input: {
+          capability_id: "device_flush_dns",
+          params: {},
+          hypothesis_id: "ev-2",
+          rationale: "Diagnostics indicate a network/DNS issue.",
+        },
+        summary: "I can propose a consent-gated DNS cache flush.",
       };
     }
     return {

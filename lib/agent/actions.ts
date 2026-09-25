@@ -490,7 +490,17 @@ export async function decideConsent(
     actor: `requester_agent:${session.id}`,
     consent: { type: "user_consent", userId: input.userId },
   });
-  if (!resumed || resumed.status === "escalated") return "escalated";
+  if (!resumed || resumed.status === "escalated") {
+    const reason = resumed?.escalation_reason ?? "execution_denied";
+    const ticketId = await escalate(
+      admin,
+      session,
+      reason,
+      "The approved action could not be executed."
+    );
+    emit({ type: "escalated", ticketId, reason });
+    return "escalated";
+  }
   const deadline =
     Date.now() +
     (Number(process.env.HELP_DESK_REQUESTER_AGENT_VERIFY_TIMEOUT_MS) || 90_000);

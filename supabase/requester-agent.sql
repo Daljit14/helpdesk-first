@@ -28,7 +28,7 @@ create table if not exists public.agent_steps (
   session_id uuid not null references public.agent_sessions(id) on delete cascade,
   organization_id uuid not null references public.organizations(id) on delete cascade,
   seq integer not null,
-  kind text not null check (kind in ('user_message','thinking_summary','tool_started','tool_result','tool_rejected','final','claim_stripped','escalated','halted','error','action_proposed','consent_required','consent_decided','action_executing','verification_result','rollback_result','confirm_required','user_feedback','resolved','security_incident','action_rejected')),
+  kind text not null check (kind in ('user_message','thinking_summary','tool_started','tool_result','tool_rejected','final','claim_stripped','escalated','halted','error','action_proposed','consent_required','consent_decided','consent_declined','action_executing','verification_result','rollback_result','confirm_required','user_feedback','resolved','security_incident','action_rejected')),
   tool_name text,
   capability_id text,
   params_hash text,
@@ -55,7 +55,7 @@ alter table public.agent_sessions add column if not exists verified_execution_id
 alter table public.agent_sessions add column if not exists user_confirmed_at timestamptz;
 
 alter table public.agent_steps drop constraint if exists agent_steps_kind_check;
-alter table public.agent_steps add constraint agent_steps_kind_check check (kind in ('user_message','thinking_summary','tool_started','tool_result','tool_rejected','final','claim_stripped','escalated','halted','error','action_proposed','consent_required','consent_decided','action_executing','verification_result','rollback_result','confirm_required','user_feedback','resolved','security_incident','action_rejected'));
+alter table public.agent_steps add constraint agent_steps_kind_check check (kind in ('user_message','thinking_summary','tool_started','tool_result','tool_rejected','final','claim_stripped','escalated','halted','error','action_proposed','consent_required','consent_decided','consent_declined','action_executing','verification_result','rollback_result','confirm_required','user_feedback','resolved','security_incident','action_rejected'));
 
 alter table public.agent_sessions enable row level security;
 alter table public.agent_steps enable row level security;

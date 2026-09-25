@@ -180,7 +180,10 @@ export async function runTool(
             ? { ...evidence, stale: true }
             : evidence;
       } else {
-        value = evidence;
+        value = {
+          status: "no_device",
+          summary: "No enrolled device is linked to this account.",
+        };
       }
     } else if (name === "get_account_status") {
       const requester = await checkRequesterEmailForOrg(

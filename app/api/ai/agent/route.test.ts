@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   createAdminClient: vi.fn(),
   createSession: vi.fn(),
   loadActiveSession: vi.fn(),
+  writeStep: vi.fn(),
   handleAgentRequest: vi.fn(),
   escalate: vi.fn(),
 }));
@@ -34,6 +35,7 @@ vi.mock("@/lib/supabase/admin", () => ({
 vi.mock("@/lib/agent/session", () => ({
   createSession: mocks.createSession,
   loadActiveSession: mocks.loadActiveSession,
+  writeStep: mocks.writeStep,
   escalate: mocks.escalate,
 }));
 vi.mock("@/lib/agent/turn", () => ({
@@ -69,6 +71,7 @@ beforeEach(() => {
   mocks.createAdminClient.mockReturnValue({});
   mocks.handleAgentRequest.mockResolvedValue(undefined);
   mocks.escalate.mockResolvedValue("ticket-id");
+  mocks.writeStep.mockResolvedValue(undefined);
 });
 
 describe("requester agent route", () => {
@@ -108,6 +111,17 @@ describe("requester agent route", () => {
     expect(mocks.handleAgentRequest).toHaveBeenCalledWith(
       expect.objectContaining({ platform: undefined })
     );
+  });
+
+  test("records a generic error when the agent cannot continue", async () => {
+    mocks.handleAgentRequest.mockRejectedValue(new Error("internal details"));
+    const response = await POST(request({ message: "hello" }));
+    const text = await response.text();
+    expect(text).toContain("The assistant could not continue safely.");
+    expect(mocks.writeStep).toHaveBeenCalledWith(expect.anything(), session, {
+      kind: "error",
+      resultSummary: "The assistant could not continue safely.",
+    });
   });
 
   test("starts SSE with the session event", async () => {

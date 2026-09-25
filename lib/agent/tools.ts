@@ -321,6 +321,8 @@ function toolUserSummary(name: string, value: unknown): string {
       value && typeof value === "object"
         ? (value as Record<string, unknown>)
         : {};
+    if (record.status === "no_device")
+      return "No enrolled device is linked to this account.";
     const collectedAt =
       typeof record.collectedAt === "string"
         ? Date.parse(record.collectedAt)

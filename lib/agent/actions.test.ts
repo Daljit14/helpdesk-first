@@ -5,6 +5,8 @@ const mocks = vi.hoisted(() => ({
   readKillSwitches: vi.fn(),
   consumeAiConsent: vi.fn(),
   resumeAfterApproval: vi.fn(),
+  startRun: vi.fn(),
+  transitionRun: vi.fn(),
   writeStep: vi.fn(),
   updateSession: vi.fn(),
   escalate: vi.fn(),
@@ -22,13 +24,25 @@ vi.mock("@/app/actions/resolution", () => ({
 vi.mock("@/lib/autonomy/executor/resume", () => ({
   resumeAfterApproval: mocks.resumeAfterApproval,
 }));
+vi.mock("@/lib/autonomy/orchestrator", async () => {
+  const actual = await vi.importActual<
+    typeof import("@/lib/autonomy/orchestrator")
+  >("@/lib/autonomy/orchestrator");
+  return {
+    ...actual,
+    startRun: mocks.startRun,
+    transitionRun: mocks.transitionRun,
+  };
+});
 vi.mock("./session", () => ({
   writeStep: mocks.writeStep,
   updateSession: mocks.updateSession,
   escalate: mocks.escalate,
 }));
 
-import { decideConsent, proposeAction } from "./actions";
+import { decideConsent, ensureBackingRun, proposeAction } from "./actions";
+import type { ResolutionRun } from "@/lib/autonomy/orchestrator";
+import { canTransition } from "@/lib/autonomy/state-machine";
 import type { AgentSession } from "./types";
 
 const session = {
@@ -104,6 +118,57 @@ describe("requester action proposals", () => {
     expect(topLevel).toMatchObject({ kind: "rejected", code: "target_field" });
     expect(nested).toMatchObject({ kind: "rejected", code: "target_field" });
     expect(mocks.executePlan).not.toHaveBeenCalled();
+  });
+
+  test("walks queued runs through legal FSM transitions", async () => {
+    const run: ResolutionRun = {
+      id: "run-1",
+      organization_id: session.organization_id,
+      ticket_id: "ticket-1",
+      status: "queued",
+      previous_status: null,
+      attempts: 0,
+      max_attempts: 3,
+      cost_cents: 0,
+      budget_cents: 100,
+      deadline_at: new Date(Date.now() + 60_000).toISOString(),
+      initiated_by: "requester_agent:session-1",
+      planner_version: null,
+      model: null,
+      prompt_version: null,
+      policy_version: null,
+      escalation_reason: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      completed_at: null,
+    };
+    const target: AgentSession = {
+      ...session,
+      backing_ticket_id: run.ticket_id,
+    };
+    const transitions: Array<
+      [ResolutionRun["status"], ResolutionRun["status"]]
+    > = [];
+    mocks.startRun.mockResolvedValue({ run, created: false });
+    mocks.transitionRun.mockImplementation(
+      async (
+        _admin: unknown,
+        current: ResolutionRun,
+        to: ResolutionRun["status"]
+      ) => {
+        transitions.push([current.status, to]);
+        expect(canTransition(current.status, to)).toBe(true);
+        return { ...current, previous_status: current.status, status: to };
+      }
+    );
+
+    const result = await ensureBackingRun({} as never, target, "Windows");
+
+    expect(result?.status).toBe("planning");
+    expect(transitions).toEqual([
+      ["queued", "investigating"],
+      ["investigating", "planning"],
+    ]);
   });
 
   test("escalates the session when execution is denied after consent", async () => {

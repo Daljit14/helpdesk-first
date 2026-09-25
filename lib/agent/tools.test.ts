@@ -78,6 +78,7 @@ describe("requester agent tools", () => {
         status: "no_device",
         summary: "No enrolled device is linked to this account.",
       },
+      userSummary: "No enrolled device is linked to this account.",
     });
     expect(result).not.toMatchObject({ code: "tool_failed" });
   });

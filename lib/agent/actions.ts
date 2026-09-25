@@ -100,7 +100,7 @@ async function actionStep(
   });
 }
 
-async function ensureBackingRun(
+export async function ensureBackingRun(
   admin: Admin,
   session: AgentSession,
   platform?: string
@@ -139,8 +139,17 @@ async function ensureBackingRun(
   if ("error" in started) return null;
   let run = started.run;
   if (run.status === "queued") {
+    const investigating = await transitionRun(admin, run, "investigating", {
+      actor: `requester_agent:${session.id}`,
+      detail: { note: "requester agent evidence gathered in session" },
+    });
+    if (!investigating) return null;
+    run = investigating;
+  }
+  if (run.status === "investigating") {
     const transitioned = await transitionRun(admin, run, "planning", {
       actor: `requester_agent:${session.id}`,
+      detail: { note: "requester agent evidence gathered in session" },
     });
     if (!transitioned) return null;
     run = transitioned;

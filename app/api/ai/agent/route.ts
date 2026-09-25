@@ -8,7 +8,11 @@ import {
   isRequesterAgentEnabledForOrg,
 } from "@/lib/admin/flags";
 import { createRateLimiter, checkRateLimit } from "@/lib/ai/rate-limit";
-import { createSession, loadActiveSession } from "@/lib/agent/session";
+import {
+  createSession,
+  loadActiveSession,
+  writeStep,
+} from "@/lib/agent/session";
 import { handleAgentRequest } from "@/lib/agent/turn";
 import type { AgentEvent } from "@/lib/agent/types";
 
@@ -111,6 +115,14 @@ export async function POST(request: Request): Promise<Response> {
           signal: request.signal,
         });
       } catch {
+        try {
+          await writeStep(admin, session, {
+            kind: "error",
+            resultSummary: "The assistant could not continue safely.",
+          });
+        } catch {
+          // Preserve the generic client error even if audit persistence fails.
+        }
         emit({
           type: "error",
           message: "The assistant could not continue safely.",

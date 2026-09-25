@@ -20,3 +20,6 @@ Action consent expires after five minutes. Daily action counts are bounded by
 `HELP_DESK_REQUESTER_AGENT_USER_DAILY_ACTIONS` (default `10`), and verification
 waits up to `HELP_DESK_REQUESTER_AGENT_VERIFY_TIMEOUT_MS` (default `90000`).
 All defaults remain safe and disabled.
+
+For action enablement prerequisites, including capability registry and
+organization configuration, see [SETUP-NOTES-C2.md](../SETUP-NOTES-C2.md).

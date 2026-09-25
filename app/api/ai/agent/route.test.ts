@@ -98,6 +98,18 @@ describe("requester agent route", () => {
     expect((await POST(request({ message: "" }))).status).toBe(400);
   });
 
+  test.each([
+    ["null platform", { message: "hello", platform: null }],
+    ["omitted platform", { message: "hello" }],
+  ])("accepts %s", async (_name, body) => {
+    const response = await POST(request(body));
+    await response.text();
+    expect(response.status).toBe(200);
+    expect(mocks.handleAgentRequest).toHaveBeenCalledWith(
+      expect.objectContaining({ platform: undefined })
+    );
+  });
+
   test("starts SSE with the session event", async () => {
     const response = await POST(request({ message: "Wi-Fi keeps dropping" }));
     expect(response.headers.get("content-type")).toContain("text/event-stream");

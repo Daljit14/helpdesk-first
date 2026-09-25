@@ -23,7 +23,7 @@ const inputSchema = z
   .object({
     sessionId: z.string().uuid().optional(),
     message: z.string().trim().max(2000).optional(),
-    platform: z.string().trim().max(40).optional(),
+    platform: z.string().trim().max(40).nullable().optional(),
     humanRequested: z.boolean().optional(),
     consent: z
       .object({
@@ -106,7 +106,7 @@ export async function POST(request: Request): Promise<Response> {
           consent: parsed.data.consent,
           confirm: parsed.data.confirm,
           humanRequested: parsed.data.humanRequested,
-          platform: parsed.data.platform,
+          platform: parsed.data.platform ?? undefined,
           emit,
           signal: request.signal,
         });

@@ -63,16 +63,17 @@ export function AgentChat({
       return;
     setPending(true);
     if (!action) setItems([]);
+    const body: Record<string, unknown> = {
+      sessionId,
+      message: message.trim() || "I would like to speak with a human.",
+      humanRequested,
+      ...action,
+    };
+    if (typeof initialPlatform === "string") body.platform = initialPlatform;
     const response = await fetch("/api/ai/agent", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        sessionId,
-        message: message.trim() || "I would like to speak with a human.",
-        platform: initialPlatform,
-        humanRequested,
-        ...action,
-      }),
+      body: JSON.stringify(body),
     });
     if (!response.ok || !response.body) {
       setPending(false);

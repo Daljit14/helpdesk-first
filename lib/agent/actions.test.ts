@@ -253,4 +253,45 @@ describe("requester action proposals", () => {
       reason: "kill_switch",
     });
   });
+
+  test("records an audit step when consent is expired or invalid", async () => {
+    const target: AgentSession = {
+      ...session,
+      resolution_run_id: "run-1",
+      pending_approval_id: "approval-1",
+    };
+    const query = (data: unknown) => {
+      const chain = {
+        select: () => chain,
+        eq: () => chain,
+        maybeSingle: async () => ({ data, error: null }),
+      };
+      return chain;
+    };
+    const admin = {
+      from: () => query(null),
+    } as never;
+
+    const result = await decideConsent(
+      admin,
+      target,
+      {
+        approvalRequestId: "approval-1",
+        decision: "approve",
+        userId: "user-1",
+      },
+      vi.fn(),
+      new AbortController().signal
+    );
+
+    expect(result).toBe("invalid");
+    expect(mocks.writeStep).toHaveBeenCalledWith(
+      admin,
+      target,
+      expect.objectContaining({
+        kind: "action_rejected",
+        resultSummary: "Consent request expired or invalid.",
+      })
+    );
+  });
 });

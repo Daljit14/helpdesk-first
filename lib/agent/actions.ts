@@ -418,11 +418,18 @@ export async function decideConsent(
   | "invalid"
   | "escalated"
 > {
+  const rejectConsent = async () => {
+    await writeStep(admin, session, {
+      kind: "action_rejected",
+      resultSummary: "Consent request expired or invalid.",
+    });
+    return "invalid" as const;
+  };
   if (
     !session.resolution_run_id ||
     session.pending_approval_id !== input.approvalRequestId
   )
-    return "invalid";
+    return rejectConsent();
   const approval = await admin
     .from("approval_requests")
     .select("id,run_id,step_id,capability_id,parameter_hash,status,expires_at")
@@ -435,7 +442,7 @@ export async function decideConsent(
     !approval.data ||
     approval.data.run_id !== session.resolution_run_id
   )
-    return "invalid";
+    return rejectConsent();
   const runResult = await admin
     .from("resolution_runs")
     .select("*")
@@ -443,19 +450,19 @@ export async function decideConsent(
     .eq("organization_id", session.organization_id)
     .maybeSingle();
   if (!runResult.data || runResult.data.status !== "awaiting_consent")
-    return "invalid";
+    return rejectConsent();
   const consumed = await consumeAiConsent(
     admin,
     input.approvalRequestId,
     input.userId,
     input.decision === "approve" ? "grant" : "deny"
   );
-  if (!consumed.ok) return "invalid";
+  if (!consumed.ok) return rejectConsent();
   if (
     consumed.request.run_id !== session.resolution_run_id ||
     consumed.request.id !== approval.data.id
   )
-    return "invalid";
+    return rejectConsent();
   const run = runResult.data as ResolutionRun;
   const capabilityId = approval.data.capability_id ?? "requested_action";
   const paramsHash = approval.data.parameter_hash ?? "";

@@ -22,6 +22,13 @@ Before testing a C2 action, configure every layer of capability enablement:
   when it is off, the agent turn is halted by the `kill_switch` guard and
   cannot proceed to action consent.
 - Set `HELP_DESK_CAPABILITY_REGISTRY_ENABLED=true`.
+- Set `HELP_DESK_GUARDRAILS_ENFORCED=true` and include the requester
+  organization in `HELP_DESK_AUTONOMY_ORG_ALLOWLIST`.
+- Set `HELP_DESK_PILOT_CAPABILITY_ALLOWLIST` to the reviewed capability IDs,
+  such as `device_flush_dns`; omitting a non-safe capability from this list
+  causes `pilot_capability_risk`.
+- Set `HELP_DESK_EVIDENCE_ENGINE_ENABLED=true` so action proposals use the
+  evidence engine.
 - Enable the specific capability with its derived environment flag, for
   example `HELP_DESK_CAP_DEVICE_FLUSH_DNS_ENABLED=true` for
   `device_flush_dns`.
@@ -38,6 +45,14 @@ Before testing a C2 action, configure every layer of capability enablement:
 - For `device_*` actions, the requester must have an active claimed device.
   The device lookup is organization- and requester-scoped and requires
   `devices_public.status='active'` with the requester as `user_id`.
+- Configure the organization’s device consent policy to pre-approve the
+  managed-network tier when that tier is approved for the pilot:
+  `device_consent_policies.device_class='managed'`,
+  `category='network'`, and `auto_approve=true`. This is the organization
+  pre-approval required for managed-network consent behavior.
+- The ticket platform supplied by `?platform=` must match the enrolled device
+  platform; otherwise device lookup and execution are denied rather than
+  crossing platform boundaries.
 
 For an authenticated browser check, provide `USER_E2E_EMAIL`,
 `USER_E2E_PASSWORD`, and `E2E_ORG_ID`, then run:

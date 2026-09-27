@@ -62,14 +62,19 @@ export function AgentChat({
   function appendEvent(event: AgentEvent) {
     const current = itemsRef.current;
     const answered = { ...answeredCardsRef.current };
-    current.forEach((item) => {
-      if (
-        item.type === "consent_required" ||
-        item.type === "confirm_required"
-      ) {
-        answered[item.id] = true;
-      }
-    });
+    if (
+      event.type !== "session_consent_offer" &&
+      event.type !== "session_consent"
+    ) {
+      current.forEach((item) => {
+        if (
+          item.type === "consent_required" ||
+          item.type === "confirm_required"
+        ) {
+          answered[item.id] = true;
+        }
+      });
+    }
     const next = [...current, { ...event, id: current.length }];
     itemsRef.current = next;
     answeredCardsRef.current = answered;

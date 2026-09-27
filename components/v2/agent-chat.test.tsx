@@ -105,6 +105,44 @@ describe("AgentChat", () => {
     expect(decline).toBeDisabled();
   });
 
+  test("keeps a consent card enabled after a session consent event", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        streamResponse([
+          {
+            type: "consent_required",
+            card: {
+              approvalRequestId: "approval-1",
+              capabilityId: "device_flush_dns",
+              title: "Flush DNS",
+              whatHappens: "Flush the device DNS cache.",
+              target: { kind: "device", label: "Work laptop" },
+              reversible: true,
+              expiresAt: new Date(Date.now() + 60_000).toISOString(),
+            },
+          },
+          {
+            type: "session_consent",
+            state: "granted",
+            capabilityIds: ["device_flush_dns"],
+          },
+        ])
+      )
+      .mockResolvedValueOnce(streamResponse([]));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<AgentChat initialProblem="Wi-Fi is down" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Ask the assistant" }));
+    const approve = await screen.findByRole("button", { name: "Approve" });
+
+    expect(approve).not.toBeDisabled();
+    fireEvent.click(approve);
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({
+      consent: { approvalRequestId: "approval-1", decision: "approve" },
+    });
+  });
+
   test("appends the human escalation card without clearing the transcript", async () => {
     const fetchMock = vi
       .fn()

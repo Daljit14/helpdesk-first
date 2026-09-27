@@ -139,4 +139,49 @@ describe("requester agent loop", () => {
       reason: "injection_in_tool_output",
     });
   });
+
+  test.each(["tier_shadow", "tier_disabled"] as const)(
+    "emits a requester-visible message for %s action rejection",
+    async (code) => {
+      const message =
+        code === "tier_shadow"
+          ? "This fix cannot be applied automatically yet; here is how to do it manually."
+          : "This fix is not enabled for your organization.";
+      const harness = createAgentEvalHarness({
+        outputs: [
+          {
+            kind: "tool_use",
+            id: "action-1",
+            name: "propose_action",
+            input: {
+              capability_id: "device_flush_dns",
+              params: {},
+              hypothesis_id: "ev-1",
+              rationale: "Diagnostics indicate a network issue.",
+            },
+            summary: "I can propose a safe fix.",
+          },
+          {
+            kind: "final",
+            text: "Here is the manual guidance.",
+            confidence: 0.9,
+            summary: "Manual guidance.",
+          },
+        ],
+        proposeActionOutcome: {
+          kind: "rejected",
+          code,
+          message,
+        },
+      });
+
+      await harness.run();
+
+      expect(harness.events).toContainEqual({
+        type: "tool_result_summary",
+        tool: "propose_action",
+        summary: message,
+      });
+    }
+  );
 });

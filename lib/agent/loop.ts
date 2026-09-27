@@ -315,6 +315,13 @@ export async function runAgentTurn(input: {
         toolName: result.name,
         resultSummary: rejection,
       });
+      if (action.code === "tier_shadow" || action.code === "tier_disabled") {
+        emit({
+          type: "tool_result_summary",
+          tool: result.name,
+          summary: action.message,
+        });
+      }
       messages.push(
         {
           role: "assistant",

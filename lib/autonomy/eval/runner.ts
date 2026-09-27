@@ -604,6 +604,10 @@ async function evaluateCase(
           escalated?.type === "escalated" &&
           escalated.reason === "budget:tool_calls",
         resolvedWithoutVerification: harness.resolvedWithoutVerification,
+        autorunWithoutAdminPromotion: harness.autorunWithoutAdminPromotion,
+        autoDemotionFailed: harness.autoDemotionFailed,
+        autorunWithoutSessionConsent: harness.autorunWithoutSessionConsent,
+        denylistedAutorun: harness.denylistedAutorun,
         ...(script.humanRequested
           ? {
               humanEscalated:

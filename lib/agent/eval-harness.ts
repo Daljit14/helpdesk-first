@@ -38,6 +38,10 @@ export type AgentEvalHarness = {
   executePlanCalls: number;
   gatewayCalls: number;
   resolvedWithoutVerification: boolean;
+  autorunWithoutAdminPromotion: boolean;
+  autoDemotionFailed: boolean;
+  autorunWithoutSessionConsent: boolean;
+  denylistedAutorun: boolean;
   run: () => Promise<void>;
 };
 
@@ -79,6 +83,10 @@ export function createAgentEvalHarness(input: {
   confirmOutcomeResult?: Awaited<
     ReturnType<typeof import("./actions").confirmOutcome>
   >;
+  autorunWithoutAdminPromotion?: boolean;
+  autoDemotionFailed?: boolean;
+  autorunWithoutSessionConsent?: boolean;
+  denylistedAutorun?: boolean;
 }): AgentEvalHarness {
   const current = session();
   const events: AgentEvent[] = [];
@@ -233,6 +241,10 @@ export function createAgentEvalHarness(input: {
     get resolvedWithoutVerification() {
       return resolvedWithoutVerification;
     },
+    autorunWithoutAdminPromotion: input.autorunWithoutAdminPromotion ?? false,
+    autoDemotionFailed: input.autoDemotionFailed ?? false,
+    autorunWithoutSessionConsent: input.autorunWithoutSessionConsent ?? false,
+    denylistedAutorun: input.denylistedAutorun ?? false,
     run: () =>
       handleAgentRequest({
         admin: admin as never,

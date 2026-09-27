@@ -10,6 +10,17 @@ export type ConsentCard = {
   expiresAt: string;
 };
 
+export type SessionConsentCard = {
+  title: string;
+  capabilities: Array<{
+    id: string;
+    title: string;
+    whatHappens: string;
+    reversible: true;
+  }>;
+  expiresInMs: number;
+};
+
 export type AgentEvent =
   | { type: "session"; sessionId: string }
   | { type: "thinking_summary"; text: string }
@@ -17,8 +28,19 @@ export type AgentEvent =
   | { type: "tool_result_summary"; tool: string; summary: string }
   | { type: "action_proposed"; capabilityId: string; text: string }
   | { type: "consent_required"; card: ConsentCard }
+  | { type: "session_consent_offer"; card: SessionConsentCard }
+  | {
+      type: "session_consent";
+      state: "granted" | "revoked";
+      capabilityIds: string[];
+    }
   | { type: "consent_declined"; capabilityId: string }
-  | { type: "action_executing"; capabilityId: string; text: string }
+  | {
+      type: "action_executing";
+      capabilityId: string;
+      text: string;
+      autorun?: boolean;
+    }
   | {
       type: "verification_result";
       status: "passed" | "failed" | "inconclusive";
@@ -60,6 +82,10 @@ export type AgentSession = {
   security_flag: boolean;
   verified_execution_id?: string | null;
   user_confirmed_at?: string | null;
+  autorun_consent_granted_at?: string | null;
+  autorun_consent_revoked_at?: string | null;
+  autorun_consent_expires_at?: string | null;
+  autorun_consent_capabilities?: string[];
   updated_at: string;
 };
 

@@ -1,4 +1,4 @@
-import { escalate } from "./session";
+import { escalate, writeStep } from "./session";
 import { runAgentTurn, type AgentLoopDeps } from "./loop";
 import {
   decideConsent as defaultDecideConsent,
@@ -6,6 +6,13 @@ import {
 } from "./actions";
 import type { AgentEvent, AgentSession } from "./types";
 import type { createAdminClient } from "@/lib/supabase/admin";
+import {
+  autorunCoveredCapabilities,
+  grantSessionConsent,
+  revokeSessionConsent,
+  sessionConsentTitles,
+} from "./session-consent";
+import { isRequesterAgentAutorunEnabledForOrg } from "@/lib/admin/flags";
 
 type Admin = ReturnType<typeof createAdminClient>;
 
@@ -24,6 +31,7 @@ export async function handleAgentRequest(input: {
     decision: "approve" | "decline";
   };
   confirm?: "yes" | "no";
+  sessionConsent?: "grant" | "revoke";
   humanRequested?: boolean;
   platform?: string;
   emit: (event: AgentEvent) => void;
@@ -31,6 +39,28 @@ export async function handleAgentRequest(input: {
   deps?: AgentTurnDeps;
 }): Promise<void> {
   const { admin, session, message, platform, emit, signal, deps } = input;
+  if (input.sessionConsent) {
+    if (input.sessionConsent === "grant") {
+      const granted = await grantSessionConsent(
+        admin,
+        session,
+        session.requester_id
+      );
+      emit({
+        type: "session_consent",
+        state: "granted",
+        capabilityIds: granted.capabilityIds,
+      });
+    } else {
+      await revokeSessionConsent(admin, session);
+      emit({
+        type: "session_consent",
+        state: "revoked",
+        capabilityIds: session.autorun_consent_capabilities ?? [],
+      });
+    }
+    return;
+  }
   if (input.humanRequested) {
     const ticketId = await (deps?.escalate ?? escalate)(
       admin,
@@ -135,6 +165,51 @@ export async function handleAgentRequest(input: {
       });
     }
     return;
+  }
+
+  if (
+    isRequesterAgentAutorunEnabledForOrg(session.organization_id) &&
+    !session.autorun_consent_granted_at &&
+    !session.autorun_consent_revoked_at
+  ) {
+    const existing = await admin
+      .from("agent_steps")
+      .select("id")
+      .eq("session_id", session.id)
+      .eq("kind", "session_consent_offered")
+      .limit(1)
+      .maybeSingle();
+    if (!existing.data) {
+      const capabilityIds = await autorunCoveredCapabilities(
+        admin,
+        session.organization_id
+      );
+      if (capabilityIds.length > 0) {
+        const expiresInMs = Math.min(
+          4 * 60 * 60_000,
+          Math.max(
+            1_000,
+            Number(
+              process.env.HELP_DESK_REQUESTER_AGENT_SESSION_CONSENT_TTL_MS
+            ) || 60 * 60_000
+          )
+        );
+        await writeStep(admin, session, {
+          kind: "session_consent_offered",
+          resultSummary: capabilityIds.join(", "),
+        });
+        emit({
+          type: "session_consent_offer",
+          card: {
+            title:
+              "Allow the assistant to apply safe, reversible fixes during this session?",
+            capabilities: sessionConsentTitles(capabilityIds),
+            expiresInMs,
+          },
+        });
+        return;
+      }
+    }
   }
 
   const injectedRunAgentTurn = deps?.runAgentTurn ?? runAgentTurn;

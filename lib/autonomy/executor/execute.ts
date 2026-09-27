@@ -56,6 +56,11 @@ export type ExecutePlanDeps = {
   };
   consentTtlMs?: number;
   forceUserConsent?: boolean;
+  sessionConsent?: {
+    userId: string;
+    grantedAt: string;
+    capabilityIds: string[];
+  };
 };
 
 export async function verifyExecution(input: {
@@ -351,8 +356,11 @@ export async function evaluatePlanPolicy(
   admin: HandlerAdmin,
   run: ResolutionRun,
   rawPlan: unknown,
-  stepId: string
+  stepId: string,
+  deps: ExecutePlanDeps = {}
 ): Promise<PolicyEvaluation> {
+  if (deps.forceUserConsent && deps.sessionConsent)
+    throw new Error("forceUserConsent cannot be combined with sessionConsent");
   const parsed = parsePlannerOutput(rawPlan);
   if (!parsed.ok) return { ok: false, reason: "plan_rejected" };
   if (parsed.value.decision !== "propose_action") {
@@ -456,7 +464,7 @@ export async function evaluatePlanPolicy(
     ),
     breaker: { open: breaker.open || persistedBreaker.open },
     evidence,
-    actorRole: "system",
+    actorRole: deps.sessionConsent ? "requester_agent" : "system",
     platform: capabilityPlatform(ticket.platform),
     ticketCategory: ticket.category,
     consent: await readBoundConsent(admin, run, {
@@ -477,7 +485,16 @@ export async function evaluatePlanPolicy(
     evidenceContradiction:
       evidence?.research?.contradictsTopHypothesis ?? false,
     device: devicePolicy,
+    provenance: deps.sessionConsent
+      ? { sessionConsent: deps.sessionConsent }
+      : undefined,
   });
+  if (
+    deps.sessionConsent &&
+    deps.sessionConsent.capabilityIds.includes(capability.id)
+  ) {
+    policyInput.consent.user = true;
+  }
   return {
     ok: true,
     decision: decidePolicy(policyInput),
@@ -537,7 +554,13 @@ export async function executePlan(
     { plan },
     deps.stepId
   );
-  const evaluated = await evaluatePlanPolicy(admin, run, plan, policyStep.id);
+  const evaluated = await evaluatePlanPolicy(
+    admin,
+    run,
+    plan,
+    policyStep.id,
+    deps
+  );
   if (!evaluated.ok) {
     if (evaluated.reason === "tenant_check_failed") {
       await writeEvent(admin, run, "security.tenant_violation", {
@@ -565,6 +588,15 @@ export async function executePlan(
       decision: "require_user_consent",
       reasons: [...decision.reasons, "requester_agent_forced_consent"],
       consentSatisfied: false,
+    };
+  }
+  if (
+    deps.sessionConsent &&
+    deps.sessionConsent.capabilityIds.includes(capability.id)
+  ) {
+    decision = {
+      ...decision,
+      reasons: [...decision.reasons, "requester_session_consent_active"],
     };
   }
   if (deps.consent && capability.consent !== "none") {

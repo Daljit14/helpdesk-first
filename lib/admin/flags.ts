@@ -126,6 +126,7 @@ export function isRequesterAgentVisionEnabledForOrg(
 ): boolean {
   return (
     isRequesterAgentEnabledForOrg(organizationId) &&
-    isRequesterAgentVisionEnabled()
+    isRequesterAgentVisionEnabled() &&
+    isSecureAttachmentsEnabled()
   );
 }

@@ -15,7 +15,9 @@ HELP_DESK_REQUESTER_AGENT_SCREENSHOT_MAX_BYTES=5242880
 ```
 
 The organization must also be present in
-`HELP_DESK_REQUESTER_AGENT_ORG_ALLOWLIST`. Pilot readiness is only green when
+`HELP_DESK_REQUESTER_AGENT_ORG_ALLOWLIST`, and
+`HELP_DESK_SECURE_ATTACHMENTS_ENABLED=true` is required (screenshots use the
+secure attachment pipeline). Pilot readiness is only green when
 `HELP_DESK_ATTACHMENT_SCANNER=virustotal` and `VIRUSTOTAL_API_KEY` are set.
 Apply `supabase/requester-agent-vision.sql` after the requester-agent and
 secure-attachment migrations.

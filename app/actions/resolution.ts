@@ -25,6 +25,74 @@ const consentLimiter = createRateLimiter(
   "consent"
 );
 
+export async function consumeAiConsent(
+  admin: ReturnType<typeof createAdminClient>,
+  requestId: string,
+  userId: string,
+  decision: "grant" | "deny"
+): Promise<
+  | {
+      ok: true;
+      request: {
+        id: string;
+        organization_id: string;
+        run_id: string;
+        ticket_id: string;
+        type: string;
+        capability_id: string | null;
+        parameter_hash: string | null;
+        step_id: string | null;
+        status: string;
+        expires_at: string | null;
+      };
+    }
+  | { ok: false; reason: string }
+> {
+  const request = await admin
+    .from("approval_requests")
+    .select(
+      "id,organization_id,run_id,ticket_id,step_id,type,capability_id,parameter_hash,status,expires_at"
+    )
+    .eq("id", requestId)
+    .maybeSingle();
+  if (request.error || !request.data || request.data.type !== "user_consent")
+    return { ok: false, reason: "consent_not_found" };
+  const ticket = await admin
+    .from("tickets")
+    .select("user_id,organization_id")
+    .eq("id", request.data.ticket_id)
+    .eq("organization_id", request.data.organization_id)
+    .maybeSingle();
+  if (
+    ticket.error ||
+    ticket.data?.user_id !== userId ||
+    ticket.data.organization_id !== request.data.organization_id
+  )
+    return { ok: false, reason: "consent_not_found" };
+  if (
+    request.data.status !== "requested" ||
+    (request.data.expires_at &&
+      new Date(request.data.expires_at).getTime() <= Date.now())
+  )
+    return { ok: false, reason: "consent_expired" };
+  const updated = await admin
+    .from("approval_requests")
+    .update({
+      status: decision === "grant" ? "granted" : "denied",
+      decided_by: userId,
+      decided_by_user_id: userId,
+      decided_at: new Date().toISOString(),
+    })
+    .eq("id", request.data.id)
+    .eq("organization_id", request.data.organization_id)
+    .eq("status", "requested")
+    .select("id")
+    .maybeSingle();
+  if (updated.error || !updated.data)
+    return { ok: false, reason: "consent_reused" };
+  return { ok: true, request: request.data };
+}
+
 export async function respondToAiConsent(
   requestId: string,
   decision: "grant" | "deny"
@@ -39,46 +107,21 @@ export async function respondToAiConsent(
     .maybeSingle();
   if (request.error || !request.data || request.data.type !== "user_consent")
     return { error: "Consent request not found." };
-  const ticket = await admin
-    .from("tickets")
-    .select("user_id,organization_id")
-    .eq("id", request.data.ticket_id)
-    .eq("organization_id", request.data.organization_id)
-    .maybeSingle();
-  if (
-    ticket.error ||
-    ticket.data?.user_id !== user.id ||
-    ticket.data.organization_id !== request.data.organization_id
-  ) {
-    return { error: "Consent request not found." };
-  }
   const rate = await consentLimiter.check(
     `org:${request.data.organization_id}:user:${user.id}`
   );
   if (!rate.allowed)
     return { error: "Too many consent attempts. Try again later." };
-  if (
-    request.data.status !== "requested" ||
-    (request.data.expires_at &&
-      new Date(request.data.expires_at).getTime() <= Date.now())
-  ) {
-    return { error: "This consent request has expired." };
-  }
-  const updated = await admin
-    .from("approval_requests")
-    .update({
-      status: decision === "grant" ? "granted" : "denied",
-      decided_by: user.id,
-      decided_by_user_id: user.id,
-      decided_at: new Date().toISOString(),
-    })
-    .eq("id", request.data.id)
-    .eq("organization_id", request.data.organization_id)
-    .eq("status", "requested")
-    .select("id")
-    .maybeSingle();
-  if (updated.error || !updated.data)
-    return { error: "Consent request is no longer available." };
+  const consumed = await consumeAiConsent(admin, requestId, user.id, decision);
+  if (!consumed.ok)
+    return {
+      error:
+        consumed.reason === "consent_expired"
+          ? "This consent request has expired."
+          : consumed.reason === "consent_reused"
+            ? "Consent request is no longer available."
+            : "Consent request not found.",
+    };
   const run = await admin
     .from("resolution_runs")
     .select("*")

@@ -81,6 +81,7 @@ export default defineConfig({
             HELP_DESK_NEXT_DIST_DIR: ".next-requester-agent",
             NEXT_PUBLIC_UI_V2_ENABLED: "true",
             HELP_DESK_REQUESTER_AGENT_ENABLED: "true",
+            HELP_DESK_REQUESTER_AGENT_ACTIONS_ENABLED: "true",
             HELP_DESK_AI_PROVIDER: "mock",
             HELP_DESK_REQUESTER_AGENT_ORG_ALLOWLIST:
               process.env.E2E_ORG_ID ?? "",

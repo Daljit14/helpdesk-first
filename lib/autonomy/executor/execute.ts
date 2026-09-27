@@ -54,6 +54,8 @@ export type ExecutePlanDeps = {
     type: "user_consent" | "technician_approval";
     userId: string;
   };
+  consentTtlMs?: number;
+  forceUserConsent?: boolean;
 };
 
 export async function verifyExecution(input: {
@@ -265,7 +267,8 @@ async function createApproval(
   type: "user_consent" | "technician_approval",
   capability: CapabilityDefinition,
   params: Record<string, unknown>,
-  riskLevel: string
+  riskLevel: string,
+  expiresInMs = type === "user_consent" ? 60 * 60_000 : 24 * 60 * 60_000
 ): Promise<void> {
   await admin.from("approval_requests").insert({
     organization_id: run.organization_id,
@@ -284,9 +287,7 @@ async function createApproval(
     type,
     status: "requested",
     requested_by: "orchestrator",
-    expires_at: new Date(
-      Date.now() + (type === "user_consent" ? 60 * 60_000 : 24 * 60 * 60_000)
-    ).toISOString(),
+    expires_at: new Date(Date.now() + expiresInMs).toISOString(),
   });
 }
 
@@ -554,6 +555,18 @@ export async function executePlan(
   }
   const { capability, input: policyInput } = evaluated;
   let decision = evaluated.decision;
+  if (
+    deps.forceUserConsent &&
+    capability.sideEffects !== "read_only" &&
+    decision.decision === "allow_automatic"
+  ) {
+    decision = {
+      ...decision,
+      decision: "require_user_consent",
+      reasons: [...decision.reasons, "requester_agent_forced_consent"],
+      consentSatisfied: false,
+    };
+  }
   if (deps.consent && capability.consent !== "none") {
     decision = decidePolicy({
       ...policyInput,
@@ -629,7 +642,8 @@ export async function executePlan(
       requiredConsentType,
       capability,
       evaluated.validatedParameters,
-      capability.riskLevel
+      capability.riskLevel,
+      deps.consentTtlMs
     );
     await writeEvent(admin, planningRun, "approval.requested", {
       type: requiredConsentType,

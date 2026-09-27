@@ -18,6 +18,7 @@ import { countPlaintextRowsDetailed } from "@/lib/security/backfill";
 import {
   isDeviceAgentEnabled,
   isDeviceExecutionEnabled,
+  isRequesterAgentActionsEnabled,
   isRequesterAgentEnabled,
 } from "./flags";
 
@@ -134,7 +135,9 @@ export async function computePilotReadiness(
               .split(",")
               .map((value) => value.trim())
               .filter(Boolean).length
-          } orgs; tables present`
+          } orgs; tables present; actions ${
+            isRequesterAgentActionsEnabled() ? "on" : "off"
+          }`
         : "off (flag); tables must be applied before enabling",
     },
     {

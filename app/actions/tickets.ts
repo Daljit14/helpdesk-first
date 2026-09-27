@@ -56,6 +56,8 @@ const inputSchema = z.object({
     .default([]),
   attachmentIds: z.array(z.string().uuid()).max(50).default([]),
   attachmentPath: z.string().trim().min(1).optional(),
+  source: z.enum(["requester_agent"]).optional(),
+  skipTriage: z.boolean().optional(),
 });
 const ticketIdSchema = z.string().uuid();
 
@@ -139,13 +141,28 @@ export async function createWorkflowTicket(input: unknown): Promise<Result> {
     issue_title: issue?.title ?? "IT support request",
     status: "AI Reviewing",
   };
-  await notifyRequester("ticket.created", createdTicketSummary, {
-    status: "New",
-  });
+  if (parsed.data.source !== "requester_agent") {
+    await notifyRequester("ticket.created", createdTicketSummary, {
+      status: "New",
+    });
+  }
 
-  try {
-    after(() =>
-      triageWorkflowTicket({
+  if (!parsed.data.skipTriage && parsed.data.source !== "requester_agent") {
+    try {
+      after(() =>
+        triageWorkflowTicket({
+          ticketId,
+          organizationId,
+          userId: user.id,
+          issue: issue ?? null,
+          message: parsed.data.message,
+          platform: parsed.data.platform,
+          diagnosticAnswers: parsed.data.diagnosticAnswers,
+          due,
+        })
+      );
+    } catch {
+      void triageWorkflowTicket({
         ticketId,
         organizationId,
         userId: user.id,
@@ -154,19 +171,8 @@ export async function createWorkflowTicket(input: unknown): Promise<Result> {
         platform: parsed.data.platform,
         diagnosticAnswers: parsed.data.diagnosticAnswers,
         due,
-      })
-    );
-  } catch {
-    void triageWorkflowTicket({
-      ticketId,
-      organizationId,
-      userId: user.id,
-      issue: issue ?? null,
-      message: parsed.data.message,
-      platform: parsed.data.platform,
-      diagnosticAnswers: parsed.data.diagnosticAnswers,
-      due,
-    });
+      });
+    }
   }
   revalidatePath("/tickets");
   return { success: true, ticketId };

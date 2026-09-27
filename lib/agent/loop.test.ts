@@ -31,7 +31,7 @@ describe("requester agent loop", () => {
     expect(harness.steps.map((step) => step.kind)).toContain("final");
     expect(harness.model.requests[1]?.messages.at(-1)).toMatchObject({
       role: "tool_result",
-      content: result.modelText,
+      content: `${result.modelText}\n[evidence id: ev-1]`,
     });
     expect(harness.events.at(-1)).toMatchObject({
       type: "final_answer",

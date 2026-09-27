@@ -126,6 +126,25 @@ describe("workflow ticket actions", () => {
     expect(inserts[0]).toEqual(expect.objectContaining({ platform: "macOS" }));
   });
 
+  test("requester-agent backing tickets skip triage and requester notifications", async () => {
+    mocks.getCurrentUser.mockResolvedValue(user);
+    const { inserts } = setupAdmin();
+
+    await expect(
+      createWorkflowTicket({
+        message: "Requester agent action backing ticket",
+        platform: "Windows",
+        source: "requester_agent",
+        skipTriage: true,
+      })
+    ).resolves.toEqual({ success: true, ticketId });
+    expect(inserts[0]).toEqual(
+      expect.objectContaining({ platform: "Windows" })
+    );
+    expect(mocks.notifyRequester).not.toHaveBeenCalled();
+    expect(mocks.processAiIntake).not.toHaveBeenCalled();
+  });
+
   test("rejects unsupported ticket platform values", async () => {
     mocks.getCurrentUser.mockResolvedValue(user);
     const { inserts } = setupAdmin();

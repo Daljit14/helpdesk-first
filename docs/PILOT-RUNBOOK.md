@@ -1,3 +1,12 @@
+## Requester-agent actions
+
+Keep `HELP_DESK_REQUESTER_AGENT_ACTIONS_ENABLED` off until the organization
+allowlist, first-party evidence, gateway policy, verification, rollback, and
+audit checks are complete. During a pilot inspect consent, execution,
+verification, rollback, and requester confirmation events. “Talk to a human”
+remains available in every state; disable the action flag or use the kill
+switch to stop execution.
+
 ## Requester agent C1 pilot
 
 1. Apply `supabase/requester-agent.sql` after the prerequisite migrations.

@@ -4,6 +4,7 @@ import { handleAgentRequest, type AgentTurnDeps } from "./turn";
 import { budgetExceeded } from "./budgets";
 import type { AgentEvent, AgentSession } from "./types";
 import type { AgentToolResult } from "./tools";
+import type { ProposeOutcome } from "./actions";
 
 type HarnessAdmin = Record<string, never>;
 
@@ -34,6 +35,9 @@ export type AgentEvalHarness = {
   executedInputs: unknown[];
   executedTools: string[];
   alerts: number;
+  executePlanCalls: number;
+  gatewayCalls: number;
+  resolvedWithoutVerification: boolean;
   run: () => Promise<void>;
 };
 
@@ -66,6 +70,15 @@ export function createAgentEvalHarness(input: {
   message?: string;
   humanRequested?: boolean;
   context?: Array<{ role: "user" | "assistant"; content: string }>;
+  consent?: { approvalRequestId: string; decision: "approve" | "decline" };
+  confirm?: "yes" | "no";
+  proposeActionOutcome?: ProposeOutcome;
+  decideConsentResult?: Awaited<
+    ReturnType<typeof import("./actions").decideConsent>
+  >;
+  confirmOutcomeResult?: Awaited<
+    ReturnType<typeof import("./actions").confirmOutcome>
+  >;
 }): AgentEvalHarness {
   const current = session();
   const events: AgentEvent[] = [];
@@ -77,6 +90,9 @@ export function createAgentEvalHarness(input: {
   const executedInputs: unknown[] = [];
   const executedTools: string[] = [];
   let alerts = 0;
+  let executePlanCalls = 0;
+  let gatewayCalls = 0;
+  let resolvedWithoutVerification = false;
   const admin = {} as HarnessAdmin;
   const ticketId = "00000000-0000-4000-8000-000000000004";
   const writeStep: NonNullable<AgentLoopDeps["writeStep"]> = async (
@@ -152,6 +168,45 @@ export function createAgentEvalHarness(input: {
     alert: async () => {
       alerts += 1;
     },
+    proposeAction: async () => {
+      if (input.proposeActionOutcome?.kind === "consent_required")
+        executePlanCalls += 1;
+      return (
+        input.proposeActionOutcome ?? {
+          kind: "escalate",
+          reason: "scripted_proposal",
+        }
+      );
+    },
+    decideConsent: async (_admin, target, consent, emit) => {
+      if (consent.decision === "approve") gatewayCalls += 1;
+      const result = input.decideConsentResult ?? "invalid";
+      if (result === "declined")
+        emit({ type: "consent_declined", capabilityId: "device_flush_dns" });
+      if (result === "executed_verified_failed") {
+        emit({
+          type: "action_executing",
+          capabilityId: "device_flush_dns",
+          text: "Applying the fix.",
+        });
+        emit({
+          type: "verification_result",
+          status: "failed",
+          rollback: "succeeded",
+          text: "The fix was rolled back.",
+        });
+      }
+      if (result === "executed_verified_passed")
+        target.verified_execution_id = "00000000-0000-4000-8000-000000000005";
+      return result;
+    },
+    confirmOutcome: async (_admin, target, answer) => {
+      const result = input.confirmOutcomeResult ?? "rejected_no_verification";
+      if (answer === "yes" && result === "resolved") {
+        resolvedWithoutVerification = !target.verified_execution_id;
+      }
+      return result;
+    },
   };
   return {
     session: current,
@@ -169,12 +224,23 @@ export function createAgentEvalHarness(input: {
     get alerts() {
       return alerts;
     },
+    get executePlanCalls() {
+      return executePlanCalls;
+    },
+    get gatewayCalls() {
+      return gatewayCalls;
+    },
+    get resolvedWithoutVerification() {
+      return resolvedWithoutVerification;
+    },
     run: () =>
       handleAgentRequest({
         admin: admin as never,
         session: current,
         message: input.message ?? "Wi-Fi keeps dropping",
         humanRequested: input.humanRequested,
+        consent: input.consent,
+        confirm: input.confirm,
         emit: (event) => events.push(event),
         signal: new AbortController().signal,
         deps: {

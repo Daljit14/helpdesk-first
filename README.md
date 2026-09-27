@@ -1,3 +1,11 @@
+## Requester-agent C2
+
+Requester actions are disabled by default. Enable the base agent and action
+flag separately, and allowlist the organization before piloting. Every action
+is policy checked, consent bound to a run and plan step, gateway executed,
+verified, rollback-aware, and confirmed by the requester before resolution.
+See `SETUP-NOTES-C2.md` and the pilot runbook for setup and verification.
+
 # HelpDesk First
 
 Level-1 IT support self-service portal built with Next.js, TypeScript, and Tailwind CSS.

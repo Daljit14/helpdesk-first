@@ -1,7 +1,7 @@
 import { guardModelInput } from "@/lib/autonomy/guardrails/input";
 
 export function wrapUntrusted(source: string, value: unknown): string {
-  const raw = JSON.stringify(value);
+  const raw = JSON.stringify(value ?? null);
   const guarded = guardModelInput([{ source: "event", text: raw }]);
   if (guarded.blocked) throw new Error("injection_in_tool_output");
   return `<untrusted_data source="${source}">${JSON.stringify(

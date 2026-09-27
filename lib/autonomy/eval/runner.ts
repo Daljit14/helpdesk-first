@@ -543,6 +543,7 @@ async function evaluateCase(
             ReturnType<typeof import("@/lib/agent/actions").confirmOutcome>
           >
         | undefined,
+      autonomyScenario: script.autonomyScenario,
     });
     await harness.run();
     const halted = harness.events.find((event) => event.type === "halted");

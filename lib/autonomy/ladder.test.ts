@@ -3,6 +3,7 @@ import {
   evaluateDemotion,
   evaluatePromotion,
   isSnapshotReversible,
+  recordAutonomyOutcome,
   type LadderStats,
 } from "./ladder";
 import type { CapabilityDefinition } from "./capabilities/types";
@@ -30,6 +31,60 @@ const reversible = {
 } as unknown as CapabilityDefinition;
 
 describe("autonomy ladder", () => {
+  test("records outcomes without promoting a capability", async () => {
+    const rows = new Map<string, Record<string, unknown>>();
+    const outcomes: Record<string, unknown>[] = [];
+    const admin = {
+      from(table: string) {
+        const query = {
+          select: () => query,
+          eq: () => query,
+          order: () => query,
+          limit: () => query,
+          maybeSingle: async () => ({
+            data:
+              table === "capability_autonomy_stats"
+                ? (rows.get("stats") ?? null)
+                : table === "capability_breakers"
+                  ? null
+                  : null,
+            error: null,
+          }),
+          insert: async (value: Record<string, unknown>) => {
+            if (table === "capability_autonomy_outcomes") outcomes.push(value);
+            return { data: value, error: null };
+          },
+          upsert: async (value: Record<string, unknown>) => {
+            if (table === "capability_autonomy_stats") rows.set("stats", value);
+            return { data: value, error: null };
+          },
+        };
+        return query;
+      },
+    };
+    rows.set("stats", {
+      ...stats({ tier: "autorun" }),
+      tier: "autorun",
+    });
+    await recordAutonomyOutcome(admin as never, {
+      organizationId: "org",
+      capabilityId: "device_flush_dns",
+      tierAtTime: "autorun",
+      outcome: "verified",
+    });
+    expect(rows.get("stats")?.tier).toBe("autorun");
+    expect(outcomes).toHaveLength(1);
+
+    rows.set("stats", stats({ tier: "consent" }));
+    await recordAutonomyOutcome(admin as never, {
+      organizationId: "org",
+      capabilityId: "device_flush_dns",
+      tierAtTime: "consent",
+      outcome: "verified",
+    });
+    expect(rows.get("stats")?.tier).toBe("consent");
+  });
+
   test("requires consent tier, thresholds, and reversibility for promotion", () => {
     expect(
       evaluatePromotion(stats(), reversible, {

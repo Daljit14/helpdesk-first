@@ -177,6 +177,15 @@ const requesterAgent = z
     actionOutcome: z.unknown().optional(),
     consentResult: z.string().optional(),
     confirmResult: z.string().optional(),
+    autonomyScenario: z
+      .object({
+        tier: z.enum(["consent", "autorun"]),
+        sessionConsent: z.boolean(),
+        denylisted: z.boolean().optional(),
+        rollbackFailed: z.boolean().optional(),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 

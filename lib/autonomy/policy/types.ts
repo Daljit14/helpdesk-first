@@ -50,6 +50,13 @@ export type PolicyInput = {
   confidence: number | null;
   evidenceQuality: EvidenceQuality;
   consent: { user: boolean; technician: boolean };
+  provenance?: {
+    sessionConsent?: {
+      userId: string;
+      grantedAt: string;
+      capabilityIds: string[];
+    };
+  };
   priorFailedAttempts: number;
   parametersValid: boolean;
   sensitivity: {

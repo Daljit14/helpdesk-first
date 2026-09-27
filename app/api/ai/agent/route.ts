@@ -6,6 +6,7 @@ import {
   isRequesterAgentEnabled,
   isRequesterAgentActionsEnabled,
   isRequesterAgentEnabledForOrg,
+  isRequesterAgentAutorunEnabledForOrg,
 } from "@/lib/admin/flags";
 import { createRateLimiter, checkRateLimit } from "@/lib/ai/rate-limit";
 import {
@@ -36,6 +37,7 @@ const inputSchema = z
       })
       .optional(),
     confirm: z.enum(["yes", "no"]).optional(),
+    sessionConsent: z.enum(["grant", "revoke"]).optional(),
   })
   .strict();
 
@@ -67,12 +69,18 @@ export async function POST(request: Request): Promise<Response> {
   if (
     !parsed.data.message &&
     parsed.data.consent === undefined &&
-    parsed.data.confirm === undefined
+    parsed.data.confirm === undefined &&
+    parsed.data.sessionConsent === undefined
   )
     return Response.json({ error: "Invalid request" }, { status: 400 });
   if (
     (parsed.data.consent !== undefined || parsed.data.confirm !== undefined) &&
     !isRequesterAgentActionsEnabled()
+  )
+    return Response.json({ error: "Not found" }, { status: 404 });
+  if (
+    parsed.data.sessionConsent !== undefined &&
+    !isRequesterAgentAutorunEnabledForOrg(organizationId)
   )
     return Response.json({ error: "Not found" }, { status: 404 });
   const admin = createAdminClient();
@@ -109,6 +117,7 @@ export async function POST(request: Request): Promise<Response> {
           message: parsed.data.message ?? "",
           consent: parsed.data.consent,
           confirm: parsed.data.confirm,
+          sessionConsent: parsed.data.sessionConsent,
           humanRequested: parsed.data.humanRequested,
           platform: parsed.data.platform ?? undefined,
           emit,

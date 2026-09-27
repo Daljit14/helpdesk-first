@@ -55,7 +55,7 @@ alter table public.agent_sessions add column if not exists verified_execution_id
 alter table public.agent_sessions add column if not exists user_confirmed_at timestamptz;
 
 alter table public.agent_steps drop constraint if exists agent_steps_kind_check;
-alter table public.agent_steps add constraint agent_steps_kind_check check (kind in ('user_message','thinking_summary','tool_started','tool_result','tool_rejected','final','claim_stripped','escalated','halted','error','action_proposed','consent_required','consent_decided','consent_declined','action_executing','verification_result','rollback_result','confirm_required','user_feedback','resolved','security_incident','action_rejected'));
+alter table public.agent_steps add constraint agent_steps_kind_check check (kind in ('user_message','thinking_summary','tool_started','tool_result','tool_rejected','final','claim_stripped','escalated','halted','error','action_proposed','consent_required','consent_decided','consent_declined','action_executing','verification_result','rollback_result','confirm_required','user_feedback','resolved','security_incident','action_rejected','session_consent_offered','session_consent_granted','session_consent_revoked','action_autorun','action_shadowed','tier_demoted'));
 
 alter table public.agent_sessions enable row level security;
 alter table public.agent_steps enable row level security;

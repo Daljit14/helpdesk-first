@@ -1,5 +1,8 @@
 ## C2 requester-agent status
 
+Phase C3 adds a default-off, admin-promoted autonomy ladder with automatic
+demotion and capability-scoped requester session consent.
+
 Requester-agent C2 is implemented behind separate default-off flags. The
 flow includes consent-bound action execution, verification, rollback,
 requester confirmation, and append-only provenance. Production enablement

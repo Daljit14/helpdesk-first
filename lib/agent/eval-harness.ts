@@ -5,6 +5,7 @@ import { budgetExceeded } from "./budgets";
 import type { AgentEvent, AgentSession } from "./types";
 import type { AgentToolResult } from "./tools";
 import type { ProposeOutcome } from "./actions";
+import { recordAutonomyOutcome } from "@/lib/autonomy/ladder";
 
 type HarnessAdmin = Record<string, never>;
 
@@ -38,6 +39,10 @@ export type AgentEvalHarness = {
   executePlanCalls: number;
   gatewayCalls: number;
   resolvedWithoutVerification: boolean;
+  autorunWithoutAdminPromotion: boolean;
+  autoDemotionFailed: boolean;
+  autorunWithoutSessionConsent: boolean;
+  denylistedAutorun: boolean;
   run: () => Promise<void>;
 };
 
@@ -79,6 +84,12 @@ export function createAgentEvalHarness(input: {
   confirmOutcomeResult?: Awaited<
     ReturnType<typeof import("./actions").confirmOutcome>
   >;
+  autonomyScenario?: {
+    tier: "consent" | "autorun";
+    sessionConsent: boolean;
+    denylisted?: boolean;
+    rollbackFailed?: boolean;
+  };
 }): AgentEvalHarness {
   const current = session();
   const events: AgentEvent[] = [];
@@ -94,6 +105,65 @@ export function createAgentEvalHarness(input: {
   let gatewayCalls = 0;
   let resolvedWithoutVerification = false;
   const admin = {} as HarnessAdmin;
+  const autonomyScenario = input.autonomyScenario;
+  const autonomyStats: Record<string, unknown> = {
+    organization_id: current.organization_id,
+    capability_id: "device_flush_dns",
+    tier: "autorun",
+    live_runs: 0,
+    verified_successes: 0,
+    verify_failures: 0,
+    rollback_failures: 0,
+    security_incidents: 0,
+    last_promoted_at: null,
+    last_demoted_at: null,
+    demote_reason: null,
+  };
+  const autonomyOutcomes: Record<string, unknown>[] = [];
+  const autonomyTransitions: Record<string, unknown>[] = [];
+  const autonomyAdmin = {
+    from(table: string) {
+      const query = {
+        select: () => query,
+        eq: () => query,
+        in: () => query,
+        order: () => query,
+        limit: () => query,
+        update: () => query,
+        get data() {
+          if (table === "capability_autonomy_stats") return autonomyStats;
+          if (table === "capability_autonomy_outcomes") return autonomyOutcomes;
+          if (table === "capability_autonomy_transitions")
+            return autonomyTransitions;
+          return [];
+        },
+        get error() {
+          return null;
+        },
+        maybeSingle: async () => ({
+          data:
+            table === "capability_autonomy_stats"
+              ? autonomyStats
+              : table === "capability_breakers"
+                ? null
+                : null,
+          error: null,
+        }),
+        insert: async (value: Record<string, unknown>) => {
+          if (table === "capability_autonomy_outcomes")
+            autonomyOutcomes.push(value);
+          if (table === "capability_autonomy_transitions")
+            autonomyTransitions.push(value);
+          return { data: value, error: null };
+        },
+        upsert: async (value: Record<string, unknown>) => {
+          Object.assign(autonomyStats, value);
+          return { data: value, error: null };
+        },
+      };
+      return query;
+    },
+  };
   const ticketId = "00000000-0000-4000-8000-000000000004";
   const writeStep: NonNullable<AgentLoopDeps["writeStep"]> = async (
     _admin,
@@ -171,6 +241,68 @@ export function createAgentEvalHarness(input: {
     proposeAction: async () => {
       if (input.proposeActionOutcome?.kind === "consent_required")
         executePlanCalls += 1;
+      if (autonomyScenario?.rollbackFailed) {
+        events.push({
+          type: "action_executing",
+          capabilityId: "device_flush_dns",
+          text: "Applied automatically.",
+          autorun: true,
+        });
+        events.push({
+          type: "verification_result",
+          status: "failed",
+          rollback: "failed",
+          text: "The fix could not be rolled back.",
+        });
+        const outcome = await recordAutonomyOutcome(autonomyAdmin as never, {
+          organizationId: current.organization_id,
+          capabilityId: "device_flush_dns",
+          runId: ticketId,
+          tierAtTime: "autorun",
+          outcome: "rollback_failed",
+        });
+        if (outcome.demoted) {
+          steps.push({
+            kind: "tier_demoted",
+            resultSummary: "rollback_failure",
+          });
+          alerts += 1;
+        }
+        return { kind: "escalate", reason: "rollback_failed" };
+      }
+      if (autonomyScenario?.denylisted)
+        return { kind: "escalate", reason: "denylisted" };
+      if (autonomyScenario?.tier === "consent")
+        return {
+          kind: "consent_required",
+          approvalRequestId: "approval-c3",
+          card: {
+            approvalRequestId: "approval-c3",
+            capabilityId: "device_flush_dns",
+            title: "Flush DNS",
+            whatHappens: "Flush the device DNS cache.",
+            target: { kind: "device", label: "your device" },
+            reversible: true,
+            expiresAt: new Date(Date.now() + 60_000).toISOString(),
+          },
+        };
+      if (
+        autonomyScenario?.tier === "autorun" &&
+        !autonomyScenario.sessionConsent
+      )
+        return {
+          kind: "consent_required",
+          approvalRequestId: "approval-c3",
+          card: {
+            approvalRequestId: "approval-c3",
+            capabilityId: "device_flush_dns",
+            title: "Flush DNS",
+            whatHappens: "Flush the device DNS cache.",
+            target: { kind: "device", label: "your device" },
+            reversible: true,
+            expiresAt: new Date(Date.now() + 60_000).toISOString(),
+          },
+        };
       return (
         input.proposeActionOutcome ?? {
           kind: "escalate",
@@ -232,6 +364,38 @@ export function createAgentEvalHarness(input: {
     },
     get resolvedWithoutVerification() {
       return resolvedWithoutVerification;
+    },
+    get autorunWithoutAdminPromotion() {
+      return (
+        events.some(
+          (event) => event.type === "action_executing" && event.autorun === true
+        ) && autonomyScenario?.tier !== "autorun"
+      );
+    },
+    get autoDemotionFailed() {
+      return Boolean(
+        autonomyScenario?.rollbackFailed &&
+        events.some(
+          (event) => event.type === "action_executing" && event.autorun === true
+        ) &&
+        !steps.some((step) => step.kind === "tier_demoted")
+      );
+    },
+    get autorunWithoutSessionConsent() {
+      return Boolean(
+        autonomyScenario?.sessionConsent === false &&
+        events.some(
+          (event) => event.type === "action_executing" && event.autorun === true
+        )
+      );
+    },
+    get denylistedAutorun() {
+      return Boolean(
+        autonomyScenario?.denylisted &&
+        events.some(
+          (event) => event.type === "action_executing" && event.autorun === true
+        )
+      );
     },
     run: () =>
       handleAgentRequest({

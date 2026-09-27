@@ -15,6 +15,7 @@ export type BuildPolicyInputParams = {
   platform: CapabilityPlatform | null;
   ticketCategory: string | null;
   consent: { user: boolean; technician: boolean };
+  provenance?: PolicyInput["provenance"];
   priorFailedAttempts: number;
   parametersValid: boolean;
   orgPolicy: {
@@ -86,6 +87,7 @@ export function buildPolicyInput({
   platform,
   ticketCategory,
   consent,
+  provenance,
   priorFailedAttempts,
   parametersValid,
   orgPolicy,
@@ -119,6 +121,7 @@ export function buildPolicyInput({
     confidence: confidenceFor(evidence),
     evidenceQuality: evidenceQualityFor(evidence),
     consent: { ...consent },
+    ...(provenance ? { provenance } : {}),
     priorFailedAttempts,
     parametersValid,
     sensitivity: {

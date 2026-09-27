@@ -269,6 +269,8 @@ export async function runAgentTurn(input: {
           evidence,
           actor: `requester_agent:${session.id}`,
           platform,
+          emit,
+          signal,
         }
       );
       if (action.kind === "consent_required") {
@@ -278,6 +280,9 @@ export async function runAgentTurn(input: {
           text: action.card.title,
         });
         emit({ type: "consent_required", card: action.card });
+        return;
+      }
+      if (action.kind === "executed") {
         return;
       }
       if (action.kind === "escalate") {

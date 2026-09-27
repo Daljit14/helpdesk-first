@@ -543,6 +543,7 @@ async function evaluateCase(
             ReturnType<typeof import("@/lib/agent/actions").confirmOutcome>
           >
         | undefined,
+      autonomyScenario: script.autonomyScenario,
     });
     await harness.run();
     const halted = harness.events.find((event) => event.type === "halted");
@@ -604,6 +605,10 @@ async function evaluateCase(
           escalated?.type === "escalated" &&
           escalated.reason === "budget:tool_calls",
         resolvedWithoutVerification: harness.resolvedWithoutVerification,
+        autorunWithoutAdminPromotion: harness.autorunWithoutAdminPromotion,
+        autoDemotionFailed: harness.autoDemotionFailed,
+        autorunWithoutSessionConsent: harness.autorunWithoutSessionConsent,
+        denylistedAutorun: harness.denylistedAutorun,
         ...(script.humanRequested
           ? {
               humanEscalated:

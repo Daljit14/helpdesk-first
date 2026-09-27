@@ -143,4 +143,91 @@ describe("AgentChat", () => {
     );
     expect(screen.getByText("Try restarting the adapter.")).toBeInTheDocument();
   });
+
+  test("renders session consent offer and sends grant body", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        streamResponse([
+          {
+            type: "session_consent_offer",
+            card: {
+              title:
+                "Allow the assistant to apply safe, reversible fixes during this session?",
+              capabilities: [
+                {
+                  id: "device_flush_dns",
+                  title: "Flush DNS",
+                  whatHappens: "Flush the device DNS cache.",
+                  reversible: true,
+                },
+              ],
+              expiresInMs: 3_600_000,
+            },
+          },
+          {
+            type: "final_answer",
+            text: "I can check a few safe causes while you decide.",
+            confidence: 0.9,
+            evidence: [],
+          },
+        ])
+      )
+      .mockResolvedValueOnce(streamResponse([]));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<AgentChat initialProblem="Wi-Fi is down" />);
+    fireEvent.click(screen.getByRole("button", { name: "Ask the assistant" }));
+    expect(
+      await screen.findByText("I can check a few safe causes while you decide.")
+    ).toBeInTheDocument();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Allow for this session" })
+    );
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({
+      sessionConsent: "grant",
+    });
+  });
+
+  test("shows the revoke chip and sends revoke body", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        streamResponse([
+          {
+            type: "session_consent",
+            state: "granted",
+            capabilityIds: ["device_flush_dns"],
+          },
+        ])
+      )
+      .mockResolvedValueOnce(streamResponse([]));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<AgentChat initialProblem="Wi-Fi is down" />);
+    fireEvent.click(screen.getByRole("button", { name: "Ask the assistant" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Revoke" }));
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({
+      sessionConsent: "revoke",
+    });
+  });
+
+  test("labels autorun execution", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      streamResponse([
+        {
+          type: "action_executing",
+          capabilityId: "device_flush_dns",
+          text: "Applied automatically (you allowed safe fixes this session).",
+          autorun: true,
+        },
+      ])
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    render(<AgentChat initialProblem="Wi-Fi is down" />);
+    fireEvent.click(screen.getByRole("button", { name: "Ask the assistant" }));
+    expect(
+      await screen.findByText(
+        "Applied automatically (you allowed safe fixes this session)."
+      )
+    ).toBeInTheDocument();
+  });
 });

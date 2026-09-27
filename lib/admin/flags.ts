@@ -103,7 +103,18 @@ export function isRequesterAgentActionsEnabled(): boolean {
 }
 
 export function isRequesterAgentAutorunEnabled(): boolean {
-  return false;
+  return process.env.HELP_DESK_REQUESTER_AGENT_AUTORUN_ENABLED === "true";
+}
+
+export function isRequesterAgentAutorunEnabledForOrg(
+  organizationId: string
+): boolean {
+  return (
+    isRequesterAgentEnabled() &&
+    isRequesterAgentEnabledForOrg(organizationId) &&
+    isRequesterAgentActionsEnabled() &&
+    isRequesterAgentAutorunEnabled()
+  );
 }
 
 export function isRequesterAgentVisionEnabled(): boolean {

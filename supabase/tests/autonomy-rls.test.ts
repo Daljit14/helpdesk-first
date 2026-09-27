@@ -29,6 +29,9 @@ const autonomyTables = [
   "shadow_decisions",
   "organization_autonomy_policies",
   "audit_events",
+  "capability_autonomy_stats",
+  "capability_autonomy_outcomes",
+  "capability_autonomy_transitions",
 ] as const;
 
 describe.skipIf(!configured)("autonomy RLS integration", () => {

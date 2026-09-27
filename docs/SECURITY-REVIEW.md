@@ -1,4 +1,8 @@
 C2 requester-agent actions are default-off and organization allowlisted.
+
+C3 keeps autorun default-off, requires human-admin promotion, binds consent to
+the requester session and capability snapshot, and automatically demotes on
+rollback, security, breaker, or rolling-success failures.
 State-changing actions require deterministic policy approval, short-lived
 consent bound to the run and plan step, gateway execution, verification,
 rollback handling, and requester confirmation. Research-only evidence cannot

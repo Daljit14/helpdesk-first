@@ -10,6 +10,9 @@ const mocks = vi.hoisted(() => ({
   writeStep: vi.fn(),
   updateSession: vi.fn(),
   escalate: vi.fn(),
+  readTier: vi.fn(),
+  isSnapshotReversible: vi.fn(),
+  autorunEnabled: vi.fn(),
 }));
 
 vi.mock("@/lib/autonomy/executor/execute", () => ({
@@ -18,6 +21,26 @@ vi.mock("@/lib/autonomy/executor/execute", () => ({
 vi.mock("@/lib/autonomy/kill-switches", () => ({
   readKillSwitches: mocks.readKillSwitches,
 }));
+vi.mock("@/lib/autonomy/ladder", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/autonomy/ladder")>(
+    "@/lib/autonomy/ladder"
+  );
+  return {
+    ...actual,
+    readTier: mocks.readTier,
+    isSnapshotReversible: mocks.isSnapshotReversible,
+  };
+});
+vi.mock("@/lib/admin/flags", async () => {
+  const actual =
+    await vi.importActual<typeof import("@/lib/admin/flags")>(
+      "@/lib/admin/flags"
+    );
+  return {
+    ...actual,
+    isRequesterAgentAutorunEnabledForOrg: mocks.autorunEnabled,
+  };
+});
 vi.mock("@/app/actions/resolution", () => ({
   consumeAiConsent: mocks.consumeAiConsent,
 }));
@@ -45,7 +68,7 @@ import type { ResolutionRun } from "@/lib/autonomy/orchestrator";
 import { canTransition } from "@/lib/autonomy/state-machine";
 import type { AgentSession } from "./types";
 
-const session = {
+const session: AgentSession = {
   id: "session-1",
   organization_id: "org-1",
   requester_id: "user-1",
@@ -63,6 +86,79 @@ const session = {
   security_flag: false,
   updated_at: new Date().toISOString(),
 };
+
+const run: ResolutionRun = {
+  id: "run-1",
+  organization_id: session.organization_id,
+  ticket_id: "ticket-1",
+  status: "planning",
+  previous_status: null,
+  attempts: 1,
+  max_attempts: 3,
+  cost_cents: 0,
+  budget_cents: 100,
+  deadline_at: new Date(Date.now() + 60_000).toISOString(),
+  initiated_by: "requester_agent:session-1",
+  planner_version: null,
+  model: null,
+  prompt_version: null,
+  policy_version: null,
+  escalation_reason: null,
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+  completed_at: null,
+};
+
+function actionAdmin(options: { approval?: Record<string, unknown> } = {}) {
+  const inserts: Array<{ table: string; value: unknown }> = [];
+  const query = (table: string) => {
+    const chain: Record<string, (...args: unknown[]) => unknown> = {};
+    chain.select = () => chain;
+    chain.eq = () => chain;
+    chain.in = () => chain;
+    chain.gte = () => chain;
+    chain.order = () => chain;
+    chain.limit = () => chain;
+    chain.update = () => chain;
+    chain.insert = (value: unknown) => {
+      inserts.push({ table, value });
+      return chain;
+    };
+    chain.single = async () => ({ data: { id: "plan-step-1" }, error: null });
+    chain.maybeSingle = async () => ({
+      data:
+        table === "approval_requests"
+          ? (options.approval ?? null)
+          : table === "tickets"
+            ? { platform: "Windows", user_id: "user-1" }
+            : table === "devices_public"
+              ? { hostname: "laptop-1" }
+              : null,
+      error: null,
+    });
+    chain.then = ((resolve: (value: unknown) => unknown) =>
+      Promise.resolve({ data: [], error: null }).then(resolve)) as (
+      ...args: unknown[]
+    ) => unknown;
+    return chain;
+  };
+  return {
+    from: vi.fn((table: string) => query(table)),
+    inserts,
+  };
+}
+
+function proposalSession(overrides: Partial<AgentSession> = {}): AgentSession {
+  return {
+    ...session,
+    backing_ticket_id: "ticket-1",
+    autorun_consent_granted_at: new Date().toISOString(),
+    autorun_consent_revoked_at: null,
+    autorun_consent_expires_at: new Date(Date.now() + 60_000).toISOString(),
+    autorun_consent_capabilities: ["device_flush_dns"],
+    ...overrides,
+  };
+}
 
 describe("requester action proposals", () => {
   beforeEach(() => {
@@ -84,6 +180,201 @@ describe("requester action proposals", () => {
         target: typeof session,
         values: Record<string, unknown>
       ) => Object.assign(target, values)
+    );
+    mocks.readTier.mockResolvedValue("consent");
+    mocks.isSnapshotReversible.mockReturnValue(true);
+    mocks.autorunEnabled.mockReturnValue(true);
+    mocks.startRun.mockResolvedValue({ run, created: false });
+    mocks.transitionRun.mockImplementation(
+      async (
+        _admin: unknown,
+        current: ResolutionRun,
+        status: ResolutionRun["status"]
+      ) => ({ ...current, status, previous_status: current.status })
+    );
+  });
+
+  test("passes covered session consent to autorun and writes an autorun step", async () => {
+    mocks.readTier.mockResolvedValue("autorun");
+    mocks.executePlan.mockResolvedValue({ status: "executing" });
+    const target = proposalSession();
+    const admin = actionAdmin();
+    const signal = new AbortController();
+    signal.abort();
+
+    await proposeAction(
+      admin as never,
+      target,
+      {
+        capabilityId: "device_flush_dns",
+        params: {},
+        hypothesisId: "ev-1",
+        rationale: "diagnostics",
+      },
+      {
+        actor: "requester_agent:session-1",
+        evidence: [{ id: "ev-1", tool: "get_device_status" }],
+        signal: signal.signal,
+      }
+    );
+
+    const deps = mocks.executePlan.mock.calls[0][3];
+    expect(deps).toEqual(
+      expect.objectContaining({
+        sessionConsent: {
+          userId: "user-1",
+          grantedAt: target.autorun_consent_granted_at,
+          capabilityIds: ["device_flush_dns"],
+        },
+      })
+    );
+    expect(deps.forceUserConsent).toBeUndefined();
+    expect(mocks.writeStep).toHaveBeenCalledWith(
+      admin,
+      target,
+      expect.objectContaining({ kind: "action_autorun" })
+    );
+  });
+
+  test.each<
+    [
+      string,
+      {
+        tier: "consent" | "autorun";
+        flag?: boolean;
+        reversible?: boolean;
+        consent?: null;
+        overrides?: Partial<AgentSession>;
+      },
+    ]
+  >([
+    ["autorun flag off", { tier: "autorun", flag: false }],
+    ["missing consent", { tier: "autorun", consent: null }],
+    [
+      "expired consent",
+      {
+        tier: "autorun",
+        overrides: {
+          autorun_consent_expires_at: new Date(
+            Date.now() - 1_000
+          ).toISOString(),
+        },
+      },
+    ],
+    [
+      "revoked consent",
+      {
+        tier: "autorun",
+        overrides: { autorun_consent_revoked_at: new Date().toISOString() },
+      },
+    ],
+    ["consent tier", { tier: "consent" }],
+    ["non-reversible capability", { tier: "autorun", reversible: false }],
+  ])("forces user consent for %s", async (_name, options) => {
+    mocks.readTier.mockResolvedValue(options.tier);
+    mocks.autorunEnabled.mockReturnValue(options.flag ?? true);
+    mocks.isSnapshotReversible.mockReturnValue(options.reversible ?? true);
+    mocks.executePlan.mockResolvedValue({ status: "escalated" });
+    const target = proposalSession(options.overrides);
+    if ("consent" in options && options.consent === null) {
+      target.autorun_consent_granted_at = null;
+      target.autorun_consent_expires_at = null;
+    }
+
+    await proposeAction(
+      actionAdmin() as never,
+      target,
+      {
+        capabilityId: "device_flush_dns",
+        params: {},
+        hypothesisId: "ev-1",
+        rationale: "diagnostics",
+      },
+      {
+        actor: "requester_agent:session-1",
+        evidence: [{ id: "ev-1", tool: "get_device_status" }],
+      }
+    );
+
+    expect(mocks.executePlan.mock.calls[0][3]).toEqual(
+      expect.objectContaining({
+        forceUserConsent: true,
+        consentTtlMs: 300_000,
+      })
+    );
+    expect(mocks.executePlan.mock.calls[0][3].sessionConsent).toBeUndefined();
+  });
+
+  test.each([
+    ["shadow", "tier_shadow", "action_shadowed"],
+    ["disabled", "tier_disabled", "action_rejected"],
+  ] as const)(
+    "rejects %s before creating backing work",
+    async (tier, code, stepKind) => {
+      mocks.readTier.mockResolvedValue(tier);
+      const admin = actionAdmin();
+      const result = await proposeAction(
+        admin as never,
+        proposalSession(),
+        {
+          capabilityId: "device_flush_dns",
+          params: {},
+          hypothesisId: "ev-1",
+          rationale: "diagnostics",
+        },
+        {
+          actor: "requester_agent:session-1",
+          evidence: [{ id: "ev-1", tool: "get_device_status" }],
+        }
+      );
+
+      expect(result).toMatchObject({ kind: "rejected", code });
+      expect(mocks.writeStep).toHaveBeenCalledWith(
+        admin,
+        expect.anything(),
+        expect.objectContaining({ kind: stepKind })
+      );
+      expect(admin.inserts).not.toContainEqual(
+        expect.objectContaining({ table: "resolution_steps" })
+      );
+      expect(mocks.startRun).not.toHaveBeenCalled();
+      expect(mocks.executePlan).not.toHaveBeenCalled();
+    }
+  );
+
+  test("falls back to a consent card when autorun execution awaits consent", async () => {
+    mocks.readTier.mockResolvedValue("autorun");
+    mocks.executePlan.mockResolvedValue({ status: "awaiting_consent" });
+    const approval = {
+      id: "approval-1",
+      run_id: "run-1",
+      step_id: "plan-step-1",
+      capability_id: "device_flush_dns",
+      parameter_hash: "hash-1",
+      expires_at: new Date(Date.now() + 60_000).toISOString(),
+    };
+    const admin = actionAdmin({ approval });
+    const target = proposalSession();
+    const result = await proposeAction(
+      admin as never,
+      target,
+      {
+        capabilityId: "device_flush_dns",
+        params: {},
+        hypothesisId: "ev-1",
+        rationale: "diagnostics",
+      },
+      {
+        actor: "requester_agent:session-1",
+        evidence: [{ id: "ev-1", tool: "get_device_status" }],
+      }
+    );
+
+    expect(result.kind).toBe("consent_required");
+    expect(mocks.writeStep).not.toHaveBeenCalledWith(
+      admin,
+      target,
+      expect.objectContaining({ kind: "action_autorun" })
     );
   });
 

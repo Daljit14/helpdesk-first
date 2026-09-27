@@ -16,6 +16,8 @@ import { getDeviceShadowActivity } from "@/lib/admin/device-shadow";
 import { resolveDeviceOwnerEmails } from "@/lib/admin/device-owner";
 import { isRealDeviceJob } from "@/lib/device-agent/server/job-status";
 import { DeviceJobCancel } from "@/components/admin/device-job-cancel";
+import { CapabilityAutonomyLadder } from "@/components/admin/capability-autonomy-ladder";
+import { listLadder } from "@/lib/autonomy/ladder";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -50,7 +52,7 @@ export default async function DevicesPage({
 
   const admin = createAdminClient();
   const params = await searchParams;
-  const [devices, tokens, shadows, policies] = await Promise.all([
+  const [devices, tokens, shadows, policies, ladder] = await Promise.all([
     admin
       .from("devices_public")
       .select(
@@ -67,6 +69,7 @@ export default async function DevicesPage({
       includeNonReal: params.showAllJobs === "1",
     }),
     readConsentPolicies(admin, session.organizationId),
+    listLadder(admin, session.organizationId),
   ]);
   const deviceRows = devices.data ?? [];
   const owners = await resolveDeviceOwnerEmails(
@@ -150,6 +153,10 @@ export default async function DevicesPage({
               ))
             )}
           </div>
+        </section>
+        <section className="mt-6">
+          <h2 className="mb-3 text-xl font-semibold">Autonomy ladder</h2>
+          <CapabilityAutonomyLadder rows={ladder} />
         </section>
 
         <div className="mt-8 grid gap-6 lg:grid-cols-2">

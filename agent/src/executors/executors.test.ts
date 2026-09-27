@@ -97,6 +97,13 @@ describe("device executors", () => {
     expect(printer).not.toBeNull();
     await printer!.snapshot(fake.exec, {});
     expect(fake.calls.at(-1)?.args.at(-1)).toContain("Get-Printer");
+    await printer!.apply(fake.exec, {}, {});
+    const clearQueue = fake.calls.find(
+      ({ file, args }) =>
+        file === "powershell.exe" && args.at(-1)?.includes("PRINTERS")
+    );
+    expect(clearQueue?.args.at(-1)).toContain("-Path");
+    expect(clearQueue?.args.at(-1)).not.toContain("-LiteralPath");
   });
 
   it("parses scalar security status and ISO signature timestamps", async () => {
@@ -131,6 +138,20 @@ describe("device executors", () => {
     expect(
       (await signatures!.verify(fake.exec, {}, signatureSnapshot)).ok
     ).toBe(true);
+  });
+
+  it("rejects unchanged Defender signature timestamps", async () => {
+    const timestamp = "2026-09-20T00:00:00.0000000Z";
+    const executor = getExecutor(
+      "device_security_update_signatures",
+      "windows"
+    );
+    const result = await executor!.verify(
+      async () => timestamp,
+      {},
+      { signatureTimestamp: timestamp }
+    );
+    expect(result.ok).toBe(false);
   });
 
   it("fails closed when threat verification output is unparseable", async () => {

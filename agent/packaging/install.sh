@@ -14,7 +14,7 @@ if [ "${1:-install}" = "uninstall" ]; then
 fi
 
 mkdir -p "$install_path"
-cp "$script_dir/../dist/helpdesk-agent.js" "$install_path/helpdesk-agent.js"
+cp "$script_dir/../helpdesk-agent.js" "$install_path/helpdesk-agent.js"
 if command -v systemctl >/dev/null 2>&1; then
   install -d /etc/systemd/system
   install "$script_dir/linux/helpdesk-agent.service" /etc/systemd/system/helpdesk-agent.service

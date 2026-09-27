@@ -1,6 +1,7 @@
 import type { DiagnosticKind } from "../../../lib/device-agent/protocol";
 import { boundedError, record, type Collector } from "./index";
 import { LINUX_SERVICE_COMMANDS, SERVICE_NAMES } from "../service-maps";
+import { userSystemctl } from "../user-systemctl";
 
 function commandCollector(
   kind: DiagnosticKind,
@@ -162,10 +163,10 @@ export const linuxCollectors: Collector[] = [
       let pulse = "";
       let pactl = "";
       try {
-        pipewire = await exec("systemctl", ["--user", "is-active", "pipewire"]);
+        pipewire = await userSystemctl(exec, ["is-active", "pipewire"]);
       } catch {}
       try {
-        pulse = await exec("systemctl", ["--user", "is-active", "pulseaudio"]);
+        pulse = await userSystemctl(exec, ["is-active", "pulseaudio"]);
       } catch {}
       try {
         pactl = await exec("pactl", ["info"]);

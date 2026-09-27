@@ -92,8 +92,9 @@ const updateSignatures: Executor = {
     const currentTimestamp = output.trim();
     const currentDate = Date.parse(currentTimestamp);
     const ok =
+      Number.isFinite(beforeDate) &&
       Number.isFinite(currentDate) &&
-      (!Number.isFinite(beforeDate) || currentDate >= beforeDate);
+      currentDate > beforeDate;
     return {
       ok,
       summary: `AntivirusSignatureLastUpdated=${currentTimestamp || "unknown"}`,

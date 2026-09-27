@@ -5,6 +5,10 @@ const requesterReady = Boolean(
   process.env.USER_E2E_PASSWORD &&
   process.env.E2E_ORG_ID
 );
+const visionE2EReady = Boolean(
+  requesterReady &&
+  process.env.HELP_DESK_REQUESTER_AGENT_VISION_ENABLED === "true"
+);
 
 test.describe("requester agent C2", () => {
   test.skip(!requesterReady, "requester credentials or E2E_ORG_ID unavailable");
@@ -278,6 +282,21 @@ test.describe("requester agent C2", () => {
     await expect(
       page.getByText("Your support request has been resolved.")
     ).toBeVisible();
+  });
+
+  test("shows screenshot input when vision is enabled", async ({ page }) => {
+    test.skip(
+      !visionE2EReady,
+      "vision E2E requires requester credentials and the vision flag"
+    );
+    await page.goto("/login?next=/assistant");
+    await page.getByLabel("Email").fill(process.env.USER_E2E_EMAIL!);
+    await page.getByLabel("Password").fill(process.env.USER_E2E_PASSWORD!);
+    await page.getByRole("button", { name: /Log in|Sign in/ }).click();
+    await page.goto("/assistant");
+    await expect(
+      page.locator('input[accept="image/png,image/jpeg,image/webp"]')
+    ).toBeAttached();
   });
 
   test("revokes session autorun consent", async ({ page }) => {

@@ -7,6 +7,7 @@ import {
   History,
   Laptop,
   LifeBuoy,
+  Paperclip,
   Search,
   ShieldAlert,
   UserRound,
@@ -14,8 +15,15 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { AgentEvent } from "@/lib/agent/types";
+import { uploadSecureAttachment } from "@/lib/attachments/client";
 
 type TimelineItem = AgentEvent & { id: number };
+type ScreenshotState = {
+  id: string;
+  name: string;
+  status: "scanning" | "ready" | "rejected";
+  error?: string;
+};
 
 function iconFor(event: AgentEvent) {
   if (event.type === "tool_started" || event.type === "tool_result_summary")
@@ -29,9 +37,11 @@ function iconFor(event: AgentEvent) {
 export function AgentChat({
   initialProblem = "",
   initialPlatform,
+  visionEnabled = false,
 }: {
   initialProblem?: string;
   initialPlatform?: string | null;
+  visionEnabled?: boolean;
 }) {
   const [message, setMessage] = useState(initialProblem);
   const [items, setItems] = useState<TimelineItem[]>([]);
@@ -44,6 +54,7 @@ export function AgentChat({
   const itemsRef = useRef<TimelineItem[]>([]);
   const answeredCardsRef = useRef<Record<number, boolean>>({});
   const [now, setNow] = useState(() => Date.now());
+  const [screenshot, setScreenshot] = useState<ScreenshotState | null>(null);
   const readerRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(
     null
   );
@@ -96,18 +107,26 @@ export function AgentChat({
       sessionConsent?: "grant" | "revoke";
     }
   ) {
+    const attachmentIds =
+      screenshot?.status === "ready" ? [screenshot.id] : undefined;
     if (
       pending ||
       (terminal && !humanRequested) ||
-      (!message.trim() && !humanRequested && !action)
+      (!message.trim() && !humanRequested && !action && !attachmentIds?.length)
     )
       return;
     setPending(true);
     if (!action && !humanRequested) clearTranscript();
+    if (attachmentIds) setScreenshot(null);
     const body: Record<string, unknown> = {
       sessionId,
-      message: message.trim() || "I would like to speak with a human.",
+      message:
+        message.trim() ||
+        (attachmentIds?.length
+          ? "I shared a screenshot of the problem."
+          : "I would like to speak with a human."),
       humanRequested,
+      ...(attachmentIds ? { attachmentIds } : {}),
       ...action,
     };
     if (typeof initialPlatform === "string") body.platform = initialPlatform;
@@ -333,6 +352,16 @@ export function AgentChat({
                   {event.text}
                 </div>
               );
+            if (event.type === "screenshot_received")
+              return (
+                <div
+                  key={event.id}
+                  className="flex items-start gap-2 text-sm text-muted-foreground"
+                >
+                  <Paperclip className="mt-0.5 size-4 shrink-0" />
+                  <span>Screenshot received — {event.summary}</span>
+                </div>
+              );
             if (event.type === "verification_result")
               return (
                 <div
@@ -441,6 +470,59 @@ export function AgentChat({
           placeholder="Describe the IT problem you need help with."
           className="mt-6 min-h-28 w-full rounded-2xl border border-input bg-background p-3 text-sm"
         />
+        {visionEnabled && (
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <label className="glass-pill inline-flex cursor-pointer items-center gap-2 px-3 py-2 text-sm">
+              <Paperclip className="size-4" />
+              Screenshot
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                className="hidden"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  event.target.value = "";
+                  if (!file) return;
+                  setScreenshot({
+                    id: `pending-${crypto.randomUUID()}`,
+                    name: file.name,
+                    status: "scanning",
+                  });
+                  void uploadSecureAttachment(file).then((result) => {
+                    if ("error" in result) {
+                      setScreenshot({
+                        id: `rejected-${crypto.randomUUID()}`,
+                        name: file.name,
+                        status: "rejected",
+                        error: result.error,
+                      });
+                      return;
+                    }
+                    setScreenshot({
+                      id: result.attachmentId,
+                      name: file.name,
+                      status: result.status,
+                    });
+                  });
+                }}
+              />
+            </label>
+            {screenshot && (
+              <span
+                className={cn(
+                  "rounded-full border px-3 py-2 text-xs",
+                  screenshot.status === "rejected" && "text-destructive"
+                )}
+              >
+                Screenshot: {screenshot.name} ·{" "}
+                {screenshot.status === "scanning"
+                  ? "scanning…"
+                  : screenshot.status}
+                {screenshot.error ? ` (${screenshot.error})` : ""}
+              </span>
+            )}
+          </div>
+        )}
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
           <Button
             variant="outline"
@@ -451,7 +533,11 @@ export function AgentChat({
           </Button>
           <Button
             onClick={() => void send()}
-            disabled={pending || terminal || !message.trim()}
+            disabled={
+              pending ||
+              terminal ||
+              (!message.trim() && screenshot?.status !== "ready")
+            }
           >
             {pending ? "Checking…" : "Ask the assistant"}
           </Button>

@@ -9,6 +9,11 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 import type { AgentEvent } from "@/lib/agent/types";
 import { AgentChat } from "./agent-chat";
 
+const { uploadMock } = vi.hoisted(() => ({ uploadMock: vi.fn() }));
+vi.mock("@/lib/attachments/client", () => ({
+  uploadSecureAttachment: uploadMock,
+}));
+
 vi.mock("next/link", () => ({
   default: ({
     children,
@@ -47,6 +52,56 @@ afterEach(() => {
 });
 
 describe("AgentChat", () => {
+  test("hides screenshot input when vision is disabled", () => {
+    render(<AgentChat initialProblem="Wi-Fi is down" />);
+    expect(screen.queryByText("Screenshot")).not.toBeInTheDocument();
+  });
+
+  test("uploads a ready screenshot and sends its attachment id", async () => {
+    uploadMock.mockResolvedValue({
+      attachmentId: "00000000-0000-4000-8000-000000000010",
+      status: "ready",
+    });
+    const fetchMock = vi.fn().mockResolvedValue(streamResponse([]));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<AgentChat visionEnabled />);
+    const input = document.querySelector(
+      'input[accept="image/png,image/jpeg,image/webp"]'
+    );
+    if (!input) throw new Error("screenshot input missing");
+    fireEvent.change(input, {
+      target: {
+        files: [new File(["image"], "error.png", { type: "image/png" })],
+      },
+    });
+    await screen.findByText(/Screenshot: error.png · ready/);
+    fireEvent.click(screen.getByRole("button", { name: "Ask the assistant" }));
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({
+      attachmentIds: ["00000000-0000-4000-8000-000000000010"],
+      message: "I shared a screenshot of the problem.",
+    });
+  });
+
+  test("renders screenshot received timeline entries", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        streamResponse([
+          {
+            type: "screenshot_received",
+            attachmentId: "attachment-1",
+            summary: "Wi-Fi error visible.",
+          },
+        ])
+      )
+    );
+    render(<AgentChat initialProblem="Inspect this" />);
+    fireEvent.click(screen.getByRole("button", { name: "Ask the assistant" }));
+    expect(
+      await screen.findByText("Screenshot received — Wi-Fi error visible.")
+    ).toBeInTheDocument();
+  });
+
   test("keeps the composer enabled after a final answer", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       streamResponse([

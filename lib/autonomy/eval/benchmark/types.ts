@@ -177,6 +177,10 @@ const requesterAgent = z
     actionOutcome: z.unknown().optional(),
     consentResult: z.string().optional(),
     confirmResult: z.string().optional(),
+    attachmentIds: z.array(z.string().uuid()).max(2).optional(),
+    screenshotText: z.string().optional(),
+    screenshotStatus: z.enum(["rejected", "scanning", "foreign"]).optional(),
+    visionEnabled: z.boolean().optional(),
     autonomyScenario: z
       .object({
         tier: z.enum(["consent", "autorun"]),

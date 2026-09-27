@@ -22,6 +22,11 @@ the organization admin has reviewed the ladder metrics and promotion reasons.
 5. Disable the global flag or set the organization kill switch immediately if
    safety telemetry, rate limits, or escalation behavior is unexpected.
 
+For C4 screenshot input, keep `HELP_DESK_REQUESTER_AGENT_VISION_ENABLED=false`
+unless the secure attachment scanner is VirusTotal with a configured
+`VIRUSTOTAL_API_KEY`. Screenshot transcription is model-as-OCR and is always
+treated as untrusted data.
+
 ### Enabling external research for one organization
 
 Keep `HELP_DESK_RESEARCH_ENABLED=false` globally until the provider key, budget, and

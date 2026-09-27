@@ -6,6 +6,7 @@ import { getCurrentUser } from "@/lib/supabase/user";
 import {
   isRequesterAgentEnabled,
   isRequesterAgentEnabledForOrg,
+  isRequesterAgentVisionEnabledForOrg,
   isResolutionTrackingEnabled,
   isStepPolicyEnabled,
   isTicketWorkflowEnabled,
@@ -54,6 +55,9 @@ export default async function AssistantPage({
   const params = await searchParams;
   const { initialProblem, initialPlatform, intent, attach, autoStart } =
     parseAssistantParams(params);
+  const organizationId = user
+    ? (await resolveOrganizationForUser(user.id)).organizationId
+    : "";
   const flags = {
     resolutionTrackingEnabled:
       isResolutionTrackingEnabled() || isTicketWorkflowEnabled(),
@@ -65,9 +69,9 @@ export default async function AssistantPage({
     isUiV2Enabled() &&
     Boolean(user) &&
     isRequesterAgentEnabled() &&
-    isRequesterAgentEnabledForOrg(
-      user ? (await resolveOrganizationForUser(user.id)).organizationId : ""
-    );
+    isRequesterAgentEnabledForOrg(organizationId);
+  const visionEnabled =
+    Boolean(user) && isRequesterAgentVisionEnabledForOrg(organizationId);
   return (
     <section className="flex flex-1 flex-col px-4 py-12 sm:px-6 lg:px-8">
       <Suspense
@@ -81,6 +85,7 @@ export default async function AssistantPage({
           <AgentChat
             initialProblem={initialProblem}
             initialPlatform={initialPlatform}
+            visionEnabled={visionEnabled}
           />
         ) : isUiV2Enabled() ? (
           <AssistantWorkspace

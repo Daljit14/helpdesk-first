@@ -21,6 +21,7 @@ import {
   isRequesterAgentActionsEnabled,
   isRequesterAgentEnabled,
   isRequesterAgentAutorunEnabled,
+  isRequesterAgentVisionEnabled,
 } from "./flags";
 import { listLadder } from "@/lib/autonomy/ladder";
 
@@ -144,6 +145,20 @@ export async function computePilotReadiness(
             isRequesterAgentActionsEnabled() ? "on" : "off"
           }`
         : "off (flag); tables must be applied before enabling",
+    },
+    {
+      label: "Requester agent vision",
+      ready:
+        isRequesterAgentVisionEnabled() &&
+        process.env.HELP_DESK_ATTACHMENT_SCANNER === "virustotal" &&
+        Boolean(process.env.VIRUSTOTAL_API_KEY),
+      reason: !isRequesterAgentVisionEnabled()
+        ? "off (flag)"
+        : process.env.HELP_DESK_ATTACHMENT_SCANNER !== "virustotal"
+          ? "HELP_DESK_ATTACHMENT_SCANNER must be virustotal"
+          : !process.env.VIRUSTOTAL_API_KEY
+            ? "VIRUSTOTAL_API_KEY is required"
+            : "vision and attachment scanning are configured",
     },
     {
       label: "Device agent",

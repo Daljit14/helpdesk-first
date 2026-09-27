@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   resolveOrganizationForUser: vi.fn(),
   isRequesterAgentEnabled: vi.fn(),
   isRequesterAgentEnabledForOrg: vi.fn(),
+  isRequesterAgentVisionEnabledForOrg: vi.fn(),
   checkRateLimit: vi.fn(),
   createRateLimiter: vi.fn(() => ({})),
   createAdminClient: vi.fn(),
@@ -24,6 +25,8 @@ vi.mock("@/lib/org/membership", () => ({
 vi.mock("@/lib/admin/flags", () => ({
   isRequesterAgentEnabled: mocks.isRequesterAgentEnabled,
   isRequesterAgentEnabledForOrg: mocks.isRequesterAgentEnabledForOrg,
+  isRequesterAgentVisionEnabledForOrg:
+    mocks.isRequesterAgentVisionEnabledForOrg,
 }));
 vi.mock("@/lib/ai/rate-limit", () => ({
   createRateLimiter: mocks.createRateLimiter,
@@ -65,6 +68,7 @@ beforeEach(() => {
   mocks.resolveOrganizationForUser.mockResolvedValue({ organizationId: "org" });
   mocks.isRequesterAgentEnabled.mockReturnValue(true);
   mocks.isRequesterAgentEnabledForOrg.mockReturnValue(true);
+  mocks.isRequesterAgentVisionEnabledForOrg.mockReturnValue(true);
   mocks.checkRateLimit.mockResolvedValue({ allowed: true });
   mocks.createSession.mockResolvedValue(session);
   mocks.loadActiveSession.mockResolvedValue(session);
@@ -99,6 +103,32 @@ describe("requester agent route", () => {
   test("returns 400 for malformed input", async () => {
     expect((await POST(request("{"))).status).toBe(400);
     expect((await POST(request({ message: "" }))).status).toBe(400);
+  });
+
+  test("returns 404 for attachments when vision is disabled", async () => {
+    mocks.isRequesterAgentVisionEnabledForOrg.mockReturnValue(false);
+    const response = await POST(
+      request({
+        message: "Inspect this",
+        attachmentIds: ["00000000-0000-4000-8000-000000000010"],
+      })
+    );
+    expect(response.status).toBe(404);
+    expect(mocks.handleAgentRequest).not.toHaveBeenCalled();
+  });
+
+  test("rejects more than two screenshot ids", async () => {
+    const response = await POST(
+      request({
+        message: "Inspect these",
+        attachmentIds: [
+          "00000000-0000-4000-8000-000000000010",
+          "00000000-0000-4000-8000-000000000011",
+          "00000000-0000-4000-8000-000000000012",
+        ],
+      })
+    );
+    expect(response.status).toBe(400);
   });
 
   test.each([

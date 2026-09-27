@@ -3,6 +3,7 @@ import {
   evaluateDemotion,
   evaluatePromotion,
   isSnapshotReversible,
+  listLadder,
   recordAutonomyOutcome,
   type LadderStats,
 } from "./ladder";
@@ -142,5 +143,41 @@ describe("autonomy ladder", () => {
         rollback: "compensating",
       })
     ).toBe(false);
+  });
+
+  test("returns JSON-serializable ladder rows", async () => {
+    const admin = {
+      from(table: string) {
+        const data =
+          table === "organization_capabilities"
+            ? [
+                {
+                  capability_id: "device_flush_dns",
+                  min_version: 1,
+                  enabled: true,
+                },
+              ]
+            : [];
+        const query = {
+          select: () => query,
+          eq: () => query,
+          then: (
+            resolve: (value: { data: unknown[]; error: null }) => unknown,
+            reject?: (reason: unknown) => unknown
+          ) => Promise.resolve({ data, error: null }).then(resolve, reject),
+        };
+        return query;
+      },
+    };
+
+    const rows = await listLadder(admin as never, "org");
+
+    expect(JSON.parse(JSON.stringify(rows))).toEqual(rows);
+    expect(rows[0]?.capability).toEqual({
+      id: "device_flush_dns",
+      description: expect.any(String),
+      sideEffects: "external_write",
+      rollback: "handler:device_restore_snapshot",
+    });
   });
 });

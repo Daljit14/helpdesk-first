@@ -58,7 +58,9 @@ export type ProposeOutcome =
         | "kill_switch"
         | "policy_denied"
         | "specialist_only"
-        | "read_only_capability";
+        | "read_only_capability"
+        | "tier_disabled"
+        | "tier_shadow";
       message: string;
     }
   | { kind: "escalate"; reason: string }
@@ -214,7 +216,8 @@ export async function settleExecution(
   capabilityId: string,
   emit: (event: AgentEvent) => void,
   signal: AbortSignal,
-  tierAtTime: AutonomyTier
+  tierAtTime: AutonomyTier,
+  metadata?: { paramsHash?: string; consentId?: string }
 ): Promise<
   "executed_verified_passed" | "executed_verified_failed" | "escalated"
 > {
@@ -240,6 +243,8 @@ export async function settleExecution(
       await writeStep(admin, session, {
         kind: "verification_result",
         capabilityId,
+        paramsHash: metadata?.paramsHash,
+        consentId: metadata?.consentId,
         resultSummary: "passed",
       });
       await recordAutonomyOutcome(admin, {
@@ -260,6 +265,7 @@ export async function settleExecution(
       emit({ type: "confirm_required", text: "Is it working now?" });
       await writeStep(admin, session, {
         kind: "confirm_required",
+        consentId: metadata?.consentId,
         resultSummary: "Is it working now?",
       });
       return "executed_verified_passed";
@@ -283,11 +289,15 @@ export async function settleExecution(
       await writeStep(admin, session, {
         kind: "verification_result",
         capabilityId,
+        paramsHash: metadata?.paramsHash,
+        consentId: metadata?.consentId,
         resultSummary: "failed",
       });
       await writeStep(admin, session, {
         kind: "rollback_result",
         capabilityId,
+        paramsHash: metadata?.paramsHash,
+        consentId: metadata?.consentId,
         resultSummary: rollbackStatus,
       });
       const outcome =
@@ -467,6 +477,35 @@ export async function proposeAction(
           .gte("created_at", start.toISOString());
   if ((daily.data ?? []).length >= getRequesterAgentUserDailyActionCap())
     return reject("user_daily_cap", "The daily action limit has been reached.");
+  const tier = await readTier(admin, session.organization_id, capability.id);
+  if (tier === "disabled") {
+    await actionStep(
+      admin,
+      session,
+      "action_rejected",
+      capability.id,
+      paramsHash,
+      "This fix is not enabled for your organization."
+    );
+    return reject(
+      "tier_disabled",
+      "This fix is not enabled for your organization."
+    );
+  }
+  if (tier === "shadow") {
+    await actionStep(
+      admin,
+      session,
+      "action_shadowed",
+      capability.id,
+      paramsHash,
+      "This fix cannot be applied automatically yet; here is how to do it manually."
+    );
+    return reject(
+      "tier_shadow",
+      "This fix cannot be applied automatically yet; here is how to do it manually."
+    );
+  }
   const run = await ensureBackingRun(admin, session, ctx.platform);
   if (!run || !run.ticket_id)
     return { kind: "escalate", reason: "backing_run_unavailable" };
@@ -518,35 +557,6 @@ export async function proposeAction(
     paramsHash,
     input.rationale
   );
-  const tier = await readTier(admin, session.organization_id, capability.id);
-  if (tier === "disabled") {
-    await actionStep(
-      admin,
-      session,
-      "action_rejected",
-      capability.id,
-      paramsHash,
-      "This fix is not enabled for your organization."
-    );
-    return reject(
-      "policy_denied",
-      "This fix is not enabled for your organization."
-    );
-  }
-  if (tier === "shadow") {
-    await actionStep(
-      admin,
-      session,
-      "action_shadowed",
-      capability.id,
-      paramsHash,
-      "This fix cannot be applied automatically yet; here is how to do it manually."
-    );
-    return reject(
-      "policy_denied",
-      "This fix cannot be applied automatically yet; here is how to do it manually."
-    );
-  }
   const autorun =
     tier === "autorun" &&
     isRequesterAgentAutorunEnabledForOrg(session.organization_id) &&
@@ -767,142 +777,21 @@ export async function decideConsent(
     emit({ type: "escalated", ticketId, reason });
     return "escalated";
   }
-  const deadline =
-    Date.now() +
-    (Number(process.env.HELP_DESK_REQUESTER_AGENT_VERIFY_TIMEOUT_MS) || 90_000);
-  let current = resumed;
-  while (!signal.aborted && Date.now() < deadline) {
-    const checked = await verifyRun(admin, current);
-    current = checked ?? current;
-    const row = await admin
-      .from("verification_results")
-      .select("outcome,execution_id")
-      .eq("run_id", current.id)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (row.data?.outcome === "passed") {
-      await updateSession(admin, session, {
-        verified_execution_id: row.data.execution_id,
-      });
-      session.verified_execution_id = row.data.execution_id;
-      await writeStep(admin, session, {
-        kind: "verification_result",
-        capabilityId,
-        paramsHash,
-        consentId: approval.data.id,
-        resultSummary: "passed",
-      });
-      emit({
-        type: "verification_result",
-        status: "passed",
-        rollback: "none",
-        text: "The verification check passed.",
-      });
-      emit({ type: "confirm_required", text: "Is it working now?" });
-      await writeStep(admin, session, {
-        kind: "confirm_required",
-        resultSummary: "Is it working now?",
-      });
-      return "executed_verified_passed";
-    }
-    if (row.data?.outcome === "failed") {
-      const rollback = await admin
-        .from("rollback_runs")
-        .select("status")
-        .eq("organization_id", session.organization_id)
-        .eq("run_id", current.id)
-        .eq("execution_id", row.data.execution_id)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      const rollbackStatus =
-        rollback.data?.status === "succeeded" ||
-        rollback.data?.status === "failed" ||
-        rollback.data?.status === "unsupported"
-          ? rollback.data.status
-          : "none";
-      await writeStep(admin, session, {
-        kind: "verification_result",
-        capabilityId,
-        paramsHash,
-        consentId: approval.data.id,
-        resultSummary: "failed",
-      });
-      await writeStep(admin, session, {
-        kind: "rollback_result",
-        capabilityId,
-        paramsHash,
-        consentId: approval.data.id,
-        resultSummary: rollbackStatus,
-      });
-      if (rollbackStatus === "failed") {
-        await alertSecurityEvent(admin, {
-          organizationId: session.organization_id,
-          ticketId: session.backing_ticket_id ?? "",
-          runId: current.id,
-          kind: "requester_agent_rollback_failed",
-          detail: { capabilityId, executionId: row.data.execution_id },
-        });
-        const ticketId = await escalate(
-          admin,
-          session,
-          "rollback_failed",
-          "The attempted rollback failed."
-        );
-        emit({ type: "escalated", ticketId, reason: "rollback_failed" });
-        return "escalated";
-      }
-      const failedHypotheses = (session.failed_hypotheses ?? 0) + 1;
-      await updateSession(admin, session, {
-        failed_hypotheses: failedHypotheses,
-      });
-      session.failed_hypotheses = failedHypotheses;
-      emit({
-        type: "verification_result",
-        status: "failed",
-        rollback: rollbackStatus,
-        text: "The verification check failed.",
-      });
-      if (failedHypotheses >= getRequesterAgentMaxFailedHypotheses()) {
-        const ticketId = await escalate(
-          admin,
-          session,
-          "hypotheses_exhausted",
-          "The available fixes did not resolve the issue."
-        );
-        emit({ type: "escalated", ticketId, reason: "hypotheses_exhausted" });
-        return "escalated";
-      }
-      return "executed_verified_failed";
-    }
-    await new Promise((resolve) => setTimeout(resolve, 3_000));
-  }
-  await writeStep(admin, session, {
-    kind: "verification_result",
-    capabilityId,
-    paramsHash,
-    consentId: approval.data.id,
-    resultSummary: "inconclusive",
-  });
-  emit({
-    type: "verification_result",
-    status: "inconclusive",
-    rollback: "none",
-    text: "The verification check did not complete.",
-  });
-  const ticketId = await escalate(
+  const tierAtTime = await readTier(
+    admin,
+    session.organization_id,
+    capabilityId
+  );
+  return settleExecution(
     admin,
     session,
-    "verification_inconclusive",
-    "Verification did not complete."
+    resumed,
+    capabilityId,
+    emit,
+    signal,
+    tierAtTime,
+    { paramsHash, consentId: approval.data.id }
   );
-  emit({
-    type: "escalated",
-    ticketId,
-    reason: "verification_inconclusive",
-  });
-  return "escalated";
 }
 
 export async function confirmOutcome(

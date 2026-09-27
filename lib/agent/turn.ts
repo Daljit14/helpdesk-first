@@ -207,7 +207,6 @@ export async function handleAgentRequest(input: {
             expiresInMs,
           },
         });
-        return;
       }
     }
   }

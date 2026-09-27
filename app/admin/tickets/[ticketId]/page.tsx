@@ -54,6 +54,15 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
+const agentStepLabels: Record<string, string> = {
+  session_consent_offered: "Session autorun consent offered",
+  session_consent_granted: "Session autorun consent granted",
+  session_consent_revoked: "Session autorun consent revoked",
+  action_autorun: "Action applied automatically",
+  action_shadowed: "Action shadowed for review",
+  tier_demoted: "Autonomy tier demoted",
+};
+
 type TicketPageRow = {
   [key: string]: unknown;
   id: string;
@@ -674,7 +683,7 @@ export default async function AdminTicketPage({
                             className="rounded-xl border border-border/60 p-3"
                           >
                             <p className="font-medium">
-                              {step.kind}
+                              {agentStepLabels[step.kind] ?? step.kind}
                               {step.tool_name ? ` · ${step.tool_name}` : ""}
                             </p>
                             {step.result_summary && (

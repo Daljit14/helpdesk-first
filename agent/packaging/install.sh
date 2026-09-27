@@ -5,12 +5,6 @@ install_path=/opt/helpdesk-first
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 
 if [ "${1:-install}" = "uninstall" ]; then
-  if command -v systemctl >/dev/null 2>&1; then
-    target_user=${SUDO_USER:-${USER:-}}
-    if [ -n "$target_user" ] && [ "$target_user" != "root" ]; then
-      systemctl disable --now "helpdesk-agent@${target_user}.service" 2>/dev/null || true
-    fi
-  fi
   rm -rf "$install_path"
   if command -v launchctl >/dev/null 2>&1; then
     launchctl unload "$HOME/Library/LaunchAgents/com.helpdeskfirst.agent.plist" 2>/dev/null || true

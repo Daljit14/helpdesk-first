@@ -5,6 +5,8 @@ flag separately, and allowlist the organization before piloting. Every action
 is policy checked, consent bound to a run and plan step, gateway executed,
 verified, rollback-aware, and confirmed by the requester before resolution.
 See `SETUP-NOTES-C2.md` and the pilot runbook for setup and verification.
+Phase C3 ladder setup and session consent are documented in
+`SETUP-NOTES-C3.md` and `docs/REQUESTER-AGENT-C3.md`.
 
 # HelpDesk First
 

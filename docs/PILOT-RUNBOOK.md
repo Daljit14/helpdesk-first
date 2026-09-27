@@ -9,6 +9,9 @@ switch to stop execution.
 
 ## Requester agent C1 pilot
 
+For C3 ladder operation, use `SETUP-NOTES-C3.md`; do not enable autorun until
+the organization admin has reviewed the ladder metrics and promotion reasons.
+
 1. Apply `supabase/requester-agent.sql` after the prerequisite migrations.
 2. Keep `HELP_DESK_REQUESTER_AGENT_ACTIONS_ENABLED`,
    `HELP_DESK_REQUESTER_AGENT_AUTORUN_ENABLED`, and

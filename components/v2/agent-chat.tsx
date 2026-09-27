@@ -88,6 +88,7 @@ export function AgentChat({
     action?: {
       consent?: { approvalRequestId: string; decision: "approve" | "decline" };
       confirm?: "yes" | "no";
+      sessionConsent?: "grant" | "revoke";
     }
   ) {
     if (
@@ -175,6 +176,26 @@ export function AgentChat({
           </div>
         </div>
         <div className="mt-5 space-y-3" aria-live="polite">
+          {items.some(
+            (event) =>
+              event.type === "session_consent" && event.state === "granted"
+          ) &&
+            !items.some(
+              (event) =>
+                event.type === "session_consent" && event.state === "revoked"
+            ) && (
+              <div className="flex items-center justify-between rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs">
+                <span>Automatic safe fixes: on</span>
+                <button
+                  type="button"
+                  className="font-medium underline"
+                  onClick={() => void send(false, { sessionConsent: "revoke" })}
+                  disabled={pending}
+                >
+                  Revoke
+                </button>
+              </div>
+            )}
           {items.map((event) => {
             const Icon = iconFor(event);
             if (event.type === "final_answer")
@@ -247,6 +268,54 @@ export function AgentChat({
                       }}
                     >
                       Decline
+                    </Button>
+                  </div>
+                </div>
+              );
+            }
+            if (event.type === "session_consent_offer") {
+              const disabled = answeredCards[event.id];
+              return (
+                <div
+                  key={event.id}
+                  className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-4"
+                >
+                  <p className="font-medium">{event.card.title}</p>
+                  <ul className="mt-2 space-y-2 text-sm">
+                    {event.card.capabilities.map((capability) => (
+                      <li key={capability.id}>
+                        <strong>{capability.title}</strong>
+                        <span className="block text-muted-foreground">
+                          {capability.whatHappens} · Reversible: yes
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Expires in {Math.ceil(event.card.expiresInMs / 60_000)}{" "}
+                    minutes.
+                  </p>
+                  <div className="mt-3 flex gap-2">
+                    <Button
+                      size="sm"
+                      disabled={disabled}
+                      onClick={() => {
+                        answerCard(event.id);
+                        void send(false, { sessionConsent: "grant" });
+                      }}
+                    >
+                      Allow for this session
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={disabled}
+                      onClick={() => {
+                        answerCard(event.id);
+                        void send(false, { sessionConsent: "revoke" });
+                      }}
+                    >
+                      Not now
                     </Button>
                   </div>
                 </div>

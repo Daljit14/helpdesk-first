@@ -22,15 +22,10 @@ fi
 mkdir -p "$install_path"
 cp "$script_dir/../helpdesk-agent.js" "$install_path/helpdesk-agent.js"
 if command -v systemctl >/dev/null 2>&1; then
-  target_user=${SUDO_USER:-${USER:-}}
-  if [ -z "$target_user" ] || [ "$target_user" = "root" ]; then
-    echo "install as the target desktop user (for example, with sudo)" >&2
-    exit 1
-  fi
   install -d /etc/systemd/system
-  install "$script_dir/linux/helpdesk-agent.service" /etc/systemd/system/helpdesk-agent@.service
+  install "$script_dir/linux/helpdesk-agent.service" /etc/systemd/system/helpdesk-agent.service
   systemctl daemon-reload
-  systemctl enable --now "helpdesk-agent@${target_user}.service"
+  systemctl enable --now helpdesk-agent.service
 elif command -v launchctl >/dev/null 2>&1; then
   install -d "$HOME/Library/LaunchAgents"
   install "$script_dir/macos/com.helpdeskfirst.agent.plist" "$HOME/Library/LaunchAgents/com.helpdeskfirst.agent.plist"

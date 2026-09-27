@@ -1,4 +1,5 @@
 import type { Executor } from ".";
+import { userSystemctl } from "../user-systemctl";
 import { truncate } from "./shared";
 
 const powershell = ["-NoProfile", "-NonInteractive", "-Command"] as const;
@@ -158,7 +159,7 @@ const linuxAudioRestart: Executor = {
   snapshot: async (exec) => {
     let output = "";
     try {
-      output = await exec("systemctl", ["--user", "is-active", "pipewire"], {
+      output = await userSystemctl(exec, ["is-active", "pipewire"], {
         timeoutMs: 30_000,
       });
     } catch {
@@ -173,9 +174,9 @@ const linuxAudioRestart: Executor = {
   },
   apply: async (exec, _params, snapshot) => {
     if (snapshot.backend === "pipewire") {
-      await exec(
-        "systemctl",
-        ["--user", "restart", "pipewire", "pipewire-pulse", "wireplumber"],
+      await userSystemctl(
+        exec,
+        ["restart", "pipewire", "pipewire-pulse", "wireplumber"],
         { timeoutMs: 30_000 }
       );
     } else {
@@ -187,7 +188,7 @@ const linuxAudioRestart: Executor = {
     try {
       const output =
         snapshot.backend === "pipewire"
-          ? await exec("systemctl", ["--user", "is-active", "pipewire"])
+          ? await userSystemctl(exec, ["is-active", "pipewire"])
           : await exec("pulseaudio", ["--check"]);
       return {
         ok:

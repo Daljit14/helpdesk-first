@@ -66,6 +66,7 @@ function parseAudio(processes: string, profile: string) {
     profile.match(/"(_name|name)"\s*:\s*"([^"]+)"/i)?.[2] ?? null;
   return record("audio", {
     coreaudiod: processes.trim().length > 0,
+    running: processes.trim().length > 0,
     defaultOutput: defaultOutput?.slice(0, 80) ?? null,
   });
 }
@@ -142,7 +143,12 @@ export const macosCollectors: Collector[] = [
     kind: "audio",
     run: async (exec) => {
       try {
-        const processes = await exec("pgrep", ["coreaudiod"]);
+        let processes = "";
+        try {
+          processes = await exec("pgrep", ["coreaudiod"]);
+        } catch {
+          // pgrep exits non-zero when coreaudiod is stopped.
+        }
         const profile = await exec("system_profiler", [
           "SPAudioDataType",
           "-json",

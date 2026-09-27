@@ -25,7 +25,7 @@ const windowsPrinterClearQueue: Executor = {
     await exec("powershell.exe", [...powershell, "Stop-Service Spooler"]);
     await exec("powershell.exe", [
       ...powershell,
-      'Remove-Item -LiteralPath "$env:SystemRoot\\System32\\spool\\PRINTERS\\*" -Force -ErrorAction SilentlyContinue',
+      'Remove-Item -Path "$env:SystemRoot\\System32\\spool\\PRINTERS\\*" -Force -ErrorAction SilentlyContinue',
     ]);
     await exec("powershell.exe", [...powershell, "Start-Service Spooler"]);
   },

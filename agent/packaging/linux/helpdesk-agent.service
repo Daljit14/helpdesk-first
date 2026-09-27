@@ -4,6 +4,8 @@ After=network-online.target
 
 [Service]
 Type=simple
+User=%i
+Environment=XDG_RUNTIME_DIR=/run/user/%U
 ExecStart=/usr/bin/node /opt/helpdesk-first/helpdesk-agent.js run
 Restart=on-failure
 ProtectSystem=strict

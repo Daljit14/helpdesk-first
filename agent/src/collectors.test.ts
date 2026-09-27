@@ -136,4 +136,19 @@ describe("platform collectors", () => {
       running: false,
     });
   });
+
+  it("reports stopped macOS audio as a structured running=false finding", async () => {
+    const audio = macosCollectors.find(
+      (collector) => collector.kind === "audio"
+    );
+    const result = await audio!.run(async (file) => {
+      if (file === "pgrep") throw new Error("coreaudiod is stopped");
+      return "{}";
+    });
+    expect(result.data).toEqual({
+      coreaudiod: false,
+      running: false,
+      defaultOutput: null,
+    });
+  });
 });

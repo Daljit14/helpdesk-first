@@ -8,6 +8,8 @@ import { isResolutionCenterEnabled } from "@/lib/admin/flags";
 import { getPilotOverview } from "@/lib/admin/resolution-center";
 import { computePilotReadiness } from "@/lib/admin/pilot-readiness";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { CapabilityAutonomyLadder } from "@/components/admin/capability-autonomy-ladder";
+import { listLadder } from "@/lib/autonomy/ladder";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -23,6 +25,7 @@ export default async function PilotPage() {
     createAdminClient(),
     session.organizationId
   );
+  const ladder = await listLadder(createAdminClient(), session.organizationId);
   const metrics = [
     [
       "Executions today",
@@ -84,6 +87,10 @@ export default async function PilotPage() {
             Execution flag: {readiness.executionEnabled ? "on" : "off"}{" "}
             (informational only)
           </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Autorun flag: {readiness.autorunEnabled ? "on" : "off"} ·{" "}
+            {readiness.autorunCapabilities} autorun capabilities
+          </p>
         </section>
         <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
           {metrics.map(([label, value]) => (
@@ -93,6 +100,10 @@ export default async function PilotPage() {
             </div>
           ))}
         </div>
+        <section className="mt-6">
+          <h2 className="mb-3 text-xl font-semibold">Autonomy ladder</h2>
+          <CapabilityAutonomyLadder rows={ladder} />
+        </section>
         <section className="mt-6 rounded-lg border p-4">
           <h2 className="font-semibold">Device jobs</h2>
           <div className="mt-3 grid grid-cols-2 gap-3 text-sm md:grid-cols-4">

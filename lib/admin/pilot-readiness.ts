@@ -20,7 +20,9 @@ import {
   isDeviceExecutionEnabled,
   isRequesterAgentActionsEnabled,
   isRequesterAgentEnabled,
+  isRequesterAgentAutorunEnabled,
 } from "./flags";
+import { listLadder } from "@/lib/autonomy/ladder";
 
 type Admin = ReturnType<typeof createAdminClient>;
 
@@ -35,6 +37,8 @@ export type PilotReadiness = {
   ready: boolean;
   verdict: string;
   executionEnabled: boolean;
+  autorunEnabled: boolean;
+  autorunCapabilities: number;
 };
 
 export async function computePilotReadiness(
@@ -43,6 +47,7 @@ export async function computePilotReadiness(
 ): Promise<PilotReadiness> {
   const orgAllowlist = getPilotOrgAllowlist();
   const capabilityAllowlist = getPilotCapabilityAllowlist();
+  const ladder = await listLadder(admin, organizationId);
   const enabledCapabilities = listCapabilities().map(
     (capability) => capability.id
   );
@@ -251,5 +256,7 @@ export async function computePilotReadiness(
         ? "Ready to enable"
         : `Not ready (${blockers} ${blockers === 1 ? "blocker" : "blockers"})`,
     executionEnabled: isAutonomousExecutionEnabled(),
+    autorunEnabled: isRequesterAgentAutorunEnabled(),
+    autorunCapabilities: ladder.filter((row) => row.tier === "autorun").length,
   };
 }

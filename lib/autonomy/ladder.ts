@@ -27,13 +27,17 @@ export type LadderStats = {
   last_demoted_at: string | null;
   demote_reason: string | null;
 };
+export type LadderCapability = Pick<
+  CapabilityDefinition,
+  "id" | "description" | "sideEffects" | "rollback"
+>;
 export type AutonomyOutcome = {
   tier_at_time: AutonomyTier;
   outcome: Outcome;
   created_at?: string;
 };
 export type LadderRow = LadderStats & {
-  capability: CapabilityDefinition;
+  capability: LadderCapability;
   reversible: boolean;
   promotion: { eligible: boolean; reasons: string[] };
   transitions: Array<{
@@ -404,11 +408,17 @@ export async function listLadder(
       stats.get(row.capability_id) ??
       defaultStats(organizationId, row.capability_id, tier);
     const reversible = isSnapshotReversible(capability);
+    const capabilitySummary: LadderCapability = {
+      id: capability.id,
+      description: capability.description,
+      sideEffects: capability.sideEffects,
+      rollback: capability.rollback,
+    };
     return [
       {
         ...current,
         tier: asTier(current.tier),
-        capability,
+        capability: capabilitySummary,
         reversible,
         promotion: evaluatePromotion(current, capability),
         transitions: (

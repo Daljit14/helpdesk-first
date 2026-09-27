@@ -3,7 +3,11 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { setCapabilityTierAction } from "@/app/actions/admin-autonomy-ladder";
-import type { LadderRow } from "@/lib/autonomy/ladder";
+import type { LadderCapability, LadderRow } from "@/lib/autonomy/ladder";
+
+type SerializableLadderRow = Omit<LadderRow, "capability"> & {
+  capability: LadderCapability;
+};
 
 const tones = {
   disabled: "border-muted-foreground/40 text-muted-foreground",
@@ -12,7 +16,11 @@ const tones = {
   autorun: "border-emerald-500/50 text-emerald-700 dark:text-emerald-300",
 } as const;
 
-export function CapabilityAutonomyLadder({ rows }: { rows: LadderRow[] }) {
+export function CapabilityAutonomyLadder({
+  rows,
+}: {
+  rows: SerializableLadderRow[];
+}) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [drafts, setDrafts] = useState<

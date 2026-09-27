@@ -189,4 +189,129 @@ test.describe("requester agent C2", () => {
     });
     expect(status).toBe(404);
   });
+
+  test("offers session consent and completes an autorun flow", async ({
+    page,
+  }) => {
+    await page.route("**/api/ai/agent", async (route) => {
+      const body = route.request().postDataJSON() as {
+        sessionConsent?: string;
+        confirm?: string;
+      };
+      const events = body.confirm
+        ? [
+            {
+              type: "resolved",
+              text: "Your support request has been resolved.",
+            },
+          ]
+        : body.sessionConsent === "grant"
+          ? [
+              {
+                type: "session_consent",
+                state: "granted",
+                capabilityIds: ["device_flush_dns"],
+              },
+              {
+                type: "action_executing",
+                capabilityId: "device_flush_dns",
+                autorun: true,
+                text: "Applied automatically (you allowed safe fixes this session).",
+              },
+              {
+                type: "verification_result",
+                status: "passed",
+                rollback: "none",
+                text: "Verification passed.",
+              },
+              { type: "confirm_required", text: "Is it working now?" },
+            ]
+          : [
+              {
+                type: "session",
+                sessionId: "00000000-0000-4000-8000-000000000001",
+              },
+              {
+                type: "session_consent_offer",
+                card: {
+                  title:
+                    "Allow the assistant to apply safe, reversible fixes during this session?",
+                  capabilities: [
+                    {
+                      id: "device_flush_dns",
+                      title: "Flush DNS cache",
+                      whatHappens: "Flushes the DNS cache on your device.",
+                      reversible: true,
+                    },
+                  ],
+                  expiresInMs: 3_600_000,
+                },
+              },
+            ];
+      await route.fulfill({
+        status: 200,
+        headers: { "Content-Type": "text/event-stream" },
+        body: events
+          .map((event) => `data: ${JSON.stringify(event)}\n\n`)
+          .join(""),
+      });
+    });
+    await page.goto("/login?next=/assistant");
+    await page.getByLabel("Email").fill(process.env.USER_E2E_EMAIL!);
+    await page.getByLabel("Password").fill(process.env.USER_E2E_PASSWORD!);
+    await page.getByRole("button", { name: /Log in|Sign in/ }).click();
+    await page.goto("/assistant");
+    await page.getByLabel("Describe your IT problem").fill("Fix my Wi-Fi");
+    await page.getByRole("button", { name: "Ask the assistant" }).click();
+    await expect(
+      page.getByText(
+        "Allow the assistant to apply safe, reversible fixes during this session?"
+      )
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Allow for this session" }).click();
+    await expect(
+      page.getByText(
+        "Applied automatically (you allowed safe fixes this session)."
+      )
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Yes" }).click();
+    await expect(
+      page.getByText("Your support request has been resolved.")
+    ).toBeVisible();
+  });
+
+  test("revokes session autorun consent", async ({ page }) => {
+    let revoked = false;
+    await page.route("**/api/ai/agent", async (route) => {
+      const body = route.request().postDataJSON() as {
+        sessionConsent?: string;
+      };
+      if (body.sessionConsent === "revoke") revoked = true;
+      const events = revoked
+        ? [{ type: "session_consent", state: "revoked", capabilityIds: [] }]
+        : [
+            {
+              type: "session_consent",
+              state: "granted",
+              capabilityIds: ["device_flush_dns"],
+            },
+          ];
+      await route.fulfill({
+        status: 200,
+        headers: { "Content-Type": "text/event-stream" },
+        body: events
+          .map((event) => `data: ${JSON.stringify(event)}\n\n`)
+          .join(""),
+      });
+    });
+    await page.goto("/login?next=/assistant");
+    await page.getByLabel("Email").fill(process.env.USER_E2E_EMAIL!);
+    await page.getByLabel("Password").fill(process.env.USER_E2E_PASSWORD!);
+    await page.getByRole("button", { name: /Log in|Sign in/ }).click();
+    await page.goto("/assistant");
+    await page.getByLabel("Describe your IT problem").fill("Fix my Wi-Fi");
+    await page.getByRole("button", { name: "Ask the assistant" }).click();
+    await page.getByRole("button", { name: "Revoke" }).click();
+    await expect.poll(() => revoked).toBe(true);
+  });
 });

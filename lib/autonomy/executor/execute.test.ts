@@ -503,4 +503,103 @@ describe("executePlan", () => {
       verifyExecution({ admin: admin() as never, run, executionId: null })
     ).resolves.toEqual({ outcome: "pending" });
   });
+
+  test("uses session consent only for covered capabilities and records provenance", async () => {
+    const policyInputs: Array<{
+      consent: { user: boolean };
+    }> = [];
+    mocks.decidePolicy.mockImplementation(
+      (input: { consent: { user: boolean } }) => {
+        policyInputs.push(input);
+        return {
+          decision: "allow_automatic",
+          reasons: ["test"],
+          policyVersion: "test",
+          auditLabel: "Safe",
+          userLabel: "Safe",
+        };
+      }
+    );
+    const result = await executePlan(admin() as never, run, plan, {
+      sessionConsent: {
+        userId: "user-1",
+        grantedAt: new Date().toISOString(),
+        capabilityIds: ["search_approved_knowledge"],
+      },
+    });
+    expect(result?.status).toBe("verifying");
+    expect(policyInputs[0]?.consent.user).toBe(true);
+    expect(mocks.recordPolicyDecision).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        decision: expect.objectContaining({
+          reasons: expect.arrayContaining(["requester_session_consent_active"]),
+        }),
+      })
+    );
+  });
+
+  test("does not satisfy consent for an uncovered capability", async () => {
+    const policyInputs: Array<{ consent: { user: boolean } }> = [];
+    mocks.decidePolicy.mockImplementation(
+      (input: { consent: { user: boolean } }) => {
+        policyInputs.push(input);
+        return {
+          decision: "allow_automatic",
+          reasons: ["test"],
+          policyVersion: "test",
+          auditLabel: "Safe",
+          userLabel: "Safe",
+        };
+      }
+    );
+    await executePlan(admin() as never, run, plan, {
+      sessionConsent: {
+        userId: "user-1",
+        grantedAt: new Date().toISOString(),
+        capabilityIds: ["another_capability"],
+      },
+    });
+    expect(policyInputs[0]?.consent.user).toBe(false);
+  });
+
+  test("rejects simultaneous forced and session consent", async () => {
+    await expect(
+      executePlan(admin() as never, run, plan, {
+        forceUserConsent: true,
+        sessionConsent: {
+          userId: "user-1",
+          grantedAt: new Date().toISOString(),
+          capabilityIds: [plan.capability.id],
+        },
+      })
+    ).rejects.toThrow(
+      "forceUserConsent cannot be combined with sessionConsent"
+    );
+  });
+
+  test.each([
+    ["deny", "escalated"],
+    ["require_technician_approval", "awaiting_approval"],
+  ] as const)(
+    "does not execute when policy returns %s with session consent",
+    async (decision, expectedStatus) => {
+      mocks.decidePolicy.mockReturnValue({
+        decision,
+        reasons: ["test"],
+        policyVersion: "test",
+        auditLabel: "Blocked",
+        userLabel: "Blocked",
+      });
+      const result = await executePlan(admin() as never, run, plan, {
+        sessionConsent: {
+          userId: "user-1",
+          grantedAt: new Date().toISOString(),
+          capabilityIds: [plan.capability.id],
+        },
+      });
+      expect(result?.status).toBe(expectedStatus);
+      expect(mocks.getHandler).not.toHaveBeenCalled();
+    }
+  );
 });

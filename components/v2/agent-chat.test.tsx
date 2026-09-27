@@ -165,12 +165,21 @@ describe("AgentChat", () => {
               expiresInMs: 3_600_000,
             },
           },
+          {
+            type: "final_answer",
+            text: "I can check a few safe causes while you decide.",
+            confidence: 0.9,
+            evidence: [],
+          },
         ])
       )
       .mockResolvedValueOnce(streamResponse([]));
     vi.stubGlobal("fetch", fetchMock);
     render(<AgentChat initialProblem="Wi-Fi is down" />);
     fireEvent.click(screen.getByRole("button", { name: "Ask the assistant" }));
+    expect(
+      await screen.findByText("I can check a few safe causes while you decide.")
+    ).toBeInTheDocument();
     fireEvent.click(
       await screen.findByRole("button", { name: "Allow for this session" })
     );

@@ -249,7 +249,7 @@ describe("TroubleshootingGuide", () => {
     );
     expect(
       within(
-        screen.getByRole("list", { name: "Troubleshooting steps" })
+        screen.getByRole("navigation", { name: "Guide outline" })
       ).queryByText(steps[0]!)
     ).not.toBeInTheDocument();
   });

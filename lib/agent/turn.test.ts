@@ -20,6 +20,27 @@ describe("requester agent turn dispatch", () => {
     expect(harness.session.status).toBe("escalated");
   });
 
+  test("escalates a human request after a prior terminal error step", async () => {
+    const harness = createAgentEvalHarness({
+      message: "Please connect me with a human.",
+      humanRequested: true,
+      outputs: [],
+    });
+    harness.steps.push({
+      kind: "error",
+      resultSummary: "Anthropic agent request failed",
+    });
+
+    await harness.run();
+
+    expect(harness.events).toContainEqual({
+      type: "escalated",
+      ticketId: "00000000-0000-4000-8000-000000000004",
+      reason: "user_requested_human",
+    });
+    expect(harness.session.status).toBe("escalated");
+  });
+
   test("continues with a synthetic turn after consent decline", async () => {
     const harness = createAgentEvalHarness({
       outputs: [

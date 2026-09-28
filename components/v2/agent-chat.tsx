@@ -48,6 +48,7 @@ export function AgentChat({
   const [sessionId, setSessionId] = useState<string>();
   const [pending, setPending] = useState(false);
   const [terminal, setTerminal] = useState(false);
+  const [ended, setEnded] = useState(false);
   const [answeredCards, setAnsweredCards] = useState<Record<number, boolean>>(
     {}
   );
@@ -75,7 +76,8 @@ export function AgentChat({
     const answered = { ...answeredCardsRef.current };
     if (
       event.type !== "session_consent_offer" &&
-      event.type !== "session_consent"
+      event.type !== "session_consent" &&
+      event.type !== "session"
     ) {
       current.forEach((item) => {
         if (
@@ -165,9 +167,11 @@ export function AgentChat({
           if (event.type === "session") setSessionId(event.sessionId);
           if (event.type === "resolved") {
             setTerminal(true);
+            setEnded(true);
           }
           if (event.type === "escalated" || event.type === "halted") {
             setTerminal(true);
+            setEnded(true);
           }
           if (event.type === "error") {
             if (event.recoverable) {
@@ -530,7 +534,7 @@ export function AgentChat({
           <Button
             variant="outline"
             onClick={() => void send(true)}
-            disabled={pending || terminal}
+            disabled={pending || ended}
           >
             <LifeBuoy className="mr-2 size-4" /> Talk to a human
           </Button>

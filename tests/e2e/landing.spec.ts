@@ -13,6 +13,15 @@ function matchingCount(page: Page) {
     .first();
 }
 
+async function openMobileFilters(page: Page) {
+  if ((await page.evaluate(() => window.innerWidth)) >= 1024) return;
+  const filters = page.getByRole("button", { name: "Filters" }).first();
+  if (await filters.isVisible().catch(() => false)) {
+    await filters.click();
+    await expect(page.getByRole("dialog", { name: "Filters" })).toBeVisible();
+  }
+}
+
 test("homepage renders with search, categories and platform filters", async ({
   page,
 }) => {
@@ -26,6 +35,7 @@ test("homepage renders with search, categories and platform filters", async ({
     page.getByRole("link", { name: /Ask the Support Assistant/i })
   ).toHaveAttribute("href", "/assistant");
 
+  await openMobileFilters(page);
   for (const label of [
     "Computer",
     "Internet & Wi-Fi",
@@ -99,9 +109,11 @@ test("URL filter parameters initialize filters and results", async ({
 test("category and platform filters can be combined", async ({ page }) => {
   await page.goto("/");
 
+  await openMobileFilters(page);
   await page
     .getByRole("button", { name: new RegExp("^Computer$", "i") })
     .click();
+  await openMobileFilters(page);
   await page.getByRole("button", { name: /^Windows$/i }).click();
 
   await expect(

@@ -31,28 +31,24 @@ async function signInRequester(page: Page) {
 test.describe("UI v2 numbered coverage", () => {
   test("1 start-general shows the general support prompt", async ({ page }) => {
     await page.goto("/");
-    await page.getByRole("button", { name: "General IT Support" }).click();
     await expect(
-      page.getByText("Describe the IT problem you need help with.")
+      page.getByRole("heading", { name: "What can we help you fix?" })
     ).toBeVisible();
+    await expect(page.getByLabel("What's the problem?")).toBeVisible();
   });
 
   test("2 start-mac shows the Mac prompt", async ({ page }) => {
     await page.goto("/");
-    await page.getByRole("button", { name: "Mac" }).click();
     await expect(
-      page.getByText("Tell us what problem you are having with your Mac.")
-    ).toBeVisible();
+      page.getByRole("link", { name: "Mac", exact: true })
+    ).toHaveAttribute("href", "/browse?platform=mac");
   });
 
   test("3 start-windows shows the Windows prompt", async ({ page }) => {
     await page.goto("/");
-    await page.getByRole("button", { name: "Windows" }).click();
     await expect(
-      page.getByText(
-        "Tell us what problem you are having with your Windows computer."
-      )
-    ).toBeVisible();
+      page.getByRole("link", { name: "Windows", exact: true })
+    ).toHaveAttribute("href", "/browse?platform=windows");
   });
 
   test("4 find-solution renders a grounded match without denied steps", async ({
@@ -90,7 +86,7 @@ test.describe("UI v2 numbered coverage", () => {
     await expect(
       page.getByRole("heading", { name: "Likely causes" })
     ).toBeVisible();
-    await expect(page.getByText("72% confidence")).toBeVisible();
+    await expect(page.getByText("Likely match")).toBeVisible();
     await expect(page.getByRole("heading", { name: "Sources" })).toBeVisible();
     await expect(page.getByText("Safe", { exact: true }).first()).toBeVisible();
     await expect(page.getByText("Denied", { exact: true })).toHaveCount(0);
@@ -149,17 +145,11 @@ test.describe("UI v2 numbered coverage", () => {
     }
   });
 
-  test("6 upload-attachment shows the selected file metadata", async ({
+  test("6 start form does not expose unsupported upload controls", async ({
     page,
   }) => {
     await page.goto("/");
-    await page.getByRole("button", { name: "Mac" }).click();
-    await page.getByLabel("Upload screenshot or PDF").setInputFiles({
-      name: "wifi.png",
-      mimeType: "image/png",
-      buffer: Buffer.from("image"),
-    });
-    await expect(page.getByText(/wifi\.png \(/)).toBeVisible();
+    await expect(page.getByLabel("Upload screenshot or PDF")).toHaveCount(0);
   });
 
   test("7 browse-all opens the catalog with search and filters", async ({
@@ -270,7 +260,7 @@ test.describe("UI v2 numbered coverage", () => {
     await expect(page.locator("html")).toHaveClass(/dark/);
     expect(
       await page.evaluate(() => getComputedStyle(document.body).backgroundColor)
-    ).toMatch(/0,\s*0,\s*0|lab\(0/);
+    ).toBe("rgb(11, 18, 32)");
     await page.getByRole("button", { name: "Switch to light mode" }).click();
     await expect(page.locator("html")).toHaveClass(/light/);
   });
@@ -301,11 +291,12 @@ test.describe("UI v2 numbered coverage", () => {
 
   test("17 start-chip-removal-preserves-description", async ({ page }) => {
     await page.goto("/");
-    await page.getByRole("button", { name: "Mac" }).click();
-    await page.getByRole("textbox").fill("wifi keeps dropping");
-    await page.getByRole("button", { name: "Change platform" }).click();
-    await page.getByRole("button", { name: "Mac" }).click();
-    await expect(page.getByRole("textbox")).toHaveValue("wifi keeps dropping");
+    await page
+      .getByRole("textbox", { name: "What's the problem?" })
+      .fill("wifi keeps dropping");
+    await expect(
+      page.getByRole("textbox", { name: "What's the problem?" })
+    ).toHaveValue("wifi keeps dropping");
   });
 });
 

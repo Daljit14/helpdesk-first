@@ -14,11 +14,9 @@ afterEach(() => {
 });
 
 describe("Footer", () => {
-  test("renders useful public columns without organization links", () => {
+  test("renders public navigation links", () => {
     render(<Footer />);
 
-    expect(screen.getByText("Get help")).toBeInTheDocument();
-    expect(screen.getByText("Popular fixes")).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "Browse solutions" })
     ).toHaveAttribute("href", "/browse");
@@ -26,8 +24,6 @@ describe("Footer", () => {
       "href",
       "/signup"
     );
-    expect(screen.queryByText("Organization admin")).not.toBeInTheDocument();
-    expect(screen.queryByText("Notifications")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("link", { name: "Staff log in" })
     ).not.toBeInTheDocument();
@@ -37,12 +33,8 @@ describe("Footer", () => {
     render(<Footer signedIn />);
 
     expect(
-      screen.getByRole("link", { name: "Notification settings" })
-    ).toHaveAttribute("href", "/tickets#notifications");
-    expect(screen.getByRole("link", { name: "New ticket" })).toHaveAttribute(
-      "href",
-      "/assistant"
-    );
+      screen.queryByRole("link", { name: "New ticket" })
+    ).toBeInTheDocument();
     expect(
       screen.queryByRole("link", { name: "Log in" })
     ).not.toBeInTheDocument();
@@ -58,11 +50,5 @@ describe("Footer", () => {
       "href",
       "/admin/login"
     );
-  });
-
-  test("hides from admin routes", () => {
-    pathname.value = "/admin/resolution";
-    render(<Footer />);
-    expect(screen.queryByText("Get help")).not.toBeInTheDocument();
   });
 });

@@ -3,9 +3,7 @@ import { test, expect } from "@playwright/test";
 test("starts troubleshooting guide from issue page", async ({ page }) => {
   await page.goto("/issues/no-sound");
 
-  await page
-    .getByRole("link", { name: /Start troubleshooting guide/i })
-    .click();
+  await page.getByRole("link", { name: /Start troubleshooting/i }).click();
 
   await expect(page).toHaveURL(/issues\/no-sound\/guide/);
   await expect(page.getByText(/Step 1 of/)).toBeVisible();
@@ -22,10 +20,12 @@ test("completes guide and rates it helpful", async ({ page }) => {
   ).toBeVisible();
 
   for (let i = 0; i < 4; i++) {
-    await page.getByRole("button", { name: "I completed this step" }).click();
+    await page
+      .getByRole("button", { name: "Completed, still testing" })
+      .click();
   }
 
-  await page.getByRole("button", { name: "I completed this step" }).click();
+  await page.getByRole("button", { name: "Completed, still testing" }).click();
 
   await expect(page.getByText("Problem solved")).toBeVisible();
   await page.getByRole("button", { name: "Yes" }).click();
@@ -37,10 +37,12 @@ test("escalates on the final step and generates a report", async ({ page }) => {
   await page.goto("/issues/no-sound/guide?platform=Windows");
 
   for (let i = 0; i < 4; i++) {
-    await page.getByRole("button", { name: "I completed this step" }).click();
+    await page
+      .getByRole("button", { name: "Completed, still testing" })
+      .click();
   }
 
-  await page.getByRole("button", { name: "This did not work" }).click();
+  await page.getByRole("button", { name: "Didn't work" }).click();
 
   await expect(page.getByText("This problem is unresolved")).toBeVisible();
 
@@ -58,9 +60,7 @@ test("escalates on the final step and generates a report", async ({ page }) => {
 test("downloads escalation report as a text file", async ({ page }) => {
   await page.goto("/issues/no-sound/guide?platform=Windows");
 
-  await page
-    .getByRole("button", { name: "I cannot complete this step" })
-    .click();
+  await page.getByRole("button", { name: "Can't do this" }).click();
 
   await page.getByLabel(/Why could you not resolve/).fill("Need IT help");
   await page.getByRole("button", { name: "Generate report" }).click();
@@ -79,7 +79,7 @@ test("restarts guide from success screen", async ({ page }) => {
   await page.getByRole("button", { name: "Problem solved" }).click();
   await expect(page.getByText("Problem solved")).toBeVisible();
 
-  await page.getByRole("button", { name: /Restart the guide/i }).click();
+  await page.getByRole("button", { name: /Restart this guide/i }).click();
   await expect(page.getByText(/Step 1 of 5/)).toBeVisible();
 });
 

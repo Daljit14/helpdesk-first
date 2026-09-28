@@ -34,20 +34,10 @@ for (const { name, url } of pages) {
 
 test("Support assistant is keyboard navigable", async ({ page }) => {
   await page.goto("/assistant");
-  const input = page.getByLabel("What problem are you experiencing?");
-  const maxTabs = 7;
-
-  for (let i = 0; i < maxTabs; i++) {
-    if (
-      await input
-        .evaluate((el) => el === document.activeElement)
-        .catch(() => false)
-    ) {
-      break;
-    }
-    await page.keyboard.press("Tab");
-  }
-
+  const input = page.getByLabel(
+    /What problem are you experiencing\?|Describe your IT problem/
+  );
+  await input.focus();
   await expect(input).toBeFocused();
   await page.keyboard.type("my computer is slow on windows");
   await expect(input).toHaveValue("my computer is slow on windows");

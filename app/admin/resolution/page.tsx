@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { AdminBreadcrumbs } from "@/components/admin/v2/breadcrumbs";
+import { AutonomyMetricsCard } from "@/components/admin/resolution/autonomy-metrics-card";
 import { ResolutionCenterTable } from "@/components/admin/resolution/resolution-center-table";
+import { getAutonomyMetrics } from "@/lib/analytics/autonomy-metrics";
 import { requireAdminPage } from "@/lib/admin/auth";
 import { isResolutionCenterEnabled } from "@/lib/admin/flags";
 import { getResolutionCenterOverview } from "@/lib/admin/resolution-center";
@@ -20,9 +22,12 @@ export default async function ResolutionCenterPage({
   if (!isResolutionCenterEnabled()) notFound();
   const session = await requireAdminPage("/admin/resolution");
   const params = await searchParams;
-  const overview = await getResolutionCenterOverview(session, {
-    showExcluded: session.role === "org_admin" && params.showExcluded === "1",
-  });
+  const showExcluded =
+    session.role === "org_admin" && params.showExcluded === "1";
+  const [overview, autonomyMetrics] = await Promise.all([
+    getResolutionCenterOverview(session, { showExcluded }),
+    getAutonomyMetrics(session, { showExcluded }),
+  ]);
   const status = params.status?.toLowerCase();
   const runs = overview.runs.filter((run) => {
     if (!status) return true;
@@ -50,12 +55,13 @@ export default async function ResolutionCenterPage({
             and safe staff controls.
           </p>
         </div>
+        <div className="mb-6">
+          <AutonomyMetricsCard metrics={autonomyMetrics} />
+        </div>
         <ResolutionCenterTable
           runs={runs}
           metrics={overview.metrics}
-          showExcluded={
-            session.role === "org_admin" && params.showExcluded === "1"
-          }
+          showExcluded={showExcluded}
         />
       </div>
     </section>

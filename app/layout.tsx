@@ -1,10 +1,10 @@
 import type { Metadata, Viewport } from "next";
 import { Space_Grotesk, IBM_Plex_Mono } from "next/font/google";
+import Script from "next/script";
 import { ReactNode } from "react";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
-import { Header } from "@/components/header";
-import { Footer } from "@/components/footer";
+import { AppShell } from "@/components/shell/app-shell";
 import { ServiceWorkerRegister } from "@/components/sw-register";
 import { InstallPrompt } from "@/components/install-prompt";
 import { getCurrentUser } from "@/lib/supabase/user";
@@ -32,7 +32,10 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0b0e14",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#F6F8FB" },
+    { media: "(prefers-color-scheme: dark)", color: "#0B1220" },
+  ],
 };
 
 export default async function RootLayout({
@@ -54,11 +57,14 @@ export default async function RootLayout({
   return (
     <html
       lang="en"
-      className={`${spaceGrotesk.variable} ${ibmPlexMono.variable} h-full antialiased dark`}
+      className={`${spaceGrotesk.variable} ${ibmPlexMono.variable} h-full antialiased light`}
       data-ui={isUiV2Enabled() ? "v2" : undefined}
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col bg-background text-foreground font-sans">
+        <Script id="theme-preload" strategy="beforeInteractive">
+          {`(function(){try{var t=localStorage.getItem("hf-theme");document.documentElement.classList.remove("light","dark");document.documentElement.classList.add(t==="dark"?"dark":"light")}catch(e){document.documentElement.classList.add("light")}})()`}
+        </Script>
         <a
           href="#main-content"
           className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded focus:bg-foreground focus:px-4 focus:py-2 focus:text-background"
@@ -69,15 +75,13 @@ export default async function RootLayout({
         <ThemeProvider>
           <ServiceWorkerRegister />
           <AnalyticsTracker />
-          <Header user={user} />
-          <main
-            id="main-content"
-            tabIndex={-1}
-            className="flex flex-1 flex-col focus:outline-none"
+          <AppShell
+            email={user?.email ?? null}
+            staff={staff}
+            aiEnabled={process.env.NEXT_PUBLIC_AI_ENABLED === "true"}
           >
             {children}
-          </main>
-          <Footer signedIn={Boolean(user)} staff={staff} />
+          </AppShell>
           <InstallPrompt />
         </ThemeProvider>
       </body>

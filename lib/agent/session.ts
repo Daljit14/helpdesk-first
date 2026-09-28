@@ -6,11 +6,36 @@ import {
   decryptAgentText,
   encryptAgentTextForWrite,
 } from "@/lib/security/ticket-crypto";
+import type { HandoffReason } from "@/lib/tickets/routing";
 import type { AgentEvent, AgentSession } from "./types";
 
 type Admin = ReturnType<
   typeof import("@/lib/supabase/admin").createAdminClient
 >;
+
+export function handoffReasonFor(
+  reason: string,
+  terminalStatus: "escalated" | "halted"
+): HandoffReason {
+  if (reason === "user_requested_human") return "user_requested_human";
+  if (
+    terminalStatus === "halted" ||
+    /security|injection|denylist|identity|tripwire/i.test(reason)
+  )
+    return "security_concern";
+  if (
+    [
+      "max_failed_hypotheses",
+      "rollback_failed",
+      "verification_inconclusive",
+      "execution_denied",
+      "verification_failed",
+    ].includes(reason)
+  )
+    return "repeated_failure";
+  if (reason === "low_confidence") return "low_confidence";
+  return "agent_halted";
+}
 
 export async function createSession(
   admin: Admin,
@@ -234,11 +259,78 @@ export async function escalate(
   if (screenshotIds.length > 0) {
     await attachTicketAttachments(created.ticketId, screenshotIds);
   }
+  try {
+    const actionSteps = await admin
+      .from("agent_steps")
+      .select("kind,capability_id,result_summary,created_at")
+      .eq("organization_id", session.organization_id)
+      .eq("session_id", session.id)
+      .in("kind", [
+        "action_executing",
+        "verification_result",
+        "user_feedback",
+        "action_autorun",
+      ])
+      .order("seq", { ascending: true });
+    const actions = await Promise.all(
+      (actionSteps.data ?? []).map(async (step) => {
+        const capability = String(step.capability_id ?? step.kind);
+        const summary = String(
+          (await decryptAgentText(
+            admin,
+            session.organization_id,
+            "agent_steps",
+            "result_summary",
+            step.result_summary
+          )) ?? ""
+        )
+          .trim()
+          .slice(0, 1000);
+        const resultSummary =
+          step.kind === "user_feedback"
+            ? summary.toLowerCase() === "no"
+              ? "Requester reported still broken"
+              : summary.toLowerCase() === "yes"
+                ? "Requester confirmed fixed"
+                : summary
+            : summary;
+        const actionSummary =
+          step.kind === "action_autorun"
+            ? `Ran ${capability} automatically (autorun tier)`
+            : step.kind === "action_executing"
+              ? `Ran ${capability} after requester approval`
+              : step.kind === "verification_result"
+                ? `Independent verification of ${capability}`
+                : `Requester asked "Is it working now?"`;
+        return {
+          ticket_id: created.ticketId,
+          organization_id: session.organization_id,
+          agent_id: null,
+          tool_name: capability.slice(0, 120),
+          action_summary: actionSummary.slice(0, 1000),
+          result_summary: resultSummary,
+          consent_required: step.kind === "action_executing",
+          consent_received: step.kind === "action_executing",
+          created_at: step.created_at,
+        };
+      })
+    );
+    if (actions.length > 0) {
+      const inserted = await admin.from("ticket_actions").insert(actions);
+      if (inserted.error)
+        console.error(
+          "Failed to record requester-agent actions.",
+          inserted.error
+        );
+    }
+  } catch (error) {
+    console.error("Failed to record requester-agent actions.", error);
+  }
   const client = await createClient();
   await client.rpc("handoff_ticket", {
     ticket: created.ticketId,
     reason,
-    handoff: "user_requested_human",
+    handoff: handoffReasonFor(reason, terminalStatus),
   });
   await completeUserHandoff(created.ticketId);
   await writeStep(admin, session, {

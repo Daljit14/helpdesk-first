@@ -23,3 +23,8 @@ The autonomy attempts cap gates starting a new attempt, not verification of
 the final permitted attempt. A run at `max_attempts` may therefore complete
 its in-flight execution and enter verification; deadline and budget limits
 remain enforced on every transition.
+
+Requester-agent escalations now persist attempted action, independent
+verification, and requester-feedback steps in `ticket_actions` before the
+Diagnosis package is snapshotted, while mapping terminal reasons to handoff
+categories including repeated-failure and security-concern outcomes.

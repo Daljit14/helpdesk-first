@@ -90,7 +90,10 @@ export function TroubleshootingGuide({
   const platform: string = useMemo(() => {
     const raw = searchParams.get("platform");
     const fromQuery = normalizePlatform(raw);
-    return fromQuery ?? issue.devices[0];
+    return (
+      fromQuery ??
+      (issue.devices.includes("Windows") ? "Windows" : issue.devices[0])
+    );
   }, [searchParams, issue.devices]);
   const browseReturnHref = useMemo(
     () => buildBrowseReturnHref(searchParams),
@@ -407,6 +410,26 @@ export function TroubleshootingGuide({
         />
       </div>
 
+      <details className="mt-6 rounded-xl border border-border bg-card p-4 lg:hidden">
+        <summary className="cursor-pointer font-medium">Guide outline</summary>
+        <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm text-muted-foreground">
+          {steps.map((step, index) => (
+            <li key={`${index}-${step}`}>{step}</li>
+          ))}
+        </ol>
+      </details>
+      <nav
+        aria-label="Guide outline"
+        className="mt-6 hidden rounded-xl border border-border bg-card p-4 lg:block"
+      >
+        <p className="font-medium">Guide outline</p>
+        <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm text-muted-foreground">
+          {steps.map((step, index) => (
+            <li key={`${index}-${step}`}>{step}</li>
+          ))}
+        </ol>
+      </nav>
+
       <div
         ref={statusRef}
         tabIndex={-1}
@@ -593,7 +616,7 @@ function StepView({
       )}
 
       {policy?.risk === "approval" ? (
-        <div className="glass sticky bottom-3 z-10 flex flex-wrap gap-3 p-3 sm:static sm:bg-transparent sm:p-0 sm:shadow-none">
+        <div className="flex flex-wrap gap-3 rounded-xl border border-border bg-card p-3">
           <Button type="button" onClick={onApprovalRequest}>
             Ask IT to approve
           </Button>
@@ -602,28 +625,29 @@ function StepView({
           </Button>
         </div>
       ) : policy?.risk === "caution" && !confirmed ? (
-        <div className="glass sticky bottom-3 z-10 p-3 sm:static sm:bg-transparent sm:p-0 sm:shadow-none">
+        <div className="rounded-xl border border-border bg-card p-3">
           <Button type="button" onClick={() => setConfirmed(true)}>
             I understand, continue
           </Button>
         </div>
       ) : (
-        <div className="glass sticky bottom-3 z-10 grid gap-3 p-3 sm:static sm:grid-cols-2 sm:bg-transparent sm:p-0 sm:shadow-none">
+        <div className="grid gap-3 rounded-xl border border-border bg-card p-3 sm:grid-cols-2">
           <Button type="button" variant="default" onClick={onSolved}>
             <CheckCircle className="mr-2 h-4 w-4" />
             Problem solved
           </Button>
 
           <Button type="button" variant="outline" onClick={onCompleted}>
-            I completed this step
+            Completed, still testing
           </Button>
 
           <Button type="button" variant="outline" onClick={onDidNotWork}>
-            This did not work
+            Didn&apos;t work
           </Button>
 
           <Button type="button" variant="ghost" onClick={onCannotComplete}>
-            <XCircle className="mr-2 h-4 w-4" />I cannot complete this step
+            <XCircle className="mr-2 h-4 w-4" />
+            Can&apos;t do this
           </Button>
         </div>
       )}
@@ -709,7 +733,7 @@ function SuccessView({
       <div className="mt-8 flex flex-wrap justify-center gap-3">
         <Button type="button" variant="outline" onClick={onRestart}>
           <RotateCcw className="mr-2 h-4 w-4" />
-          Restart the guide
+          Restart this guide
         </Button>
         <Link
           href={browseReturnHref}

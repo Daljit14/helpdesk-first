@@ -20,6 +20,9 @@ import {
 } from "@/lib/steps";
 import { getCurrentUser } from "@/lib/supabase/user";
 import { buildBrowseReturnHref } from "@/lib/browse-return";
+import { platformSlug } from "@/lib/platform";
+import { Breadcrumbs } from "@/components/ui/breadcrumbs";
+import { Badge } from "@/components/ui/badge";
 import {
   getBookmarkedIssueIds,
   getRatingTotals,
@@ -92,17 +95,18 @@ export default async function IssuePage({
     getRatingTotals(issue.id),
   ]);
 
-  const riskColor =
-    issue.risk === "High"
-      ? "text-rose-500"
-      : issue.risk === "Medium"
-        ? "text-amber-500"
-        : "text-emerald-500";
-
   return (
     <section className="flex flex-1 flex-col px-4 py-12 sm:px-6 lg:px-8">
       <div className="mx-auto w-full max-w-3xl">
         <RecentTracker issueId={issue.id} />
+        <Breadcrumbs
+          label="Issue breadcrumb"
+          items={[
+            { label: "Start", href: "/" },
+            { label: "Browse solutions", href: backHref },
+            { label: issue.title },
+          ]}
+        />
         <Link
           href={backHref}
           className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
@@ -111,47 +115,78 @@ export default async function IssuePage({
           {hasBrowseParams ? "Back to results" : "Browse all solutions"}
         </Link>
 
-        <h1 className="mt-6 text-3xl font-bold tracking-tight sm:text-4xl">
-          {issue.title}
-        </h1>
+        <div className="mt-6 rounded-xl border border-border bg-card p-6 shadow-sm">
+          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
+            {issue.title}
+          </h1>
+          <p className="mt-2 text-muted-foreground">
+            {issue.symptoms[0] ?? issue.title}
+          </p>
 
-        <p className="mt-2 text-muted-foreground">
-          {issue.symptoms.join(" · ")}
-        </p>
+          <div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+            <Badge variant="neutral">{category?.label ?? issue.category}</Badge>
+            <span className="inline-flex items-center gap-1">
+              <Gauge className="h-4 w-4" />
+              Difficulty {issue.difficulty}/3
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <Clock className="h-4 w-4" />
+              {issue.time}
+            </span>
+            <Badge
+              variant={
+                issue.risk === "Low"
+                  ? "success"
+                  : issue.risk === "Medium"
+                    ? "warning"
+                    : "danger"
+              }
+            >
+              {issue.risk === "Low" ? (
+                <ShieldCheck className="h-4 w-4" />
+              ) : (
+                <ShieldAlert className="h-4 w-4" />
+              )}
+              {issue.risk} risk
+            </Badge>
+          </div>
 
-        <div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-          <span className="glass-pill px-3 py-1">
-            {category?.label ?? issue.category}
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <Gauge className="h-4 w-4" />
-            Difficulty {issue.difficulty}/3
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <Clock className="h-4 w-4" />
-            {issue.time}
-          </span>
-          <span
-            className={`inline-flex items-center gap-1 font-medium ${riskColor}`}
-          >
-            {issue.risk === "Low" ? (
-              <ShieldCheck className="h-4 w-4" />
-            ) : (
-              <ShieldAlert className="h-4 w-4" />
-            )}
-            {issue.risk} risk
-          </span>
-        </div>
-
-        <div className="mt-4 text-sm">
-          <span className="font-medium text-foreground">Applies to:</span>{" "}
-          {issue.devices.join(", ")}
+          <div className="mt-4 flex flex-wrap gap-2 text-sm">
+            <span className="font-medium text-foreground">Applies to:</span>
+            {issue.devices.map((device) => {
+              const selected =
+                query.platform?.toString().toLowerCase() ===
+                device.toLowerCase();
+              const params = new URLSearchParams();
+              for (const [key, value] of Object.entries(query)) {
+                if (Array.isArray(value)) params.set(key, value[0] ?? "");
+                else if (value !== undefined) params.set(key, value);
+              }
+              params.set("platform", platformSlug(device));
+              return (
+                <Link
+                  key={device}
+                  href={`/issues/${issue.id}?${params.toString()}`}
+                  aria-current={selected ? "page" : undefined}
+                  className="rounded-full border border-border px-3 py-1 hover:border-primary"
+                >
+                  {device}
+                </Link>
+              );
+            })}
+          </div>
         </div>
 
         {issue.category === "network" && <NetworkCheckWidget />}
 
         <div className="mt-6">
           <StartGuideButton slug={issue.id} />
+          <Link
+            href={`/assistant?q=${encodeURIComponent(issue.title)}&intent=human`}
+            className="ml-2 inline-flex min-h-11 items-center rounded-lg border border-border px-5 font-medium hover:bg-secondary"
+          >
+            Contact support
+          </Link>
         </div>
 
         <GuideActions
@@ -175,7 +210,7 @@ export default async function IssuePage({
           <h2 className="text-xl font-semibold">
             Initial troubleshooting steps
           </h2>
-          <ol className="glass-strong mt-4 list-decimal space-y-3 p-6 pl-10">
+          <ol className="mt-4 list-decimal space-y-3 border-l border-border pl-8">
             {steps.map((step, index) => (
               <li key={index} className="pl-2 text-muted-foreground">
                 {step}

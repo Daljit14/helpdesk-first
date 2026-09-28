@@ -100,4 +100,57 @@ describe("screenshot transcribers", () => {
       input: { hypothesis_id: "ev-3" },
     });
   });
+
+  test("moves to the next network hypothesis after a failed capability", async () => {
+    vi.stubEnv("HELP_DESK_REQUESTER_AGENT_ACTIONS_ENABLED", "true");
+    const model = new MockAgentModel("Still broken after `device_flush_dns`");
+    await expect(model.next({ messages: [] })).resolves.toMatchObject({
+      kind: "tool_use",
+      name: "search_guides",
+    });
+    await expect(model.next({ messages: [] })).resolves.toMatchObject({
+      kind: "tool_use",
+      name: "get_device_diagnostics",
+    });
+    await expect(
+      model.next({
+        messages: [
+          {
+            role: "tool_result",
+            tool_use_id: "mock-diagnostics",
+            content: "[evidence id: ev-3]",
+          },
+        ],
+      })
+    ).resolves.toMatchObject({
+      kind: "tool_use",
+      name: "propose_action",
+      input: {
+        capability_id: "device_reset_wifi_profile",
+        hypothesis_id: "ev-3",
+      },
+    });
+  });
+
+  test("ends the network hypothesis ladder after the adapter reset", async () => {
+    vi.stubEnv("HELP_DESK_REQUESTER_AGENT_ACTIONS_ENABLED", "true");
+    const model = new MockAgentModel(
+      "Still broken after `device_reset_network_adapter`"
+    );
+    await model.next({ messages: [] });
+    await model.next({ messages: [] });
+    await expect(
+      model.next({
+        messages: [
+          {
+            role: "tool_result",
+            tool_use_id: "mock-diagnostics",
+            content: "[evidence id: ev-5]",
+          },
+        ],
+      })
+    ).resolves.toMatchObject({
+      kind: "final",
+    });
+  });
 });

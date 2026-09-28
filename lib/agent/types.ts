@@ -61,7 +61,7 @@ export type AgentEvent =
       evidence: string[];
     }
   | { type: "escalated"; ticketId: string; reason: string }
-  | { type: "error"; message: string }
+  | { type: "error"; message: string; recoverable?: boolean }
   | { type: "halted"; reason: string; ticketId?: string };
 
 export type AgentSession = {

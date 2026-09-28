@@ -166,12 +166,15 @@ export function AgentChat({
           if (event.type === "resolved") {
             setTerminal(true);
           }
-          if (
-            event.type === "escalated" ||
-            event.type === "halted" ||
-            event.type === "error"
-          ) {
+          if (event.type === "escalated" || event.type === "halted") {
             setTerminal(true);
+          }
+          if (event.type === "error") {
+            if (event.recoverable) {
+              setScreenshot(null);
+            } else {
+              setTerminal(true);
+            }
           }
         }
       }

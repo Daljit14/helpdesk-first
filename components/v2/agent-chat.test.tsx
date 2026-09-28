@@ -127,6 +127,35 @@ describe("AgentChat", () => {
     ).not.toBeDisabled();
   });
 
+  test("keeps the composer enabled after a recoverable screenshot error", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        streamResponse([
+          {
+            type: "error",
+            message: "That screenshot is not ready for analysis.",
+            recoverable: true,
+          },
+        ])
+      )
+    );
+    render(<AgentChat visionEnabled initialProblem="Wi-Fi is down" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Ask the assistant" }));
+
+    expect(
+      await screen.findByText("That screenshot is not ready for analysis.")
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Describe your IT problem")
+    ).not.toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Ask the assistant" })
+    ).not.toBeDisabled();
+    expect(screen.queryByText(/Screenshot:/)).not.toBeInTheDocument();
+  });
+
   test("disables consent buttons after the card is answered", async () => {
     const fetchMock = vi
       .fn()

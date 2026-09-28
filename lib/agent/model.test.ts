@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import {
   AnthropicScreenshotTranscriber,
+  MockAgentModel,
   MockScreenshotTranscriber,
 } from "./model";
 
@@ -49,5 +50,32 @@ describe("screenshot transcribers", () => {
         text: "custom screenshot text",
       }
     );
+  });
+
+  test("keeps screenshot transcription out of the mock search query", async () => {
+    const model = new MockAgentModel(
+      'I shared a screenshot of the problem.\n\n<untrusted_data source="screenshot">Wi-Fi is not connected.</untrusted_data>'
+    );
+    const result = await model.next();
+    expect(result).toMatchObject({
+      kind: "tool_use",
+      name: "search_guides",
+      input: { query: "I shared a screenshot of the problem." },
+    });
+  });
+
+  test("uses a bounded fallback query when the message starts with screenshot data", async () => {
+    const model = new MockAgentModel(
+      '<untrusted_data source="screenshot">Only screenshot text.</untrusted_data>'
+    );
+    await expect(model.next()).resolves.toMatchObject({
+      input: { query: "screenshot problem" },
+    });
+
+    const longPrefix = "x".repeat(250);
+    const boundedModel = new MockAgentModel(`${longPrefix}<untrusted_data`);
+    await expect(boundedModel.next()).resolves.toMatchObject({
+      input: { query: "x".repeat(200) },
+    });
   });
 });

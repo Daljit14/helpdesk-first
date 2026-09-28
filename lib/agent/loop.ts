@@ -310,9 +310,12 @@ export async function runAgentTurn(input: {
       session.tool_call_count = toolCalls;
       await deps.updateSession(admin, session, { tool_call_count: toolCalls });
       const rejection = `Action rejected: ${action.code} — ${action.message}`;
+      const rejectionParamsHash = toolParamsHash(result.name, result.input);
       await deps.writeStep(admin, session, {
         kind: "action_rejected",
         toolName: result.name,
+        capabilityId: String(actionInput.capability_id ?? ""),
+        paramsHash: rejectionParamsHash,
         resultSummary: rejection,
       });
       if (action.code === "tier_shadow" || action.code === "tier_disabled") {
@@ -321,6 +324,19 @@ export async function runAgentTurn(input: {
           tool: result.name,
           summary: action.message,
         });
+      }
+      const rejectionKey = `${result.name}:${rejectionParamsHash}`;
+      const rejectionRepeats = (seen.get(rejectionKey) ?? 0) + 1;
+      seen.set(rejectionKey, rejectionRepeats);
+      if (rejectionRepeats >= 3) {
+        const ticketId = await deps.escalate(
+          admin,
+          session,
+          "loop_detected",
+          userMessage
+        );
+        emit({ type: "escalated", ticketId, reason: "loop_detected" });
+        return;
       }
       messages.push(
         {

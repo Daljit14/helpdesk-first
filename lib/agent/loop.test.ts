@@ -184,4 +184,44 @@ describe("requester agent loop", () => {
       });
     }
   );
+
+  test("escalates on the third identical rejected action proposal", async () => {
+    const rejected = {
+      kind: "rejected" as const,
+      code: "unknown_hypothesis" as const,
+      message: "That evidence is not available in this session.",
+    };
+    const proposal = (id: string) => ({
+      kind: "tool_use" as const,
+      id,
+      name: "propose_action",
+      input: {
+        capability_id: "device_flush_dns",
+        params: {},
+        hypothesis_id: "missing-evidence",
+        rationale: "Diagnostics indicate a network issue.",
+      },
+      summary: "I can propose a safe fix.",
+    });
+    const harness = createAgentEvalHarness({
+      outputs: [proposal("one"), proposal("two"), proposal("three")],
+      proposeActionOutcome: rejected,
+    });
+
+    await harness.run();
+
+    expect(harness.events.at(-1)).toMatchObject({
+      type: "escalated",
+      reason: "loop_detected",
+    });
+    expect(
+      harness.steps.filter((step) => step.kind === "action_rejected")
+    ).toHaveLength(3);
+    expect(
+      harness.steps.find((step) => step.kind === "action_rejected")
+    ).toMatchObject({
+      kind: "action_rejected",
+      toolName: "propose_action",
+    });
+  });
 });

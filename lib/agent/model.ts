@@ -133,6 +133,9 @@ export class MockAgentModel implements AgentModel {
   constructor(private readonly firstMessage: string) {}
 
   async next(): Promise<AgentModelOutput> {
+    const query =
+      this.firstMessage.split("<untrusted_data", 1)[0].trim().slice(0, 200) ||
+      "screenshot problem";
     if (!this.called) {
       this.called = true;
       if (/wi[\s-]?fi|wireless|network/i.test(this.firstMessage)) {
@@ -140,7 +143,7 @@ export class MockAgentModel implements AgentModel {
           kind: "tool_use",
           id: `mock-${digest(this.firstMessage).slice(0, 12)}`,
           name: "search_guides",
-          input: { query: this.firstMessage },
+          input: { query },
           summary: "I’m checking approved support guides.",
         };
       }
@@ -148,7 +151,7 @@ export class MockAgentModel implements AgentModel {
         kind: "tool_use",
         id: "mock-search",
         name: "search_guides",
-        input: { query: this.firstMessage },
+        input: { query },
         summary: "I’m checking approved support guides.",
       };
     }

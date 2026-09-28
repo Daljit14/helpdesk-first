@@ -1,58 +1,57 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type ChangeEvent } from "react";
-import {
-  Laptop,
-  Monitor,
-  Smartphone,
-  Paperclip,
-  Wrench,
-  X,
-  type LucideIcon,
-} from "lucide-react";
+import { useEffect, useState } from "react";
+import { ArrowRight, Monitor } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { SAFE_USE_WARNING } from "@/lib/ui-copy";
-import type { Platform } from "@/lib/helpdesk-data";
-import { platformSlug } from "@/lib/platform";
+import { normalizePlatform, platformSlug } from "@/lib/platform";
+import { getIssueBySlug } from "@/lib/search";
+import { ticketState } from "@/lib/tickets/user-status";
+import { IssueCard } from "@/components/issue-card";
+import { RecentlyViewed } from "@/components/recently-viewed";
+import { Button } from "@/components/ui/button";
+import { Field } from "@/components/ui/field";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
-type StartPlatform = "General" | Extract<Platform, "Mac" | "Windows">;
+const popularIds = [
+  "slow-computer",
+  "no-internet",
+  "wifi-keeps-disconnecting",
+  "printer-offline",
+  "forgot-password",
+  "camera-mic-not-working",
+];
 
-const prompts: Record<StartPlatform, string> = {
-  General: "Describe the IT problem you need help with.",
-  Mac: "Tell us what problem you are having with your Mac.",
-  Windows: "Tell us what problem you are having with your Windows computer.",
-};
-
-function assistantHref(
-  platform: StartPlatform,
-  description: string,
-  intent: "solve" | "ticket" | "human",
-  attached: boolean
-) {
-  const params = new URLSearchParams({ q: description, intent });
-  if (platform !== "General") params.set("platform", platformSlug(platform));
-  if (attached) params.set("attach", "1");
-  return `/assistant?${params.toString()}`;
-}
-
-export function HomeStart({ signedIn = false }: { signedIn?: boolean }) {
-  const [platform, setPlatform] = useState<StartPlatform | null>(null);
+export function HomeStart({
+  signedIn = false,
+  openTickets = [],
+}: {
+  signedIn?: boolean;
+  openTickets?: Array<{
+    id: string;
+    subject: string;
+    status: string;
+    updatedAt: string;
+  }>;
+}) {
+  const router = useRouter();
   const [description, setDescription] = useState("");
-  const [file, setFile] = useState<File | null>(null);
+  const [platform, setPlatform] = useState("");
+  const canSubmit = description.trim().length >= 3;
 
   useEffect(() => {
     const saved = sessionStorage.getItem("hf-v2-start");
     if (!saved) return;
     try {
       const value = JSON.parse(saved) as {
-        platform?: StartPlatform | null;
         description?: string;
-        fileName?: string;
-        fileSize?: number;
+        platform?: string;
       };
       queueMicrotask(() => {
-        setPlatform(value.platform ?? null);
         setDescription(value.description ?? "");
+        setPlatform(value.platform ?? "");
       });
     } catch {
       sessionStorage.removeItem("hf-v2-start");
@@ -62,198 +61,175 @@ export function HomeStart({ signedIn = false }: { signedIn?: boolean }) {
   useEffect(() => {
     sessionStorage.setItem(
       "hf-v2-start",
-      JSON.stringify({
-        platform,
-        description,
-        fileName: file?.name,
-        fileSize: file?.size,
-      })
+      JSON.stringify({ description, platform })
     );
-  }, [description, file, platform]);
+  }, [description, platform]);
 
-  function choose(next: StartPlatform) {
-    setPlatform(next);
-  }
-
-  function handleFile(event: ChangeEvent<HTMLInputElement>) {
-    setFile(event.target.files?.[0] ?? null);
+  function assistantHref(intent: "solve" | "human") {
+    const params = new URLSearchParams({ q: description.trim(), intent });
+    const normalized = normalizePlatform(platform);
+    if (normalized) params.set("platform", platformSlug(normalized));
+    return `/assistant?${params.toString()}`;
   }
 
   return (
-    <section className="flex flex-1 flex-col px-4 py-16 sm:px-6 lg:px-8">
-      <div className="mx-auto w-full max-w-2xl">
-        <div className="text-center">
+    <section className="px-4 py-10 sm:px-6 lg:px-10">
+      <div className="mx-auto max-w-6xl">
+        <div className="max-w-3xl">
           <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">
-            How can we help with your IT problem?
+            What can we help you fix?
           </h1>
-          <p className="mx-auto mt-4 max-w-xl text-muted-foreground">
-            Start with a device or describe what you need help with.
+          <p className="mt-3 text-lg text-muted-foreground">
+            Describe your issue or explore a troubleshooting guide.
           </p>
         </div>
-
-        {!platform ? (
-          <div className="mt-10 grid gap-4 sm:grid-cols-3">
-            <Option
-              icon={Wrench}
-              label="General IT Support"
-              onClick={() => choose("General")}
-            />
-            <Option icon={Laptop} label="Mac" onClick={() => choose("Mac")} />
-            <Option
-              icon={Monitor}
-              label="Windows"
-              onClick={() => choose("Windows")}
-            />
-            <Option icon={Smartphone} label="iOS" href="/browse?platform=ios" />
-            <Option
-              icon={Smartphone}
-              label="Android"
-              href="/browse?platform=android"
-            />
-          </div>
-        ) : (
-          <div className="mt-10">
-            <button
-              type="button"
-              className="v2-badge v2-touch"
-              aria-label="Change platform"
-              onClick={() => setPlatform(null)}
-            >
-              {platform === "General" ? "General IT Support" : platform}
-              <X className="h-4 w-4" aria-hidden />
-            </button>
-            <label
-              htmlFor="v2-start-description"
-              className="mt-5 block text-lg font-medium"
-            >
-              {prompts[platform]}
-            </label>
-            <textarea
-              id="v2-start-description"
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-              rows={6}
-              className="mt-3 w-full rounded-2xl border border-input bg-background p-4 text-base outline-none focus:ring-2 focus:ring-ring"
-              placeholder="Include what you noticed and when it started."
-            />
-            <div className="mt-3 rounded-xl border border-border bg-muted/50 p-3 text-sm text-muted-foreground">
-              {SAFE_USE_WARNING}
-            </div>
-            <div className="mt-5 flex flex-wrap gap-3">
-              <Link
-                href={assistantHref(
-                  platform,
-                  description,
-                  "solve",
-                  Boolean(file)
-                )}
-                aria-disabled={!description.trim()}
-                className={`v2-touch inline-flex items-center justify-center rounded-xl bg-primary px-4 py-2 font-medium text-primary-foreground ${
-                  !description.trim() ? "pointer-events-none opacity-50" : ""
-                }`}
+        <div className="mt-8 max-w-2xl rounded-xl border border-border bg-card p-5 shadow-sm">
+          <div className="grid gap-5">
+            <Field id="start-problem" label="What's the problem?">
+              <textarea
+                id="start-problem"
+                rows={4}
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+                placeholder="e.g. My laptop won't connect to the office Wi-Fi since this morning"
+                className="w-full rounded-lg border border-input bg-background px-3 py-3 outline-none focus:border-primary"
+              />
+            </Field>
+            <Field id="start-platform" label="Device (optional)">
+              <select
+                id="start-platform"
+                value={platform}
+                onChange={(event) => setPlatform(event.target.value)}
+                className="h-11 rounded-lg border border-input bg-background px-3"
+              >
+                <option value="">Not sure</option>
+                <option value="Windows">Windows</option>
+                <option value="Mac">Mac</option>
+                <option value="iOS">iOS</option>
+                <option value="Android">Android</option>
+                <option value="Other">Other</option>
+              </select>
+            </Field>
+            <div className="flex flex-wrap gap-3">
+              <Button
+                type="button"
+                size="lg"
+                disabled={!canSubmit}
+                onClick={() => router.push(assistantHref("solve"))}
               >
                 Find a solution
-              </Link>
+              </Button>
               <Link
-                href={assistantHref(
-                  platform,
-                  description,
-                  "ticket",
-                  Boolean(file)
+                href={canSubmit ? assistantHref("human") : "#start-problem"}
+                className={cn(
+                  "inline-flex min-h-11 items-center justify-center rounded-lg border border-border px-5 font-medium hover:bg-secondary",
+                  !canSubmit && "text-muted-foreground"
                 )}
-                aria-disabled={!description.trim()}
-                className={`v2-touch inline-flex items-center justify-center rounded-xl border border-border px-4 py-2 font-medium ${
-                  !description.trim() ? "pointer-events-none opacity-50" : ""
-                }`}
               >
-                Create a support ticket
-              </Link>
-              <label className="v2-touch inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-border px-4 py-2 text-sm">
-                <Paperclip className="h-4 w-4" aria-hidden />
-                Upload screenshot or PDF
-                <input
-                  type="file"
-                  accept="image/*,application/pdf"
-                  className="sr-only"
-                  onChange={handleFile}
-                />
-              </label>
-              <Link
-                href={assistantHref(
-                  platform,
-                  description,
-                  "human",
-                  Boolean(file)
-                )}
-                aria-disabled={!description.trim()}
-                className={`v2-touch inline-flex items-center justify-center rounded-xl border border-border px-4 py-2 font-medium ${
-                  !description.trim() ? "pointer-events-none opacity-50" : ""
-                }`}
-              >
-                I want a person
+                Contact support
               </Link>
             </div>
-            {file && (
-              <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
-                <span className="v2-badge">
-                  <Paperclip className="h-3.5 w-3.5" aria-hidden />
-                  {file.name} ({Math.ceil(file.size / 1024)} KB)
-                  <button
-                    type="button"
-                    aria-label="Remove attachment"
-                    onClick={() => setFile(null)}
-                  >
-                    <X className="h-3.5 w-3.5" aria-hidden />
-                  </button>
-                </span>
-                {!signedIn && (
-                  <span className="text-muted-foreground">
-                    Log in to attach files to a ticket
-                  </span>
-                )}
-              </div>
+            {!canSubmit && (
+              <p className="text-sm text-muted-foreground">
+                Describe the problem to continue
+              </p>
             )}
+            <p className="text-xs text-muted-foreground">{SAFE_USE_WARNING}</p>
           </div>
+        </div>
+
+        <section className="mt-12" aria-labelledby="popular-solutions-heading">
+          <div className="flex items-end justify-between gap-4">
+            <div>
+              <h2
+                id="popular-solutions-heading"
+                className="text-xl font-semibold"
+              >
+                Popular solutions
+              </h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Start with a guide for a common problem.
+              </p>
+            </div>
+            <Link
+              href="/browse"
+              className="text-sm font-medium text-primary hover:underline"
+            >
+              Browse all <ArrowRight className="inline h-4 w-4" aria-hidden />
+            </Link>
+          </div>
+          <ul className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {popularIds.map((id) => {
+              const issue = getIssueBySlug(id);
+              return issue ? <IssueCard key={id} issue={issue} /> : null;
+            })}
+          </ul>
+        </section>
+
+        <RecentlyViewed />
+
+        {signedIn && openTickets.length > 0 && (
+          <section className="mt-12" aria-labelledby="open-tickets-heading">
+            <div className="flex items-end justify-between gap-4">
+              <h2 id="open-tickets-heading" className="text-xl font-semibold">
+                Your open tickets
+              </h2>
+              <Link
+                href="/tickets"
+                className="text-sm font-medium text-primary hover:underline"
+              >
+                View all tickets
+              </Link>
+            </div>
+            <ul className="mt-4 grid gap-3">
+              {openTickets.slice(0, 3).map((ticket) => {
+                const state = ticketState({ status: ticket.status });
+                return (
+                  <li
+                    key={ticket.id}
+                    className="rounded-xl border border-border bg-card p-4"
+                  >
+                    <Link
+                      href={`/tickets/${ticket.id}`}
+                      className="flex items-start justify-between gap-4"
+                    >
+                      <div>
+                        <p className="font-medium">{ticket.subject}</p>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {state.nextAction ?? state.description}
+                        </p>
+                      </div>
+                      <Badge variant={state.attention ? "warning" : "neutral"}>
+                        {state.label}
+                      </Badge>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
         )}
 
-        {!platform && (
-          <Link
-            href="/browse"
-            className="mx-auto mt-8 block w-fit text-sm underline underline-offset-4"
-          >
-            Browse all solutions
-          </Link>
-        )}
+        <section className="mt-12" aria-labelledby="browse-device-heading">
+          <h2 id="browse-device-heading" className="text-xl font-semibold">
+            Browse by device
+          </h2>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {["windows", "mac", "ios", "android"].map((device) => (
+              <Link
+                key={device}
+                href={`/browse?platform=${device}`}
+                className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium hover:bg-secondary"
+              >
+                <Monitor className="h-4 w-4" aria-hidden />
+                {device === "ios"
+                  ? "iOS"
+                  : device[0].toUpperCase() + device.slice(1)}
+              </Link>
+            ))}
+          </div>
+        </section>
       </div>
     </section>
-  );
-}
-
-function Option({
-  icon: Icon,
-  label,
-  onClick,
-  href,
-}: {
-  icon: LucideIcon;
-  label: string;
-  onClick?: () => void;
-  href?: string;
-}) {
-  const className =
-    "v2-touch flex min-h-36 flex-col items-center justify-center gap-3 rounded-2xl border border-border bg-card p-5 text-center transition-colors hover:bg-[var(--hover)]";
-  if (href) {
-    return (
-      <Link href={href} className={className}>
-        <Icon className="h-8 w-8" aria-hidden />
-        <span className="font-medium">{label}</span>
-      </Link>
-    );
-  }
-  return (
-    <button type="button" onClick={onClick} className={className}>
-      <Icon className="h-8 w-8" aria-hidden />
-      <span className="font-medium">{label}</span>
-    </button>
   );
 }

@@ -7,6 +7,9 @@ import { Bot, ChevronRight, History, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/lib/button-variants";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/ui/page-header";
+import { Sheet } from "@/components/ui/sheet";
 import { SearchBox } from "@/components/search-box";
 import { CategoryGrid } from "@/components/category-grid";
 import { PlatformButtons } from "@/components/platform-buttons";
@@ -14,7 +17,7 @@ import { RecentlyViewed } from "@/components/recently-viewed";
 import { IssueList } from "@/components/issue-list";
 import { ResultsNav } from "@/components/results-nav";
 import { filterIssues } from "@/lib/search";
-import { platforms, type Platform } from "@/lib/helpdesk-data";
+import type { Platform } from "@/lib/helpdesk-data";
 import { normalizePlatform, platformSlug } from "@/lib/platform";
 import {
   clearAllSessions,
@@ -61,6 +64,7 @@ export function HomePage({
     TroubleshootingSession[]
   >([]);
   const [sessionCount, setSessionCount] = useState(0);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -164,17 +168,12 @@ export function HomePage({
   }
 
   return (
-    <section className="flex flex-1 flex-col px-4 py-14 sm:px-6 lg:px-8">
-      <div className="mx-auto w-full max-w-4xl">
-        <div className="text-center">
-          <h1 className="text-4xl font-bold tracking-tight sm:text-6xl">
-            What&apos;s not working today?
-          </h1>
-          <p className="mx-auto mt-4 max-w-2xl text-lg text-muted-foreground">
-            Search issues, pick a category, or choose a platform to find Level-1
-            support guidance.
-          </p>
-        </div>
+    <section className="flex flex-1 flex-col px-4 py-10 sm:px-6 lg:px-8">
+      <div className="mx-auto w-full max-w-6xl">
+        <PageHeader
+          title="Browse solutions"
+          description="Search issues, filter by category, or choose a platform to find Level-1 support guidance."
+        />
 
         {activeSessions.length > 0 && (
           <div className="glass mt-6 p-4" aria-live="polite">
@@ -210,8 +209,42 @@ export function HomePage({
           </div>
         )}
 
-        <div className="mt-8 flex justify-center">
-          <div className="w-full max-w-3xl">
+        <div className="mt-8 lg:grid lg:grid-cols-[280px_1fr] lg:gap-8">
+          <div className="mb-4 lg:hidden">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setFiltersOpen(true)}
+            >
+              Filters
+            </Button>
+          </div>
+          <aside aria-label="Filters" className="mb-6 hidden lg:mb-0 lg:block">
+            <div className="rounded-xl border border-border bg-card p-4">
+              <h2 className="font-semibold">Filters</h2>
+              <div className="mt-4">
+                <p className="mb-2 text-sm font-medium">Platform</p>
+                <PlatformButtons
+                  selected={platform}
+                  onSelect={(nextPlatform) => {
+                    setPlatform(nextPlatform);
+                    if (nextPlatform) scrollToResults();
+                  }}
+                />
+              </div>
+              <div className="mt-5">
+                <p className="mb-2 text-sm font-medium">Category</p>
+                <CategoryGrid
+                  selected={categoryId}
+                  onSelect={(nextCategory) => {
+                    setCategoryId(nextCategory);
+                    if (nextCategory) scrollToResults();
+                  }}
+                />
+              </div>
+            </div>
+          </aside>
+          <div className="min-w-0">
             <SearchBox
               value={query}
               onChange={setQuery}
@@ -219,114 +252,129 @@ export function HomePage({
               placeholder="Describe your problem…"
             />
           </div>
-        </div>
 
-        {activeSessions.length === 0 && sessionCount > 0 && (
-          <div className="mt-2 flex justify-end">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={handleClearHistory}
-            >
-              Clear my troubleshooting history ({sessionCount})
-            </Button>
-          </div>
-        )}
-
-        {process.env.NEXT_PUBLIC_AI_ENABLED === "true" && (
-          <Link
-            href="/assistant"
-            className="glass glass-interactive group mt-4 flex items-center gap-3 p-4 text-left"
-          >
-            <Bot className="h-5 w-5 shrink-0 text-primary" aria-hidden />
-            <span className="min-w-0 flex-1">
-              <span className="block font-medium">
-                Not sure where to start? Ask the Support Assistant
-              </span>
-              <span className="mt-1 block text-sm text-muted-foreground">
-                Describe the problem in plain words and get routed to the right
-                guide.
-              </span>
-            </span>
-            <ChevronRight
-              className="h-5 w-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
-              aria-hidden
-            />
-          </Link>
-        )}
-
-        <div className="mt-8">
-          <RecentlyViewed />
-        </div>
-
-        <div className="mt-8">
-          <PlatformButtons
-            selected={platform}
-            onSelect={(nextPlatform) => {
-              setPlatform(nextPlatform);
-              if (nextPlatform) scrollToResults();
-            }}
-          />
-        </div>
-
-        <div className="mt-8">
-          <CategoryGrid
-            selected={categoryId}
-            onSelect={(nextCategory) => {
-              setCategoryId(nextCategory);
-              if (nextCategory) scrollToResults();
-            }}
-          />
-        </div>
-
-        {browseNeedsFilter ? (
-          <p className="mt-8 text-center text-sm text-muted-foreground">
-            Pick a category or platform, or search above, to see matching
-            guides.
-          </p>
-        ) : (
-          <>
-            <div className="mt-8 flex flex-col items-center justify-between gap-4 sm:flex-row">
-              <p className="text-sm text-muted-foreground" aria-live="polite">
-                <span className="font-semibold text-foreground">
-                  {matchingCount}
-                </span>{" "}
-                matching {matchingCount === 1 ? "problem" : "problems"}
-              </p>
-              {hasActiveFilters && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={clearFilters}
-                >
-                  <X className="mr-2 h-4 w-4" />
-                  Clear all filters
-                </Button>
-              )}
+          {activeSessions.length === 0 && sessionCount > 0 && (
+            <div className="mt-2 flex justify-end">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={handleClearHistory}
+              >
+                Clear my troubleshooting history ({sessionCount})
+              </Button>
             </div>
+          )}
 
-            <div
-              ref={resultsRef}
-              tabIndex={-1}
-              aria-label="Search results"
-              className="mt-6 outline-none"
+          {process.env.NEXT_PUBLIC_AI_ENABLED === "true" && (
+            <Link
+              href="/assistant"
+              className="glass glass-interactive group mt-4 flex items-center gap-3 p-4 text-left"
             >
-              <IssueList
-                query={query}
-                categoryId={categoryId}
-                platform={platform}
-                backParams={backParams}
-                forceNoResults={initialPlatformInvalid}
+              <Bot className="h-5 w-5 shrink-0 text-primary" aria-hidden />
+              <span className="min-w-0 flex-1">
+                <span className="block font-medium">
+                  Not sure where to start? Ask the Support Assistant
+                </span>
+                <span className="mt-1 block text-sm text-muted-foreground">
+                  Describe the problem in plain words and get routed to the
+                  right guide.
+                </span>
+              </span>
+              <ChevronRight
+                className="h-5 w-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
+                aria-hidden
               />
-              <div ref={resultsEndRef} aria-hidden="true" />
+            </Link>
+          )}
+
+          <div className="mt-8">
+            <RecentlyViewed />
+          </div>
+
+          {hasActiveFilters && (
+            <div
+              className="mt-4 flex flex-wrap gap-2"
+              aria-label="Active filters"
+            >
+              {query && <Badge>Search: {query}</Badge>}
+              {platform && <Badge>Platform: {platform}</Badge>}
+              {categoryId && <Badge>Category: {categoryId}</Badge>}
             </div>
-            {matchingCount > 0 && (
-              <ResultsNav topRef={resultsRef} bottomRef={resultsEndRef} />
-            )}
-          </>
-        )}
+          )}
+
+          {browseNeedsFilter ? (
+            <p className="mt-8 text-center text-sm text-muted-foreground">
+              Pick a category or platform, or search above, to see matching
+              guides.
+            </p>
+          ) : (
+            <>
+              <div className="mt-8 flex flex-col items-center justify-between gap-4 sm:flex-row">
+                <p className="text-sm text-muted-foreground" aria-live="polite">
+                  <span className="font-semibold text-foreground">
+                    {matchingCount}
+                  </span>{" "}
+                  matching {matchingCount === 1 ? "problem" : "problems"}
+                </p>
+                {hasActiveFilters && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={clearFilters}
+                  >
+                    <X className="mr-2 h-4 w-4" />
+                    Clear all filters
+                  </Button>
+                )}
+              </div>
+
+              <div
+                ref={resultsRef}
+                tabIndex={-1}
+                aria-label="Search results"
+                className="mt-6 outline-none"
+              >
+                <IssueList
+                  query={query}
+                  categoryId={categoryId}
+                  platform={platform}
+                  backParams={backParams}
+                  forceNoResults={initialPlatformInvalid}
+                />
+                <div ref={resultsEndRef} aria-hidden="true" />
+              </div>
+              {matchingCount > 0 && (
+                <ResultsNav topRef={resultsRef} bottomRef={resultsEndRef} />
+              )}
+            </>
+          )}
+        </div>
+        <Sheet open={filtersOpen} onOpenChange={setFiltersOpen} title="Filters">
+          <div className="space-y-6">
+            <div>
+              <p className="mb-2 text-sm font-medium">Platform</p>
+              <PlatformButtons
+                selected={platform}
+                onSelect={(nextPlatform) => {
+                  setPlatform(nextPlatform);
+                  setFiltersOpen(false);
+                }}
+              />
+            </div>
+            <div>
+              <p className="mb-2 text-sm font-medium">Category</p>
+              <CategoryGrid
+                selected={categoryId}
+                onSelect={(nextCategory) => {
+                  setCategoryId(nextCategory);
+                  setFiltersOpen(false);
+                }}
+              />
+            </div>
+          </div>
+        </Sheet>
       </div>
     </section>
   );

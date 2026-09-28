@@ -9,6 +9,7 @@ type SearchBoxProps = {
   onChange: (value: string) => void;
   onSubmit?: (value: string) => void;
   placeholder?: string;
+  id?: string;
 };
 
 export function SearchBox({
@@ -16,6 +17,7 @@ export function SearchBox({
   onChange,
   onSubmit,
   placeholder = "Search...",
+  id = "browse-search",
 }: SearchBoxProps) {
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -34,11 +36,13 @@ export function SearchBox({
         aria-hidden="true"
       />
       <input
+        id={id}
         type="search"
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
-        className="h-14 w-full rounded-full border border-border/70 bg-background/60 py-4 pl-12 pr-28 text-base shadow-sm backdrop-blur outline-none ring-ring placeholder:text-muted-foreground focus:ring-2 focus:ring-ring"
+        aria-label="Search problems"
+        className="h-12 w-full rounded-lg border border-input bg-background py-3 pl-12 pr-28 text-base outline-none placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-[var(--focus)]"
       />
       <Button
         type="submit"

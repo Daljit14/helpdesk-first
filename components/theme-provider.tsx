@@ -23,7 +23,7 @@ export function useTheme() {
 
 export function ThemeProvider({
   children,
-  defaultTheme = "dark",
+  defaultTheme = "light",
 }: {
   children: ReactNode;
   defaultTheme?: Theme;

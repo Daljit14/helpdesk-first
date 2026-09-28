@@ -1,3 +1,11 @@
+## D0 — requester-agent outcome metrics
+
+Phase D0 adds an organization-scoped, server-rendered outcome-metrics card to
+the Resolution Center. It has no feature flag or migration: the card shows an
+empty state until the organization has completed requester-agent sessions.
+Metrics cover AI resolution, false resolutions, escalations, escalation
+reasons, resolution durations, and unhandled intents over the last 30 days.
+
 ## C2 requester-agent status
 
 Phase C3 adds a default-off, admin-promoted autonomy ladder with automatic

@@ -14,13 +14,19 @@ export type StepPolicy = {
 
 export const STEP_RISK_OVERRIDES: Record<string, Record<number, StepRisk>> = {};
 
-type Rule = { risk: StepRisk; reason: string; matches: RegExp };
+type Rule = {
+  risk: StepRisk;
+  reason: string;
+  matches: RegExp;
+  allowImperativeActions?: boolean;
+};
 
 const safeRules: Rule[] = [
   {
     risk: "safe",
     reason: "matches: warning against disabling managed protection",
     matches: /^do not disable\b.*\byourself\b/i,
+    allowImperativeActions: true,
   },
   {
     risk: "safe",
@@ -31,7 +37,7 @@ const safeRules: Rule[] = [
 ];
 
 const advisoryImperativeActions =
-  /\b(?:bypass|flash|regedit|powershell|terminal|command)\b/i;
+  /\b(?:bypass|disable|flash|regedit|powershell|terminal|command)\b/i;
 
 const deniedRules: Rule[] = [
   {
@@ -208,7 +214,8 @@ export function classifyStep(text: string): { risk: StepRisk; reason: string } {
   for (const rule of safeRules) {
     if (
       rule.matches.test(normalized) &&
-      !advisoryImperativeActions.test(normalized)
+      (rule.allowImperativeActions ||
+        !advisoryImperativeActions.test(normalized))
     ) {
       return toClassification(rule);
     }

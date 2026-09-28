@@ -101,7 +101,7 @@ describe("screenshot transcribers", () => {
     });
   });
 
-  test("moves to the next network hypothesis after a failed capability", async () => {
+  test("moves to the adapter reset after a failed DNS flush", async () => {
     vi.stubEnv("HELP_DESK_REQUESTER_AGENT_ACTIONS_ENABLED", "true");
     const model = new MockAgentModel("Still broken after `device_flush_dns`");
     await expect(model.next({ messages: [] })).resolves.toMatchObject({
@@ -126,13 +126,13 @@ describe("screenshot transcribers", () => {
       kind: "tool_use",
       name: "propose_action",
       input: {
-        capability_id: "device_reset_wifi_profile",
+        capability_id: "device_reset_network_adapter",
         hypothesis_id: "ev-3",
       },
     });
   });
 
-  test("ends the network hypothesis ladder after the adapter reset", async () => {
+  test("uses the diagnostic SSID for the Wi-Fi profile hypothesis", async () => {
     vi.stubEnv("HELP_DESK_REQUESTER_AGENT_ACTIONS_ENABLED", "true");
     const model = new MockAgentModel(
       "Still broken after `device_reset_network_adapter`"
@@ -145,7 +145,36 @@ describe("screenshot transcribers", () => {
           {
             role: "tool_result",
             tool_use_id: "mock-diagnostics",
-            content: "[evidence id: ev-5]",
+            content:
+              '{"wifi_status":{"connected":false,"ssid":"Office-WiFi"}}\n[evidence id: ev-5]',
+          },
+        ],
+      })
+    ).resolves.toMatchObject({
+      kind: "tool_use",
+      name: "propose_action",
+      input: {
+        capability_id: "device_reset_wifi_profile",
+        params: { ssid: "Office-WiFi" },
+        hypothesis_id: "ev-5",
+      },
+    });
+  });
+
+  test("ends the network hypothesis ladder after the Wi-Fi profile reset", async () => {
+    vi.stubEnv("HELP_DESK_REQUESTER_AGENT_ACTIONS_ENABLED", "true");
+    const model = new MockAgentModel(
+      "Still broken after `device_reset_wifi_profile`"
+    );
+    await model.next({ messages: [] });
+    await model.next({ messages: [] });
+    await expect(
+      model.next({
+        messages: [
+          {
+            role: "tool_result",
+            tool_use_id: "mock-diagnostics",
+            content: "[evidence id: ev-6]",
           },
         ],
       })

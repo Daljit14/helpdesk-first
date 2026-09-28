@@ -25,7 +25,10 @@ export function TicketProgress({
   }).stage;
 
   return (
-    <section id="progress" className="glass mt-6 scroll-mt-24 p-5">
+    <section
+      id="progress"
+      className="mt-6 scroll-mt-24 rounded-xl border border-border bg-card p-5"
+    >
       <h2 className="font-semibold">Ticket progress</h2>
       <ol className="mt-6 flex flex-col gap-4 sm:flex-row sm:gap-0">
         {TICKET_STAGES.map((stage, index) => {

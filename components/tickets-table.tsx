@@ -20,6 +20,7 @@ import {
   ticketReference,
 } from "@/lib/tickets/user-status";
 import { listMyTickets } from "@/app/actions/tickets";
+import { Badge } from "@/components/ui/badge";
 
 type TicketWithAttachments = Ticket & { attachmentCount?: number };
 type TicketFilter = "all" | "open" | "resolved" | "closed";
@@ -217,7 +218,7 @@ export function TicketsTable({
       );
     }
     return (
-      <div className="glass-strong mt-8 p-8 text-center">
+      <div className="mt-8 rounded-xl border border-border bg-card p-8 text-center">
         <p className="text-lg font-medium">
           You have not submitted any tickets.
         </p>
@@ -335,7 +336,7 @@ export function TicketsTable({
 
   return (
     <div
-      className="glass-strong mt-8 overflow-x-auto"
+      className="mt-8 overflow-x-auto rounded-xl border border-border bg-card"
       data-live={live ? "connected" : "fallback"}
     >
       <table className="w-full text-left text-sm">
@@ -373,7 +374,7 @@ export function TicketsTable({
                 <Link
                   href={`/tickets/${ticket.id}#progress`}
                   aria-label={`View progress for ticket ${ticket.id}`}
-                  className="glass-pill inline-block px-3 py-1 text-xs hover:bg-muted"
+                  className="inline-block rounded-full border border-border px-3 py-1 text-xs hover:bg-muted"
                 >
                   {ticket.status}
                 </Link>
@@ -417,7 +418,10 @@ function PortalTicketSection({
   testId: string;
 }) {
   return (
-    <section data-testid={testId} className="glass-strong p-5">
+    <section
+      data-testid={testId}
+      className="rounded-xl border border-border bg-card p-5"
+    >
       <h2 className="text-xl font-semibold">{heading}</h2>
       {tickets.length === 0 ? (
         <p className="mt-4 text-sm text-muted-foreground">
@@ -431,7 +435,10 @@ function PortalTicketSection({
             });
             const issue = getIssueBySlug(ticket.issue_id);
             return (
-              <li key={ticket.id} className="glass p-4">
+              <li
+                key={ticket.id}
+                className="rounded-lg border border-border p-4"
+              >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
                     <Link
@@ -457,13 +464,23 @@ function PortalTicketSection({
                       href={`/tickets/${ticket.id}#progress`}
                       aria-label={`View progress for ticket ${ticket.id}`}
                       title={ticket.status}
-                      className="glass-pill inline-flex items-center gap-1 px-3 py-1 text-xs hover:bg-muted"
+                      className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1 text-xs hover:bg-muted"
                     >
                       <StatusIcon label={status.label} />
-                      {status.label}
+                      <Badge
+                        variant={
+                          status.label === "Resolved"
+                            ? "success"
+                            : status.attention
+                              ? "warning"
+                              : "neutral"
+                        }
+                      >
+                        {status.label}
+                      </Badge>
                     </Link>
                     {status.attention && (
-                      <span className="glass-pill inline-flex items-center gap-1 bg-[var(--status-warning)]/15 px-3 py-1 text-xs text-[var(--status-warning-foreground)]">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-[var(--status-warning)]/15 px-3 py-1 text-xs text-[var(--status-warning-foreground)]">
                         <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
                         Action needed
                       </span>

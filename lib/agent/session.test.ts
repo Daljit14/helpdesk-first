@@ -186,6 +186,7 @@ describe("requester-agent escalation handoff reasons", () => {
           agent_id: null,
           action_summary: "Ran device_flush_dns after requester approval",
           result_summary: "passed",
+          approval_type: "user_consent",
           consent_required: true,
           consent_received: true,
         }),

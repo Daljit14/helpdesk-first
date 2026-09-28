@@ -309,6 +309,8 @@ export async function escalate(
           tool_name: capability.slice(0, 120),
           action_summary: actionSummary.slice(0, 1000),
           result_summary: resultSummary,
+          approval_type:
+            step.kind === "action_executing" ? "user_consent" : "none",
           consent_required: step.kind === "action_executing",
           consent_received: step.kind === "action_executing",
           created_at: step.created_at,

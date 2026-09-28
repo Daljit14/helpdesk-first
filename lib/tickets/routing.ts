@@ -15,7 +15,8 @@ export type HandoffReason =
   | "security_concern"
   | "remote_assistance_required"
   | "credentials_involved"
-  | "high_risk";
+  | "high_risk"
+  | "agent_halted";
 
 export const HANDOFF_REASON_LABELS: Record<HandoffReason, string> = {
   low_confidence: "AI confidence too low",
@@ -29,6 +30,7 @@ export const HANDOFF_REASON_LABELS: Record<HandoffReason, string> = {
   remote_assistance_required: "Remote assistance required",
   credentials_involved: "Credentials involved",
   high_risk: "High-risk action required",
+  agent_halted: "AI assistant stopped — see escalation reason",
 };
 
 export function formatHandoffReason(reason: string | null): string | null {

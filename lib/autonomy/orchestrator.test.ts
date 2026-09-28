@@ -278,6 +278,122 @@ describe("resolution orchestrator", () => {
     );
   });
 
+  test("allows the final attempt to transition from executing to verifying", async () => {
+    const exhausted = { ...run, status: "executing" as const, attempts: 3 };
+    const runs = makeQuery({
+      single: { data: { ...exhausted, status: "verifying" }, error: null },
+    });
+    const events = makeQuery({});
+    const admin = makeAdmin({
+      resolution_runs: runs,
+      resolution_events: events,
+    });
+
+    const result = await transitionRun(admin as never, exhausted, "verifying", {
+      actor: "worker",
+    });
+
+    expect(result?.status).toBe("verifying");
+    expect(mocks.event).not.toHaveBeenCalledWith(
+      "ticket-1",
+      "org-1",
+      "ai.escalated",
+      "ai",
+      null,
+      expect.anything()
+    );
+  });
+
+  test("escalates when an exhausted run starts planning or executing", async () => {
+    const planningRuns = makeQuery({
+      single: { data: { ...run, status: "escalated" }, error: null },
+    });
+    const planningAdmin = makeAdmin({
+      resolution_runs: planningRuns,
+      tickets: makeQuery({}),
+      resolution_events: makeQuery({}),
+    });
+    const planningResult = await transitionRun(
+      planningAdmin as never,
+      { ...run, status: "investigating", attempts: 3 },
+      "planning",
+      { actor: "worker" }
+    );
+
+    const executingRuns = makeQuery({
+      single: { data: { ...run, status: "escalated" }, error: null },
+    });
+    const executingAdmin = makeAdmin({
+      resolution_runs: executingRuns,
+      tickets: makeQuery({}),
+      resolution_events: makeQuery({}),
+    });
+    const executingResult = await transitionRun(
+      executingAdmin as never,
+      { ...run, status: "policy_check", attempts: 3 },
+      "executing",
+      { actor: "worker" }
+    );
+
+    expect(planningResult?.status).toBe("escalated");
+    expect(executingResult?.status).toBe("escalated");
+    expect(mocks.event).toHaveBeenCalledWith(
+      "ticket-1",
+      "org-1",
+      "ai.escalated",
+      "ai",
+      null,
+      expect.objectContaining({ reason: "limits_exceeded" })
+    );
+  });
+
+  test("deadline and budget limits still apply while verifying", async () => {
+    const expired = {
+      ...run,
+      status: "executing" as const,
+      attempts: 3,
+      deadline_at: new Date(Date.now() - 1).toISOString(),
+    };
+    const expiredRuns = makeQuery({
+      single: { data: { ...expired, status: "escalated" }, error: null },
+    });
+    const expiredAdmin = makeAdmin({
+      resolution_runs: expiredRuns,
+      tickets: makeQuery({}),
+      resolution_events: makeQuery({}),
+    });
+    const expiredResult = await transitionRun(
+      expiredAdmin as never,
+      expired,
+      "verifying",
+      { actor: "worker" }
+    );
+
+    const overBudget = {
+      ...run,
+      status: "executing" as const,
+      attempts: 3,
+      cost_cents: 50,
+    };
+    const budgetRuns = makeQuery({
+      single: { data: { ...overBudget, status: "escalated" }, error: null },
+    });
+    const budgetAdmin = makeAdmin({
+      resolution_runs: budgetRuns,
+      tickets: makeQuery({}),
+      resolution_events: makeQuery({}),
+    });
+    const budgetResult = await transitionRun(
+      budgetAdmin as never,
+      overBudget,
+      "verifying",
+      { actor: "worker" }
+    );
+
+    expect(expiredResult?.status).toBe("escalated");
+    expect(budgetResult?.status).toBe("escalated");
+  });
+
   test("illegal transitions throw before writing", async () => {
     const runs = makeQuery({});
     const events = makeQuery({});

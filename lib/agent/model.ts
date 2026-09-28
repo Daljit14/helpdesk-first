@@ -131,6 +131,7 @@ export class MockAgentModel implements AgentModel {
   private called = false;
   private diagnosticCalled = false;
   private diagnosticsEvidenceId: string | undefined;
+  private diagnosticsSsid: string | undefined;
   constructor(private readonly firstMessage: string) {}
 
   async next(
@@ -147,13 +148,31 @@ export class MockAgentModel implements AgentModel {
       /\[evidence id:\s*([^\]]+)\]/
     );
     if (evidenceMatch) this.diagnosticsEvidenceId = evidenceMatch[1];
+    const ssidMatch = diagnosticsResult?.content.match(
+      /"ssid"\s*:\s*"([^"\r\n'`$\\]{1,32})"/
+    );
+    if (ssidMatch) this.diagnosticsSsid = ssidMatch[1];
 
     const query =
       this.firstMessage.split("<untrusted_data", 1)[0].trim().slice(0, 200) ||
       "screenshot problem";
+    const failedCapability = this.firstMessage.match(
+      /^Still broken after `([a-z_]+)`/
+    )?.[1];
+    const networkMessage =
+      failedCapability !== undefined ||
+      /wi[\s-]?fi|wireless|network/i.test(this.firstMessage);
+    const nextCapability =
+      failedCapability === "device_flush_dns"
+        ? "device_reset_network_adapter"
+        : failedCapability === "device_reset_network_adapter"
+          ? "device_reset_wifi_profile"
+          : failedCapability
+            ? null
+            : "device_flush_dns";
     if (!this.called) {
       this.called = true;
-      if (/wi[\s-]?fi|wireless|network/i.test(this.firstMessage)) {
+      if (networkMessage) {
         return {
           kind: "tool_use",
           id: `mock-${digest(this.firstMessage).slice(0, 12)}`,
@@ -170,10 +189,7 @@ export class MockAgentModel implements AgentModel {
         summary: "I’m checking approved support guides.",
       };
     }
-    if (
-      !this.diagnosticCalled &&
-      /wi[\s-]?fi|wireless|network/i.test(this.firstMessage)
-    ) {
+    if (!this.diagnosticCalled && networkMessage) {
       this.diagnosticCalled = true;
       return {
         kind: "tool_use",
@@ -185,16 +201,20 @@ export class MockAgentModel implements AgentModel {
     }
     if (
       this.diagnosticCalled &&
+      nextCapability &&
       isRequesterAgentActionsEnabled() &&
-      /wi[\s-]?fi|wireless|network/i.test(this.firstMessage)
+      networkMessage
     ) {
       return {
         kind: "tool_use",
         id: "mock-propose-action",
         name: "propose_action",
         input: {
-          capability_id: "device_flush_dns",
-          params: {},
+          capability_id: nextCapability,
+          params:
+            nextCapability === "device_reset_wifi_profile"
+              ? { ssid: this.diagnosticsSsid ?? "HelpDeskTestWiFi" }
+              : {},
           hypothesis_id: this.diagnosticsEvidenceId ?? "ev-2",
           rationale: "Diagnostics indicate a network/DNS issue.",
         },

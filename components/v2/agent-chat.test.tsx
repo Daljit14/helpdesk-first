@@ -227,6 +227,48 @@ describe("AgentChat", () => {
     });
   });
 
+  test("keeps pending consent enabled through session events only", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        streamResponse([
+          {
+            type: "consent_required",
+            card: {
+              approvalRequestId: "approval-1",
+              capabilityId: "device_flush_dns",
+              title: "Flush DNS",
+              whatHappens: "Flush the device DNS cache.",
+              target: { kind: "device", label: "Work laptop" },
+              reversible: true,
+              expiresAt: new Date(Date.now() + 60_000).toISOString(),
+            },
+          },
+          { type: "session", sessionId: "session-1" },
+          {
+            type: "session_consent",
+            state: "revoked",
+            capabilityIds: [],
+          },
+        ])
+      )
+      .mockResolvedValueOnce(
+        streamResponse([
+          { type: "thinking_summary", text: "Checking the device." },
+        ])
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    render(<AgentChat initialProblem="Wi-Fi is down" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Ask the assistant" }));
+    const approve = await screen.findByRole("button", { name: "Approve" });
+
+    await waitFor(() => expect(approve).not.toBeDisabled());
+
+    fireEvent.click(screen.getByRole("button", { name: "Talk to a human" }));
+    await waitFor(() => expect(approve).toBeDisabled());
+  });
+
   test("appends the human escalation card without clearing the transcript", async () => {
     const fetchMock = vi
       .fn()
@@ -264,6 +306,34 @@ describe("AgentChat", () => {
       )
     );
     expect(screen.getByText("Try restarting the adapter.")).toBeInTheDocument();
+  });
+
+  test("keeps human escalation available after a terminal error", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        streamResponse([
+          {
+            type: "error",
+            message: "The assistant could not continue safely.",
+          },
+        ])
+      )
+    );
+    render(<AgentChat initialProblem="Printer is offline" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Ask the assistant" }));
+
+    expect(
+      await screen.findByText("The assistant could not continue safely.")
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Describe your IT problem")).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Ask the assistant" })
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Talk to a human" })
+    ).not.toBeDisabled();
   });
 
   test("renders session consent offer and sends grant body", async () => {

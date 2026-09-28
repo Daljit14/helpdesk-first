@@ -950,6 +950,9 @@ export function AdminDashboard({
                     <option value="user_requested_human">
                       User requested human
                     </option>
+                    <option value="agent_halted">
+                      AI assistant stopped — see escalation reason
+                    </option>
                     <option value="too_many_questions">
                       Too many questions
                     </option>

@@ -716,10 +716,14 @@ async function planRun(
   });
 }
 
-function limitsExceeded(run: ResolutionRun, now = Date.now()): boolean {
+function limitsExceeded(
+  run: ResolutionRun,
+  now = Date.now(),
+  options: { includeAttempts: boolean } = { includeAttempts: true }
+): boolean {
   return (
     new Date(run.deadline_at).getTime() <= now ||
-    run.attempts >= run.max_attempts ||
+    (options.includeAttempts && run.attempts >= run.max_attempts) ||
     run.cost_cents >= run.budget_cents
   );
 }
@@ -897,7 +901,11 @@ export async function transitionRun(
     });
     return paused;
   }
-  if (limitsExceeded(run)) {
+  if (
+    limitsExceeded(run, Date.now(), {
+      includeAttempts: ["planning", "policy_check", "executing"].includes(to),
+    })
+  ) {
     return escalateRun(admin, run, "limits_exceeded");
   }
   assertTransition(run.status, to);
@@ -966,7 +974,11 @@ export async function processDueRuns(
       }
       continue;
     }
-    if (limitsExceeded(run)) {
+    if (
+      limitsExceeded(run, Date.now(), {
+        includeAttempts: !["executing", "verifying"].includes(run.status),
+      })
+    ) {
       if (await escalateRun(admin, run, "limits_exceeded"))
         summary.escalated += 1;
       continue;

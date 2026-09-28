@@ -130,9 +130,24 @@ function modelTelemetry(
 export class MockAgentModel implements AgentModel {
   private called = false;
   private diagnosticCalled = false;
+  private diagnosticsEvidenceId: string | undefined;
   constructor(private readonly firstMessage: string) {}
 
-  async next(): Promise<AgentModelOutput> {
+  async next(
+    input: { messages: AgentMessage[] } = { messages: [] }
+  ): Promise<AgentModelOutput> {
+    const diagnosticsResult = [...input.messages]
+      .reverse()
+      .find(
+        (message): message is Extract<AgentMessage, { role: "tool_result" }> =>
+          message.role === "tool_result" &&
+          message.tool_use_id === "mock-diagnostics"
+      );
+    const evidenceMatch = diagnosticsResult?.content.match(
+      /\[evidence id:\s*([^\]]+)\]/
+    );
+    if (evidenceMatch) this.diagnosticsEvidenceId = evidenceMatch[1];
+
     const query =
       this.firstMessage.split("<untrusted_data", 1)[0].trim().slice(0, 200) ||
       "screenshot problem";
@@ -180,7 +195,7 @@ export class MockAgentModel implements AgentModel {
         input: {
           capability_id: "device_flush_dns",
           params: {},
-          hypothesis_id: "ev-2",
+          hypothesis_id: this.diagnosticsEvidenceId ?? "ev-2",
           rationale: "Diagnostics indicate a network/DNS issue.",
         },
         summary: "I can propose a consent-gated DNS cache flush.",

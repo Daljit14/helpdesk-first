@@ -56,7 +56,7 @@ describe("screenshot transcribers", () => {
     const model = new MockAgentModel(
       'I shared a screenshot of the problem.\n\n<untrusted_data source="screenshot">Wi-Fi is not connected.</untrusted_data>'
     );
-    const result = await model.next();
+    const result = await model.next({ messages: [] });
     expect(result).toMatchObject({
       kind: "tool_use",
       name: "search_guides",
@@ -68,14 +68,36 @@ describe("screenshot transcribers", () => {
     const model = new MockAgentModel(
       '<untrusted_data source="screenshot">Only screenshot text.</untrusted_data>'
     );
-    await expect(model.next()).resolves.toMatchObject({
+    await expect(model.next({ messages: [] })).resolves.toMatchObject({
       input: { query: "screenshot problem" },
     });
 
     const longPrefix = "x".repeat(250);
     const boundedModel = new MockAgentModel(`${longPrefix}<untrusted_data`);
-    await expect(boundedModel.next()).resolves.toMatchObject({
+    await expect(boundedModel.next({ messages: [] })).resolves.toMatchObject({
       input: { query: "x".repeat(200) },
+    });
+  });
+
+  test("uses the diagnostics evidence id from the conversation", async () => {
+    vi.stubEnv("HELP_DESK_REQUESTER_AGENT_ACTIONS_ENABLED", "true");
+    const model = new MockAgentModel("Wi-Fi is down");
+    await model.next({ messages: [] });
+    await model.next({ messages: [] });
+    const result = await model.next({
+      messages: [
+        {
+          role: "tool_result",
+          tool_use_id: "mock-diagnostics",
+          content: "Diagnostics found a network issue.\n[evidence id: ev-3]",
+        },
+      ],
+    });
+
+    expect(result).toMatchObject({
+      kind: "tool_use",
+      name: "propose_action",
+      input: { hypothesis_id: "ev-3" },
     });
   });
 });

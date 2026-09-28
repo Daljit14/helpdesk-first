@@ -8,7 +8,6 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { getAllIssueSlugs, getIssueBySlug } from "@/lib/search";
-import { LEGACY_SLUG_ALIASES } from "@/lib/legacy-slugs";
 import { categories } from "@/lib/helpdesk-data";
 import { StartGuideButton } from "@/components/start-guide-button";
 import type { Metadata } from "next";
@@ -35,12 +34,8 @@ import {
 } from "@/lib/admin/flags";
 
 export async function generateStaticParams() {
-  return [...getAllIssueSlugs(), ...Object.keys(LEGACY_SLUG_ALIASES)].map(
-    (slug) => ({ slug })
-  );
+  return getAllIssueSlugs().map((slug) => ({ slug }));
 }
-
-export const dynamicParams = false;
 
 export async function generateMetadata({
   params,

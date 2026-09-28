@@ -31,7 +31,7 @@ const safeRules: Rule[] = [
 ];
 
 const advisoryImperativeActions =
-  /\b(?:bypass|disable|flash|regedit|powershell|terminal|command)\b/i;
+  /\b(?:bypass|flash|regedit|powershell|terminal|command)\b/i;
 
 const deniedRules: Rule[] = [
   {
@@ -205,12 +205,6 @@ function toClassification(rule: Rule): { risk: StepRisk; reason: string } {
 
 export function classifyStep(text: string): { risk: StepRisk; reason: string } {
   const normalized = text.toLowerCase();
-  if (/^do not disable\b.*\byourself\b/i.test(normalized)) {
-    return {
-      risk: "safe",
-      reason: "matches: warning against disabling managed protection",
-    };
-  }
   for (const rule of safeRules) {
     if (
       rule.matches.test(normalized) &&

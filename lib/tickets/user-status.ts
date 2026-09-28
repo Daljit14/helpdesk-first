@@ -26,7 +26,7 @@ export function ticketState(input: {
   label: string;
   description: string;
   attention: boolean;
-  group: string;
+  group: "open" | "previous";
 } {
   const status = input.status.trim().toLowerCase();
   const assigned = Boolean(input.assignedAgentId);
@@ -49,7 +49,7 @@ export function ticketState(input: {
       stageLabel: TICKET_STAGES[3],
       owner: "you",
       ownerLabel: "Action needed from you",
-      nextAction: "Try today's suggested fix, then tell us whether it worked.",
+      nextAction: "Try the suggested fix, then tell us whether it worked.",
       label: "Suggested fix ready",
       description:
         "Follow the recommended steps below, then tell us if it worked.",

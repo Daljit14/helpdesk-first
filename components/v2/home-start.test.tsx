@@ -41,8 +41,14 @@ describe("HomeStart", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Mac" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Windows" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "iOS" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Android" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "iOS" })).toHaveAttribute(
+      "href",
+      "/browse?platform=ios"
+    );
+    expect(screen.getByRole("link", { name: "Android" })).toHaveAttribute(
+      "href",
+      "/browse?platform=android"
+    );
   });
 
   it.each([
@@ -52,8 +58,6 @@ describe("HomeStart", () => {
       "Windows",
       "Tell us what problem you are having with your Windows computer.",
     ],
-    ["iOS", "Tell us what problem you are having with your iPhone or iPad."],
-    ["Android", "Tell us what problem you are having with your Android phone."],
   ])("shows the %s prompt", (option, prompt) => {
     render(<HomeStart />);
     fireEvent.click(screen.getByRole("button", { name: option }));

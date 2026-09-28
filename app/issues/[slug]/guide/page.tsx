@@ -2,7 +2,6 @@ import { Suspense } from "react";
 import { notFound, permanentRedirect } from "next/navigation";
 import { TroubleshootingGuide } from "@/components/troubleshooting-guide";
 import { getAllIssueSlugs, getIssueBySlug } from "@/lib/search";
-import { LEGACY_SLUG_ALIASES } from "@/lib/legacy-slugs";
 import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/supabase/user";
 import { getProgress } from "@/lib/guides-data";
@@ -15,12 +14,8 @@ import {
 import { getIssueStepPolicies } from "@/lib/investigation/policy";
 
 export async function generateStaticParams() {
-  return [...getAllIssueSlugs(), ...Object.keys(LEGACY_SLUG_ALIASES)].map(
-    (slug) => ({ slug })
-  );
+  return getAllIssueSlugs().map((slug) => ({ slug }));
 }
-
-export const dynamicParams = false;
 
 export async function generateMetadata({
   params,

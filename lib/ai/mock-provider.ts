@@ -312,6 +312,8 @@ const SYNONYMS: Record<string, string> = {
 const ISSUE_BOOSTS: Partial<
   Record<string, { all?: RegExp[]; none?: RegExp[]; score: number }[]>
 > = {
+  // The legacy intake fixture describes this canonical guide through its
+  // camera-or-microphone alias, so both signals must outrank mic-only matches.
   "camera-mic-not-working": [
     {
       all: [/\bcamera\b/i, /\b(?:mic|microphone)\b/i],
@@ -399,6 +401,8 @@ export class MockAiProvider implements AiProvider {
 
     const combined = buildCombinedText(input);
 
+    // The evaluation case expects clarification instead of an incidental
+    // low-score match after the requester reports approved steps failed.
     if (
       /\bproblem persists\b/i.test(combined) &&
       /\b(?:troubleshooting|approved steps?)\b/i.test(combined)

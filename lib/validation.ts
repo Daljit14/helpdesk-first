@@ -20,35 +20,29 @@ export const signUpSchema = z
           });
         }
       }),
-    password: z
-      .string()
-      .trim()
-      .superRefine((value, ctx) => {
-        if (!value) {
-          ctx.addIssue({ code: "custom", message: "Enter a password." });
-          return;
-        }
-        const missing = [
-          value.length < 8 && "at least 8 characters",
-          !/[A-Z]/.test(value) && "an uppercase letter",
-          !/[a-z]/.test(value) && "a lowercase letter",
-          !/[0-9]/.test(value) && "a number",
-        ].filter(Boolean) as string[];
-        if (missing.length > 0) {
-          const [first, ...rest] = missing;
-          ctx.addIssue({
-            code: "custom",
-            message: `Password must be ${first}${rest.length ? ` and include ${rest.join(", ")}` : ""}.`,
-          });
-        }
-      }),
-    confirmPassword: z
-      .string()
-      .trim()
-      .superRefine((value, ctx) => {
-        if (!value)
-          ctx.addIssue({ code: "custom", message: "Confirm your password." });
-      }),
+    password: z.string().superRefine((value, ctx) => {
+      if (!value) {
+        ctx.addIssue({ code: "custom", message: "Enter a password." });
+        return;
+      }
+      const missing = [
+        value.length < 8 && "at least 8 characters",
+        !/[A-Z]/.test(value) && "an uppercase letter",
+        !/[a-z]/.test(value) && "a lowercase letter",
+        !/[0-9]/.test(value) && "a number",
+      ].filter(Boolean) as string[];
+      if (missing.length > 0) {
+        const [first, ...rest] = missing;
+        ctx.addIssue({
+          code: "custom",
+          message: `Password must be ${first}${rest.length ? ` and include ${rest.join(", ")}` : ""}.`,
+        });
+      }
+    }),
+    confirmPassword: z.string().superRefine((value, ctx) => {
+      if (!value)
+        ctx.addIssue({ code: "custom", message: "Confirm your password." });
+    }),
   })
   .refine(
     (data) =>

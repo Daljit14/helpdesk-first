@@ -15,15 +15,12 @@ import { SAFE_USE_WARNING } from "@/lib/ui-copy";
 import type { Platform } from "@/lib/helpdesk-data";
 import { platformSlug } from "@/lib/platform";
 
-type StartPlatform =
-  "General" | Extract<Platform, "Mac" | "Windows" | "iOS" | "Android">;
+type StartPlatform = "General" | Extract<Platform, "Mac" | "Windows">;
 
 const prompts: Record<StartPlatform, string> = {
   General: "Describe the IT problem you need help with.",
   Mac: "Tell us what problem you are having with your Mac.",
   Windows: "Tell us what problem you are having with your Windows computer.",
-  iOS: "Tell us what problem you are having with your iPhone or iPad.",
-  Android: "Tell us what problem you are having with your Android phone.",
 };
 
 function assistantHref(
@@ -107,15 +104,11 @@ export function HomeStart({ signedIn = false }: { signedIn?: boolean }) {
               label="Windows"
               onClick={() => choose("Windows")}
             />
-            <Option
-              icon={Smartphone}
-              label="iOS"
-              onClick={() => choose("iOS")}
-            />
+            <Option icon={Smartphone} label="iOS" href="/browse?platform=ios" />
             <Option
               icon={Smartphone}
               label="Android"
-              onClick={() => choose("Android")}
+              href="/browse?platform=android"
             />
           </div>
         ) : (
@@ -240,17 +233,25 @@ function Option({
   icon: Icon,
   label,
   onClick,
+  href,
 }: {
   icon: LucideIcon;
   label: string;
-  onClick: () => void;
+  onClick?: () => void;
+  href?: string;
 }) {
+  const className =
+    "v2-touch flex min-h-36 flex-col items-center justify-center gap-3 rounded-2xl border border-border bg-card p-5 text-center transition-colors hover:bg-[var(--hover)]";
+  if (href) {
+    return (
+      <Link href={href} className={className}>
+        <Icon className="h-8 w-8" aria-hidden />
+        <span className="font-medium">{label}</span>
+      </Link>
+    );
+  }
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="v2-touch flex min-h-36 flex-col items-center justify-center gap-3 rounded-2xl border border-border bg-card p-5 text-center transition-colors hover:bg-[var(--hover)]"
-    >
+    <button type="button" onClick={onClick} className={className}>
       <Icon className="h-8 w-8" aria-hidden />
       <span className="font-medium">{label}</span>
     </button>

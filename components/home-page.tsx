@@ -70,8 +70,11 @@ export function HomePage({
   }, []);
 
   const matchingCount = useMemo(
-    () => filterIssues({ query, categoryId, platform }).length,
-    [query, categoryId, platform]
+    () =>
+      initialPlatformInvalid
+        ? 0
+        : filterIssues({ query, categoryId, platform }).length,
+    [query, categoryId, platform, initialPlatformInvalid]
   );
 
   const backParams = useMemo(() => {

@@ -65,7 +65,7 @@ export function AdminLoginForm({
       </div>
       <TurnstileWidget siteKey={turnstileSiteKey} resetKey={state} />
       <Button type="submit" disabled={pending} className="w-full">
-        {pending ? "Signing in…" : "Sign in"}
+        {pending ? "Logging in…" : "Log in"}
       </Button>
       {(googleSsoEnabled || microsoftSsoEnabled) && (
         <div className="grid gap-2">

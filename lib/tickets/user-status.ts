@@ -1,29 +1,194 @@
 import { toTicketId } from "@/lib/operations/transform";
 
-export type TicketStatusDescription = {
+export type TicketStage = 0 | 1 | 2 | 3 | 4 | 5;
+
+export const TICKET_STAGES = [
+  "Submitted",
+  "Waiting for support",
+  "Working on it",
+  "Action needed from you",
+  "Confirm fix",
+  "Resolved",
+] as const;
+
+type TicketOwner = "you" | "support" | "unassigned" | "done";
+
+export function ticketState(input: {
+  status: string;
+  assignedAgentId?: string | null;
+  resolverType?: string | null;
+}): {
+  stage: TicketStage;
+  stageLabel: string;
+  owner: TicketOwner;
+  ownerLabel: string;
+  nextAction: string | null;
   label: string;
   description: string;
-  nextAction: string | null;
   attention: boolean;
-  group: "open" | "previous";
-};
+  group: string;
+} {
+  const status = input.status.trim().toLowerCase();
+  const assigned = Boolean(input.assignedAgentId);
+  if (["new", "open", "ai reviewing"].includes(status)) {
+    return {
+      stage: 1,
+      stageLabel: TICKET_STAGES[1],
+      owner: "unassigned",
+      ownerLabel: "Waiting for support",
+      nextAction: null,
+      label: "Reviewing",
+      description: "We're reading your ticket.",
+      attention: false,
+      group: "open",
+    };
+  }
+  if (status === "ai resolving") {
+    return {
+      stage: 3,
+      stageLabel: TICKET_STAGES[3],
+      owner: "you",
+      ownerLabel: "Action needed from you",
+      nextAction: "Try today's suggested fix, then tell us whether it worked.",
+      label: "Suggested fix ready",
+      description:
+        "Follow the recommended steps below, then tell us if it worked.",
+      attention: true,
+      group: "open",
+    };
+  }
+  if (["needs human", "reopened"].includes(status)) {
+    return assigned
+      ? {
+          stage: 2,
+          stageLabel: TICKET_STAGES[2],
+          owner: "support",
+          ownerLabel: "Working on it",
+          nextAction: null,
+          label: "Working on it",
+          description: "A support person is investigating.",
+          attention: false,
+          group: "open",
+        }
+      : {
+          stage: 1,
+          stageLabel: TICKET_STAGES[1],
+          owner: "unassigned",
+          ownerLabel: "Waiting for support",
+          nextAction: null,
+          label: "Waiting for support",
+          description: "A support person will pick this up.",
+          attention: false,
+          group: "open",
+        };
+  }
+  if (status === "in progress") {
+    return {
+      stage: 2,
+      stageLabel: TICKET_STAGES[2],
+      owner: "support",
+      ownerLabel: "Working on it",
+      nextAction: null,
+      label: "Working on it",
+      description: "Support is investigating.",
+      attention: false,
+      group: "open",
+    };
+  }
+  if (["waiting", "waiting for user"].includes(status)) {
+    return {
+      stage: 3,
+      stageLabel: TICKET_STAGES[3],
+      owner: "you",
+      ownerLabel: "Action needed from you",
+      nextAction: "Reply below",
+      label: "Your reply is needed",
+      description: "Support asked you a question.",
+      attention: true,
+      group: "open",
+    };
+  }
+  if (status === "pending verification") {
+    return {
+      stage: 4,
+      stageLabel: TICKET_STAGES[4],
+      owner: "you",
+      ownerLabel: "Action needed from you",
+      nextAction: "Choose Yes, it's fixed or No, still broken",
+      label: "Please confirm",
+      description: "Support believes this is fixed.",
+      attention: true,
+      group: "open",
+    };
+  }
+  if (status === "resolved") {
+    return {
+      stage: 5,
+      stageLabel: TICKET_STAGES[5],
+      owner: "done",
+      ownerLabel: "Resolved",
+      nextAction: "Rate your experience or reopen within 14 days",
+      label: "Resolved",
+      description: "Marked resolved by support — tell us if it isn't fixed",
+      attention: false,
+      group: "previous",
+    };
+  }
+  if (status === "closed") {
+    return {
+      stage: 5,
+      stageLabel: TICKET_STAGES[5],
+      owner: "done",
+      ownerLabel: "Closed",
+      nextAction: null,
+      label: "Closed",
+      description: "This ticket is closed.",
+      attention: false,
+      group: "previous",
+    };
+  }
+  return {
+    stage: 0,
+    stageLabel: TICKET_STAGES[0],
+    owner: assigned ? "support" : "unassigned",
+    ownerLabel: assigned ? "Working on it" : "Waiting for support",
+    nextAction: null,
+    label: input.status,
+    description: "",
+    attention: false,
+    group: "open",
+  };
+}
+
+export type TicketStatusDescription = Pick<
+  ReturnType<typeof ticketState>,
+  "label" | "description" | "nextAction" | "attention" | "group"
+>;
+
+export function describeTicketStatus(
+  status: string,
+  opts: { assignedAgentId?: string | null; resolverType?: string | null } = {}
+): TicketStatusDescription {
+  return ticketState({ status, ...opts });
+}
 
 export function describeTicketAssignment({
   assignedAgentId,
   humanResponseDueAt,
   status,
   updatedAt,
+  resolverType,
 }: {
   assignedAgentId?: string | null;
   humanResponseDueAt?: string | null;
   status: string;
   updatedAt?: string | null;
+  resolverType?: string | null;
 }) {
+  const state = ticketState({ status, assignedAgentId, resolverType });
   const closed = ["resolved", "closed"].includes(status.trim().toLowerCase());
   return {
-    label: assignedAgentId
-      ? "Assigned to a support person"
-      : "Waiting for a support person",
+    label: state.ownerLabel,
     expectedResponseBy:
       !closed && humanResponseDueAt
         ? `Expected next response by ${new Date(humanResponseDueAt).toLocaleString()}`
@@ -34,127 +199,14 @@ export function describeTicketAssignment({
   };
 }
 
-export function describeTicketStatus(
-  status: string,
-  opts: { resolverType?: string | null } = {}
-): TicketStatusDescription {
-  void opts;
-  const normalized = status.trim().toLowerCase();
-  if (["new", "open", "ai reviewing"].includes(normalized)) {
-    return {
-      label: "Reviewing",
-      description: "We're reading your ticket.",
-      nextAction: null,
-      attention: false,
-      group: "open",
-    };
-  }
-  if (normalized === "ai resolving") {
-    return {
-      label: "Suggested fix ready",
-      description:
-        "Follow the recommended steps below, then tell us if it worked.",
-      nextAction: "Try the steps, then choose Fixed or Didn't work",
-      attention: true,
-      group: "open",
-    };
-  }
-  if (normalized === "needs human") {
-    return {
-      label: "Waiting for a support person",
-      description: "A support person will pick this up.",
-      nextAction: null,
-      attention: false,
-      group: "open",
-    };
-  }
-  if (normalized === "in progress") {
-    return {
-      label: "A person is working on it",
-      description: "Support is investigating.",
-      nextAction: null,
-      attention: false,
-      group: "open",
-    };
-  }
-  if (["waiting", "waiting for user"].includes(normalized)) {
-    return {
-      label: "Your reply is needed",
-      description: "Support asked you a question.",
-      nextAction: "Reply below",
-      attention: true,
-      group: "open",
-    };
-  }
-  if (normalized === "pending verification") {
-    return {
-      label: "Please confirm",
-      description: "Support believes this is fixed.",
-      nextAction: "Choose Yes, it's fixed or No, still broken",
-      attention: true,
-      group: "open",
-    };
-  }
-  if (normalized === "reopened") {
-    return {
-      label: "Reopened",
-      description: "A support person will pick this back up.",
-      nextAction: null,
-      attention: false,
-      group: "open",
-    };
-  }
-  if (normalized === "resolved") {
-    return {
-      label: "Resolved",
-      description: "Marked resolved by support — tell us if it isn't fixed",
-      nextAction: "Rate your experience or reopen within 14 days",
-      attention: false,
-      group: "previous",
-    };
-  }
-  if (normalized === "closed") {
-    return {
-      label: "Closed",
-      description: "This ticket is closed.",
-      nextAction: null,
-      attention: false,
-      group: "previous",
-    };
-  }
-  return {
-    label: status,
-    description: "",
-    nextAction: null,
-    attention: false,
-    group: "open",
-  };
-}
-
 export function ticketReference(id: string): string {
   return toTicketId(id);
 }
 
-export function progressStage(status: string): 0 | 1 | 2 | 3 | 4 | 5 {
-  switch (status.trim().toLowerCase()) {
-    case "new":
-    case "open":
-    case "ai reviewing":
-    case "reopened":
-      return 1;
-    case "ai resolving":
-    case "needs human":
-    case "in progress":
-      return 2;
-    case "waiting":
-    case "waiting for user":
-      return 3;
-    case "pending verification":
-      return 4;
-    case "resolved":
-    case "closed":
-      return 5;
-    default:
-      return 0;
-  }
+export function progressStage(
+  status: string,
+  assignedAgentId?: string | null,
+  resolverType?: string | null
+): TicketStage {
+  return ticketState({ status, assignedAgentId, resolverType }).stage;
 }

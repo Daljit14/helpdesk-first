@@ -8,6 +8,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { getAllIssueSlugs, getIssueBySlug } from "@/lib/search";
+import { LEGACY_SLUG_ALIASES } from "@/lib/legacy-slugs";
 import { categories } from "@/lib/helpdesk-data";
 import { StartGuideButton } from "@/components/start-guide-button";
 import type { Metadata } from "next";
@@ -15,8 +16,11 @@ import {
   getIssueSteps,
   getIssueSafetyWarning,
   getIssueEscalationWarning,
+  getIssueStepMeta,
+  getIssueStepSource,
 } from "@/lib/steps";
 import { getCurrentUser } from "@/lib/supabase/user";
+import { buildBrowseReturnHref } from "@/lib/browse-return";
 import {
   getBookmarkedIssueIds,
   getRatingTotals,
@@ -31,8 +35,12 @@ import {
 } from "@/lib/admin/flags";
 
 export async function generateStaticParams() {
-  return getAllIssueSlugs().map((slug) => ({ slug }));
+  return [...getAllIssueSlugs(), ...Object.keys(LEGACY_SLUG_ALIASES)].map(
+    (slug) => ({ slug })
+  );
 }
+
+export const dynamicParams = false;
 
 export async function generateMetadata({
   params,
@@ -42,7 +50,7 @@ export async function generateMetadata({
   const { slug } = await params;
   const issue = getIssueBySlug(slug);
   return {
-    title: issue ? `${issue.title} · HelpDesk First` : "Issue not found",
+    title: issue ? issue.title : "Issue not found",
   };
 }
 
@@ -73,23 +81,15 @@ export default async function IssuePage({
     permanentRedirect(`/issues/${issue.id}${suffix}`);
   }
 
-  const backParams = new URLSearchParams();
-  const q = Array.isArray(query.q) ? query.q[0] : query.q;
-  if (q) backParams.set("q", q);
-  const categoryId = Array.isArray(query.category)
-    ? query.category[0]
-    : query.category;
-  if (categoryId) backParams.set("category", categoryId);
-  const platform = Array.isArray(query.platform)
-    ? query.platform[0]
-    : query.platform;
-  if (platform) backParams.set("platform", platform);
-  const backHref = backParams.toString() ? `/?${backParams.toString()}` : "/";
+  const backHref = buildBrowseReturnHref(query);
+  const hasBrowseParams = backHref !== "/browse";
 
   const category = categories.find((c) => c.id === issue.category);
   const steps = getIssueSteps(issue);
   const safetyWarning = getIssueSafetyWarning(issue);
   const escalationWarning = getIssueEscalationWarning(issue);
+  const stepSource = getIssueStepSource(issue);
+  const stepMeta = getIssueStepMeta(issue);
   const user = await getCurrentUser();
   const [bookmarkedIds, userRating, ratingTotals] = await Promise.all([
     user ? getBookmarkedIssueIds(user.id) : Promise.resolve([]),
@@ -113,7 +113,7 @@ export default async function IssuePage({
           className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="h-4 w-4" />
-          Back to results
+          {hasBrowseParams ? "Back to results" : "Browse all solutions"}
         </Link>
 
         <h1 className="mt-6 text-3xl font-bold tracking-tight sm:text-4xl">
@@ -188,6 +188,63 @@ export default async function IssuePage({
             ))}
           </ol>
         </div>
+
+        {stepSource === "category" && (
+          <p className="mt-4 text-sm text-muted-foreground">
+            These are general steps for {category?.label ?? issue.category}. If
+            they don&apos;t match your situation, use Contact support /
+            escalate.
+          </p>
+        )}
+
+        {stepMeta?.sources && stepMeta.sources.length > 0 && (
+          <div className="mt-6 text-sm">
+            <h2 className="font-semibold">Sources</h2>
+            <ul className="mt-2 list-disc space-y-1 pl-5">
+              {stepMeta.sources.map((source) => (
+                <li key={source.url}>
+                  <a
+                    href={source.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline underline-offset-4"
+                  >
+                    {source.title}
+                  </a>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-2 text-muted-foreground">
+              Reviewed {stepMeta.reviewedAt}
+            </p>
+          </div>
+        )}
+
+        {issue.related && issue.related.length > 0 && (
+          <div className="mt-8">
+            <h2 className="text-xl font-semibold">Related guides</h2>
+            <ul className="mt-3 list-disc space-y-2 pl-5">
+              {issue.related.map((relatedId) => {
+                const relatedIssue = getIssueBySlug(relatedId);
+                if (!relatedIssue) return null;
+                const relatedHref = buildBrowseReturnHref(query).replace(
+                  /^\/browse/,
+                  `/issues/${relatedIssue.id}`
+                );
+                return (
+                  <li key={relatedIssue.id}>
+                    <Link
+                      href={relatedHref}
+                      className="underline underline-offset-4"
+                    >
+                      {relatedIssue.title}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
 
         {escalationWarning && (
           <div className="mt-6 rounded-lg border-l-4 border-destructive bg-destructive/5 p-4 text-destructive">

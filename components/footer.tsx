@@ -96,10 +96,10 @@ export function Footer({
             ) : (
               <>
                 <Link className={linkClassName} href="/login">
-                  Sign in
+                  Log in
                 </Link>
                 <Link className={linkClassName} href="/signup">
-                  Create account
+                  Sign up
                 </Link>
               </>
             )}
@@ -117,7 +117,7 @@ export function Footer({
               className="text-xs text-muted-foreground transition hover:text-foreground"
               href="/admin/login"
             >
-              Staff sign in
+              Staff log in
             </Link>
           )}
         </div>

@@ -142,7 +142,7 @@ test("user can open an issue and return to previous filtered results", async ({
   await page.getByRole("link", { name: /Back to results/i }).click();
 
   await expect(page).toHaveURL(
-    (url) => url.pathname === "/" && url.search === "?q=printer"
+    (url) => url.pathname === "/browse" && url.search === "?q=printer"
   );
   await expect(searchInput(page)).toHaveValue("printer");
   await expect(
@@ -168,5 +168,7 @@ test("empty search shows a helpful no-results message", async ({ page }) => {
   await searchInput(page).fill("qzxv");
 
   await expect(page.getByText(/No matching problems found/)).toBeVisible();
-  await expect(page.getByText(/0 matching problems/)).toBeVisible();
+  await expect(
+    page.getByText("0 matching problems", { exact: true })
+  ).toBeVisible();
 });

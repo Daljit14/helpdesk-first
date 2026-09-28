@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { notFound, permanentRedirect } from "next/navigation";
 import { TroubleshootingGuide } from "@/components/troubleshooting-guide";
 import { getAllIssueSlugs, getIssueBySlug } from "@/lib/search";
+import { LEGACY_SLUG_ALIASES } from "@/lib/legacy-slugs";
 import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/supabase/user";
 import { getProgress } from "@/lib/guides-data";
@@ -14,8 +15,12 @@ import {
 import { getIssueStepPolicies } from "@/lib/investigation/policy";
 
 export async function generateStaticParams() {
-  return getAllIssueSlugs().map((slug) => ({ slug }));
+  return [...getAllIssueSlugs(), ...Object.keys(LEGACY_SLUG_ALIASES)].map(
+    (slug) => ({ slug })
+  );
 }
+
+export const dynamicParams = false;
 
 export async function generateMetadata({
   params,
@@ -25,9 +30,7 @@ export async function generateMetadata({
   const { slug } = await params;
   const issue = getIssueBySlug(slug);
   return {
-    title: issue
-      ? `${issue.title} troubleshooting guide · HelpDesk First`
-      : "Issue not found",
+    title: issue ? `${issue.title} troubleshooting guide` : "Issue not found",
   };
 }
 

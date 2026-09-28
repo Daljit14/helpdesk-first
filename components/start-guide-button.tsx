@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Wrench } from "lucide-react";
 import { buttonVariants } from "@/lib/button-variants";
 import { cn } from "@/lib/utils";
+import { normalizePlatform, platformSlug } from "@/lib/platform";
 
 type StartGuideButtonProps = {
   slug: string;
@@ -12,8 +13,12 @@ type StartGuideButtonProps = {
 
 export function StartGuideButton({ slug }: StartGuideButtonProps) {
   const searchParams = useSearchParams();
-  const href = searchParams.toString()
-    ? `/issues/${slug}/guide?${searchParams.toString()}`
+  const params = new URLSearchParams(searchParams.toString());
+  const platform = normalizePlatform(params.get("platform"));
+  if (platform) params.set("platform", platformSlug(platform));
+  const query = params.toString();
+  const href = query
+    ? `/issues/${slug}/guide?${query}`
     : `/issues/${slug}/guide`;
 
   return (

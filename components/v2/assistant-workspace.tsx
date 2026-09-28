@@ -6,6 +6,7 @@ import { Bot, Loader2, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/lib/button-variants";
 import { cn } from "@/lib/utils";
+import { platformSlug } from "@/lib/platform";
 import { getIssueBySlug } from "@/lib/search";
 import {
   getIssueStepPolicies,
@@ -199,7 +200,7 @@ export function AssistantWorkspace({
     );
 
   const guideHref = matchedIssue
-    ? `/issues/${matchedIssue.id}/guide?platform=${encodeURIComponent(output?.detectedPlatform ?? intake.platform ?? "Other")}`
+    ? `/issues/${matchedIssue.id}/guide?platform=${platformSlug(output?.detectedPlatform ?? intake.platform ?? "Other")}`
     : intake.searchHref();
 
   const handleStartGuide = async (event: MouseEvent<HTMLAnchorElement>) => {
@@ -836,6 +837,6 @@ function loginLink(
   intent: string | undefined
 ) {
   const next = new URLSearchParams({ q: problem, intent: intent ?? "human" });
-  if (platform) next.set("platform", platform);
+  if (platform) next.set("platform", platformSlug(platform));
   return `/login?next=${encodeURIComponent(`/assistant?${next.toString()}`)}`;
 }

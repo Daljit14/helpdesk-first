@@ -8,6 +8,7 @@ type IssueListProps = {
   categoryId?: string | null;
   platform?: Platform | null;
   backParams?: string;
+  forceNoResults?: boolean;
 };
 
 export function IssueList({
@@ -15,11 +16,14 @@ export function IssueList({
   categoryId = null,
   platform = null,
   backParams = "",
+  forceNoResults = false,
 }: IssueListProps) {
-  const issues = filterIssues({ query, categoryId, platform });
+  const issues = forceNoResults
+    ? []
+    : filterIssues({ query, categoryId, platform });
 
   if (issues.length === 0) {
-    if (query.trim().length >= 3) {
+    if (!forceNoResults && query.trim().length >= 3) {
       return (
         <SearchAssist
           query={query}

@@ -25,6 +25,7 @@ const steps = getIssueSteps(issue);
 
 vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams("platform=Windows"),
+  usePathname: () => "/issues/no-sound/guide",
   useRouter: () => ({ replace: vi.fn() }),
 }));
 

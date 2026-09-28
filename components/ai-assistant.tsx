@@ -25,6 +25,7 @@ import {
 } from "@/lib/ai/types";
 import { SAFE_USE_WARNING } from "@/lib/ui-copy";
 import { useAssistantIntake } from "@/components/ai-assistant-logic";
+import { platformSlug } from "@/lib/platform";
 
 export function AiAssistant({
   resolutionTrackingEnabled = false,
@@ -344,7 +345,7 @@ function MatchView({
 }) {
   const effectivePlatform = output.detectedPlatform ?? platform ?? "Other";
   const guideHref = output.matchedIssueSlug
-    ? `/issues/${output.matchedIssueSlug}/guide?platform=${encodeURIComponent(effectivePlatform)}`
+    ? `/issues/${output.matchedIssueSlug}/guide?platform=${platformSlug(effectivePlatform)}`
     : searchHref;
 
   return (

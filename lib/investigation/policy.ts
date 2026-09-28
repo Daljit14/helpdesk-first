@@ -19,6 +19,11 @@ type Rule = { risk: StepRisk; reason: string; matches: RegExp };
 const safeRules: Rule[] = [
   {
     risk: "safe",
+    reason: "matches: warning against disabling managed protection",
+    matches: /^do not disable\b.*\byourself\b/i,
+  },
+  {
+    risk: "safe",
     reason: "matches: advisory or support contact",
     matches:
       /^(?:if\b[^.]*,\s*)?(?:contact|ask|report (?:it|the alert|the message) to|tell)\b.*\b(?:it|support|help ?desk|supplier|provider)\b/i,
@@ -200,6 +205,12 @@ function toClassification(rule: Rule): { risk: StepRisk; reason: string } {
 
 export function classifyStep(text: string): { risk: StepRisk; reason: string } {
   const normalized = text.toLowerCase();
+  if (/^do not disable\b.*\byourself\b/i.test(normalized)) {
+    return {
+      risk: "safe",
+      reason: "matches: warning against disabling managed protection",
+    };
+  }
   for (const rule of safeRules) {
     if (
       rule.matches.test(normalized) &&

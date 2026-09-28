@@ -12,12 +12,12 @@ describe("describeTicketStatus", () => {
     ["Open", "Reviewing", "open", false],
     ["AI Reviewing", "Reviewing", "open", false],
     ["AI Resolving", "Suggested fix ready", "open", true],
-    ["Needs Human", "Waiting for a support person", "open", false],
-    ["In Progress", "A person is working on it", "open", false],
+    ["Needs Human", "Waiting for support", "open", false],
+    ["In Progress", "Working on it", "open", false],
     ["Waiting", "Your reply is needed", "open", true],
     ["Waiting for User", "Your reply is needed", "open", true],
     ["Pending Verification", "Please confirm", "open", true],
-    ["Reopened", "Reopened", "open", false],
+    ["Reopened", "Waiting for support", "open", false],
     ["Resolved", "Resolved", "previous", false],
     ["Closed", "Closed", "previous", false],
   ])(
@@ -53,7 +53,7 @@ test("describes requester assignment and response timing without agent identity"
       updatedAt: "2025-01-01T11:00:00.000Z",
     })
   ).toEqual({
-    label: "Assigned to a support person",
+    label: "Working on it",
     expectedResponseBy: expect.stringContaining("Expected next response by"),
     lastUpdated: expect.stringContaining("Last updated"),
   });
@@ -70,8 +70,8 @@ describe("progressStage", () => {
     ["New", 1],
     ["Open", 1],
     ["AI Reviewing", 1],
-    ["AI Resolving", 2],
-    ["Needs Human", 2],
+    ["AI Resolving", 3],
+    ["Needs Human", 1],
     ["In Progress", 2],
     ["Waiting for User", 3],
     ["Pending Verification", 4],

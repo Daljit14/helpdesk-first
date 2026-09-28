@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -16,13 +16,18 @@ import { buttonVariants } from "@/lib/button-variants";
 import { BackToResults } from "./back-to-results";
 import { cn } from "@/lib/utils";
 import type { Issue } from "@/lib/issues";
-import { platforms, type Platform } from "@/lib/helpdesk-data";
+import { categories } from "@/lib/helpdesk-data";
+import { type Platform } from "@/lib/helpdesk-data";
+import { normalizePlatform, platformSlug } from "@/lib/platform";
+import { buildBrowseReturnHref } from "@/lib/browse-return";
 import type { StepOutcome, TroubleshootingSession } from "@/lib/session";
 import { clearSession, getSession, saveSession } from "@/lib/session";
 import {
   getIssueSteps,
   getIssueSafetyWarning,
   getIssueEscalationWarning,
+  getIssueStepMeta,
+  getIssueStepSource,
 } from "@/lib/steps";
 import { saveProgress } from "@/app/actions/guides";
 import {
@@ -80,14 +85,30 @@ export function TroubleshootingGuide({
   stepPolicies,
 }: TroubleshootingGuideProps) {
   const searchParams = useSearchParams();
+  const pathname = usePathname();
+  const router = useRouter();
   const platform: string = useMemo(() => {
     const raw = searchParams.get("platform");
-    const fromQuery =
-      raw && platforms.includes(raw as Platform) ? (raw as Platform) : null;
+    const fromQuery = normalizePlatform(raw);
     return fromQuery ?? issue.devices[0];
   }, [searchParams, issue.devices]);
+  const browseReturnHref = useMemo(
+    () => buildBrowseReturnHref(searchParams),
+    [searchParams]
+  );
+
+  function handlePlatformChange(nextPlatform: Platform) {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("platform", platformSlug(nextPlatform));
+    router.replace(`${pathname}?${params.toString()}`);
+  }
 
   const steps = useMemo(() => getIssueSteps(issue), [issue]);
+  const stepSource = getIssueStepSource(issue);
+  const stepMeta = getIssueStepMeta(issue);
+  const categoryLabel =
+    categories.find((category) => category.id === issue.category)?.label ??
+    issue.category;
   const visibleStepIndexes = useMemo(
     () =>
       stepPolicies
@@ -352,7 +373,29 @@ export function TroubleshootingGuide({
       </h1>
 
       <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-        <span>Platform: {platform}</span>
+        {issue.devices.length > 1 ? (
+          <div className="flex items-center gap-2">
+            <label htmlFor="guide-platform" className="font-medium">
+              Platform
+            </label>
+            <select
+              id="guide-platform"
+              value={platform}
+              onChange={(event) =>
+                handlePlatformChange(event.target.value as Platform)
+              }
+              className="rounded-md border border-input bg-background px-2 py-1 text-foreground"
+            >
+              {issue.devices.map((device) => (
+                <option key={device} value={device}>
+                  {device}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : (
+          <span>Platform: {platform}</span>
+        )}
         <span>{totalSteps} steps</span>
       </div>
 
@@ -376,6 +419,7 @@ export function TroubleshootingGuide({
             onChange={setState}
             onRestart={handleRestart}
             resolutionNotice={resolutionNotice}
+            browseReturnHref={browseReturnHref}
           />
         ) : state.status === "escalated" ? (
           <EscalationView
@@ -386,6 +430,7 @@ export function TroubleshootingGuide({
             onRestart={handleRestart}
             linkedTicket={linkedTicket}
             resolutionTrackingEnabled={resolutionTrackingEnabled}
+            browseReturnHref={browseReturnHref}
           />
         ) : (
           <StepView
@@ -403,6 +448,34 @@ export function TroubleshootingGuide({
           />
         )}
       </div>
+      {stepSource === "category" && (
+        <p className="mt-4 text-sm text-muted-foreground">
+          These are general steps for {categoryLabel}. If they don&apos;t match
+          your situation, use Contact support / escalate.
+        </p>
+      )}
+      {stepMeta?.sources && stepMeta.sources.length > 0 && (
+        <div className="mt-6 text-sm">
+          <h2 className="font-semibold">Sources</h2>
+          <ul className="mt-2 list-disc space-y-1 pl-5">
+            {stepMeta.sources.map((source) => (
+              <li key={source.url}>
+                <a
+                  href={source.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline underline-offset-4"
+                >
+                  {source.title}
+                </a>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-muted-foreground">
+            Reviewed {stepMeta.reviewedAt}
+          </p>
+        </div>
+      )}
     </div>
   );
 }
@@ -577,11 +650,13 @@ function SuccessView({
   onChange,
   onRestart,
   resolutionNotice,
+  browseReturnHref,
 }: {
   state: GuideState;
   onChange: (state: GuideState) => void;
   onRestart: () => void;
   resolutionNotice: string | null;
+  browseReturnHref: string;
 }) {
   function handleRate(rating: "helpful" | "not-helpful") {
     onChange({ ...state, rating });
@@ -636,7 +711,10 @@ function SuccessView({
           <RotateCcw className="mr-2 h-4 w-4" />
           Restart the guide
         </Button>
-        <Link href="/" className={cn(buttonVariants({ variant: "ghost" }))}>
+        <Link
+          href={browseReturnHref}
+          className={cn(buttonVariants({ variant: "ghost" }))}
+        >
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to results
         </Link>
@@ -653,6 +731,7 @@ function EscalationView({
   onRestart,
   linkedTicket,
   resolutionTrackingEnabled,
+  browseReturnHref,
 }: {
   issue: Issue;
   platform: string;
@@ -661,6 +740,7 @@ function EscalationView({
   onRestart: () => void;
   linkedTicket: { id: string; alreadyResolved: boolean } | null;
   resolutionTrackingEnabled: boolean;
+  browseReturnHref: string;
 }) {
   const [reason, setReason] = useState(state.escalationReason ?? "");
   const [showReport, setShowReport] = useState(Boolean(state.escalationReason));
@@ -798,7 +878,10 @@ function EscalationView({
           <RotateCcw className="mr-2 h-4 w-4" />
           Restart the guide
         </Button>
-        <Link href="/" className={cn(buttonVariants({ variant: "ghost" }))}>
+        <Link
+          href={browseReturnHref}
+          className={cn(buttonVariants({ variant: "ghost" }))}
+        >
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to results
         </Link>

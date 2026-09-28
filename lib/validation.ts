@@ -7,19 +7,59 @@ export const signUpSchema = z
       .string()
       .trim()
       .toLowerCase()
-      .email("Enter a valid email address."),
+      .superRefine((value, ctx) => {
+        if (!value) {
+          ctx.addIssue({
+            code: "custom",
+            message: "Enter your email address.",
+          });
+        } else if (!z.string().email().safeParse(value).success) {
+          ctx.addIssue({
+            code: "custom",
+            message: "Enter a valid email address.",
+          });
+        }
+      }),
     password: z
       .string()
-      .min(8, "Password must be at least 8 characters.")
-      .regex(/[A-Z]/, "Include at least one uppercase letter.")
-      .regex(/[a-z]/, "Include at least one lowercase letter.")
-      .regex(/[0-9]/, "Include at least one number."),
-    confirmPassword: z.string(),
+      .trim()
+      .superRefine((value, ctx) => {
+        if (!value) {
+          ctx.addIssue({ code: "custom", message: "Enter a password." });
+          return;
+        }
+        const missing = [
+          value.length < 8 && "at least 8 characters",
+          !/[A-Z]/.test(value) && "an uppercase letter",
+          !/[a-z]/.test(value) && "a lowercase letter",
+          !/[0-9]/.test(value) && "a number",
+        ].filter(Boolean) as string[];
+        if (missing.length > 0) {
+          const [first, ...rest] = missing;
+          ctx.addIssue({
+            code: "custom",
+            message: `Password must be ${first}${rest.length ? ` and include ${rest.join(", ")}` : ""}.`,
+          });
+        }
+      }),
+    confirmPassword: z
+      .string()
+      .trim()
+      .superRefine((value, ctx) => {
+        if (!value)
+          ctx.addIssue({ code: "custom", message: "Confirm your password." });
+      }),
   })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: "Passwords do not match.",
-    path: ["confirmPassword"],
-  });
+  .refine(
+    (data) =>
+      Boolean(data.password) &&
+      Boolean(data.confirmPassword) &&
+      data.password === data.confirmPassword,
+    {
+      message: "Passwords do not match.",
+      path: ["confirmPassword"],
+    }
+  );
 
 export const loginSchema = z.object({
   email: z.string().trim().toLowerCase().email("Enter a valid email address."),

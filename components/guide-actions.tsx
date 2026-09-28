@@ -9,6 +9,7 @@ import { TicketForm } from "@/components/ticket-form";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/lib/button-variants";
 import { cn } from "@/lib/utils";
+import { ratingSummary } from "@/lib/ratings-label";
 
 type GuideActionsProps = {
   issueId: string;
@@ -35,6 +36,7 @@ export function GuideActions({
   const [showTicket, setShowTicket] = useState(false);
   const [isPending, startTransition] = useTransition();
   const loginHref = `/login?next=${encodeURIComponent(`/issues/${issueId}`)}`;
+  const summary = ratingSummary(totals);
 
   function handleBookmark() {
     if (!user) return;
@@ -107,6 +109,9 @@ export function GuideActions({
                 <ThumbsUp className="mr-2 h-4 w-4" />
                 {totals.up}
               </Button>
+              <span className="text-sm text-muted-foreground">
+                {summary.summary}
+              </span>
               <Button
                 type="button"
                 variant={vote === "down" ? "destructive" : "outline"}
@@ -120,12 +125,15 @@ export function GuideActions({
               </Button>
             </>
           ) : (
-            <Link
-              href={loginHref}
-              className={cn(buttonVariants({ variant: "ghost" }))}
-            >
-              Log in to rate · {totals.up} / {totals.down}
-            </Link>
+            <>
+              <Link
+                href={loginHref}
+                className={cn(buttonVariants({ variant: "ghost" }))}
+              >
+                {summary.buttonLabel}
+              </Link>
+              <p className="text-sm text-muted-foreground">{summary.summary}</p>
+            </>
           )}
         </div>
         {user ? (

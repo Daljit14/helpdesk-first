@@ -235,7 +235,9 @@ export function TicketsTable({
     const groups = tickets.reduce(
       (result, ticket) => {
         const group = describeTicketStatus(ticket.status).group;
-        result[group].push(ticket);
+        if (group === "open" || group === "previous") {
+          result[group].push(ticket);
+        }
         return result;
       },
       {

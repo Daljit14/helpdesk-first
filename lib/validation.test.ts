@@ -1,5 +1,9 @@
 import { describe, expect, test } from "vitest";
-import { forgotPasswordSchema, resetPasswordSchema } from "./validation";
+import {
+  forgotPasswordSchema,
+  resetPasswordSchema,
+  signUpSchema,
+} from "./validation";
 
 describe("forgotPasswordSchema", () => {
   test("accepts and normalizes a valid email", () => {
@@ -53,5 +57,76 @@ describe("resetPasswordSchema", () => {
       password: "ValidPass1",
       confirmPassword: "ValidPass1",
     });
+  });
+});
+
+describe("signUpSchema", () => {
+  test("reports one canonical empty-password error", () => {
+    const result = signUpSchema.safeParse({
+      email: "person@example.com",
+      password: "",
+      confirmPassword: "",
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(
+        result.error.issues.filter((issue) => issue.path[0] === "password")
+      ).toEqual([expect.objectContaining({ message: "Enter a password." })]);
+      expect(
+        result.error.issues.find((issue) => issue.path[0] === "confirmPassword")
+          ?.message
+      ).toBe("Confirm your password.");
+    }
+  });
+
+  test("aggregates password strength failures", () => {
+    const result = signUpSchema.safeParse({
+      email: "person@example.com",
+      password: "abc",
+      confirmPassword: "abc",
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues).toContainEqual(
+        expect.objectContaining({
+          path: ["password"],
+          message:
+            "Password must be at least 8 characters and include an uppercase letter, a number.",
+        })
+      );
+    }
+  });
+
+  test("rejects an empty email and mismatched confirmation", () => {
+    expect(
+      signUpSchema.safeParse({
+        email: "",
+        password: "ValidPass1",
+        confirmPassword: "",
+      }).error?.issues
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: ["email"],
+          message: "Enter your email address.",
+        }),
+        expect.objectContaining({
+          path: ["confirmPassword"],
+          message: "Confirm your password.",
+        }),
+      ])
+    );
+    expect(
+      signUpSchema.safeParse({
+        email: "person@example.com",
+        password: "ValidPass1",
+        confirmPassword: "OtherPass1",
+      }).error?.issues
+    ).toContainEqual(
+      expect.objectContaining({
+        path: ["confirmPassword"],
+        message: "Passwords do not match.",
+      })
+    );
   });
 });

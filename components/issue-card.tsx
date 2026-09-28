@@ -3,6 +3,7 @@ import { createElement } from "react";
 import type { ReactNode } from "react";
 import { Clock, Monitor } from "lucide-react";
 import type { Issue } from "@/lib/issues";
+import { normalizePlatform, platformSlug } from "@/lib/platform";
 import { getCategoryIcon } from "@/components/category-icon";
 import { RiskDot } from "@/components/risk-dot";
 import { DifficultyMeter } from "@/components/difficulty-meter";
@@ -19,7 +20,11 @@ export function IssueCard({
   children,
 }: IssueCardProps) {
   const Icon = getCategoryIcon(issue.category);
-  const href = `/issues/${issue.id}${backParams ? `?${backParams}` : ""}`;
+  const params = new URLSearchParams(backParams);
+  const platform = normalizePlatform(params.get("platform"));
+  if (platform) params.set("platform", platformSlug(platform));
+  const query = params.toString();
+  const href = `/issues/${issue.id}${query ? `?${query}` : ""}`;
 
   return (
     <li className="relative">

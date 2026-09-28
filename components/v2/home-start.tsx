@@ -5,6 +5,7 @@ import { useEffect, useState, type ChangeEvent } from "react";
 import {
   Laptop,
   Monitor,
+  Smartphone,
   Paperclip,
   Wrench,
   X,
@@ -12,13 +13,17 @@ import {
 } from "lucide-react";
 import { SAFE_USE_WARNING } from "@/lib/ui-copy";
 import type { Platform } from "@/lib/helpdesk-data";
+import { platformSlug } from "@/lib/platform";
 
-type StartPlatform = "General" | Extract<Platform, "Mac" | "Windows">;
+type StartPlatform =
+  "General" | Extract<Platform, "Mac" | "Windows" | "iOS" | "Android">;
 
 const prompts: Record<StartPlatform, string> = {
   General: "Describe the IT problem you need help with.",
   Mac: "Tell us what problem you are having with your Mac.",
   Windows: "Tell us what problem you are having with your Windows computer.",
+  iOS: "Tell us what problem you are having with your iPhone or iPad.",
+  Android: "Tell us what problem you are having with your Android phone.",
 };
 
 function assistantHref(
@@ -28,7 +33,7 @@ function assistantHref(
   attached: boolean
 ) {
   const params = new URLSearchParams({ q: description, intent });
-  if (platform !== "General") params.set("platform", platform);
+  if (platform !== "General") params.set("platform", platformSlug(platform));
   if (attached) params.set("attach", "1");
   return `/assistant?${params.toString()}`;
 }
@@ -101,6 +106,16 @@ export function HomeStart({ signedIn = false }: { signedIn?: boolean }) {
               icon={Monitor}
               label="Windows"
               onClick={() => choose("Windows")}
+            />
+            <Option
+              icon={Smartphone}
+              label="iOS"
+              onClick={() => choose("iOS")}
+            />
+            <Option
+              icon={Smartphone}
+              label="Android"
+              onClick={() => choose("Android")}
             />
           </div>
         ) : (
@@ -200,7 +215,7 @@ export function HomeStart({ signedIn = false }: { signedIn?: boolean }) {
                 </span>
                 {!signedIn && (
                   <span className="text-muted-foreground">
-                    Sign in to attach files to a ticket
+                    Log in to attach files to a ticket
                   </span>
                 )}
               </div>

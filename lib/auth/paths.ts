@@ -1,3 +1,8 @@
 export function isSafeNextPath(value: string): boolean {
-  return value.startsWith("/") && !value.startsWith("//");
+  return (
+    value.startsWith("/") &&
+    !value.startsWith("//") &&
+    !value.startsWith("/\\") &&
+    !value.includes("\\")
+  );
 }

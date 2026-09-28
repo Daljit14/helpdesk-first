@@ -39,7 +39,10 @@ const ssoInputSchema = z.object({
 
 function fieldErrorsFrom(issues: { path: PropertyKey[]; message: string }[]) {
   const out: Record<string, string> = {};
-  for (const issue of issues) out[String(issue.path[0])] = issue.message;
+  for (const issue of issues) {
+    const key = String(issue.path[0]);
+    if (!(key in out)) out[key] = issue.message;
+  }
   return out;
 }
 

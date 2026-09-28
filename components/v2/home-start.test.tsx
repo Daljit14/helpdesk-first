@@ -34,13 +34,15 @@ describe("HomeStart", () => {
     expect(toTicketPlatform("junk")).toBe("Other");
   });
 
-  it("renders the three platform options", () => {
+  it("renders the platform options", () => {
     render(<HomeStart />);
     expect(
       screen.getByRole("button", { name: "General IT Support" })
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Mac" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Windows" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "iOS" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Android" })).toBeInTheDocument();
   });
 
   it.each([
@@ -50,6 +52,8 @@ describe("HomeStart", () => {
       "Windows",
       "Tell us what problem you are having with your Windows computer.",
     ],
+    ["iOS", "Tell us what problem you are having with your iPhone or iPad."],
+    ["Android", "Tell us what problem you are having with your Android phone."],
   ])("shows the %s prompt", (option, prompt) => {
     render(<HomeStart />);
     fireEvent.click(screen.getByRole("button", { name: option }));
@@ -81,19 +85,19 @@ describe("HomeStart", () => {
       screen.getByRole("link", { name: "Find a solution" })
     ).toHaveAttribute(
       "href",
-      "/assistant?q=wifi+keeps+dropping&intent=solve&platform=Mac&attach=1"
+      "/assistant?q=wifi+keeps+dropping&intent=solve&platform=mac&attach=1"
     );
     expect(
       screen.getByRole("link", { name: "Create a support ticket" })
     ).toHaveAttribute(
       "href",
-      "/assistant?q=wifi+keeps+dropping&intent=ticket&platform=Mac&attach=1"
+      "/assistant?q=wifi+keeps+dropping&intent=ticket&platform=mac&attach=1"
     );
     expect(
       screen.getByRole("link", { name: "I want a person" })
     ).toHaveAttribute(
       "href",
-      "/assistant?q=wifi+keeps+dropping&intent=human&platform=Mac&attach=1"
+      "/assistant?q=wifi+keeps+dropping&intent=human&platform=mac&attach=1"
     );
   });
 
@@ -108,7 +112,7 @@ describe("HomeStart", () => {
       target: { files: [file] },
     });
     expect(
-      screen.getByText("Sign in to attach files to a ticket")
+      screen.getByText("Log in to attach files to a ticket")
     ).toBeInTheDocument();
   });
 });

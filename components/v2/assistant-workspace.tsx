@@ -290,6 +290,8 @@ export function AssistantWorkspace({
       </ol>
 
       <div
+        role="log"
+        aria-live="polite"
         className="flex-1 space-y-5"
         style={{
           paddingBottom: composerHeight ? `${composerHeight + 24}px` : "12rem",
@@ -412,7 +414,7 @@ export function AssistantWorkspace({
       {!ticketIntent && (
         <div
           ref={composerRef}
-          className="sticky bottom-0 mt-8 border-t border-border bg-background/95 pt-4 [padding-bottom:env(safe-area-inset-bottom)]"
+          className="mt-8 border-t border-border bg-background pt-4 [padding-bottom:env(safe-area-inset-bottom)]"
         >
           <div className="mb-3 flex flex-wrap gap-2">
             {intake.platform && (
@@ -437,6 +439,7 @@ export function AssistantWorkspace({
           </div>
           <div className="flex gap-2">
             <textarea
+              id="assistant-input"
               aria-label="Describe your IT problem"
               value={
                 intake.diagnosticAnswer ||
@@ -604,9 +607,7 @@ function Match({
               <div key={hypothesis.cause}>
                 <div className="flex justify-between text-sm">
                   <span>{hypothesis.cause}</span>
-                  <span>
-                    {Math.round(hypothesis.confidence * 100)}% confidence
-                  </span>
+                  <span>Likely match</span>
                 </div>
                 <div className="mt-1 h-2 rounded-full bg-muted">
                   <div

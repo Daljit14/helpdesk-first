@@ -9,6 +9,8 @@ import { Label } from "@/components/ui/label";
 import { startSso } from "@/app/actions/auth";
 import { TurnstileWidget } from "@/components/turnstile-widget";
 import { useEffect, useRef } from "react";
+import { useState } from "react";
+import { Eye, EyeOff } from "lucide-react";
 
 const initialState: AuthState = null;
 
@@ -29,6 +31,7 @@ export function LoginForm({
   );
   const emailRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
+  const [showPassword, setShowPassword] = useState(false);
   useEffect(() => {
     if (state?.fieldErrors?.email) emailRef.current?.focus();
     else if (state?.fieldErrors?.password) passwordRef.current?.focus();
@@ -72,18 +75,35 @@ export function LoginForm({
             Forgot password?
           </Link>
         </div>
-        <Input
-          ref={passwordRef}
-          id="password"
-          name="password"
-          type="password"
-          autoComplete="current-password"
-          required
-          aria-invalid={Boolean(state?.fieldErrors?.password)}
-          aria-describedby={
-            state?.fieldErrors?.password ? "login-password-error" : undefined
-          }
-        />
+        <div className="relative">
+          <Input
+            ref={passwordRef}
+            id="password"
+            name="password"
+            type={showPassword ? "text" : "password"}
+            autoComplete="current-password"
+            required
+            className="pr-28"
+            aria-invalid={Boolean(state?.fieldErrors?.password)}
+            aria-describedby={
+              state?.fieldErrors?.password ? "login-password-error" : undefined
+            }
+          />
+          <button
+            type="button"
+            aria-pressed={showPassword}
+            aria-label={showPassword ? "Hide password" : "Show password"}
+            onClick={() => setShowPassword((visible) => !visible)}
+            className="absolute right-2 top-1/2 inline-flex -translate-y-1/2 items-center gap-1 rounded px-2 py-1 text-xs"
+          >
+            {showPassword ? (
+              <EyeOff className="h-4 w-4" />
+            ) : (
+              <Eye className="h-4 w-4" />
+            )}
+            {showPassword ? "Hide" : "Show"}
+          </button>
+        </div>
         {state?.fieldErrors?.password && (
           <p
             id="login-password-error"

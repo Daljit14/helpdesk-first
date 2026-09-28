@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { SignupVerificationForm } from "@/components/auth/signup-verification-form";
 import { isSafeNextPath } from "@/lib/auth/paths";
+import { PageHeader } from "@/components/ui/page-header";
 
 export const metadata: Metadata = {
   title: "Verify your email",
@@ -17,10 +18,8 @@ export default async function CheckEmailPage({
 
   return (
     <section className="flex flex-1 flex-col items-center justify-center px-6 py-12 text-center">
-      <div className="glass-strong w-full max-w-md space-y-4 p-8">
-        <h1 className="text-2xl font-semibold tracking-tight">
-          Verify your email
-        </h1>
+      <div className="w-full max-w-md space-y-4 rounded-xl border border-border bg-card p-8 shadow-sm">
+        <PageHeader title="Verify your email" />
         <p className="text-muted-foreground">
           We sent a 6-digit code to {email || "your email address"}.
         </p>

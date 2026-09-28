@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { ResetPasswordForm } from "@/components/auth/reset-password-form";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
+import { PageHeader } from "@/components/ui/page-header";
 
 export const metadata: Metadata = {
   title: "Choose a new password",
@@ -23,10 +24,8 @@ export default async function ResetPasswordPage() {
 
   return (
     <section className="flex flex-1 flex-col items-center justify-center px-6 py-12">
-      <div className="glass-strong w-full max-w-md space-y-6 p-8">
-        <h1 className="text-2xl font-semibold tracking-tight">
-          Choose a new password
-        </h1>
+      <div className="w-full max-w-md space-y-6 rounded-xl border border-border bg-card p-8 shadow-sm">
+        <PageHeader title="Choose a new password" />
         <ResetPasswordForm />
       </div>
     </section>

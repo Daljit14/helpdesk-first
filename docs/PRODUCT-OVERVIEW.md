@@ -149,11 +149,12 @@ behind release gates, and off until an organization turns them on.
 | Capability                                                | Status                        |
 | --------------------------------------------------------- | ----------------------------- |
 | Guides, assistant, tickets, staff queue, SLA, analytics   | Live                          |
-| Organizations, roles, domain join, invitations, SSO       | Live                          |
+| Organizations, roles, domain join, invitations            | Live                          |
+| Google / Microsoft SSO                                    | Built, off by default         |
 | Secure attachments (quarantine, scan, retention)          | Built, off by default         |
 | Read-only requester agent, consent fixes, autonomy ladder | Built, off by default         |
 | Screenshot input (model transcription as untrusted text)  | Built, off by default         |
-| Device agent (Windows, macOS, Linux)                      | Built, shadow mode by default |
+| Device agent (Windows, macOS, Linux)                      | Built, off by default; shadow |
 | Account fixes via Microsoft Entra ID or Google Workspace  | Built, off by default         |
 | Web research layer, per-org encryption                    | Built, off by default         |
 

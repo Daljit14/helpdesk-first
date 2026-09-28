@@ -4,13 +4,14 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Activity,
-  BookMarked,
+  Bookmark,
   Bot,
   ChevronRight,
   Headset,
   LayoutDashboard,
   Menu,
   Moon,
+  Search,
   Sun,
   Ticket,
 } from "lucide-react";
@@ -26,10 +27,10 @@ import { cn } from "@/lib/utils";
 
 const navItems = [
   { href: "/", label: "Start", icon: LayoutDashboard },
-  { href: "/browse", label: "Browse solutions", icon: BookMarked },
+  { href: "/browse", label: "Browse solutions", icon: Search },
   { href: "/assistant", label: "Support Assistant", icon: Bot, ai: true },
   { href: "/tickets", label: "My tickets", icon: Ticket },
-  { href: "/bookmarks", label: "Bookmarks", icon: BookMarked },
+  { href: "/bookmarks", label: "Bookmarks", icon: Bookmark },
 ];
 
 function isActive(pathname: string, href: string) {
@@ -60,7 +61,7 @@ function Navigation({
                 aria-current={isActive(pathname, href) ? "page" : undefined}
                 onClick={onNavigate}
                 className={cn(
-                  "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-nav-muted hover:bg-nav-foreground/10 hover:text-nav-foreground",
+                  "flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-nav-muted hover:bg-nav-foreground/10 hover:text-nav-foreground",
                   isActive(pathname, href) &&
                     "bg-nav-foreground/10 text-nav-foreground"
                 )}
@@ -104,7 +105,7 @@ export function AppShell({
   const breadcrumbs = breadcrumbsForPath(pathname);
   return (
     <div className="min-h-full bg-background text-foreground lg:grid lg:grid-cols-[240px_1fr]">
-      <aside className="hidden min-h-screen flex-col bg-nav px-4 py-5 text-nav-foreground lg:flex">
+      <aside className="sticky top-0 hidden h-screen flex-col overflow-y-auto bg-nav px-4 py-5 text-nav-foreground lg:flex">
         <Link
           href="/"
           className="flex items-center gap-2 px-3 text-lg font-semibold"
@@ -118,7 +119,7 @@ export function AppShell({
         <div className="mt-auto grid gap-3 border-t border-nav-muted/30 pt-4">
           <Link
             href="/status"
-            className="flex items-center gap-3 px-3 py-2 text-sm text-nav-muted hover:text-nav-foreground"
+            className="flex min-h-11 items-center gap-3 px-3 py-2 text-sm text-nav-muted hover:text-nav-foreground"
           >
             <Activity className="h-4 w-4" aria-hidden />
             System status
@@ -132,7 +133,7 @@ export function AppShell({
           ) : (
             <Link
               href="/login"
-              className="flex items-center gap-3 px-3 py-2 text-sm text-nav-muted hover:text-nav-foreground"
+              className="flex min-h-11 items-center gap-3 px-3 py-2 text-sm text-nav-muted hover:text-nav-foreground"
             >
               Log in
             </Link>
@@ -150,7 +151,7 @@ export function AppShell({
           ) : (
             <Link
               href="/signup"
-              className="flex items-center gap-3 px-3 py-2 text-sm text-nav-muted hover:text-nav-foreground"
+              className="flex min-h-11 items-center gap-3 px-3 py-2 text-sm text-nav-muted hover:text-nav-foreground"
             >
               Sign up
             </Link>
@@ -158,7 +159,7 @@ export function AppShell({
           {staff && (
             <Link
               href="/admin/login"
-              className="flex items-center gap-3 px-3 py-2 text-sm text-nav-muted hover:text-nav-foreground"
+              className="flex min-h-11 items-center gap-3 px-3 py-2 text-sm text-nav-muted hover:text-nav-foreground"
             >
               Staff console
             </Link>
@@ -189,7 +190,21 @@ export function AppShell({
             <Button
               type="button"
               variant="ghost"
+              size="sm"
+              className="hidden sm:inline-flex"
+              onClick={toggleTheme}
+              aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+            >
+              {theme === "dark" ? <Sun aria-hidden /> : <Moon aria-hidden />}
+              <span className="ml-2">
+                {theme === "dark" ? "Light" : "Dark"}
+              </span>
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
               size="icon-sm"
+              className="sm:hidden"
               onClick={toggleTheme}
               aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
             >
@@ -241,7 +256,7 @@ export function AppShell({
           <Link
             href="/status"
             onClick={() => setDrawerOpen(false)}
-            className="flex items-center gap-3 rounded-lg px-3 py-3 text-sm text-nav-muted hover:bg-nav-foreground/10 hover:text-nav-foreground"
+            className="flex min-h-11 items-center gap-3 rounded-lg px-3 py-3 text-sm text-nav-muted hover:bg-nav-foreground/10 hover:text-nav-foreground"
           >
             <Activity className="h-4 w-4" aria-hidden />
             System status
@@ -258,7 +273,7 @@ export function AppShell({
               <form action={logoutAction}>
                 <button
                   type="submit"
-                  className="w-full rounded-lg px-3 py-3 text-left text-sm text-nav-muted hover:bg-nav-foreground/10 hover:text-nav-foreground"
+                  className="min-h-11 w-full rounded-lg px-3 py-3 text-left text-sm text-nav-muted hover:bg-nav-foreground/10 hover:text-nav-foreground"
                 >
                   Log out
                 </button>
@@ -268,7 +283,7 @@ export function AppShell({
             <Link
               href="/login"
               onClick={() => setDrawerOpen(false)}
-              className="block rounded-lg px-3 py-3 text-sm text-nav-muted hover:bg-nav-foreground/10 hover:text-nav-foreground"
+              className="block min-h-11 rounded-lg px-3 py-3 text-sm text-nav-muted hover:bg-nav-foreground/10 hover:text-nav-foreground"
             >
               Log in
             </Link>

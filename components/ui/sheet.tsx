@@ -1,28 +1,15 @@
 "use client";
 
 import {
-  createContext,
-  useContext,
   useEffect,
   useRef,
   useState,
-  type HTMLAttributes,
   type ReactNode,
   type RefObject,
 } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
-
-type SheetContextValue = {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  triggerRef: RefObject<HTMLElement | null>;
-};
-
-const SheetContext = createContext<SheetContextValue | null>(null);
-
 export function Sheet({
   open,
   onOpenChange,
@@ -85,9 +72,7 @@ export function Sheet({
 
   if (!mounted || !open) return null;
   return createPortal(
-    <SheetContext.Provider
-      value={{ open, onOpenChange, triggerRef: returnRef }}
-    >
+    <>
       <div
         className="fixed inset-0 z-50 bg-slate-950/50"
         aria-hidden="true"
@@ -112,62 +97,12 @@ export function Sheet({
             onClick={() => onOpenChange(false)}
           >
             <X aria-hidden />
+            <span className="ml-1">Close</span>
           </Button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto py-4">{children}</div>
       </div>
-    </SheetContext.Provider>,
+    </>,
     document.body
-  );
-}
-
-export function SheetTrigger({
-  children,
-  ...props
-}: HTMLAttributes<HTMLButtonElement>) {
-  const context = useContext(SheetContext);
-  return (
-    <button
-      type="button"
-      ref={context?.triggerRef as never}
-      onClick={() => context?.onOpenChange(true)}
-      {...props}
-    >
-      {children}
-    </button>
-  );
-}
-
-export function SheetClose({
-  children,
-  ...props
-}: HTMLAttributes<HTMLButtonElement>) {
-  const context = useContext(SheetContext);
-  return (
-    <button
-      type="button"
-      onClick={() => context?.onOpenChange(false)}
-      {...props}
-    >
-      {children}
-    </button>
-  );
-}
-
-export function SheetNavLink({
-  children,
-  className,
-  ...props
-}: React.ComponentProps<"a">) {
-  return (
-    <a
-      className={cn(
-        "block rounded-lg px-3 py-3 text-sm hover:bg-nav-foreground/10",
-        className
-      )}
-      {...props}
-    >
-      {children}
-    </a>
   );
 }

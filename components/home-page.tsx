@@ -15,9 +15,10 @@ import { CategoryGrid } from "@/components/category-grid";
 import { PlatformButtons } from "@/components/platform-buttons";
 import { RecentlyViewed } from "@/components/recently-viewed";
 import { IssueList } from "@/components/issue-list";
+import { IssueCard } from "@/components/issue-card";
 import { ResultsNav } from "@/components/results-nav";
 import { filterIssues } from "@/lib/search";
-import type { Platform } from "@/lib/helpdesk-data";
+import { categories, type Platform } from "@/lib/helpdesk-data";
 import { normalizePlatform, platformSlug } from "@/lib/platform";
 import {
   clearAllSessions,
@@ -93,6 +94,17 @@ export function HomePage({
     query || categoryId || platform || initialPlatformInvalid
   );
   const browseNeedsFilter = basePath === "/browse" && !hasActiveFilters;
+  const categoryCounts = useMemo(
+    () =>
+      Object.fromEntries(
+        categories.map((category) => [
+          category.id,
+          filterIssues({ categoryId: category.id }).length,
+        ])
+      ),
+    []
+  );
+  const popularIssues = useMemo(() => filterIssues({}).slice(0, 6), []);
 
   const replaceUrl = useCallback(
     (
@@ -226,6 +238,7 @@ export function HomePage({
                 <p className="mb-2 text-sm font-medium">Platform</p>
                 <PlatformButtons
                   selected={platform}
+                  variant="list"
                   onSelect={(nextPlatform) => {
                     setPlatform(nextPlatform);
                     if (nextPlatform) scrollToResults();
@@ -236,6 +249,7 @@ export function HomePage({
                 <p className="mb-2 text-sm font-medium">Category</p>
                 <CategoryGrid
                   selected={categoryId}
+                  variant="list"
                   onSelect={(nextCategory) => {
                     setCategoryId(nextCategory);
                     if (nextCategory) scrollToResults();
@@ -250,106 +264,148 @@ export function HomePage({
               onChange={setQuery}
               onSubmit={handleSearchSubmit}
               placeholder="Describe your problem…"
+              onClear={clearFilters}
             />
-          </div>
-
-          {activeSessions.length === 0 && sessionCount > 0 && (
-            <div className="mt-2 flex justify-end">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={handleClearHistory}
-              >
-                Clear my troubleshooting history ({sessionCount})
-              </Button>
-            </div>
-          )}
-
-          {process.env.NEXT_PUBLIC_AI_ENABLED === "true" && (
-            <Link
-              href="/assistant"
-              className="glass glass-interactive group mt-4 flex items-center gap-3 p-4 text-left"
-            >
-              <Bot className="h-5 w-5 shrink-0 text-primary" aria-hidden />
-              <span className="min-w-0 flex-1">
-                <span className="block font-medium">
-                  Not sure where to start? Ask the Support Assistant
-                </span>
-                <span className="mt-1 block text-sm text-muted-foreground">
-                  Describe the problem in plain words and get routed to the
-                  right guide.
-                </span>
-              </span>
-              <ChevronRight
-                className="h-5 w-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
-                aria-hidden
-              />
-            </Link>
-          )}
-
-          <div className="mt-8">
-            <RecentlyViewed />
-          </div>
-
-          {hasActiveFilters && (
-            <div
-              className="mt-4 flex flex-wrap gap-2"
-              aria-label="Active filters"
-            >
-              {query && <Badge>Search: {query}</Badge>}
-              {platform && <Badge>Platform: {platform}</Badge>}
-              {categoryId && <Badge>Category: {categoryId}</Badge>}
-            </div>
-          )}
-
-          {browseNeedsFilter ? (
-            <p className="mt-8 text-center text-sm text-muted-foreground">
-              Pick a category or platform, or search above, to see matching
-              guides.
-            </p>
-          ) : (
-            <>
-              <div className="mt-8 flex flex-col items-center justify-between gap-4 sm:flex-row">
-                <p className="text-sm text-muted-foreground" aria-live="polite">
-                  <span className="font-semibold text-foreground">
-                    {matchingCount}
-                  </span>{" "}
-                  matching {matchingCount === 1 ? "problem" : "problems"}
-                </p>
-                {hasActiveFilters && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={clearFilters}
-                  >
-                    <X className="mr-2 h-4 w-4" />
-                    Clear all filters
-                  </Button>
-                )}
+            {activeSessions.length === 0 && sessionCount > 0 && (
+              <div className="mt-2 flex justify-end">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleClearHistory}
+                >
+                  Clear my troubleshooting history ({sessionCount})
+                </Button>
               </div>
+            )}
 
-              <div
-                ref={resultsRef}
-                tabIndex={-1}
-                aria-label="Search results"
-                className="mt-6 outline-none"
+            {process.env.NEXT_PUBLIC_AI_ENABLED === "true" && (
+              <Link
+                href="/assistant"
+                className="glass glass-interactive group mt-4 flex items-center gap-3 p-4 text-left"
               >
-                <IssueList
-                  query={query}
-                  categoryId={categoryId}
-                  platform={platform}
-                  backParams={backParams}
-                  forceNoResults={initialPlatformInvalid}
+                <Bot className="h-5 w-5 shrink-0 text-primary" aria-hidden />
+                <span className="min-w-0 flex-1">
+                  <span className="block font-medium">
+                    Not sure where to start? Ask the Support Assistant
+                  </span>
+                  <span className="mt-1 block text-sm text-muted-foreground">
+                    Describe the problem in plain words and get routed to the
+                    right guide.
+                  </span>
+                </span>
+                <ChevronRight
+                  className="h-5 w-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
+                  aria-hidden
                 />
-                <div ref={resultsEndRef} aria-hidden="true" />
+              </Link>
+            )}
+
+            <div className="mt-8">
+              <RecentlyViewed />
+            </div>
+
+            {hasActiveFilters && (
+              <div
+                className="mt-4 flex flex-wrap gap-2"
+                aria-label="Active filters"
+              >
+                {query && <Badge>Search: {query}</Badge>}
+                {platform && <Badge>Platform: {platform}</Badge>}
+                {categoryId && <Badge>Category: {categoryId}</Badge>}
               </div>
-              {matchingCount > 0 && (
-                <ResultsNav topRef={resultsRef} bottomRef={resultsEndRef} />
-              )}
-            </>
-          )}
+            )}
+
+            {browseNeedsFilter || !hasActiveFilters ? (
+              <>
+                <section
+                  className="mt-8"
+                  aria-labelledby="browse-by-category-heading"
+                >
+                  <h2
+                    id="browse-by-category-heading"
+                    className="text-xl font-semibold"
+                  >
+                    Browse by category
+                  </h2>
+                  <div className="mt-4">
+                    <CategoryGrid
+                      selected={categoryId}
+                      counts={categoryCounts}
+                      onSelect={(nextCategory) => {
+                        setCategoryId(nextCategory);
+                        if (nextCategory) scrollToResults();
+                      }}
+                    />
+                  </div>
+                </section>
+                <section
+                  className="mt-10"
+                  aria-labelledby="popular-guides-heading"
+                >
+                  <h2
+                    id="popular-guides-heading"
+                    className="text-xl font-semibold"
+                  >
+                    Popular guides
+                  </h2>
+                  <ul className="mt-4 grid gap-4">
+                    {popularIssues.map((issue) => (
+                      <IssueCard
+                        key={issue.id}
+                        issue={issue}
+                        backParams={backParams}
+                      />
+                    ))}
+                  </ul>
+                </section>
+              </>
+            ) : (
+              <>
+                <div className="mt-8 flex flex-col items-center justify-between gap-4 sm:flex-row">
+                  <p
+                    className="text-sm text-muted-foreground"
+                    aria-live="polite"
+                  >
+                    <span className="font-semibold text-foreground">
+                      {matchingCount}
+                    </span>{" "}
+                    matching {matchingCount === 1 ? "problem" : "problems"}
+                  </p>
+                  {hasActiveFilters && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={clearFilters}
+                    >
+                      <X className="mr-2 h-4 w-4" />
+                      Clear all filters
+                    </Button>
+                  )}
+                </div>
+
+                <div
+                  ref={resultsRef}
+                  tabIndex={-1}
+                  aria-label="Search results"
+                  className="mt-6 outline-none"
+                >
+                  <IssueList
+                    query={query}
+                    categoryId={categoryId}
+                    platform={platform}
+                    backParams={backParams}
+                    forceNoResults={initialPlatformInvalid}
+                  />
+                  <div ref={resultsEndRef} aria-hidden="true" />
+                </div>
+                {matchingCount > 0 && (
+                  <ResultsNav topRef={resultsRef} bottomRef={resultsEndRef} />
+                )}
+              </>
+            )}
+          </div>
         </div>
         <Sheet open={filtersOpen} onOpenChange={setFiltersOpen} title="Filters">
           <div className="space-y-6">
@@ -357,6 +413,7 @@ export function HomePage({
               <p className="mb-2 text-sm font-medium">Platform</p>
               <PlatformButtons
                 selected={platform}
+                variant="list"
                 onSelect={(nextPlatform) => {
                   setPlatform(nextPlatform);
                   setFiltersOpen(false);
@@ -367,6 +424,7 @@ export function HomePage({
               <p className="mb-2 text-sm font-medium">Category</p>
               <CategoryGrid
                 selected={categoryId}
+                variant="list"
                 onSelect={(nextCategory) => {
                   setCategoryId(nextCategory);
                   setFiltersOpen(false);

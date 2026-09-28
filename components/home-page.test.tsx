@@ -89,18 +89,19 @@ describe("HomePage", () => {
     );
   });
 
-  it("waits for a filter before showing browse results", () => {
+  it("shows category discovery before showing filtered results", () => {
     render(<HomePage basePath="/browse" />);
 
     expect(
-      screen.getByText(
-        "Pick a category or platform, or search above, to see matching guides."
-      )
+      screen.getByRole("heading", { name: "Browse by category" })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Popular guides" })
     ).toBeInTheDocument();
     expect(screen.queryByText(/matching problems/)).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Search results")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Computer" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Computer" })[0]);
     expect(screen.getByText(/matching problems/)).toBeInTheDocument();
     expect(screen.getByLabelText("Search results")).toBeInTheDocument();
   });

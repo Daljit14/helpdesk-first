@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { HomePage } from "@/components/home-page";
 import { normalizePlatform } from "@/lib/platform";
 
@@ -24,22 +23,12 @@ export default async function BrowsePage({
   const rawPlatform = first(params.platform);
   const initialPlatform = normalizePlatform(rawPlatform);
   return (
-    <div className="flex flex-1 flex-col">
-      <div className="mx-auto w-full max-w-4xl px-4 pt-8 sm:px-6 lg:px-8">
-        <Link href="/" className="text-sm underline underline-offset-4">
-          ← Start
-        </Link>
-        <h1 className="mt-6 text-3xl font-bold tracking-tight">
-          Browse all solutions
-        </h1>
-      </div>
-      <HomePage
-        initialQuery={first(params.q)}
-        initialCategory={first(params.category) || null}
-        initialPlatform={initialPlatform}
-        initialPlatformInvalid={Boolean(rawPlatform.trim()) && !initialPlatform}
-        basePath="/browse"
-      />
-    </div>
+    <HomePage
+      initialQuery={first(params.q)}
+      initialCategory={first(params.category) || null}
+      initialPlatform={initialPlatform}
+      initialPlatformInvalid={Boolean(rawPlatform.trim()) && !initialPlatform}
+      basePath="/browse"
+    />
   );
 }

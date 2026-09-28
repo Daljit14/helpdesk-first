@@ -34,6 +34,12 @@ test("homepage renders with search, categories and platform filters", async ({
   await expect(
     page.getByRole("link", { name: /Ask the Support Assistant/i })
   ).toHaveAttribute("href", "/assistant");
+  await expect(
+    page.getByRole("heading", { name: "Browse by category" })
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Popular guides" })
+  ).toBeVisible();
 
   await openMobileFilters(page);
   for (const label of [
@@ -45,17 +51,17 @@ test("homepage renders with search, categories and platform filters", async ({
     "Audio & camera",
   ]) {
     await expect(
-      page.getByRole("button", { name: new RegExp(label, "i") })
+      page.getByRole("button", { name: new RegExp(label, "i") }).first()
     ).toBeVisible();
   }
 
   for (const platform of ["Windows", "Mac", "iOS", "Android", "Other"]) {
     await expect(
-      page.getByRole("button", { name: new RegExp(`^${platform}$`, "i") })
+      page
+        .getByRole("button", { name: new RegExp(`^${platform}$`, "i") })
+        .first()
     ).toBeVisible();
   }
-
-  await expect(matchingCount(page)).toBeVisible();
 });
 
 test("search updates results as the user types", async ({ page }) => {
@@ -112,9 +118,13 @@ test("category and platform filters can be combined", async ({ page }) => {
   await openMobileFilters(page);
   await page
     .getByRole("button", { name: new RegExp("^Computer$", "i") })
+    .first()
     .click();
   await openMobileFilters(page);
-  await page.getByRole("button", { name: /^Windows$/i }).click();
+  await page
+    .getByRole("button", { name: /^Windows$/i })
+    .first()
+    .click();
 
   await expect(
     page
@@ -131,7 +141,9 @@ test("clearing filters resets results", async ({ page }) => {
   await page.getByRole("button", { name: /Clear all filters/i }).click();
 
   await expect(searchInput(page)).toHaveValue("");
-  await expect(page.getByText(/100 matching problems/)).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Browse by category" })
+  ).toBeVisible();
 });
 
 test("user can open an issue and return to previous filtered results", async ({

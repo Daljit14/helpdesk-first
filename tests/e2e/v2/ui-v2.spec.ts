@@ -158,7 +158,7 @@ test.describe("UI v2 numbered coverage", () => {
     await page.goto("/browse");
     await expect(page).toHaveURL(/\/browse/);
     await expect(
-      page.getByRole("heading", { name: /Browse all solutions/i })
+      page.getByRole("heading", { name: "Browse solutions", exact: true })
     ).toBeVisible();
     await expect(page.getByLabel(/Search/i).first()).toBeVisible();
   });

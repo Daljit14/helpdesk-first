@@ -21,7 +21,6 @@ import {
 import { getCurrentUser } from "@/lib/supabase/user";
 import { buildBrowseReturnHref } from "@/lib/browse-return";
 import { platformSlug } from "@/lib/platform";
-import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { Badge } from "@/components/ui/badge";
 import {
   getBookmarkedIssueIds,
@@ -99,14 +98,6 @@ export default async function IssuePage({
     <section className="flex flex-1 flex-col px-4 py-12 sm:px-6 lg:px-8">
       <div className="mx-auto w-full max-w-3xl">
         <RecentTracker issueId={issue.id} />
-        <Breadcrumbs
-          label="Issue breadcrumb"
-          items={[
-            { label: "Start", href: "/" },
-            { label: "Browse solutions", href: backHref },
-            { label: issue.title },
-          ]}
-        />
         <Link
           href={backHref}
           className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"

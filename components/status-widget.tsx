@@ -13,12 +13,14 @@ type StatusResponse = {
 export function StatusWidget() {
   const [status, setStatus] = useState<StatusResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [lastChecked, setLastChecked] = useState<string | null>(null);
 
   async function check() {
     setLoading(true);
     try {
       const res = await fetch("/api/status", { cache: "no-store" });
       setStatus(await res.json());
+      setLastChecked(new Date().toISOString());
     } catch {
       setStatus(null);
     } finally {
@@ -50,10 +52,24 @@ export function StatusWidget() {
               ? "All systems operational"
               : "Degraded"}
         </div>
-        <Button size="sm" variant="ghost" onClick={check} disabled={loading}>
-          <RefreshCw className="h-4 w-4" />
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={check}
+          disabled={loading}
+          aria-label="Refresh system status"
+          aria-busy={loading}
+        >
+          <RefreshCw className="h-4 w-4" aria-hidden />
         </Button>
       </div>
+      <span role="status" aria-live="polite" className="sr-only">
+        {loading
+          ? "Checking system status…"
+          : lastChecked
+            ? `Status updated ${new Date(lastChecked).toLocaleTimeString()}`
+            : ""}
+      </span>
 
       {status && (
         <dl className="mt-4 grid grid-cols-2 gap-4 text-sm">

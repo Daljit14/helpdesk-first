@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { Platform } from "@/lib/helpdesk-data";
+import { platformSlug } from "@/lib/platform";
 import type { AiIntakeOutput } from "@/lib/ai/types";
 import { getIssueBySlug, suggestIssues } from "@/lib/search";
 import { IssueCard } from "./issue-card";
@@ -20,7 +21,7 @@ type AiState =
 
 function assistantHref(query: string, platform?: Platform | null): string {
   const params = new URLSearchParams({ q: query });
-  if (platform) params.set("platform", platform);
+  if (platform) params.set("platform", platformSlug(platform));
   return `/assistant?${params.toString()}`;
 }
 

@@ -15,6 +15,7 @@ import { IssueList } from "@/components/issue-list";
 import { ResultsNav } from "@/components/results-nav";
 import { filterIssues } from "@/lib/search";
 import { platforms, type Platform } from "@/lib/helpdesk-data";
+import { normalizePlatform, platformSlug } from "@/lib/platform";
 import {
   clearAllSessions,
   getActiveSessions,
@@ -26,13 +27,9 @@ type HomePageProps = {
   initialQuery?: string;
   initialCategory?: string | null;
   initialPlatform?: Platform | null;
+  initialPlatformInvalid?: boolean;
   basePath?: string;
 };
-
-function platformFromParam(value: string | null): Platform | null {
-  if (!value) return null;
-  return platforms.includes(value as Platform) ? (value as Platform) : null;
-}
 
 function paramToString(value: string | string[] | undefined): string {
   if (Array.isArray(value)) return value[0] ?? "";
@@ -44,6 +41,7 @@ export function HomePage({
   initialQuery = "",
   initialCategory = null,
   initialPlatform = null,
+  initialPlatformInvalid = false,
   basePath = "/",
 }: HomePageProps) {
   const router = useRouter();
@@ -57,7 +55,7 @@ export function HomePage({
     initialCategory ?? null
   );
   const [platform, setPlatform] = useState<Platform | null>(
-    platformFromParam(paramToString(initialPlatform ?? ""))
+    normalizePlatform(paramToString(initialPlatform ?? ""))
   );
   const [activeSessions, setActiveSessions] = useState<
     TroubleshootingSession[]
@@ -72,19 +70,24 @@ export function HomePage({
   }, []);
 
   const matchingCount = useMemo(
-    () => filterIssues({ query, categoryId, platform }).length,
-    [query, categoryId, platform]
+    () =>
+      initialPlatformInvalid
+        ? 0
+        : filterIssues({ query, categoryId, platform }).length,
+    [query, categoryId, platform, initialPlatformInvalid]
   );
 
   const backParams = useMemo(() => {
     const params = new URLSearchParams();
     if (query) params.set("q", query);
     if (categoryId) params.set("category", categoryId);
-    if (platform) params.set("platform", platform);
+    if (platform) params.set("platform", platformSlug(platform));
     return params.toString();
   }, [query, categoryId, platform]);
 
-  const hasActiveFilters = Boolean(query || categoryId || platform);
+  const hasActiveFilters = Boolean(
+    query || categoryId || platform || initialPlatformInvalid
+  );
   const browseNeedsFilter = basePath === "/browse" && !hasActiveFilters;
 
   const replaceUrl = useCallback(
@@ -96,7 +99,7 @@ export function HomePage({
       const params = new URLSearchParams();
       if (nextQuery) params.set("q", nextQuery);
       if (nextCategory) params.set("category", nextCategory);
-      if (nextPlatform) params.set("platform", nextPlatform);
+      if (nextPlatform) params.set("platform", platformSlug(nextPlatform));
       const search = params.toString();
       const href = search ? `${basePath}?${search}` : basePath;
       router.replace(href, { scroll: false });
@@ -186,7 +189,7 @@ export function HomePage({
               </div>
               <div className="flex items-center gap-3">
                 <Link
-                  href={`/issues/${activeSessions[0].issueSlug}/guide?platform=${activeSessions[0].platform}`}
+                  href={`/issues/${activeSessions[0].issueSlug}/guide?platform=${platformSlug(normalizePlatform(activeSessions[0].platform) ?? "Other")}`}
                   className={cn(
                     buttonVariants({ variant: "outline", size: "sm" })
                   )}
@@ -315,6 +318,7 @@ export function HomePage({
                 categoryId={categoryId}
                 platform={platform}
                 backParams={backParams}
+                forceNoResults={initialPlatformInvalid}
               />
               <div ref={resultsEndRef} aria-hidden="true" />
             </div>

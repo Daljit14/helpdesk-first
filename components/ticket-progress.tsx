@@ -1,19 +1,12 @@
-import { progressStage } from "@/lib/tickets/user-status";
+import { TICKET_STAGES, ticketState } from "@/lib/tickets/user-status";
 import { CheckCircle2, Circle, Clock } from "lucide-react";
-
-const stages = [
-  "Submitted",
-  "Reviewing",
-  "Working on it",
-  "Waiting for you",
-  "Confirm fix",
-  "Resolved",
-] as const;
 
 export function TicketProgress({
   status,
   description,
   assignment,
+  assignedAgentId,
+  resolverType,
 }: {
   status: string;
   description: string;
@@ -22,14 +15,20 @@ export function TicketProgress({
     expectedResponseBy: string | null;
     lastUpdated: string | null;
   };
+  assignedAgentId?: string | null;
+  resolverType?: string | null;
 }) {
-  const currentStage = progressStage(status);
+  const currentStage = ticketState({
+    status,
+    assignedAgentId,
+    resolverType,
+  }).stage;
 
   return (
     <section id="progress" className="glass mt-6 scroll-mt-24 p-5">
       <h2 className="font-semibold">Ticket progress</h2>
       <ol className="mt-6 flex flex-col gap-4 sm:flex-row sm:gap-0">
-        {stages.map((stage, index) => {
+        {TICKET_STAGES.map((stage, index) => {
           const complete = index < currentStage;
           const current = index === currentStage;
           return (
@@ -38,7 +37,7 @@ export function TicketProgress({
               className="relative flex min-w-0 flex-1 items-start gap-3 sm:flex-col sm:items-center"
               aria-current={current ? "step" : undefined}
             >
-              {index < stages.length - 1 && (
+              {index < TICKET_STAGES.length - 1 && (
                 <span className="absolute left-4 top-8 h-[calc(100%+1rem)] w-px bg-border sm:left-1/2 sm:top-4 sm:h-px sm:w-full" />
               )}
               <span

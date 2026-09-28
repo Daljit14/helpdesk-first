@@ -3,11 +3,11 @@
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
+import { buildBrowseReturnHref } from "@/lib/browse-return";
 
 export function BackToResults() {
   const searchParams = useSearchParams();
-  const query = searchParams.toString();
-  const href = query ? `/?${query}` : "/";
+  const href = buildBrowseReturnHref(searchParams);
 
   return (
     <Link

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { HomePage } from "@/components/home-page";
-import { platforms, type Platform } from "@/lib/helpdesk-data";
+import { normalizePlatform } from "@/lib/platform";
 
 export const metadata: Metadata = {
   title: "Browse all solutions",
@@ -15,19 +15,14 @@ function first(value: string | string[] | undefined): string {
   return Array.isArray(value) ? (value[0] ?? "") : (value ?? "");
 }
 
-function platform(value: string | string[] | undefined): Platform | null {
-  const valueString = first(value);
-  return platforms.includes(valueString as Platform)
-    ? (valueString as Platform)
-    : null;
-}
-
 export default async function BrowsePage({
   searchParams,
 }: {
   searchParams: Promise<PageSearchParams>;
 }) {
   const params = await searchParams;
+  const rawPlatform = first(params.platform);
+  const initialPlatform = normalizePlatform(rawPlatform);
   return (
     <div className="flex flex-1 flex-col">
       <div className="mx-auto w-full max-w-4xl px-4 pt-8 sm:px-6 lg:px-8">
@@ -41,7 +36,8 @@ export default async function BrowsePage({
       <HomePage
         initialQuery={first(params.q)}
         initialCategory={first(params.category) || null}
-        initialPlatform={platform(params.platform)}
+        initialPlatform={initialPlatform}
+        initialPlatformInvalid={Boolean(rawPlatform.trim()) && !initialPlatform}
         basePath="/browse"
       />
     </div>

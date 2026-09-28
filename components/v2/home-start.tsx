@@ -5,6 +5,7 @@ import { useEffect, useState, type ChangeEvent } from "react";
 import {
   Laptop,
   Monitor,
+  Smartphone,
   Paperclip,
   Wrench,
   X,
@@ -12,6 +13,7 @@ import {
 } from "lucide-react";
 import { SAFE_USE_WARNING } from "@/lib/ui-copy";
 import type { Platform } from "@/lib/helpdesk-data";
+import { platformSlug } from "@/lib/platform";
 
 type StartPlatform = "General" | Extract<Platform, "Mac" | "Windows">;
 
@@ -28,7 +30,7 @@ function assistantHref(
   attached: boolean
 ) {
   const params = new URLSearchParams({ q: description, intent });
-  if (platform !== "General") params.set("platform", platform);
+  if (platform !== "General") params.set("platform", platformSlug(platform));
   if (attached) params.set("attach", "1");
   return `/assistant?${params.toString()}`;
 }
@@ -101,6 +103,12 @@ export function HomeStart({ signedIn = false }: { signedIn?: boolean }) {
               icon={Monitor}
               label="Windows"
               onClick={() => choose("Windows")}
+            />
+            <Option icon={Smartphone} label="iOS" href="/browse?platform=ios" />
+            <Option
+              icon={Smartphone}
+              label="Android"
+              href="/browse?platform=android"
             />
           </div>
         ) : (
@@ -200,7 +208,7 @@ export function HomeStart({ signedIn = false }: { signedIn?: boolean }) {
                 </span>
                 {!signedIn && (
                   <span className="text-muted-foreground">
-                    Sign in to attach files to a ticket
+                    Log in to attach files to a ticket
                   </span>
                 )}
               </div>
@@ -225,17 +233,25 @@ function Option({
   icon: Icon,
   label,
   onClick,
+  href,
 }: {
   icon: LucideIcon;
   label: string;
-  onClick: () => void;
+  onClick?: () => void;
+  href?: string;
 }) {
+  const className =
+    "v2-touch flex min-h-36 flex-col items-center justify-center gap-3 rounded-2xl border border-border bg-card p-5 text-center transition-colors hover:bg-[var(--hover)]";
+  if (href) {
+    return (
+      <Link href={href} className={className}>
+        <Icon className="h-8 w-8" aria-hidden />
+        <span className="font-medium">{label}</span>
+      </Link>
+    );
+  }
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="v2-touch flex min-h-36 flex-col items-center justify-center gap-3 rounded-2xl border border-border bg-card p-5 text-center transition-colors hover:bg-[var(--hover)]"
-    >
+    <button type="button" onClick={onClick} className={className}>
       <Icon className="h-8 w-8" aria-hidden />
       <span className="font-medium">{label}</span>
     </button>

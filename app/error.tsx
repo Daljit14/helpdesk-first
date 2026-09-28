@@ -20,6 +20,7 @@ export default function Error({
 
   return (
     <section className="flex flex-1 flex-col items-center justify-center px-4 py-12 text-center sm:px-6 lg:px-8">
+      <title>Something went wrong</title>
       <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
         Something went wrong
       </h1>

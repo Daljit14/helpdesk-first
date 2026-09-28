@@ -85,7 +85,9 @@ test("filters can return an empty result set", () => {
 });
 
 test("getIssueBySlug returns the correct issue", () => {
-  expect(getIssueBySlug("no-sound")?.title).toBe("No sound");
+  expect(getIssueBySlug("no-sound")?.title).toBe(
+    "No sound from speakers or headphones"
+  );
   expect(getIssueBySlug("does-not-exist")).toBeUndefined();
 });
 

@@ -25,6 +25,7 @@ export type Issue = {
   time: string;
   devices: Device[];
   symptoms: string[];
+  related?: string[];
 };
 
 export const CATEGORIES = [
@@ -135,7 +136,7 @@ export const CATEGORY_STEPS: Record<IssueCategoryId, string[]> = {
     "If the problem continues, contact IT with the device model.",
   ],
   accounts: [
-    "Confirm you are entering the correct username and current password.",
+    "Confirm you are using the correct username or email for the account.",
     "Use the official password reset or account recovery option.",
     "Check for account lockout or security alerts in your inbox.",
     "If the problem continues, contact IT to verify your account status.",
@@ -171,10 +172,10 @@ export const CATEGORY_STEPS: Record<IssueCategoryId, string[]> = {
     "If the problem continues, contact IT with the app name and error shown.",
   ],
   security: [
-    "Do not click links or enter credentials until this is checked.",
-    "Run a full scan with the organization antimalware tool.",
-    "Report the alert or message to IT immediately.",
-    "Avoid using the device for sensitive tasks until IT confirms it is safe.",
+    "Stop using the affected device or account for work until you have reported it.",
+    "Report what you saw, and when, to your IT or security team right away.",
+    "Do not click links, enter credentials, or pay anything requested by the alert or message.",
+    "Follow IT's instructions; do not run tools, change settings, or delete anything unless they ask you to.",
   ],
 };
 
@@ -531,7 +532,7 @@ export const ISSUES: Issue[] = [
   },
   {
     id: "no-sound",
-    title: "No sound",
+    title: "No sound from speakers or headphones",
     category: "audio",
     risk: "Low",
     difficulty: 1,
@@ -541,11 +542,13 @@ export const ISSUES: Issue[] = [
       "No audio from speakers or headphones",
       "The volume icon shows a mute symbol",
       "Apps do not play sound",
+      "Meeting audio may still work when system playback is silent",
     ],
+    related: ["meeting-audio-not-working"],
   },
   {
     id: "camera-mic-not-working",
-    title: "Camera or microphone not working",
+    title: "Camera or microphone not working in meetings",
     category: "audio",
     risk: "Low",
     difficulty: 2,
@@ -555,11 +558,13 @@ export const ISSUES: Issue[] = [
       "The video call camera is black",
       "The microphone does not pick up sound",
       "Apps cannot access the camera or mic",
+      "The issue occurs during a meeting or video call",
     ],
+    related: ["mic-not-working"],
   },
   {
     id: "mic-not-working",
-    title: "Microphone not working",
+    title: "Microphone not working (all apps)",
     category: "audio",
     risk: "Low",
     difficulty: 1,
@@ -569,7 +574,9 @@ export const ISSUES: Issue[] = [
       "No one can hear you on calls",
       "The mic icon is muted or not detected",
       "Voice recordings are silent",
+      "The microphone may work in one app but not another",
     ],
+    related: ["camera-mic-not-working"],
   },
   {
     id: "bluetooth-headset",
@@ -587,7 +594,7 @@ export const ISSUES: Issue[] = [
   },
   {
     id: "screen-sharing",
-    title: "Screen-sharing problem",
+    title: "Screen sharing not working (any app)",
     category: "audio",
     risk: "Low",
     difficulty: 2,
@@ -597,7 +604,9 @@ export const ISSUES: Issue[] = [
       "Others see a black screen when you share",
       "The screen-sharing option is greyed out",
       "Screen sharing is blurry or freezes",
+      "The issue is not limited to one meeting platform",
     ],
+    related: ["meeting-screen-share-issue"],
   },
   {
     id: "forgot-password",
@@ -727,7 +736,7 @@ export const ISSUES: Issue[] = [
   },
   {
     id: "session-keeps-logging-out",
-    title: "Session keeps logging out",
+    title: "Signed out repeatedly (web or account session)",
     category: "accounts",
     risk: "Low",
     difficulty: 2,
@@ -737,7 +746,9 @@ export const ISSUES: Issue[] = [
       "You are signed out every few minutes",
       "Saved login details are not remembered",
       "You must repeatedly re-enter credentials",
+      "The sign-out affects a browser or account session",
     ],
+    related: ["app-keeps-signing-out"],
   },
   {
     id: "shared-drive-access",
@@ -923,7 +934,7 @@ export const ISSUES: Issue[] = [
   },
   {
     id: "meeting-screen-share-issue",
-    title: "Screen share not showing in meeting",
+    title: "Screen share not showing in a meeting",
     category: "video",
     risk: "Low",
     difficulty: 2,
@@ -933,7 +944,9 @@ export const ISSUES: Issue[] = [
       "Participants see a black or frozen screen",
       "The share option is greyed out",
       "Only part of the screen appears shared",
+      "Other applications can share successfully",
     ],
+    related: ["screen-sharing"],
   },
   {
     id: "meeting-recording-issue",
@@ -951,7 +964,7 @@ export const ISSUES: Issue[] = [
   },
   {
     id: "meeting-audio-not-working",
-    title: "No audio in meeting",
+    title: "No audio in a meeting app",
     category: "video",
     risk: "Low",
     difficulty: 2,
@@ -961,7 +974,9 @@ export const ISSUES: Issue[] = [
       "You cannot hear other participants",
       "Other participants cannot hear you",
       "Audio cuts in and out during the call",
+      "System sounds work outside the meeting app",
     ],
+    related: ["no-sound"],
   },
   {
     id: "virtual-background-not-working",
@@ -1367,7 +1382,9 @@ export const ISSUES: Issue[] = [
       "You are logged out several times a day",
       "Saved sign-in details are not remembered",
       "You must reauthenticate repeatedly during the day",
+      "Only the collaboration app signs out unexpectedly",
     ],
+    related: ["session-keeps-logging-out"],
   },
   {
     id: "cannot-tag-mention-colleague",

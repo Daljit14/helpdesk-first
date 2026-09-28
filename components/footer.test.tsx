@@ -22,13 +22,14 @@ describe("Footer", () => {
     expect(
       screen.getByRole("link", { name: "Browse solutions" })
     ).toHaveAttribute("href", "/browse");
-    expect(
-      screen.getByRole("link", { name: "Create account" })
-    ).toHaveAttribute("href", "/signup");
+    expect(screen.getByRole("link", { name: "Sign up" })).toHaveAttribute(
+      "href",
+      "/signup"
+    );
     expect(screen.queryByText("Organization admin")).not.toBeInTheDocument();
     expect(screen.queryByText("Notifications")).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("link", { name: "Staff sign in" })
+      screen.queryByRole("link", { name: "Staff log in" })
     ).not.toBeInTheDocument();
   });
 
@@ -43,17 +44,17 @@ describe("Footer", () => {
       "/assistant"
     );
     expect(
-      screen.queryByRole("link", { name: "Sign in" })
+      screen.queryByRole("link", { name: "Log in" })
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("link", { name: "Staff sign in" })
+      screen.queryByRole("link", { name: "Staff log in" })
     ).not.toBeInTheDocument();
   });
 
-  test("shows staff sign-in only for staff", () => {
+  test("shows staff log-in only for staff", () => {
     render(<Footer signedIn staff />);
 
-    expect(screen.getByRole("link", { name: "Staff sign in" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Staff log in" })).toHaveAttribute(
       "href",
       "/admin/login"
     );

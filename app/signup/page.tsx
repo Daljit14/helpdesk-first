@@ -1,7 +1,12 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { SignupForm } from "@/components/auth/signup-form";
 import { isGoogleSsoEnabled, isMicrosoftSsoEnabled } from "@/lib/admin/flags";
 import { getTurnstileSiteKey } from "@/lib/auth/captcha";
+
+export const metadata: Metadata = {
+  title: "Create an account",
+};
 
 function safeNextPath(value: string | string[] | undefined): string {
   const next = Array.isArray(value) ? value[0] : value;

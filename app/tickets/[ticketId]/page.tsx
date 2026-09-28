@@ -274,6 +274,7 @@ export default async function TicketPage({
         .order("created_at", { ascending: true })
     : { data: [] };
   const status = describeTicketStatus(ticket.status, {
+    assignedAgentId: ticket.assigned_agent_id,
     resolverType: ticket.resolver_type,
   });
   const recommendedIssue =
@@ -396,6 +397,8 @@ export default async function TicketPage({
           status={ticket.status}
           description={status.description}
           assignment={assignment}
+          assignedAgentId={ticket.assigned_agent_id}
+          resolverType={ticket.resolver_type}
         />
         <div className="glass-strong mt-6 p-5">
           <h2 className="font-semibold">Original problem</h2>

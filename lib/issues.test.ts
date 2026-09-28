@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { CATEGORIES, DEVICES, ISSUES } from "./issues";
 import { issues as legacyIssues } from "./knowledge-base";
 import { getIssueBySlug } from "./search";
-import { getIssueSteps } from "./steps";
+import { getIssueStepSource, getIssueSteps } from "./steps";
 
 describe("issue catalog", () => {
   test("contains exactly 100 unique valid issues", () => {
@@ -26,6 +26,25 @@ describe("issue catalog", () => {
       const issue = getIssueBySlug(legacyIssue.slug);
       expect(issue).toBeDefined();
       expect(getIssueSteps(issue!)).toEqual(legacyIssue.steps);
+    }
+  });
+
+  test("uses issue-specific steps for QA-curated issues", () => {
+    const curatedIds = [
+      "lost-stolen-device",
+      "account-wrong-details",
+      "cannot-reset-password",
+      "lost-deleted-file",
+      "meeting-invite-not-received",
+      "touchpad-not-working",
+      "mobile-storage-full",
+      "firewall-blocking-app",
+      "encryption-status-unknown",
+    ];
+    for (const id of curatedIds) {
+      const issue = ISSUES.find((candidate) => candidate.id === id);
+      expect(issue).toBeDefined();
+      expect(getIssueStepSource(issue!)).toBe("issue");
     }
   });
 });

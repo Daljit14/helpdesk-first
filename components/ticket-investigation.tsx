@@ -1,9 +1,12 @@
+import Link from "next/link";
 import { ISSUES } from "@/lib/issues";
 import type {
   InvestigationRow,
   InvestigationTurnRow,
 } from "@/lib/investigation/types";
 import { riskLabel } from "@/lib/investigation/policy";
+import { getIssueBySlug } from "@/lib/search";
+import { resolveStepText } from "@/lib/investigation/step-text";
 
 export function TicketInvestigation({
   investigation,
@@ -102,8 +105,35 @@ export function TicketInvestigation({
           <ul className="space-y-1 text-sm">
             {turns.flatMap((turn) =>
               turn.next_steps.map((step) => (
-                <li key={`${turn.id}-${step.guideSlug}-${step.stepIndex}`}>
-                  Step {step.stepIndex + 1}{" "}
+                <li
+                  key={`${turn.id}-${step.guideSlug}-${step.stepIndex}`}
+                  className="flex flex-wrap items-center gap-2"
+                >
+                  {(() => {
+                    const resolved = resolveStepText(step);
+                    const issue = getIssueBySlug(step.guideSlug);
+                    return resolved ? (
+                      <span>
+                        Step {step.stepIndex + 1} — {resolved.text}
+                      </span>
+                    ) : issue ? (
+                      <span>
+                        Instruction unavailable for this step (guide may have
+                        changed){" "}
+                        <Link
+                          href={`/issues/${issue.id}/guide`}
+                          className="underline underline-offset-4"
+                        >
+                          Open guide
+                        </Link>
+                      </span>
+                    ) : (
+                      <span>
+                        Instruction unavailable for this step (guide may have
+                        changed)
+                      </span>
+                    );
+                  })()}{" "}
                   <span className="rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground">
                     {riskLabel(step.risk ?? "safe")}
                   </span>

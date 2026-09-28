@@ -14,10 +14,10 @@ import {
 import { isUiV2Enabled } from "@/lib/ui-v2";
 import { AgentChat } from "@/components/v2/agent-chat";
 import { resolveOrganizationForUser } from "@/lib/org/membership";
-import { platforms, type Platform } from "@/lib/helpdesk-data";
+import { normalizePlatform } from "@/lib/platform";
 
 export const metadata: Metadata = {
-  title: "Ask the Support Assistant · HelpDesk First",
+  title: "Ask the Support Assistant",
   description:
     "Describe your IT problem conversationally and the HelpDesk First support assistant will match you to an approved Level-1 troubleshooting guide.",
 };
@@ -32,10 +32,7 @@ function first(value: string | string[] | undefined) {
 
 export function parseAssistantParams(params: SearchParams) {
   const initialProblem = first(params.q);
-  const platformParam = first(params.platform);
-  const initialPlatform = platforms.includes(platformParam as Platform)
-    ? (platformParam as Platform)
-    : null;
+  const initialPlatform = normalizePlatform(params.platform);
   const intent = first(params.intent);
   return {
     initialProblem,

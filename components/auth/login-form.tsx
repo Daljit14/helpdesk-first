@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { startSso } from "@/app/actions/auth";
 import { TurnstileWidget } from "@/components/turnstile-widget";
+import { useEffect, useRef } from "react";
 
 const initialState: AuthState = null;
 
@@ -26,6 +27,12 @@ export function LoginForm({
     loginAction,
     initialState
   );
+  const emailRef = useRef<HTMLInputElement>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (state?.fieldErrors?.email) emailRef.current?.focus();
+    else if (state?.fieldErrors?.password) passwordRef.current?.focus();
+  }, [state]);
 
   return (
     <form action={formAction} className="flex flex-col gap-4" noValidate>
@@ -33,14 +40,25 @@ export function LoginForm({
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="email">Email</Label>
         <Input
+          ref={emailRef}
           id="email"
           name="email"
           type="email"
           autoComplete="email"
           required
+          aria-invalid={Boolean(state?.fieldErrors?.email)}
+          aria-describedby={
+            state?.fieldErrors?.email ? "login-email-error" : undefined
+          }
         />
         {state?.fieldErrors?.email && (
-          <p className="text-sm text-destructive">{state.fieldErrors.email}</p>
+          <p
+            id="login-email-error"
+            role="alert"
+            className="text-sm text-destructive"
+          >
+            {state.fieldErrors.email}
+          </p>
         )}
       </div>
 
@@ -55,21 +73,32 @@ export function LoginForm({
           </Link>
         </div>
         <Input
+          ref={passwordRef}
           id="password"
           name="password"
           type="password"
           autoComplete="current-password"
           required
+          aria-invalid={Boolean(state?.fieldErrors?.password)}
+          aria-describedby={
+            state?.fieldErrors?.password ? "login-password-error" : undefined
+          }
         />
         {state?.fieldErrors?.password && (
-          <p className="text-sm text-destructive">
+          <p
+            id="login-password-error"
+            role="alert"
+            className="text-sm text-destructive"
+          >
             {state.fieldErrors.password}
           </p>
         )}
       </div>
 
       {state?.error && (
-        <p className="text-sm text-destructive">{state.error}</p>
+        <p role="alert" className="text-sm text-destructive">
+          {state.error}
+        </p>
       )}
 
       <TurnstileWidget siteKey={turnstileSiteKey} resetKey={state} />

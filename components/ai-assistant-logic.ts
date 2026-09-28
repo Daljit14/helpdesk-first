@@ -12,6 +12,7 @@ import {
 import { startAiTicket } from "@/app/actions/resolution";
 import { createWorkflowTicket } from "@/app/actions/tickets";
 import { detectPlatform } from "@/lib/ai/detect-platform";
+import { platformSlug } from "@/lib/platform";
 
 const MAX_QUESTIONS = 3;
 
@@ -213,7 +214,7 @@ export function useAssistantIntake({
   const searchHref = useCallback(() => {
     const params = new URLSearchParams();
     if (problem) params.set("q", problem);
-    if (platform) params.set("platform", platform);
+    if (platform) params.set("platform", platformSlug(platform));
     return params.toString() ? `/?${params.toString()}` : "/";
   }, [platform, problem]);
 

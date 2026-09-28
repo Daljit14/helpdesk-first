@@ -25,9 +25,7 @@ export async function generateMetadata({
   const { slug } = await params;
   const issue = getIssueBySlug(slug);
   return {
-    title: issue
-      ? `${issue.title} troubleshooting guide · HelpDesk First`
-      : "Issue not found",
+    title: issue ? `${issue.title} troubleshooting guide` : "Issue not found",
   };
 }
 

@@ -51,3 +51,44 @@ jobs:
 
       - name: End-to-end tests
         run: npm run test:e2e
+
+  requester-agent-e2e:
+    runs-on: ubuntu-latest
+    needs: check
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      USER_E2E_EMAIL: ${{ secrets.USER_E2E_EMAIL }}
+      USER_E2E_PASSWORD: ${{ secrets.USER_E2E_PASSWORD }}
+      E2E_ORG_ID: ${{ secrets.E2E_ORG_ID }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        if: env.E2E_ORG_ID != ''
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        if: env.E2E_ORG_ID != ''
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        if: env.E2E_ORG_ID != ''
+        run: npx playwright install --with-deps chromium
+
+      - name: Run requester-agent E2E tests
+        if: env.E2E_ORG_ID != ''
+        run: npx playwright test --project=requester-agent
+
+      - name: Upload requester-agent Playwright report
+        if: failure() && env.E2E_ORG_ID != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: requester-agent-playwright-report
+          path: playwright-report/

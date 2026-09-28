@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 const requesterReady = Boolean(
   process.env.USER_E2E_EMAIL &&
@@ -9,6 +9,14 @@ const visionE2EReady = Boolean(
   requesterReady &&
   process.env.HELP_DESK_REQUESTER_AGENT_VISION_ENABLED === "true"
 );
+
+async function signInRequester(page: Page) {
+  await page.goto("/login?next=/assistant");
+  await page.getByLabel("Email").fill(process.env.USER_E2E_EMAIL!);
+  await page.getByLabel("Password").fill(process.env.USER_E2E_PASSWORD!);
+  await page.getByRole("button", { name: /Log in|Sign in/ }).click();
+  await expect(page).toHaveURL(/\/assistant$/);
+}
 
 test.describe("requester agent C2", () => {
   test.skip(!requesterReady, "requester credentials or E2E_ORG_ID unavailable");
@@ -62,11 +70,7 @@ test.describe("requester agent C2", () => {
           .join(""),
       });
     });
-    await page.goto("/login?next=/assistant");
-    await page.getByLabel("Email").fill(process.env.USER_E2E_EMAIL!);
-    await page.getByLabel("Password").fill(process.env.USER_E2E_PASSWORD!);
-    await page.getByRole("button", { name: /Log in|Sign in/ }).click();
-    await page.goto("/assistant");
+    await signInRequester(page);
     await expect(
       page.getByText("You're talking to an AI assistant")
     ).toBeVisible();
@@ -155,11 +159,7 @@ test.describe("requester agent C2", () => {
           .join(""),
       });
     });
-    await page.goto("/login?next=/assistant");
-    await page.getByLabel("Email").fill(process.env.USER_E2E_EMAIL!);
-    await page.getByLabel("Password").fill(process.env.USER_E2E_PASSWORD!);
-    await page.getByRole("button", { name: /Log in|Sign in/ }).click();
-    await page.goto("/assistant");
+    await signInRequester(page);
     await page.getByLabel("Describe your IT problem").fill("Fix my Wi-Fi");
     await page.getByRole("button", { name: "Ask the assistant" }).click();
     await expect(page.getByText("Approval needed")).toBeVisible();
@@ -174,6 +174,7 @@ test.describe("requester agent C2", () => {
   test("returns 404 for consent when actions are disabled", async ({
     page,
   }) => {
+    await page.goto("/");
     await page.route("**/api/ai/agent", async (route) => {
       if (route.request().postDataJSON()?.consent)
         return route.fulfill({ status: 404, body: "Not found" });
@@ -260,11 +261,7 @@ test.describe("requester agent C2", () => {
           .join(""),
       });
     });
-    await page.goto("/login?next=/assistant");
-    await page.getByLabel("Email").fill(process.env.USER_E2E_EMAIL!);
-    await page.getByLabel("Password").fill(process.env.USER_E2E_PASSWORD!);
-    await page.getByRole("button", { name: /Log in|Sign in/ }).click();
-    await page.goto("/assistant");
+    await signInRequester(page);
     await page.getByLabel("Describe your IT problem").fill("Fix my Wi-Fi");
     await page.getByRole("button", { name: "Ask the assistant" }).click();
     await expect(
@@ -289,11 +286,7 @@ test.describe("requester agent C2", () => {
       !visionE2EReady,
       "vision E2E requires requester credentials and the vision flag"
     );
-    await page.goto("/login?next=/assistant");
-    await page.getByLabel("Email").fill(process.env.USER_E2E_EMAIL!);
-    await page.getByLabel("Password").fill(process.env.USER_E2E_PASSWORD!);
-    await page.getByRole("button", { name: /Log in|Sign in/ }).click();
-    await page.goto("/assistant");
+    await signInRequester(page);
     await expect(
       page.locator('input[accept="image/png,image/jpeg,image/webp"]')
     ).toBeAttached();
@@ -323,11 +316,7 @@ test.describe("requester agent C2", () => {
           .join(""),
       });
     });
-    await page.goto("/login?next=/assistant");
-    await page.getByLabel("Email").fill(process.env.USER_E2E_EMAIL!);
-    await page.getByLabel("Password").fill(process.env.USER_E2E_PASSWORD!);
-    await page.getByRole("button", { name: /Log in|Sign in/ }).click();
-    await page.goto("/assistant");
+    await signInRequester(page);
     await page.getByLabel("Describe your IT problem").fill("Fix my Wi-Fi");
     await page.getByRole("button", { name: "Ask the assistant" }).click();
     await page.getByRole("button", { name: "Revoke" }).click();

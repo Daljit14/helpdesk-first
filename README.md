@@ -1,18 +1,11 @@
-## Requester-agent C2
-
-Requester actions are disabled by default. Enable the base agent and action
-flag separately, and allowlist the organization before piloting. Every action
-is policy checked, consent bound to a run and plan step, gateway executed,
-verified, rollback-aware, and confirmed by the requester before resolution.
-See `SETUP-NOTES-C2.md` and the pilot runbook for setup and verification.
-Phase C3 ladder setup and session consent are documented in
-`SETUP-NOTES-C3.md` and `docs/REQUESTER-AGENT-C3.md`.
-
 # HelpDesk First
 
 Level-1 IT support self-service portal built with Next.js, TypeScript, and Tailwind CSS.
 
 **Production:** https://helpdesk-first.vercel.app
+
+New here? Read the [product overview](docs/PRODUCT-OVERVIEW.md): how it
+works, who it is for, safety model, data/vendors, and rollout status.
 
 ## What it does
 
@@ -73,6 +66,16 @@ the C1 budget variables in `.env.example`; enable only with a pilot watch and
 the existing human handoff path. The legacy assistant remains unchanged when
 UI v2 or the requester-agent flag is off. Research and live device collection
 are deferred to C2.
+
+## Requester-agent C2
+
+Requester actions are disabled by default. Enable the base agent and action
+flag separately, and allowlist the organization before piloting. Every action
+is policy checked, consent bound to a run and plan step, gateway executed,
+verified, rollback-aware, and confirmed by the requester before resolution.
+See `SETUP-NOTES-C2.md` and the pilot runbook for setup and verification.
+Phase C3 ladder setup and session consent are documented in
+`SETUP-NOTES-C3.md` and `docs/REQUESTER-AGENT-C3.md`.
 
 ## Operations export
 

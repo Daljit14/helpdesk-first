@@ -1,4 +1,5 @@
 import { createWorkflowTicket } from "@/app/actions/tickets";
+import { attachTicketAttachments } from "@/lib/attachments/server";
 import { completeUserHandoff } from "@/lib/tickets/handoff";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -67,6 +68,7 @@ export async function writeStep(
     paramsHash?: string;
     policyDecision?: string;
     consentId?: string;
+    attachmentId?: string;
     resultSummary?: string;
   }
 ): Promise<void> {
@@ -97,6 +99,7 @@ export async function writeStep(
     params_hash: input.paramsHash ?? null,
     policy_decision: input.policyDecision ?? null,
     consent_id: input.consentId ?? null,
+    attachment_id: input.attachmentId ?? null,
     result_summary: encrypted,
   });
 }
@@ -219,6 +222,18 @@ export async function escalate(
       });
   if (!("ticketId" in created) || !created.ticketId)
     throw new Error("agent_escalation_ticket_failed");
+  const screenshotSteps = await admin
+    .from("agent_steps")
+    .select("attachment_id")
+    .eq("session_id", session.id)
+    .eq("kind", "screenshot_received")
+    .not("attachment_id", "is", null);
+  const screenshotIds = (screenshotSteps.data ?? [])
+    .map((step) => step.attachment_id)
+    .filter((id): id is string => typeof id === "string");
+  if (screenshotIds.length > 0) {
+    await attachTicketAttachments(created.ticketId, screenshotIds);
+  }
   const client = await createClient();
   await client.rpc("handoff_ticket", {
     ticket: created.ticketId,

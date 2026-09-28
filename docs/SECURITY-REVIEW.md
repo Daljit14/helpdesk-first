@@ -9,6 +9,17 @@ rollback handling, and requester confirmation. Research-only evidence cannot
 authorize an action; recursive target fields and denylisted capabilities halt
 the session. Rollback failures alert security and escalate.
 
+## Requester agent C4 screenshot input
+
+Screenshot bytes use the existing quarantine/private attachment pipeline and
+are checked for requester and organization ownership, ready status, clean scan,
+image MIME, size, expiry, ticket binding, and private storage before access.
+A separate tool-less model call transcribes the image; bytes never enter the
+requester-agent tool loop. Transcription is guarded as `attachment.text` and
+wrapped as `<untrusted_data source="screenshot">`; prompt-injection text halts
+the session, alerts security, and creates an append-only incident step.
+Vision is disabled by default and readiness requires VirusTotal scanning.
+
 ## Requester agent C1
 
 C1 is off by default and organization allowlisted. Tool schemas are strict,

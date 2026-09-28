@@ -2,12 +2,8 @@
 
 import { useState, type ChangeEvent } from "react";
 import { Paperclip, X } from "lucide-react";
-import {
-  beginAttachmentUpload,
-  deleteOwnAttachment,
-  finalizeAttachmentUpload,
-} from "@/app/actions/attachments";
-import { createClient } from "@/lib/supabase/client";
+import { deleteOwnAttachment } from "@/app/actions/attachments";
+import { uploadSecureAttachment } from "@/lib/attachments/client";
 
 type AttachmentState = {
   id: string;
@@ -15,8 +11,6 @@ type AttachmentState = {
   status: "Uploading" | "Scanning" | "Ready" | "Rejected" | "Deleted";
   error?: string;
 };
-
-const QUARANTINE_BUCKET = "ticket-attachments-quarantine";
 
 export function AttachmentUploader() {
   const [attachments, setAttachments] = useState<AttachmentState[]>([]);
@@ -29,16 +23,12 @@ export function AttachmentUploader() {
       ...current,
       { id: temporaryId, name: file.name, status: "Uploading" },
     ]);
-    const started = await beginAttachmentUpload({
-      fileName: file.name,
-      declaredMime: file.type,
-      byteSize: file.size,
-    });
-    if ("error" in started) {
+    const uploaded = await uploadSecureAttachment(file);
+    if ("error" in uploaded) {
       setAttachments((current) =>
         current.map((item) =>
           item.id === temporaryId
-            ? { ...item, status: "Rejected", error: started.error }
+            ? { ...item, status: "Rejected", error: uploaded.error }
             : item
         )
       );
@@ -46,58 +36,29 @@ export function AttachmentUploader() {
     }
     setAttachments((current) =>
       current.map((item) =>
-        item.id === temporaryId ? { ...item, id: started.attachmentId } : item
+        item.id === temporaryId ? { ...item, id: uploaded.attachmentId } : item
       )
     );
-    const supabase = createClient();
-    const uploaded = await supabase.storage
-      .from(QUARANTINE_BUCKET)
-      .upload(started.quarantinePath, file, {
-        contentType: file.type,
-        upsert: false,
-      });
-    if (uploaded.error) {
-      await deleteOwnAttachment(started.attachmentId);
-      setAttachments((current) =>
-        current.map((item) =>
-          item.id === started.attachmentId
-            ? { ...item, status: "Rejected", error: "Upload failed." }
-            : item
-        )
-      );
-      return;
-    }
     setAttachments((current) =>
       current.map((item) =>
-        item.id === started.attachmentId
+        item.id === uploaded.attachmentId
           ? { ...item, status: "Scanning" }
           : item
       )
     );
-    const finalized = await finalizeAttachmentUpload(started.attachmentId);
-    if ("error" in finalized) {
-      setAttachments((current) =>
-        current.map((item) =>
-          item.id === started.attachmentId
-            ? { ...item, status: "Rejected", error: finalized.error }
-            : item
-        )
-      );
-      return;
-    }
     setAttachments((current) =>
       current.map((item) =>
-        item.id === started.attachmentId
+        item.id === uploaded.attachmentId
           ? {
               ...item,
               status:
-                finalized.status === "ready"
+                uploaded.status === "ready"
                   ? "Ready"
-                  : finalized.status === "scanning"
+                  : uploaded.status === "scanning"
                     ? "Scanning"
                     : "Rejected",
               error:
-                finalized.status === "ready" || finalized.status === "scanning"
+                uploaded.status === "ready" || uploaded.status === "scanning"
                   ? undefined
                   : "Security scan failed.",
             }

@@ -118,5 +118,15 @@ export function isRequesterAgentAutorunEnabledForOrg(
 }
 
 export function isRequesterAgentVisionEnabled(): boolean {
-  return false;
+  return process.env.HELP_DESK_REQUESTER_AGENT_VISION_ENABLED === "true";
+}
+
+export function isRequesterAgentVisionEnabledForOrg(
+  organizationId: string
+): boolean {
+  return (
+    isRequesterAgentEnabledForOrg(organizationId) &&
+    isRequesterAgentVisionEnabled() &&
+    isSecureAttachmentsEnabled()
+  );
 }

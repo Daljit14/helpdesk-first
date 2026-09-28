@@ -26,6 +26,11 @@ export type AgentEvent =
   | { type: "thinking_summary"; text: string }
   | { type: "tool_started"; tool: string }
   | { type: "tool_result_summary"; tool: string; summary: string }
+  | {
+      type: "screenshot_received";
+      attachmentId: string;
+      summary: string;
+    }
   | { type: "action_proposed"; capabilityId: string; text: string }
   | { type: "consent_required"; card: ConsentCard }
   | { type: "session_consent_offer"; card: SessionConsentCard }

@@ -6,6 +6,8 @@ import type { AgentEvent, AgentSession } from "./types";
 import type { AgentToolResult } from "./tools";
 import type { ProposeOutcome } from "./actions";
 import { recordAutonomyOutcome } from "@/lib/autonomy/ladder";
+import { guardModelInput } from "@/lib/autonomy/guardrails/input";
+import { wrapUntrusted, sanitizeForUser } from "./untrusted";
 
 type HarnessAdmin = Record<string, never>;
 
@@ -77,6 +79,10 @@ export function createAgentEvalHarness(input: {
   context?: Array<{ role: "user" | "assistant"; content: string }>;
   consent?: { approvalRequestId: string; decision: "approve" | "decline" };
   confirm?: "yes" | "no";
+  attachmentIds?: string[];
+  screenshotText?: string;
+  screenshotStatus?: "rejected" | "scanning" | "foreign";
+  visionEnabled?: boolean;
   proposeActionOutcome?: ProposeOutcome;
   decideConsentResult?: Awaited<
     ReturnType<typeof import("./actions").decideConsent>
@@ -339,6 +345,51 @@ export function createAgentEvalHarness(input: {
       }
       return result;
     },
+    transcribe: {
+      transcribe: async () => ({
+        text:
+          input.screenshotText ??
+          "Mock transcription: Wi-Fi 'Not connected' banner visible.",
+      }),
+    },
+    intakeScreenshots: async (_admin, _target, ids, transcriptionDeps) => {
+      if (input.screenshotStatus)
+        return {
+          ok: false as const,
+          code:
+            input.screenshotStatus === "foreign"
+              ? ("foreign" as const)
+              : ("not_ready" as const),
+          message: "That screenshot is not ready for analysis.",
+        };
+      const transcribed = await transcriptionDeps.transcribe.transcribe({
+        bytes: new Uint8Array(),
+        mime: "image/png",
+        signal: transcriptionDeps.signal,
+      });
+      const guarded = guardModelInput([
+        { source: "attachment.text", text: transcribed.text },
+      ]);
+      if (guarded.blocked)
+        return {
+          ok: false as const,
+          code: "transcribe_failed" as const,
+          message: "The screenshot transcription was blocked for safety.",
+          injection: true,
+        };
+      return {
+        ok: true as const,
+        items: ids.map((attachmentId) => ({
+          attachmentId,
+          modelText: wrapUntrusted("screenshot", {
+            attachmentId,
+            text: transcribed.text,
+          }),
+          userSummary: sanitizeForUser(transcribed.text).slice(0, 240),
+          sha256: `fixture-${attachmentId}`,
+        })),
+      };
+    },
   };
   return {
     session: current,
@@ -398,20 +449,24 @@ export function createAgentEvalHarness(input: {
       );
     },
     run: () =>
-      handleAgentRequest({
-        admin: admin as never,
-        session: current,
-        message: input.message ?? "Wi-Fi keeps dropping",
-        humanRequested: input.humanRequested,
-        consent: input.consent,
-        confirm: input.confirm,
-        emit: (event) => events.push(event),
-        signal: new AbortController().signal,
-        deps: {
-          ...deps,
-          runAgentTurn: async (turnInput) =>
-            runAgentTurn({ ...turnInput, model }),
-        },
-      }),
+      input.attachmentIds && input.visionEnabled === false
+        ? Promise.resolve()
+        : handleAgentRequest({
+            admin: admin as never,
+            session: current,
+            message: input.message ?? "Wi-Fi keeps dropping",
+            humanRequested: input.humanRequested,
+            consent: input.consent,
+            confirm: input.confirm,
+            attachmentIds:
+              input.visionEnabled === false ? undefined : input.attachmentIds,
+            emit: (event) => events.push(event),
+            signal: new AbortController().signal,
+            deps: {
+              ...deps,
+              runAgentTurn: async (turnInput) =>
+                runAgentTurn({ ...turnInput, model }),
+            },
+          }),
   };
 }

@@ -94,7 +94,7 @@ async function organizationForUser(userId: string): Promise<string | null> {
   return data?.organization_id ?? null;
 }
 
-async function writeAttachmentEvent(
+export async function writeAttachmentEvent(
   attachment: Pick<AttachmentRow, "id" | "organization_id">,
   eventType:
     | "uploaded"

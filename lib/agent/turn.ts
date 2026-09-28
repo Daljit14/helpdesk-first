@@ -1,4 +1,4 @@
-import { escalate, writeStep } from "./session";
+import { escalate, halt, updateSession, writeStep } from "./session";
 import { runAgentTurn, type AgentLoopDeps } from "./loop";
 import {
   decideConsent as defaultDecideConsent,
@@ -13,6 +13,13 @@ import {
   sessionConsentTitles,
 } from "./session-consent";
 import { isRequesterAgentAutorunEnabledForOrg } from "@/lib/admin/flags";
+import {
+  createScreenshotTranscriber,
+  type ScreenshotTranscriber,
+} from "./model";
+import { intakeScreenshots } from "./screenshots";
+import { sanitizeForUser } from "./untrusted";
+import { alertSecurityEvent } from "@/lib/autonomy/alerts";
 
 type Admin = ReturnType<typeof createAdminClient>;
 
@@ -20,6 +27,8 @@ export type AgentTurnDeps = Partial<AgentLoopDeps> & {
   runAgentTurn?: typeof runAgentTurn;
   decideConsent?: typeof defaultDecideConsent;
   confirmOutcome?: typeof defaultConfirmOutcome;
+  transcribe?: ScreenshotTranscriber;
+  intakeScreenshots?: typeof intakeScreenshots;
 };
 
 export async function handleAgentRequest(input: {
@@ -32,13 +41,23 @@ export async function handleAgentRequest(input: {
   };
   confirm?: "yes" | "no";
   sessionConsent?: "grant" | "revoke";
+  attachmentIds?: string[];
   humanRequested?: boolean;
   platform?: string;
   emit: (event: AgentEvent) => void;
   signal: AbortSignal;
   deps?: AgentTurnDeps;
 }): Promise<void> {
-  const { admin, session, message, platform, emit, signal, deps } = input;
+  const {
+    admin,
+    session,
+    message,
+    platform,
+    emit,
+    signal,
+    deps,
+    attachmentIds = [],
+  } = input;
   if (input.sessionConsent) {
     if (input.sessionConsent === "grant") {
       const granted = await grantSessionConsent(
@@ -211,6 +230,71 @@ export async function handleAgentRequest(input: {
     }
   }
 
+  let userMessage = message;
+  if (attachmentIds.length > 0) {
+    const intake = await (deps?.intakeScreenshots ?? intakeScreenshots)(
+      admin,
+      session,
+      attachmentIds,
+      {
+        transcribe: deps?.transcribe ?? createScreenshotTranscriber(),
+        signal,
+      }
+    );
+    if (!intake.ok) {
+      if (intake.injection) {
+        await (deps?.writeStep ?? writeStep)(admin, session, {
+          kind: "security_incident",
+          resultSummary: "injection_in_tool_output",
+        });
+        const ticketId = await (deps?.halt ?? halt)(
+          admin,
+          session,
+          "injection_in_tool_output",
+          message,
+          true
+        );
+        await (deps?.alert ?? alertSecurityEvent)(admin, {
+          organizationId: session.organization_id,
+          ticketId,
+          runId: null,
+          kind: "requester_agent_tripwire:injection_in_tool_output",
+        });
+        emit({ type: "halted", reason: "injection_in_tool_output", ticketId });
+        return;
+      }
+      await (deps?.writeStep ?? writeStep)(admin, session, {
+        kind: "screenshot_rejected",
+        resultSummary: intake.code,
+      });
+      emit({ type: "error", message: sanitizeForUser(intake.message) });
+      return;
+    }
+    for (const item of intake.items) {
+      await (deps?.writeStep ?? writeStep)(admin, session, {
+        kind: "screenshot_received",
+        attachmentId: item.attachmentId,
+        paramsHash: item.sha256,
+        resultSummary: item.userSummary,
+      });
+      emit({
+        type: "screenshot_received",
+        attachmentId: item.attachmentId,
+        summary: item.userSummary,
+      });
+    }
+    if (intake.items.length > 0) {
+      userMessage = [
+        message || "I shared a screenshot of the problem.",
+        ...intake.items.map((item) => item.modelText),
+      ].join("\n\n");
+      session.tool_call_count += intake.items.length;
+      await (deps?.updateSession ?? updateSession)(admin, session, {
+        tool_call_count: session.tool_call_count,
+      });
+    }
+  }
+
   const injectedRunAgentTurn = deps?.runAgentTurn ?? runAgentTurn;
   const loopDeps = { ...deps };
   delete loopDeps.runAgentTurn;
@@ -220,7 +304,7 @@ export async function handleAgentRequest(input: {
     platform,
     emit,
     signal,
-    userMessage: input.message,
+    userMessage,
     deps: loopDeps,
   });
 }

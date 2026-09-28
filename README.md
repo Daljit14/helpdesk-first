@@ -61,7 +61,10 @@ with `HELP_DESK_REQUESTER_AGENT_ORG_ALLOWLIST`. C1 is read-only: it searches
 approved guides, reads stored diagnostics, reads the signed-in requester's
 directory status, and reads that requester's ticket history. It never changes
 device, account, ticket, or organization state. Keep actions, autorun, and
-vision disabled.
+vision disabled. Phase C4 screenshot input is documented in
+`SETUP-NOTES-C4.md` and remains disabled unless
+`HELP_DESK_REQUESTER_AGENT_VISION_ENABLED=true` and the organization is
+allowlisted.
 
 Use `HELP_DESK_AI_PROVIDER=mock` for a deterministic Wi-Fi smoke test. The
 agent uses bounded budgets, untrusted-data wrapping, denylist/tripwire safety

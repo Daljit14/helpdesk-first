@@ -7,6 +7,7 @@ import {
   isRequesterAgentActionsEnabled,
   isRequesterAgentEnabledForOrg,
   isRequesterAgentAutorunEnabledForOrg,
+  isRequesterAgentVisionEnabledForOrg,
 } from "@/lib/admin/flags";
 import { createRateLimiter, checkRateLimit } from "@/lib/ai/rate-limit";
 import {
@@ -38,6 +39,7 @@ const inputSchema = z
       .optional(),
     confirm: z.enum(["yes", "no"]).optional(),
     sessionConsent: z.enum(["grant", "revoke"]).optional(),
+    attachmentIds: z.array(z.string().uuid()).max(2).optional(),
   })
   .strict();
 
@@ -68,6 +70,7 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ error: "Invalid request" }, { status: 400 });
   if (
     !parsed.data.message &&
+    !parsed.data.attachmentIds?.length &&
     parsed.data.consent === undefined &&
     parsed.data.confirm === undefined &&
     parsed.data.sessionConsent === undefined
@@ -81,6 +84,11 @@ export async function POST(request: Request): Promise<Response> {
   if (
     parsed.data.sessionConsent !== undefined &&
     !isRequesterAgentAutorunEnabledForOrg(organizationId)
+  )
+    return Response.json({ error: "Not found" }, { status: 404 });
+  if (
+    parsed.data.attachmentIds?.length &&
+    !isRequesterAgentVisionEnabledForOrg(organizationId)
   )
     return Response.json({ error: "Not found" }, { status: 404 });
   const admin = createAdminClient();
@@ -118,6 +126,7 @@ export async function POST(request: Request): Promise<Response> {
           consent: parsed.data.consent,
           confirm: parsed.data.confirm,
           sessionConsent: parsed.data.sessionConsent,
+          attachmentIds: parsed.data.attachmentIds,
           humanRequested: parsed.data.humanRequested,
           platform: parsed.data.platform ?? undefined,
           emit,

@@ -8,6 +8,13 @@ flow includes consent-bound action execution, verification, rollback,
 requester confirmation, and append-only provenance. Production enablement
 still requires organization allowlisting and pilot-runbook checks.
 
+## C4 requester-agent screenshot input
+
+C4 screenshot input is implemented behind a default-off vision flag. It reuses
+secure attachment quarantine, scanning, private storage, and audit, requires
+VirusTotal scanning for readiness, and passes only guarded, untrusted
+model-as-OCR text into the requester-agent loop.
+
 ## Phase C1 — requester-side read-only agent
 
 Implemented behind `HELP_DESK_REQUESTER_AGENT_ENABLED` and the explicit
@@ -515,7 +522,7 @@ project.
 | 3    | Organisation onboarding, RBAC, tenant hardening | COMPLETE (PR #34, pending merge) — `supabase/wave-3-organizations.sql`, organization actions/UI, invitation acceptance, and Google/Microsoft SSO.                                                                                                                                                 |
 | 4    | AI gateway + real grounded provider             | AWAITING OWNER MERGE/ENV — live eval (2026-09-08) passed all safety gates; Vercel env (`HELP_DESK_AI_PROVIDER=anthropic`, `ANTHROPIC_API_KEY`, `HELP_DESK_AI_MODEL`) remains to be configured. Not enabled. Remediation: secondary provider/failover, per-org kill switch, retry/circuit breaker. |
 | 5    | Knowledge governance + citations                | Implemented on PR #29 (ships with wave 4). YouTube sources MISSING.                                                                                                                                                                                                                               |
-| 6    | Secure images/PDFs                              | Largely COMPLETE via #30. BLOCKED: scanner choice. MISSING: OCR/extraction + sensitive-data check.                                                                                                                                                                                                |
+| 6    | Secure images/PDFs                              | C4 screenshot input implemented behind a default-off vision flag; VirusTotal scan is required for readiness, OCR text is treated as untrusted, and image bytes remain in private attachment storage. Sensitive-data OCR extraction remains out of scope.                                          |
 | 7    | Notifications, SLA, live operations             | PARTIAL — push only; outbox/email MISSING; BLOCKED on email provider.                                                                                                                                                                                                                             |
 | 8    | Trust centre + analytics                        | PARTIAL.                                                                                                                                                                                                                                                                                          |
 | 9    | Versioned API, webhooks, sandbox                | MISSING.                                                                                                                                                                                                                                                                                          |

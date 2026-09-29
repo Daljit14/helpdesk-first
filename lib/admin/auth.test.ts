@@ -50,6 +50,8 @@ function sessionCookie(userId: string, expiresAt: number, secret: string) {
   return `${signature}.${expiresAt}`;
 }
 
+const validSecret = "test-admin-session-secret-32-characters";
+
 function configureMembership(
   role = "admin",
   mfaEnrolled = false,
@@ -177,7 +179,7 @@ describe("admin authorization", () => {
     "allows %s members",
     async (role) => {
       const userId = "user-1";
-      const secret = "test-secret";
+      const secret = validSecret;
       vi.stubEnv("HELP_DESK_ADMIN_DASHBOARD_ENABLED", "true");
       vi.stubEnv("HELP_DESK_ADMIN_SESSION_SECRET", secret);
       mockedUser.mockResolvedValue({
@@ -196,18 +198,18 @@ describe("admin authorization", () => {
 
   test("expired cookie is treated as logged out", async () => {
     vi.stubEnv("HELP_DESK_ADMIN_DASHBOARD_ENABLED", "true");
-    vi.stubEnv("HELP_DESK_ADMIN_SESSION_SECRET", "test-secret");
+    vi.stubEnv("HELP_DESK_ADMIN_SESSION_SECRET", validSecret);
     mockedUser.mockResolvedValue({
       id: "user-1",
       email: "agent@example.com",
     } as never);
     configureMembership();
-    cookieStore.value = sessionCookie("user-1", Date.now() - 1, "test-secret");
+    cookieStore.value = sessionCookie("user-1", Date.now() - 1, validSecret);
     await expect(getAdminSession()).resolves.toBeNull();
   });
 
   test("admin cookies use lax same-site and preserve server-action path", async () => {
-    vi.stubEnv("HELP_DESK_ADMIN_SESSION_SECRET", "test-secret");
+    vi.stubEnv("HELP_DESK_ADMIN_SESSION_SECRET", validSecret);
     await expect(setAdminSessionCookie("user-1")).resolves.toBe(true);
     expect(cookieStore.set).toHaveBeenCalledWith(
       "hd_admin",
@@ -245,7 +247,7 @@ describe("admin authorization", () => {
 
   test("platform grants do not replace staff membership", async () => {
     vi.stubEnv("HELP_DESK_ADMIN_DASHBOARD_ENABLED", "true");
-    vi.stubEnv("HELP_DESK_ADMIN_SESSION_SECRET", "test-secret");
+    vi.stubEnv("HELP_DESK_ADMIN_SESSION_SECRET", validSecret);
     mockedUser.mockResolvedValue({
       id: "user-1",
       email: "platform@example.com",
@@ -254,7 +256,7 @@ describe("admin authorization", () => {
     cookieStore.value = sessionCookie(
       "user-1",
       Date.now() + 60_000,
-      "test-secret"
+      validSecret
     );
 
     await expect(getAdminSession()).resolves.toBeNull();
@@ -262,7 +264,7 @@ describe("admin authorization", () => {
 
   test("enrolled MFA requires AAL2", async () => {
     vi.stubEnv("HELP_DESK_ADMIN_DASHBOARD_ENABLED", "true");
-    vi.stubEnv("HELP_DESK_ADMIN_SESSION_SECRET", "test-secret");
+    vi.stubEnv("HELP_DESK_ADMIN_SESSION_SECRET", validSecret);
     mockedUser.mockResolvedValue({
       id: "user-1",
       email: "agent@example.com",
@@ -271,8 +273,28 @@ describe("admin authorization", () => {
     cookieStore.value = sessionCookie(
       "user-1",
       Date.now() + 60_000,
-      "test-secret"
+      validSecret
     );
     await expect(getAdminSession()).resolves.toBeNull();
+  });
+
+  test("disables sessions without a dedicated secret and warns once", async () => {
+    const warning = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubEnv("HELP_DESK_ADMIN_SESSION_SECRET", "");
+    vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", validSecret);
+    await expect(setAdminSessionCookie("user-1")).resolves.toBe(false);
+
+    vi.stubEnv("HELP_DESK_ADMIN_SESSION_SECRET", "a".repeat(31));
+    await expect(setAdminSessionCookie("user-1")).resolves.toBe(false);
+    expect(warning).toHaveBeenCalledTimes(1);
+    expect(warning).toHaveBeenCalledWith(
+      "HELP_DESK_ADMIN_SESSION_SECRET is missing or shorter than 32 characters; admin sessions are disabled."
+    );
+  });
+
+  test("does not use the service role key as a session secret", async () => {
+    vi.stubEnv("HELP_DESK_ADMIN_SESSION_SECRET", "");
+    vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", validSecret);
+    await expect(setAdminSessionCookie("user-1")).resolves.toBe(false);
   });
 });

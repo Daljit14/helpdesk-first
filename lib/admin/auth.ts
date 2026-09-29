@@ -27,13 +27,20 @@ export function adminRoleLabel(
 
 const ADMIN_COOKIE = "hd_admin";
 const ADMIN_SESSION_MAX_AGE = 60 * 60 * 8;
+let adminSessionSecretWarningLogged = false;
 
 function sessionSecret(): string | null {
-  return (
-    process.env.HELP_DESK_ADMIN_SESSION_SECRET ??
-    process.env.SUPABASE_SERVICE_ROLE_KEY ??
-    null
-  );
+  const secret = process.env.HELP_DESK_ADMIN_SESSION_SECRET;
+  if (!secret || secret.length < 32) {
+    if (!adminSessionSecretWarningLogged) {
+      console.error(
+        "HELP_DESK_ADMIN_SESSION_SECRET is missing or shorter than 32 characters; admin sessions are disabled."
+      );
+      adminSessionSecretWarningLogged = true;
+    }
+    return null;
+  }
+  return secret;
 }
 
 function signSession(userId: string, expiresAt: number): string | null {

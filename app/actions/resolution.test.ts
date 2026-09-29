@@ -213,6 +213,8 @@ describe("resolution actions", () => {
       .mockResolvedValue({ data: { id: ticketId }, error: null });
     const select = vi.fn(() => ({ single }));
     const insert = vi.fn(() => ({ select }));
+    const adminFrom = vi.fn(() => ({ insert }));
+    mocks.createAdminClient.mockReturnValue({ from: adminFrom });
     mocks.createClient.mockResolvedValue({
       from: vi.fn(() => ({ insert })),
     });
@@ -226,6 +228,7 @@ describe("resolution actions", () => {
         status: "In Progress",
       })
     );
+    expect(adminFrom).toHaveBeenCalledWith("tickets");
     expect(mocks.recordAnalyticsEvent).toHaveBeenCalled();
   });
 

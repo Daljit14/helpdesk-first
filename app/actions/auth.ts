@@ -13,7 +13,7 @@ import { getSiteUrl } from "@/lib/site-url";
 import { ensureRequesterMembership } from "@/lib/org/membership";
 import { z } from "zod";
 import { isGoogleSsoEnabled, isMicrosoftSsoEnabled } from "@/lib/admin/flags";
-import { isSafeNextPath } from "@/lib/auth/paths";
+import { isSafeNextPath, safeNextPath } from "@/lib/auth/paths";
 import {
   captchaErrorMessage,
   captchaRequired,
@@ -24,13 +24,6 @@ export type AuthState = {
   error?: string;
   fieldErrors?: Record<string, string>;
 } | null;
-
-function safeNextPath(value: FormDataEntryValue | null): string {
-  if (typeof value !== "string" || !isSafeNextPath(value)) {
-    return "/";
-  }
-  return value;
-}
 
 const ssoInputSchema = z.object({
   provider: z.enum(["google", "azure"]),
@@ -149,7 +142,7 @@ export async function startSso(input: {
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: parsed.data.provider,
     options: {
-      redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || getSiteUrl()}/auth/callback?next=${encodeURIComponent(parsed.data.next)}`,
+      redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || getSiteUrl()}/auth/callback?next=${encodeURIComponent(safeNextPath(parsed.data.next))}`,
       scopes:
         parsed.data.provider === "azure" ? "email openid profile" : undefined,
     },

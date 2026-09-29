@@ -1,5 +1,31 @@
 import { getCurrentUser } from "@/lib/supabase/user";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { z } from "zod";
+
+const keySchema = z
+  .string()
+  .regex(/^[A-Za-z0-9_-]+$/)
+  .min(16)
+  .max(120);
+
+const subscriptionSchema = z
+  .object({
+    endpoint: z
+      .string()
+      .max(2048)
+      .refine((value) => {
+        try {
+          return new URL(value).protocol === "https:";
+        } catch {
+          return false;
+        }
+      }),
+    keys: z.object({
+      p256dh: keySchema.min(60),
+      auth: keySchema.max(32),
+    }),
+  })
+  .strict();
 
 export async function POST(request: Request) {
   const user = await getCurrentUser();
@@ -10,7 +36,7 @@ export async function POST(request: Request) {
     );
   }
 
-  let body: { endpoint?: string; keys?: { p256dh?: string; auth?: string } };
+  let body: unknown;
   try {
     body = await request.json();
   } catch {
@@ -20,36 +46,48 @@ export async function POST(request: Request) {
     );
   }
 
-  const endpoint = body.endpoint;
-  const p256dh = body.keys?.p256dh;
-  const auth = body.keys?.auth;
-
-  if (!endpoint || !p256dh || !auth) {
-    return Response.json(
-      { error: "Invalid subscription.", code: "invalid" },
-      { status: 400 }
-    );
+  const parsed = subscriptionSchema.safeParse(body);
+  if (!parsed.success) {
+    return Response.json({ code: "invalid" }, { status: 400 });
   }
+  const { endpoint, keys } = parsed.data;
 
   const supabase = createAdminClient();
-  const { error: deleteError } = await supabase
+  const { data: existing, error: lookupError } = await supabase
     .from("push_subscriptions")
-    .delete()
-    .eq("endpoint", endpoint);
-  if (deleteError) {
+    .select("id, user_id")
+    .eq("endpoint", endpoint)
+    .maybeSingle();
+  if (lookupError) {
     return Response.json(
       { error: "Could not save subscription.", code: "db" },
       { status: 500 }
     );
   }
-  const { error } = await supabase.from("push_subscriptions").insert({
-    user_id: user.id,
-    endpoint,
-    p256dh,
-    auth,
-  });
 
-  if (error) {
+  if (existing && existing.user_id !== user.id) {
+    return Response.json(
+      {
+        error: "Subscription belongs to another account.",
+        code: "conflict",
+      },
+      { status: 409 }
+    );
+  }
+
+  const mutation = existing
+    ? await supabase
+        .from("push_subscriptions")
+        .update({ p256dh: keys.p256dh, auth: keys.auth })
+        .eq("id", existing.id)
+    : await supabase.from("push_subscriptions").insert({
+        user_id: user.id,
+        endpoint,
+        p256dh: keys.p256dh,
+        auth: keys.auth,
+      });
+
+  if (mutation.error) {
     return Response.json(
       { error: "Could not save subscription.", code: "db" },
       { status: 500 }

@@ -172,12 +172,11 @@ export async function startAiTicket(input: {
   const platform = canonicalPlatform(input.platform);
   if (!issue || !platform) return { error: "Invalid ticket details." };
 
-  const supabase = await createClient();
   const admin = createAdminClient();
   const organizationId = isOrgEncryptionEnabled()
     ? (await resolveOrganizationForUser(user.id)).organizationId
     : null;
-  const { data, error } = await supabase
+  const { data, error } = await admin
     .from("tickets")
     .insert({
       user_id: user.id,

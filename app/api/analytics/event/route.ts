@@ -5,7 +5,13 @@ import {
   recordAnalyticsEvent,
   touchActiveSession,
 } from "@/lib/analytics/events";
+import { createRateLimiter, getClientIp } from "@/lib/ai/rate-limit";
 import { randomUUID } from "node:crypto";
+
+const analyticsLimiter = createRateLimiter(
+  { windowMs: 60_000, maxRequests: 60 },
+  "analytics-event"
+);
 
 const eventSchema = z
   .object({
@@ -52,9 +58,38 @@ function readCookie(request: Request, name: string): string | null {
 }
 
 export async function POST(request: Request) {
+  const rateLimit = await analyticsLimiter.check(getClientIp(request));
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: "Too many requests." },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(Math.max(1, rateLimit.retryAfter ?? 60)),
+        },
+      }
+    );
+  }
+
+  const contentLength = Number(request.headers.get("content-length"));
+  if (Number.isFinite(contentLength) && contentLength > 4096) {
+    return NextResponse.json(
+      { error: "Request body too large." },
+      { status: 413 }
+    );
+  }
+
+  const body = await request.text();
+  if (body.length > 4096) {
+    return NextResponse.json(
+      { error: "Request body too large." },
+      { status: 413 }
+    );
+  }
+
   let input: unknown;
   try {
-    input = JSON.parse(await request.text());
+    input = JSON.parse(body);
   } catch {
     return NextResponse.json(
       { error: "Invalid request body." },

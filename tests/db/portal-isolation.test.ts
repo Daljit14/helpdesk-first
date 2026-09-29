@@ -170,6 +170,9 @@ describe.skipIf(!canRun)("ticket portal tenant isolation", () => {
         ).error
       ).toBeNull();
       expect(
+        (await userAClient.from("tickets").select("id").eq("id", ticketA)).data
+      ).toEqual([{ id: ticketA }]);
+      expect(
         (
           await userAClient
             .from("ticket_comments")
@@ -205,6 +208,37 @@ describe.skipIf(!canRun)("ticket portal tenant isolation", () => {
           })
         ).error
       ).toBeTruthy();
+      const statusUpdate = await userAClient
+        .from("tickets")
+        .update({ status: "Open" })
+        .eq("id", ticketA)
+        .select("id");
+      expect(
+        statusUpdate.error || statusUpdate.data?.length === 0
+      ).toBeTruthy();
+      const organizationUpdate = await userAClient
+        .from("tickets")
+        .update({ organization_id: randomUUID() })
+        .eq("id", ticketA)
+        .select("id");
+      expect(
+        organizationUpdate.error || organizationUpdate.data?.length === 0
+      ).toBeTruthy();
+      const deleted = await userAClient
+        .from("tickets")
+        .delete()
+        .eq("id", ticketA)
+        .select("id");
+      expect(deleted.error || deleted.data?.length === 0).toBeTruthy();
+      const unchanged = await service
+        .from("tickets")
+        .select("status,organization_id")
+        .eq("id", ticketA)
+        .single();
+      expect(unchanged.data).toMatchObject({
+        status: "Resolved",
+        organization_id: organizationId,
+      });
     } finally {
       await anon.auth.signOut();
       if (ticketA) {

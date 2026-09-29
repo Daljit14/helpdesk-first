@@ -134,29 +134,47 @@ function Sparkline({ values }: { values: number[] }) {
   const max = Math.max(...values);
   const range = Math.max(max - min, 1);
   const points = values
-    .map(
-      (value, index) =>
-        `${(index / (values.length - 1)) * 100},${100 - ((value - min) / range) * 80 - 10}`
-    )
+    .map((value, index) => {
+      const x = (index / (values.length - 1)) * 100;
+      const y = 36 - ((value - min) / range) * 28 - 4;
+      return `${x},${y}`;
+    })
     .join(" ");
+  const lastValue = values[values.length - 1];
+  const lastY = 36 - ((lastValue - min) / range) * 28 - 4;
   return (
-    <svg
-      viewBox="0 0 100 36"
-      preserveAspectRatio="none"
-      className="h-10 w-32 overflow-visible text-primary sm:w-44"
-      role="img"
-      aria-label="Status latency sparkline"
-    >
-      <polyline
-        points={points}
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="3"
-        vectorEffect="non-scaling-stroke"
-        strokeLinecap="round"
-        className="hf-draw"
-      />
-    </svg>
+    <span className="flex h-10 items-center">
+      <svg
+        viewBox="0 0 100 36"
+        preserveAspectRatio="none"
+        className="h-10 w-32 overflow-hidden text-primary sm:w-44"
+        role="img"
+        aria-label="Status latency sparkline"
+      >
+        <polygon
+          points={`${points} 100,36 0,36`}
+          fill="currentColor"
+          opacity=".12"
+          className="hf-fill"
+        />
+        <polyline
+          points={points}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="3"
+          vectorEffect="non-scaling-stroke"
+          strokeLinecap="round"
+          className="hf-draw"
+        />
+        <circle
+          cx="100"
+          cy={lastY}
+          r="2"
+          fill="currentColor"
+          className="hf-ping"
+        />
+      </svg>
+    </span>
   );
 }
 

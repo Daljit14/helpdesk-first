@@ -91,10 +91,10 @@ export function NotificationOutbox({
                 <span
                   className={
                     row.status === "sent"
-                      ? "text-emerald-600"
+                      ? "text-emerald-600 dark:text-emerald-400"
                       : row.status === "dead"
                         ? "text-destructive"
-                        : "text-amber-600"
+                        : "text-amber-600 dark:text-amber-400"
                   }
                 >
                   {row.status}

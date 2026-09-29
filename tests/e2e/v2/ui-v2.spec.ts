@@ -36,7 +36,7 @@ test.describe("UI v2 numbered coverage", () => {
   test("1 start-general shows the general support prompt", async ({ page }) => {
     await page.goto("/");
     await expect(
-      page.getByRole("heading", { name: "What can we help you fix?" })
+      page.getByRole("heading", { name: "What can we fix today?" })
     ).toBeVisible();
     await expect(page.getByLabel("What's the problem?")).toBeVisible();
   });

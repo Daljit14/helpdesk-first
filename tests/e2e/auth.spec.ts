@@ -3,7 +3,10 @@ import { test, expect } from "@playwright/test";
 test("login links to the password reset form", async ({ page }) => {
   await page.goto("/login");
 
-  await page.getByRole("link", { name: "Forgot password?" }).click();
+  await page
+    .locator("#main-content")
+    .getByRole("link", { name: "Forgot password?" })
+    .click();
 
   await expect(page).toHaveURL("/forgot-password");
   await expect(

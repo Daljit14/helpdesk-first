@@ -2,10 +2,11 @@
 
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import Link from "next/link";
-import { Bot, Loader2, Paperclip } from "lucide-react";
+import { Bot, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Composer } from "@/components/assistant/composer";
 import { ConversationBubble } from "@/components/assistant/conversation-column";
+import { AssistantBot } from "@/components/shell/brand-mark";
 import { buttonVariants } from "@/lib/button-variants";
 import { cn } from "@/lib/utils";
 import { platformSlug } from "@/lib/platform";
@@ -324,19 +325,8 @@ export function AssistantWorkspace({
           </div>
         ) : (
           <>
-            {intake.loading && (
-              <div
-                aria-live="polite"
-                className="rounded-2xl border border-border bg-card p-4 text-muted-foreground"
-              >
-                <Loader2
-                  className="mr-2 inline h-4 w-4 animate-spin"
-                  aria-hidden
-                />
-                Assistant is thinking…
-              </div>
-            )}
-            {output?.decision === "clarify" && (
+            {intake.loading && <ThinkingBubble />}
+            {output?.decision === "clarify" && !intake.loading && (
               <Message side="assistant" text={clarificationText(output)} />
             )}
             {output?.decision === "escalate" && (
@@ -417,7 +407,7 @@ export function AssistantWorkspace({
                 <Paperclip className="h-3 w-3" aria-hidden /> {attachmentName}
               </span>
             )}
-            {output?.decision === "clarify" && (
+            {output?.decision === "clarify" && !intake.loading && (
               <span className="v2-badge">
                 Question {Math.min(intake.previousAnswers.length + 1, 3)} of 3
               </span>
@@ -425,9 +415,11 @@ export function AssistantWorkspace({
           </div>
           <Composer
             value={
-              output?.decision === "clarify"
-                ? intake.diagnosticAnswer
-                : intake.problem
+              intake.loading
+                ? ""
+                : output?.decision === "clarify"
+                  ? intake.diagnosticAnswer
+                  : intake.problem
             }
             onChange={(value) =>
               output?.decision === "clarify"
@@ -468,6 +460,24 @@ export function AssistantWorkspace({
           {actionError && <ActionError error={actionError} />}
         </div>
       )}
+    </div>
+  );
+}
+
+function ThinkingBubble() {
+  return (
+    <div aria-live="polite" className="hf-rise flex justify-start">
+      <div className="max-w-[85%] rounded-2xl border border-border bg-muted p-4">
+        <p className="sr-only">Assistant is thinking…</p>
+        <div className="flex items-center gap-2" aria-hidden>
+          <AssistantBot className="h-6 w-6" />
+          <span className="hf-dots flex items-center gap-1">
+            <span className="h-1.5 w-1.5 rounded-full bg-current" />
+            <span className="h-1.5 w-1.5 rounded-full bg-current" />
+            <span className="h-1.5 w-1.5 rounded-full bg-current" />
+          </span>
+        </div>
+      </div>
     </div>
   );
 }

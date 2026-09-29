@@ -17,6 +17,13 @@ const mocks = vi.hoisted(() => ({
   retry: vi.fn(),
   loading: false,
   error: null as string | null,
+  currentOutput: {
+    decision: "match" as string,
+    matchedIssueSlug: "wifi-keeps-dropping" as string | undefined,
+    explanation: "Try this approved guide." as string | undefined,
+    diagnosticQuestionIds: [] as string[],
+  },
+  diagnosticAnswer: "",
 }));
 
 vi.mock("next/link", () => ({
@@ -60,15 +67,11 @@ vi.mock("@/components/ai-assistant-logic", () => ({
     setProblem: vi.fn(),
     platform: "Mac",
     previousAnswers: [],
-    currentOutput: {
-      decision: "match",
-      matchedIssueSlug: "wifi-keeps-dropping",
-      explanation: "Try this approved guide.",
-    },
+    currentOutput: mocks.currentOutput,
     loading: mocks.loading,
     error: mocks.error,
     started: true,
-    diagnosticAnswer: "",
+    diagnosticAnswer: mocks.diagnosticAnswer,
     setDiagnosticAnswer: vi.fn(),
     submitIntake: vi.fn(),
     handleStart: mocks.handleStart,
@@ -94,6 +97,13 @@ afterEach(() => {
   mocks.retry.mockReset();
   mocks.loading = false;
   mocks.error = null;
+  mocks.currentOutput = {
+    decision: "match",
+    matchedIssueSlug: "wifi-keeps-dropping",
+    explanation: "Try this approved guide.",
+    diagnosticQuestionIds: [],
+  };
+  mocks.diagnosticAnswer = "";
 });
 
 describe("AssistantWorkspace", () => {
@@ -190,6 +200,25 @@ describe("AssistantWorkspace", () => {
       key: "Enter",
     });
     expect(mocks.handleStart).not.toHaveBeenCalled();
+  });
+
+  it("shows only the thinking bubble while a clarification answer is pending", () => {
+    mocks.loading = true;
+    mocks.currentOutput = {
+      decision: "clarify",
+      matchedIssueSlug: undefined,
+      explanation: undefined,
+      diagnosticQuestionIds: ["which-platform"],
+    };
+    mocks.diagnosticAnswer = "Mac";
+    render(<AssistantWorkspace initialProblem="wifi keeps dropping" />);
+
+    expect(screen.getByText("Assistant is thinking…")).toBeInTheDocument();
+    expect(
+      screen.queryByText("What platform are you using?")
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/Question \d of 3/)).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox")).toHaveValue("");
   });
 
   it("keeps the entered text available when a request fails and retries it", () => {

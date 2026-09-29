@@ -166,6 +166,18 @@ body {
     stroke-dasharray: 600;
     animation: hf-draw 2.4s ease-in-out infinite;
   }
+  .hf-fill {
+    animation: hf-fill 2.4s ease-in-out infinite;
+  }
+  .hf-dots > span {
+    animation: hf-dot 1.2s infinite ease-in-out;
+  }
+  .hf-dots > span:nth-child(2) {
+    animation-delay: 0.15s;
+  }
+  .hf-dots > span:nth-child(3) {
+    animation-delay: 0.3s;
+  }
   .hf-scrollbar {
     scrollbar-width: thin;
     scrollbar-color: var(--border) transparent;
@@ -554,6 +566,17 @@ body {
     stroke-dashoffset: 0;
   }
 }
+@keyframes hf-dot {
+  0%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  50% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
+}
 @keyframes hf-draw-short {
   0% {
     stroke-dashoffset: 12;
@@ -671,9 +694,13 @@ body {
   .hf-blob-a,
   .hf-blob-b,
   .hf-draw,
+  .hf-fill,
   .hf-dash,
   .hf-swap,
   .hf-spin-slow {
+    animation: none !important;
+  }
+  .hf-dots > span {
     animation: none !important;
   }
 }

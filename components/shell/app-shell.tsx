@@ -7,14 +7,13 @@ import {
   Bookmark,
   Bot,
   ChevronRight,
-  Home,
+  LayoutDashboard,
   LogOut,
   Menu,
   Moon,
   Search,
   Sun,
   Ticket,
-  UserRound,
 } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { logoutAction } from "@/app/actions/auth";
@@ -29,7 +28,7 @@ import { buttonVariants } from "@/lib/button-variants";
 import { cn } from "@/lib/utils";
 
 const navItems = [
-  { href: "/", label: "Start", icon: Home },
+  { href: "/", label: "Start", icon: LayoutDashboard },
   { href: "/browse", label: "Browse solutions", icon: Search },
   { href: "/assistant", label: "Support Assistant", icon: Bot, ai: true },
   { href: "/tickets", label: "My tickets", icon: Ticket },
@@ -46,7 +45,7 @@ function Navigation({
   aiEnabled,
   onNavigate,
   label = "Primary navigation",
-  layout = "row",
+  layout = "column",
 }: {
   pathname: string;
   aiEnabled: boolean;
@@ -72,17 +71,13 @@ function Navigation({
                   aria-current={active ? "page" : undefined}
                   onClick={onNavigate}
                   className={cn(
-                    "flex min-h-11 items-center gap-2 whitespace-nowrap rounded-full text-sm font-semibold transition-colors",
-                    layout === "row" ? "px-3 xl:px-4" : "px-4 py-3 text-base",
+                    "flex min-h-11 items-center gap-3 whitespace-nowrap rounded-xl px-4 py-3 text-sm font-semibold transition-colors",
                     active
-                      ? "bg-secondary text-primary"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                      ? "bg-primary/10 text-primary"
+                      : "text-nav-muted hover:bg-nav-foreground/8 hover:text-nav-foreground"
                   )}
                 >
-                  <Icon
-                    className={cn("h-4 w-4", layout === "column" && "h-5 w-5")}
-                    aria-hidden
-                  />
+                  <Icon className="h-4 w-4" aria-hidden />
                   {label}
                 </Link>
               </li>
@@ -142,93 +137,123 @@ export function AppShell({
   if (pathname.startsWith("/admin")) return <>{children}</>;
 
   const breadcrumbs = breadcrumbsForPath(pathname);
-  const showBreadcrumbs = pathname !== "/" && breadcrumbs.length > 1;
-
   return (
-    <div className="flex min-h-full flex-col bg-background text-foreground">
-      <header className="sticky top-0 z-40 px-3 pt-3 sm:px-6">
-        <div className="mx-auto flex h-16 max-w-6xl items-center gap-3 rounded-full border border-border bg-card/90 pl-3 pr-2 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-card/80">
-          <Button
-            ref={drawerTriggerRef}
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            className="lg:hidden"
-            aria-label="Open navigation"
-            aria-expanded={drawerOpen}
-            onClick={() => setDrawerOpen(true)}
-          >
-            <Menu aria-hidden />
-          </Button>
-
+    <div className="min-h-full bg-background text-foreground lg:grid lg:grid-cols-[240px_1fr]">
+      <aside className="sticky top-0 hidden h-screen w-[240px] flex-col overflow-y-auto border-r border-border bg-nav px-4 py-5 text-nav-foreground lg:flex">
+        <Link
+          href="/"
+          aria-label="HelpDesk First"
+          className="flex items-center gap-2 px-3"
+        >
+          <BrandMark className="h-8 w-8 rounded-xl" />
+          <BrandName className="text-nav-foreground" />
+        </Link>
+        <div className="mt-8">
+          <Navigation pathname={pathname} aiEnabled={aiEnabled} />
+        </div>
+        <div className="mt-auto grid gap-1.5 border-t border-border pt-4">
           <Link
-            href="/"
-            aria-label="HelpDesk First"
-            className="flex shrink-0 items-center gap-2.5 rounded-full pr-2"
+            href="/status"
+            className="flex min-h-11 items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-nav-muted hover:bg-nav-foreground/8 hover:text-nav-foreground"
           >
-            <BrandMark />
-            <BrandName className="hidden sm:inline lg:hidden xl:inline" />
+            <Activity className="h-4 w-4" aria-hidden />
+            System status
           </Link>
+          {email ? (
+            <p
+              className="truncate px-4 py-3 text-sm text-nav-muted"
+              title={email}
+            >
+              {email}
+            </p>
+          ) : (
+            <Link
+              href="/login"
+              className="flex min-h-11 items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-nav-muted hover:bg-nav-foreground/8 hover:text-nav-foreground"
+            >
+              Log in
+            </Link>
+          )}
+          {email ? (
+            <form action={logoutAction} className="px-2">
+              <Button
+                type="submit"
+                variant="ghost"
+                className="w-full justify-start rounded-xl px-2 text-nav-muted hover:bg-nav-foreground/8 hover:text-nav-foreground"
+              >
+                <LogOut aria-hidden />
+                Log out
+              </Button>
+            </form>
+          ) : (
+            <Link
+              href="/signup"
+              className="flex min-h-11 items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-nav-muted hover:bg-nav-foreground/8 hover:text-nav-foreground"
+            >
+              Sign up
+            </Link>
+          )}
+          {staff && (
+            <Link
+              href="/admin/login"
+              className="flex min-h-11 items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-nav-muted hover:bg-nav-foreground/8 hover:text-nav-foreground"
+            >
+              Staff console
+            </Link>
+          )}
+        </div>
+      </aside>
 
-          <div className="mx-auto hidden lg:block">
-            <Navigation pathname={pathname} aiEnabled={aiEnabled} />
+      <div className="flex min-h-screen min-w-0 flex-col">
+        <header className="flex h-14 items-center justify-between border-b border-border bg-background/80 px-4 backdrop-blur sm:px-8">
+          <div className="flex min-w-0 items-center gap-3">
+            <Button
+              ref={drawerTriggerRef}
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="lg:hidden"
+              aria-label="Open navigation"
+              aria-expanded={drawerOpen}
+              onClick={() => setDrawerOpen(true)}
+            >
+              <Menu aria-hidden />
+            </Button>
+            <div className="min-w-0">
+              <Breadcrumbs items={breadcrumbs} />
+            </div>
           </div>
-
-          <div className="ml-auto flex items-center gap-1.5 lg:ml-0">
+          <div className="flex items-center gap-2">
             <ThemeToggle />
             {email ? (
-              <>
-                <span
-                  className="hidden max-w-48 items-center gap-2 truncate rounded-full bg-muted px-3 py-2 text-sm font-medium 2xl:inline-flex"
-                  title={email}
-                >
-                  <UserRound className="h-4 w-4 shrink-0" aria-hidden />
-                  <span className="truncate">{email}</span>
-                </span>
-                <form action={logoutAction} className="hidden sm:block">
-                  <Button type="submit" variant="outline" size="sm">
-                    <LogOut aria-hidden />
-                    Log out
-                  </Button>
-                </form>
-              </>
+              <form action={logoutAction} className="hidden sm:block">
+                <Button type="submit" variant="outline" size="sm">
+                  <LogOut aria-hidden />
+                  Log out
+                </Button>
+              </form>
             ) : (
-              <>
-                <Link
-                  href="/login"
-                  className={cn(
-                    buttonVariants({ variant: "ghost", size: "sm" }),
-                    "hidden sm:inline-flex"
-                  )}
-                >
-                  Log in
-                </Link>
-                <Link
-                  href="/signup"
-                  className={buttonVariants({ variant: "default", size: "sm" })}
-                >
-                  Sign up
-                </Link>
-              </>
+              <Link
+                href="/login"
+                className={cn(
+                  buttonVariants({ variant: "ghost", size: "sm" }),
+                  "hidden sm:inline-flex"
+                )}
+              >
+                Log in
+              </Link>
             )}
           </div>
-        </div>
-      </header>
-
-      {showBreadcrumbs && (
-        <div className="mx-auto w-full max-w-6xl px-5 pt-5 sm:px-9">
-          <Breadcrumbs items={breadcrumbs} />
-        </div>
-      )}
-
-      <main
-        id="main-content"
-        tabIndex={-1}
-        className="min-w-0 flex-1 focus:outline-none"
-      >
-        {children}
-      </main>
-      <AppFooter signedIn={Boolean(email)} staff={staff} />
+        </header>
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className="min-w-0 flex-1 focus:outline-none"
+        >
+          {children}
+        </main>
+        <AppFooter signedIn={Boolean(email)} staff={staff} />
+      </div>
 
       <Sheet
         open={drawerOpen}
@@ -237,7 +262,7 @@ export function AppShell({
         triggerRef={drawerTriggerRef}
       >
         <div className="mb-5 flex items-center gap-2.5 px-2">
-          <BrandMark />
+          <BrandMark className="h-8 w-8 rounded-xl" />
           <BrandName />
         </div>
         <Navigation
@@ -245,13 +270,12 @@ export function AppShell({
           aiEnabled={aiEnabled}
           onNavigate={() => setDrawerOpen(false)}
           label="Mobile"
-          layout="column"
         />
         <div className="mt-6 grid gap-1.5 border-t border-border pt-5">
           <Link
             href="/status"
             onClick={() => setDrawerOpen(false)}
-            className="flex min-h-11 items-center gap-3 rounded-full px-4 py-3 text-sm font-semibold text-muted-foreground hover:bg-muted hover:text-foreground"
+            className="flex min-h-11 items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-muted-foreground hover:bg-muted hover:text-foreground"
           >
             <Activity className="h-4 w-4" aria-hidden />
             System status
@@ -261,13 +285,13 @@ export function AppShell({
             <Link
               href="/admin/login"
               onClick={() => setDrawerOpen(false)}
-              className="flex min-h-11 items-center gap-3 rounded-full px-4 py-3 text-sm font-semibold text-muted-foreground hover:bg-muted hover:text-foreground"
+              className="flex min-h-11 items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-muted-foreground hover:bg-muted hover:text-foreground"
             >
               Staff console
               <ChevronRight className="ml-auto h-4 w-4" aria-hidden />
             </Link>
           )}
-          <div className="flex items-center justify-between rounded-full px-4 py-1 text-sm text-muted-foreground">
+          <div className="flex items-center justify-between rounded-xl px-4 py-1 text-sm text-muted-foreground">
             <span>Appearance</span>
             <ThemeToggle compact />
           </div>

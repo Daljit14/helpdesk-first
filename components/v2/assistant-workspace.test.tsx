@@ -12,6 +12,11 @@ const mocks = vi.hoisted(() => ({
   handleSendToSupport: vi.fn(),
   recordStepOutcome: vi.fn(),
   startAiTicket: vi.fn(),
+  handleStart: vi.fn(),
+  handleSubmitAnswer: vi.fn(),
+  retry: vi.fn(),
+  loading: false,
+  error: null as string | null,
 }));
 
 vi.mock("next/link", () => ({
@@ -60,17 +65,18 @@ vi.mock("@/components/ai-assistant-logic", () => ({
       matchedIssueSlug: "wifi-keeps-dropping",
       explanation: "Try this approved guide.",
     },
-    loading: false,
-    error: null,
+    loading: mocks.loading,
+    error: mocks.error,
     started: true,
     diagnosticAnswer: "",
     setDiagnosticAnswer: vi.fn(),
     submitIntake: vi.fn(),
-    handleStart: vi.fn(),
+    handleStart: mocks.handleStart,
     handleSubmitPlatform: vi.fn(),
-    handleSubmitAnswer: vi.fn(),
+    handleSubmitAnswer: mocks.handleSubmitAnswer,
     handleRejectMatch: vi.fn(),
     handleSendToSupport: mocks.handleSendToSupport,
+    retry: mocks.retry,
     searchHref: () => "/browse",
     startAiTicket: mocks.startAiTicket,
     router: { push: vi.fn() },
@@ -83,6 +89,11 @@ afterEach(() => {
   mocks.handleSendToSupport.mockReset();
   mocks.recordStepOutcome.mockReset();
   mocks.startAiTicket.mockReset();
+  mocks.handleStart.mockReset();
+  mocks.handleSubmitAnswer.mockReset();
+  mocks.retry.mockReset();
+  mocks.loading = false;
+  mocks.error = null;
 });
 
 describe("AssistantWorkspace", () => {
@@ -160,5 +171,36 @@ describe("AssistantWorkspace", () => {
       screen.getByRole("heading", { name: "Sources" })
     ).toBeInTheDocument();
     expect(screen.getByText("Wi-Fi keeps dropping")).toBeInTheDocument();
+  });
+
+  it("renders requester turns and disables the composer while intake is pending", () => {
+    mocks.loading = true;
+    render(
+      <AssistantWorkspace
+        initialProblem="wifi keeps dropping"
+        initialPlatform="Mac"
+      />
+    );
+
+    expect(screen.getAllByText("wifi keeps dropping").length).toBeGreaterThan(
+      0
+    );
+    expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
+    fireEvent.keyDown(screen.getByLabelText("Describe your IT problem"), {
+      key: "Enter",
+    });
+    expect(mocks.handleStart).not.toHaveBeenCalled();
+  });
+
+  it("keeps the entered text available when a request fails and retries it", () => {
+    mocks.error = "The support assistant is not responding.";
+    render(<AssistantWorkspace />);
+
+    const input = screen.getByLabelText("Describe your IT problem");
+    fireEvent.change(input, { target: { value: "wifi keeps dropping" } });
+    expect(input).toHaveValue("wifi keeps dropping");
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(mocks.retry).toHaveBeenCalledTimes(1);
+    expect(input).toHaveValue("wifi keeps dropping");
   });
 });

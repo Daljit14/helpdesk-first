@@ -22,9 +22,11 @@ export function Composer({
       </label>
       <textarea
         id="assistant-input"
+        aria-label="Describe your IT problem"
         value={value}
         onChange={(event) => onChange(event.target.value)}
         onKeyDown={(event) => {
+          if (disabled) return;
           if (event.key === "Enter" && !event.shiftKey) {
             event.preventDefault();
             onSend();

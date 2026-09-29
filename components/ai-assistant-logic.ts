@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { platforms, type Platform } from "@/lib/helpdesk-data";
 import { filterIssues, getIssueBySlug } from "@/lib/search";
@@ -38,6 +38,11 @@ export function useAssistantIntake({
   const [error, setError] = useState<string | null>(null);
   const [started, setStarted] = useState(autoStart);
   const [diagnosticAnswer, setDiagnosticAnswer] = useState("");
+  const lastRequest = useRef<{
+    problem: string;
+    platform: Platform | null;
+    answers: DiagnosticAnswer[];
+  } | null>(null);
 
   const submitIntake = useCallback(
     async (
@@ -46,6 +51,12 @@ export function useAssistantIntake({
       nextAnswers = previousAnswers,
       isFirstSubmission = false
     ) => {
+      const request = {
+        problem: nextProblem,
+        platform: nextPlatform,
+        answers: nextAnswers,
+      };
+      lastRequest.current = request;
       if (isFirstSubmission) {
         void fetch("/api/analytics/event", {
           method: "POST",
@@ -60,6 +71,7 @@ export function useAssistantIntake({
       }
       setLoading(true);
       setError(null);
+      let succeeded = false;
       try {
         const response = await fetch("/api/ai/intake", {
           method: "POST",
@@ -86,8 +98,10 @@ export function useAssistantIntake({
               data.reason ??
               "This request cannot be handled by the support assistant.",
           });
+          succeeded = true;
         } else if (data.status === "ok" && data.output) {
           setCurrentOutput(data.output);
+          succeeded = true;
         } else {
           setError("Something went wrong. Please try the search page.");
         }
@@ -98,9 +112,16 @@ export function useAssistantIntake({
       } finally {
         setLoading(false);
       }
+      return succeeded;
     },
     [platform, previousAnswers, problem]
   );
+
+  const retry = useCallback(() => {
+    const request = lastRequest.current;
+    if (!request) return Promise.resolve(false);
+    return submitIntake(request.problem, request.platform, request.answers);
+  }, [submitIntake]);
 
   const handleRejectMatch = useCallback(() => {
     void fetch("/api/analytics/event", {
@@ -205,8 +226,9 @@ export function useAssistantIntake({
         { questionId, answer: answer.trim() },
       ];
       setPreviousAnswers(answers);
-      setDiagnosticAnswer("");
-      void submitIntake(problem, platform, answers);
+      void submitIntake(problem, platform, answers).then((succeeded) => {
+        if (succeeded) setDiagnosticAnswer("");
+      });
     },
     [platform, previousAnswers, problem, submitIntake]
   );
@@ -232,6 +254,7 @@ export function useAssistantIntake({
     diagnosticAnswer,
     setDiagnosticAnswer,
     submitIntake,
+    retry,
     restart,
     handleStart,
     handleSubmitPlatform,

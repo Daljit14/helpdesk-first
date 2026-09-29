@@ -17,6 +17,7 @@ import {
   captchaRequired,
   getCaptchaToken,
 } from "@/lib/auth/captcha";
+import { safeNextPath } from "@/lib/auth/paths";
 
 export type AdminAuthState = {
   error?: string;
@@ -36,17 +37,6 @@ function fieldErrorsFrom(issues: { path: PropertyKey[]; message: string }[]) {
   const out: Record<string, string> = {};
   for (const issue of issues) out[String(issue.path[0])] = issue.message;
   return out;
-}
-
-function safeNext(value: FormDataEntryValue | null): string {
-  if (
-    typeof value !== "string" ||
-    !value.startsWith("/") ||
-    value.startsWith("//")
-  ) {
-    return "/admin/operations";
-  }
-  return value;
 }
 
 function hash(value: string): string {
@@ -96,7 +86,7 @@ export async function adminLogin(
     await supabase.auth.signOut();
     return { error: GENERIC_ERROR };
   }
-  redirect(safeNext(formData.get("next")));
+  redirect(safeNextPath(formData.get("next"), "/admin/operations"));
 }
 
 export async function adminLogout() {

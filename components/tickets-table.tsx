@@ -480,7 +480,7 @@ function PortalTicketSection({
                       </Badge>
                     </Link>
                     {status.attention && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-[var(--status-warning)]/15 px-3 py-1 text-xs text-[var(--status-warning-foreground)]">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-[var(--status-warning)] px-3 py-1 text-xs text-[var(--status-warning-foreground)]">
                         <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
                         Action needed
                       </span>

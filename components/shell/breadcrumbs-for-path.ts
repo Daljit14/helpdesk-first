@@ -18,6 +18,16 @@ export function breadcrumbsForPath(pathname: string): BreadcrumbItem[] {
     if (parts[2] === "guide") items.push({ label: "Guide" });
     return items;
   }
+  if (pathname.startsWith("/tickets/")) {
+    return [
+      { label: "Start", href: "/" },
+      { label: "My tickets", href: "/tickets" },
+      { label: "Ticket" },
+    ];
+  }
+  if (pathname.startsWith("/forgot-password")) {
+    return [{ label: "Start", href: "/" }, { label: "Forgot password" }];
+  }
   const labels: Record<string, string> = {
     "/assistant": "Support Assistant",
     "/tickets": "My tickets",
@@ -25,7 +35,6 @@ export function breadcrumbsForPath(pathname: string): BreadcrumbItem[] {
     "/status": "System status",
     "/login": "Log in",
     "/signup": "Create an account",
-    "/forgot-password": "Reset your password",
     "/reset-password": "Choose a new password",
     "/check-email": "Verify your email",
     "/offline": "Offline",

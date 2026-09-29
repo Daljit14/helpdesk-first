@@ -121,13 +121,13 @@ export function AvatarPicker({
           className="absolute bottom-full left-0 z-50 mb-2 w-64 rounded-2xl border border-border bg-card p-3 text-card-foreground shadow-[var(--shadow-md)]"
         >
           <p className="text-xs font-bold text-muted-foreground">Characters</p>
-          <div className="mt-2 grid grid-cols-6 gap-1.5">
+          <div className="mt-2 grid grid-cols-7 gap-px">
             <button
               type="button"
               aria-label="Logo"
               onClick={() => void select("logo")}
               className={cn(
-                "grid h-10 w-10 place-items-center rounded-xl hover:bg-muted",
+                "grid h-8 w-8 place-items-center rounded-xl hover:bg-muted",
                 current === "logo" || !current
                   ? "ring-2 ring-primary"
                   : undefined
@@ -144,13 +144,13 @@ export function AvatarPicker({
                   aria-label={id[0].toUpperCase() + id.slice(1)}
                   onClick={() => void select(value)}
                   className={cn(
-                    "grid h-10 w-10 place-items-center rounded-xl hover:bg-muted",
+                    "grid h-8 w-8 place-items-center rounded-xl hover:bg-muted",
                     current === value
                       ? "ring-2 ring-primary hf-lift"
                       : undefined
                   )}
                 >
-                  <Character id={id} className="h-9 w-9" />
+                  <Character id={id} className="h-8 w-8" />
                 </button>
               );
             })}

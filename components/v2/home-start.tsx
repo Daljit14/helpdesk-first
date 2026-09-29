@@ -253,7 +253,7 @@ export function HomeStart({
               <svg
                 aria-hidden
                 viewBox="0 0 120 96"
-                className="hidden h-24 w-[120px] shrink-0 overflow-visible sm:block"
+                className="hidden h-[110px] w-[160px] shrink-0 overflow-visible sm:block"
               >
                 <path
                   d="M20 17C47 17 43 45 68 45s21 30 44 30"
@@ -261,8 +261,8 @@ export function HomeStart({
                   stroke="currentColor"
                   strokeDasharray="5 5"
                   strokeLinecap="round"
-                  strokeWidth="2"
-                  className="hf-dash opacity-40"
+                  strokeWidth="2.5"
+                  className="hf-dash"
                 />
                 <rect
                   x="8"
@@ -270,8 +270,9 @@ export function HomeStart({
                   width="34"
                   height="18"
                   rx="7"
-                  fill="white"
-                  opacity=".75"
+                  fill="var(--card)"
+                  stroke="var(--primary)"
+                  strokeWidth="1.5"
                   className="hf-lift"
                 />
                 <rect
@@ -280,8 +281,9 @@ export function HomeStart({
                   width="34"
                   height="18"
                   rx="7"
-                  fill="white"
-                  opacity=".75"
+                  fill="var(--card)"
+                  stroke="var(--primary)"
+                  strokeWidth="1.5"
                   className="hf-lift"
                 />
                 <rect
@@ -290,8 +292,9 @@ export function HomeStart({
                   width="26"
                   height="18"
                   rx="7"
-                  fill="white"
-                  opacity=".75"
+                  fill="var(--card)"
+                  stroke="var(--primary)"
+                  strokeWidth="1.5"
                   className="hf-lift"
                 />
                 <circle
@@ -307,7 +310,7 @@ export function HomeStart({
                   stroke="var(--primary-foreground)"
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  strokeWidth="2"
+                  strokeWidth="2.5"
                   className="hf-draw"
                 />
               </svg>
@@ -516,7 +519,7 @@ export function HomeStart({
           </div>
         </section>
 
-        <div className="mt-12 grid gap-5 md:grid-cols-2">
+        <div className="mt-12 grid items-start gap-5 md:grid-cols-2">
           <HowItWorks className="hf-rise md:col-span-2" />
           <QuickTips className="hf-rise" />
           <SystemStatusCard className="hf-rise" />

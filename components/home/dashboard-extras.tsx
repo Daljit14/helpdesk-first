@@ -309,7 +309,7 @@ export function QuickTips({ className }: { className?: string }) {
       onFocus={() => setPaused(true)}
       onBlur={() => setPaused(false)}
       className={cn(
-        "relative min-w-0 flex h-full flex-col justify-between gap-3 overflow-hidden rounded-[28px] border border-[#f3d9bd] bg-[linear-gradient(150deg,#fff7e6,#fff0f6)] p-6 text-[#3b2a1a] dark:border-[#4a3520] dark:bg-[linear-gradient(150deg,#2e2214,#2e1a28)] dark:text-[#ffe9c9]",
+        "relative min-w-0 flex h-auto flex-col justify-between gap-3 overflow-hidden rounded-[28px] border border-[#f3d9bd] bg-[linear-gradient(150deg,#fff7e6,#fff0f6)] p-6 text-[#3b2a1a] dark:border-[#4a3520] dark:bg-[linear-gradient(150deg,#2e2214,#2e1a28)] dark:text-[#ffe9c9]",
         className
       )}
     >
@@ -372,7 +372,7 @@ export function QuickTips({ className }: { className?: string }) {
       <p
         key={index}
         aria-live="polite"
-        className="relative z-10 hf-swap min-h-[3.25rem] text-base font-semibold leading-relaxed"
+        className="relative z-10 hf-swap min-h-[4.5rem] text-base font-semibold leading-relaxed"
       >
         {TIPS[index]}
       </p>

@@ -3,7 +3,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Bot, ChevronRight, X } from "lucide-react";
+import {
+  Bot,
+  ChevronRight,
+  Flame,
+  LayoutGrid,
+  SlidersHorizontal,
+  Sparkles,
+  X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { Sheet } from "@/components/ui/sheet";
@@ -21,8 +29,9 @@ import {
   StillStuckCard,
 } from "@/components/home/dashboard-extras";
 import { ResultsNav } from "@/components/results-nav";
+import { BrowseHero } from "@/components/browse/browse-hero";
 import { filterIssues } from "@/lib/search";
-import { categories, type Platform } from "@/lib/helpdesk-data";
+import { categories, platforms, type Platform } from "@/lib/helpdesk-data";
 import { normalizePlatform, platformSlug } from "@/lib/platform";
 import {
   clearAllSessions,
@@ -141,6 +150,7 @@ export function HomePage({
       ),
     []
   );
+  const allIssueCount = useMemo(() => filterIssues({}).length, []);
   const popularIssues = useMemo(() => filterIssues({}).slice(0, 6), []);
 
   const replaceUrl = useCallback(
@@ -264,6 +274,279 @@ export function HomePage({
     setCategoryId(nextCategory);
     setPlatform(nextPlatform);
     pushUrl(nextQuery, nextCategory, nextPlatform);
+  }
+
+  const activeFilterChips = hasActiveFilters && (
+    <div
+      className="flex flex-wrap items-center gap-2"
+      aria-label="Active filters"
+    >
+      {query && (
+        <button
+          type="button"
+          className="hf-pop inline-flex min-h-10 items-center gap-2 rounded-full border border-primary/30 bg-secondary px-3.5 text-sm font-bold text-secondary-foreground transition-colors hover:bg-secondary/70"
+          aria-label={`Remove filter: Search ${query}`}
+          onClick={() => removeFilter("query")}
+        >
+          Search: {query}
+          <X className="h-4 w-4" aria-hidden />
+        </button>
+      )}
+      {platform && (
+        <button
+          type="button"
+          className="hf-pop inline-flex min-h-10 items-center gap-2 rounded-full border border-primary/30 bg-secondary px-3.5 text-sm font-bold text-secondary-foreground transition-colors hover:bg-secondary/70"
+          aria-label={`Remove filter: Platform ${platform}`}
+          onClick={() => removeFilter("platform")}
+        >
+          Platform: {platform}
+          <X className="h-4 w-4" aria-hidden />
+        </button>
+      )}
+      {categoryId && (
+        <button
+          type="button"
+          className="hf-pop inline-flex min-h-10 items-center gap-2 rounded-full border border-primary/30 bg-secondary px-3.5 text-sm font-bold text-secondary-foreground transition-colors hover:bg-secondary/70"
+          aria-label={`Remove filter: Category ${categoryId}`}
+          onClick={() => removeFilter("category")}
+        >
+          Category:{" "}
+          {categories.find((category) => category.id === categoryId)?.label ??
+            categoryId}
+          <X className="h-4 w-4" aria-hidden />
+        </button>
+      )}
+    </div>
+  );
+
+  if (!isHome) {
+    return (
+      <section className="flex flex-1 flex-col px-4 py-6 sm:px-6 lg:px-8">
+        <div className="mx-auto w-full max-w-7xl space-y-8">
+          <BrowseHero
+            guideCount={allIssueCount}
+            platformCount={platforms.length}
+          >
+            <SearchBox
+              value={query}
+              onChange={setQuery}
+              onSubmit={handleSearchSubmit}
+              placeholder="Describe your problem…"
+              onClear={clearFilters}
+              appearance="hero"
+            />
+            <div className="mt-3 flex flex-wrap items-center gap-2 text-[13px] font-bold text-white/85">
+              <span>Try:</span>
+              {QUICK_SEARCHES.map((term) => (
+                <button
+                  key={term}
+                  type="button"
+                  onClick={() => applyQuickSearch(term)}
+                  className="min-h-9 rounded-full border border-white/35 bg-white/15 px-3.5 text-white backdrop-blur transition-all hover:-translate-y-0.5 hover:bg-white hover:text-[#3b1fa8]"
+                >
+                  {term}
+                </button>
+              ))}
+            </div>
+          </BrowseHero>
+
+          {activeSessions.length > 0 && (
+            <ContinueCard
+              session={activeSessions[0]}
+              onClear={handleClearHistory}
+            />
+          )}
+
+          {/* Sticky filter bar */}
+          <div className="sticky top-16 z-20 -mx-1 space-y-3 rounded-[22px] border border-border bg-background/90 p-3 shadow-sm backdrop-blur-md sm:p-4">
+            <div className="flex items-center gap-3">
+              <span className="hidden shrink-0 items-center gap-1.5 text-xs font-extrabold uppercase tracking-wide text-muted-foreground sm:inline-flex">
+                <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden />
+                Device
+              </span>
+              <div className="min-w-0 flex-1">
+                <PlatformButtons
+                  selected={platform}
+                  variant="pills"
+                  onSelect={selectPlatform}
+                />
+              </div>
+              {hasActiveFilters && (
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="hidden shrink-0 rounded-full px-3 py-2 text-xs font-extrabold text-muted-foreground hover:bg-muted hover:text-foreground sm:inline-flex"
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+            {hasActiveFilters && (
+              <div className="flex items-center gap-3">
+                <span className="hidden shrink-0 items-center gap-1.5 text-xs font-extrabold uppercase tracking-wide text-muted-foreground sm:inline-flex">
+                  <LayoutGrid className="h-3.5 w-3.5" aria-hidden />
+                  Topic
+                </span>
+                <div className="min-w-0 flex-1">
+                  <CategoryGrid
+                    selected={categoryId}
+                    variant="chips"
+                    onSelect={selectCategory}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {activeSessions.length === 0 && sessionCount > 0 && (
+            <div className="-mt-4 flex justify-end">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={handleClearHistory}
+              >
+                Clear my troubleshooting history ({sessionCount})
+              </Button>
+            </div>
+          )}
+
+          {process.env.NEXT_PUBLIC_AI_ENABLED === "true" && (
+            <Link
+              href="/assistant"
+              className="hf-lift group relative flex items-center gap-4 overflow-hidden rounded-[24px] border border-primary/20 bg-[linear-gradient(120deg,#1c1633,#2c2350_55%,#3b2a8f)] p-5 text-left text-white"
+            >
+              <span
+                aria-hidden
+                className="hf-blob-a pointer-events-none absolute -right-10 -top-16 h-44 w-44 rounded-full bg-[radial-gradient(closest-side,rgb(185_162_255/0.35),transparent)]"
+              />
+              <span className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/10 ring-1 ring-white/20">
+                <span
+                  aria-hidden
+                  className="hf-halo absolute inset-0 rounded-2xl"
+                />
+                <Bot className="hf-bob h-6 w-6 text-[#c9b8ff]" aria-hidden />
+              </span>
+              <span className="relative min-w-0 flex-1">
+                <span className="block text-base font-extrabold">
+                  Not sure where to start? Ask the Support Assistant
+                </span>
+                <span className="mt-1 block text-sm text-[#cfc6ea]">
+                  Describe the problem in plain words and get routed to the
+                  right guide.
+                </span>
+              </span>
+              <span className="relative hidden items-center gap-1.5 rounded-full bg-white px-4 py-2 text-sm font-extrabold text-[#3b2a8f] transition-transform group-hover:translate-x-1 sm:inline-flex">
+                <Sparkles className="h-4 w-4" aria-hidden />
+                Ask now
+              </span>
+              <ChevronRight
+                className="relative h-5 w-5 shrink-0 text-white/80 sm:hidden"
+                aria-hidden
+              />
+            </Link>
+          )}
+
+          <RecentlyViewed variant="rich" />
+
+          {activeFilterChips}
+
+          {!hasActiveFilters ? (
+            <>
+              <section aria-labelledby="browse-by-category-heading">
+                <div className="flex flex-wrap items-end justify-between gap-2">
+                  <div>
+                    <h2
+                      id="browse-by-category-heading"
+                      className="flex items-center gap-2 text-2xl font-extrabold tracking-tight"
+                    >
+                      <LayoutGrid
+                        className="h-5 w-5 text-primary"
+                        aria-hidden
+                      />
+                      Browse by category
+                    </h2>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Pick the area that matches your problem.
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-5">
+                  <CategoryGrid
+                    selected={categoryId}
+                    counts={categoryCounts}
+                    variant="tiles"
+                    onSelect={selectCategory}
+                  />
+                </div>
+              </section>
+              <section aria-labelledby="popular-guides-heading">
+                <h2
+                  id="popular-guides-heading"
+                  className="flex items-center gap-2 text-2xl font-extrabold tracking-tight"
+                >
+                  <Flame className="h-5 w-5 text-[#f97316]" aria-hidden />
+                  Popular guides
+                </h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  What people fix most often.
+                </p>
+                <ul className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                  {popularIssues.map((issue) => (
+                    <IssueCard
+                      key={issue.id}
+                      issue={issue}
+                      backParams={backParams}
+                      variant="rich"
+                    />
+                  ))}
+                </ul>
+              </section>
+            </>
+          ) : (
+            <>
+              <div className="flex flex-col items-center justify-between gap-4 rounded-[20px] bg-secondary/50 px-5 py-4 sm:flex-row">
+                <p className="text-sm text-muted-foreground" aria-live="polite">
+                  <span className="text-2xl font-extrabold text-foreground tabular-nums">
+                    {matchingCount}
+                  </span>{" "}
+                  matching {matchingCount === 1 ? "problem" : "problems"}
+                </p>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearFilters}
+                >
+                  <X className="mr-2 h-4 w-4" />
+                  Clear all filters
+                </Button>
+              </div>
+
+              <div
+                ref={resultsRef}
+                tabIndex={-1}
+                aria-label="Search results"
+                className="scroll-mt-40 outline-none"
+              >
+                <IssueList
+                  query={query}
+                  categoryId={categoryId}
+                  platform={platform}
+                  backParams={backParams}
+                  forceNoResults={initialPlatformInvalid}
+                  variant="rich"
+                />
+                <div ref={resultsEndRef} aria-hidden="true" />
+              </div>
+              {matchingCount > 0 && (
+                <ResultsNav topRef={resultsRef} bottomRef={resultsEndRef} />
+              )}
+            </>
+          )}
+        </div>
+      </section>
+    );
   }
 
   return (

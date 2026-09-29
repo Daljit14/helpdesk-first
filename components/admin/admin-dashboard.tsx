@@ -28,6 +28,57 @@ type RefreshStatus = "idle" | "refreshing" | "error";
 
 const ADMIN_OUTLINE_BUTTON = "glass-pill text-foreground hover:bg-muted";
 
+const queueFilterLabels: Record<NonNullable<AdminFilters["queue"]>, string> = {
+  needs_human: "Needs Human",
+  assigned_to_me: "Assigned to Me",
+  unassigned: "Unassigned",
+  ai_working: "AI working",
+  waiting: "Waiting for User",
+  sla_breached: "SLA At Risk",
+  resolved: "Resolved",
+  reopened: "Reopened",
+};
+
+const handoffReasonLabels: Record<string, string> = {
+  admin_access_required: "Admin access required",
+  credentials: "Credentials",
+  credentials_involved: "Credentials involved",
+  malware: "Security concern",
+  unauthorized_access: "Unauthorized access",
+  security_concern: "Security concern",
+  hardware: "Hardware",
+  hardware_repair: "Hardware repair",
+  remote_assistance: "Remote assistance",
+  remote_assistance_required: "Remote assistance",
+  low_confidence: "Low confidence",
+  no_guide: "No guide",
+  no_approved_guide: "No approved guide",
+  repeated_failure: "Repeated failure",
+  user_requested_human: "User requested human",
+  agent_halted: "AI assistant stopped",
+  too_many_questions: "Too many questions",
+  insufficient_diagnostics: "Insufficient diagnostics",
+  employee_requested_human: "Employee requested human",
+  reopened_by_user: "Reopened by user",
+};
+
+const resolutionSourceLabels: Record<
+  NonNullable<AdminFilters["resolutionSource"]>,
+  string
+> = {
+  ai: "Solved by AI",
+  agent: "Solved by agent",
+  self_service: "Self-service",
+  unresolved: "Unresolved",
+};
+
+const slaFilterLabels: Record<string, string> = {
+  on_track: "On track",
+  due_soon: "Due <1h",
+  breached: "Breached",
+  closed: "Closed",
+};
+
 const metricLabels: [keyof AdminMetric, string][] = [
   ["activeUsers", "Active users"],
   ["uniqueVisitorsToday", "Unique visitors today"],
@@ -362,7 +413,7 @@ export function AdminDashboard({
     organizationPolicy?.allowVerificationException ?? false
   );
   const FilterContainer = uiV2 ? "details" : "div";
-  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(true);
   const filtersStorageKey = "hf-admin-section:filters";
   const activeFilterCount = Object.entries(filters).filter(
     ([key, value]) =>
@@ -483,6 +534,79 @@ export function AdminDashboard({
       sla: "",
     });
   };
+  const activeFilterTags = [
+    filters.queue
+      ? {
+          label: `Queue: ${queueFilterLabels[filters.queue]}`,
+          clear: () => updateFilters({ queue: undefined }),
+        }
+      : null,
+    filters.status
+      ? {
+          label: `Status: ${filters.status}`,
+          clear: () => updateFilters({ status: "" }),
+        }
+      : null,
+    filters.risk
+      ? {
+          label: `Risk: ${filters.risk[0].toUpperCase()}${filters.risk.slice(1)} risk`,
+          clear: () => updateFilters({ risk: undefined }),
+        }
+      : null,
+    filters.handoffReason
+      ? {
+          label: `Handoff: ${
+            handoffReasonLabels[filters.handoffReason] ?? filters.handoffReason
+          }`,
+          clear: () => updateFilters({ handoffReason: "" }),
+        }
+      : null,
+    filters.minConfidence !== undefined
+      ? {
+          label: `AI confidence: ${filters.minConfidence}%`,
+          clear: () => updateFilters({ minConfidence: undefined }),
+        }
+      : null,
+    filters.resolutionSource
+      ? {
+          label: `Resolution: ${
+            resolutionSourceLabels[filters.resolutionSource]
+          }`,
+          clear: () => updateFilters({ resolutionSource: undefined }),
+        }
+      : null,
+    filters.priority
+      ? {
+          label: `Priority: ${filters.priority}`,
+          clear: () => updateFilters({ priority: "" }),
+        }
+      : null,
+    filters.category
+      ? {
+          label: `Category: ${filters.category}`,
+          clear: () => updateFilters({ category: "" }),
+        }
+      : null,
+    filters.platform
+      ? {
+          label: `Platform: ${filters.platform}`,
+          clear: () => updateFilters({ platform: "" }),
+        }
+      : null,
+    filters.agent
+      ? {
+          label: `Agent: ${filters.agent}`,
+          clear: () => updateFilters({ agent: "" }),
+        }
+      : null,
+    filters.sla
+      ? {
+          label: `SLA: ${slaFilterLabels[filters.sla] ?? filters.sla}`,
+          clear: () => updateFilters({ sla: "" }),
+        }
+      : null,
+  ].filter((tag): tag is { label: string; clear: () => void } => tag !== null);
+  const allFiltersInactive = activeFilterCount === 0;
   const applyQueueChip = (
     kind: "queue" | "status" | "priority",
     value: string | null,
@@ -983,15 +1107,13 @@ export function AdminDashboard({
                     type="button"
                     aria-pressed={
                       value === null
-                        ? !filters.queue && !filters.status && !filters.priority
+                        ? allFiltersInactive
                         : filters.queue === value || filters.status === value
                     }
                     className={`v2-touch shrink-0 rounded-full border px-3 py-2 text-sm ${
                       (
                         value === null
-                          ? !filters.queue &&
-                            !filters.status &&
-                            !filters.priority
+                          ? allFiltersInactive
                           : filters.queue === value || filters.status === value
                       )
                         ? "border-primary bg-primary text-primary-foreground"
@@ -1040,12 +1162,30 @@ export function AdminDashboard({
                     );
                   }}
                 >
-                  <span className="flex items-center justify-between gap-3">
-                    <span>Filters</span>
-                    <span className="flex items-center gap-3">
+                  <span className="flex flex-wrap items-center justify-between gap-3">
+                    <span className="flex min-w-0 flex-wrap items-center gap-2">
+                      <span>Filters</span>
                       <span className="rounded-full bg-muted px-2 py-0.5 text-xs">
                         {activeFilterCount}
                       </span>
+                      {activeFilterTags.map((tag) => (
+                        <button
+                          key={tag.label}
+                          type="button"
+                          aria-label={`Remove ${tag.label} filter`}
+                          className="inline-flex max-w-full items-center gap-1 rounded-full border border-border bg-background/60 px-2 py-1 text-xs hover:bg-muted"
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            tag.clear();
+                          }}
+                        >
+                          <span className="truncate">{tag.label}</span>
+                          <span aria-hidden>×</span>
+                        </button>
+                      ))}
+                    </span>
+                    <span className="flex items-center gap-3">
                       {activeFilterCount > 0 && (
                         <button
                           type="button"

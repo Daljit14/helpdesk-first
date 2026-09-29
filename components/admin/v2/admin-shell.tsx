@@ -120,6 +120,13 @@ export function AdminShell({
     );
   }, [departments, query]);
 
+  const previousPathname = useRef(pathname);
+  useEffect(() => {
+    if (previousPathname.current === pathname) return;
+    previousPathname.current = pathname;
+    setDrawerOpen(false);
+  }, [pathname]);
+
   useEffect(() => {
     try {
       const stored = window.localStorage.getItem("hf-admin-sidebar");
@@ -270,7 +277,14 @@ export function AdminShell({
             className="v2-touch inline-flex items-center justify-center rounded-xl hover:bg-muted lg:hidden"
             aria-label={drawerOpen ? "Close navigation" : "Open navigation"}
             aria-expanded={drawerOpen}
-            onClick={() => setDrawerOpen((open) => !open)}
+            onClick={() => {
+              if (drawerOpen) {
+                setDrawerOpen(false);
+                return;
+              }
+              setQuery("");
+              setDrawerOpen(true);
+            }}
           >
             {drawerOpen ? <X aria-hidden /> : <Menu aria-hidden />}
           </button>

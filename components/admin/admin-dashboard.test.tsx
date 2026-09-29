@@ -4,6 +4,7 @@ import {
   fireEvent,
   render,
   screen,
+  waitFor,
 } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { AdminDashboard } from "./admin-dashboard";
@@ -236,19 +237,80 @@ describe("AdminDashboard", () => {
     );
   });
 
-  test("keeps operation filters collapsed until opened", () => {
+  test("opens operation filters by default", () => {
     render(<AdminDashboard initialSnapshot={snapshot()} uiV2 />);
 
     const filters = screen.getByText("Filters", { exact: true });
     const details = filters.closest("details");
-    expect(details).not.toHaveAttribute("open");
+    expect(details).toHaveAttribute("open");
 
     fireEvent.click(filters);
 
-    expect(details).toHaveAttribute("open");
+    expect(details).not.toHaveAttribute("open");
     expect(
       screen.getByRole("combobox", { name: "Status" }).parentElement
     ).toHaveClass("xl:grid-cols-4");
+  });
+
+  test("defaults filters open and respects a stored closed state", async () => {
+    const first = render(<AdminDashboard initialSnapshot={snapshot()} uiV2 />);
+    expect(
+      screen.getByText("Filters", { exact: true }).closest("details")
+    ).toHaveAttribute("open");
+    first.unmount();
+    localStorage.setItem("hf-admin-section:filters", "closed");
+
+    render(<AdminDashboard initialSnapshot={snapshot()} uiV2 />);
+
+    await waitFor(() =>
+      expect(
+        screen.getByText("Filters", { exact: true }).closest("details")
+      ).not.toHaveAttribute("open")
+    );
+  });
+
+  test("mirrors queue chips in the filter summary and removes them", async () => {
+    vi.spyOn(global, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(snapshot()), { status: 200 })
+    );
+    render(
+      <AdminDashboard initialSnapshot={snapshot()} workflowEnabled uiV2 />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Needs Human" }));
+    expect(screen.getByText("Queue: Needs Human")).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Queue" })).toHaveValue(
+      "needs_human"
+    );
+
+    vi.mocked(global.fetch).mockClear();
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Remove Queue: Needs Human filter",
+      })
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(vi.mocked(global.fetch).mock.lastCall?.[0]).not.toContain("queue=");
+    expect(screen.getByRole("button", { name: "All" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+  });
+
+  test("does not press All when a platform filter is active", () => {
+    render(<AdminDashboard initialSnapshot={snapshot()} uiV2 />);
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Platform" }), {
+      target: { value: "macOS" },
+    });
+
+    expect(screen.getByRole("button", { name: "All" })).toHaveAttribute(
+      "aria-pressed",
+      "false"
+    );
   });
 
   test("renders a breached SLA state for overdue tickets", () => {

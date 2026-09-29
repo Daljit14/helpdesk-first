@@ -55,26 +55,16 @@ export function TicketPortalActions({
             Open the step-by-step guide
           </Link>
           {status === "AI Resolving" && (
-            <div className="mt-4 flex flex-wrap gap-3">
-              <button
-                type="button"
-                disabled={isPending}
-                onClick={() => run(() => confirmTicketResolved(ticketId))}
-                className="v2-touch rounded-xl bg-primary px-5 py-2 text-primary-foreground shadow-md disabled:opacity-60"
-              >
-                This fixed it
-              </button>
-              <div className="w-full max-w-xl space-y-2">
-                <label htmlFor="reject-ai-note" className="text-sm font-medium">
-                  What did not work?
-                </label>
-                <textarea
-                  id="reject-ai-note"
-                  value={rejectNote}
-                  onChange={(event) => setRejectNote(event.target.value)}
-                  rows={2}
-                  className="w-full rounded-2xl border border-border/70 bg-background/60 p-3 backdrop-blur"
-                />
+            <div className="mt-4 space-y-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  disabled={isPending}
+                  onClick={() => run(() => confirmTicketResolved(ticketId))}
+                  className="v2-touch rounded-xl bg-primary px-5 py-2 text-primary-foreground shadow-md disabled:opacity-60"
+                >
+                  This fixed it
+                </button>
                 <button
                   type="button"
                   disabled={isPending}
@@ -85,6 +75,18 @@ export function TicketPortalActions({
                 >
                   Didn&apos;t work
                 </button>
+              </div>
+              <div className="w-full max-w-xl space-y-2">
+                <label htmlFor="reject-ai-note" className="text-sm font-medium">
+                  What did not work? (optional)
+                </label>
+                <textarea
+                  id="reject-ai-note"
+                  value={rejectNote}
+                  onChange={(event) => setRejectNote(event.target.value)}
+                  rows={2}
+                  className="w-full rounded-2xl border border-border/70 bg-background/60 p-3 backdrop-blur"
+                />
               </div>
             </div>
           )}

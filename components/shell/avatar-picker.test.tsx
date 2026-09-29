@@ -26,4 +26,15 @@ describe("AvatarPicker", () => {
     fireEvent.click(screen.getByRole("button", { name: "🚀" }));
     expect(updateUser).toHaveBeenCalledWith({ data: { avatar: "🚀" } });
   });
+
+  it("saves a selected character and renders its svg", () => {
+    render(<AvatarPicker email="person@example.com" />);
+    fireEvent.click(screen.getByRole("button", { name: "Choose avatar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cat" }));
+
+    expect(updateUser).toHaveBeenCalledWith({ data: { avatar: "char:cat" } });
+    expect(
+      document.querySelector('[data-character="cat"]')
+    ).toBeInTheDocument();
+  });
 });

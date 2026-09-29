@@ -177,7 +177,7 @@ export async function startAiTicket(input: {
   const organizationId = isOrgEncryptionEnabled()
     ? (await resolveOrganizationForUser(user.id)).organizationId
     : null;
-  const { data, error } = await supabase
+  const { data, error } = await admin
     .from("tickets")
     .insert({
       user_id: user.id,

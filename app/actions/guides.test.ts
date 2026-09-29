@@ -48,7 +48,9 @@ describe("submitTicket attachment paths", () => {
       maybeSingle: vi.fn(async () => ({ data: null, error: null })),
     };
     mocks.createAdminClient.mockReturnValue({
-      from: vi.fn(() => chain),
+      from: vi.fn((table: string) =>
+        table === "tickets" ? { insert } : chain
+      ),
     });
   });
 
@@ -72,6 +74,7 @@ describe("submitTicket attachment paths", () => {
 
     await submitTicket(null, formData(attachmentPath));
 
+    expect(createClient).not.toHaveBeenCalled();
     expect(insert).toHaveBeenCalledWith(
       expect.objectContaining({ attachment_path: null })
     );
@@ -94,6 +97,7 @@ describe("submitTicket attachment paths", () => {
 
     await submitTicket(null, formData("user-1/attachment.png"));
 
+    expect(createClient).not.toHaveBeenCalled();
     expect(insert).toHaveBeenCalledWith(
       expect.objectContaining({ attachment_path: "user-1/attachment.png" })
     );

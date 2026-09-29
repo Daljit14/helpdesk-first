@@ -179,9 +179,9 @@ export async function submitTicket(
       : null;
   const attachmentIds = parsed.data.attachmentIds ?? [];
 
-  const supabase = await createClient();
+  const admin = createAdminClient();
   const { organizationId } = await resolveOrganizationForUser(result.user.id);
-  const inserted = await supabase
+  const inserted = await admin
     .from("tickets")
     .insert({
       user_id: result.user.id,

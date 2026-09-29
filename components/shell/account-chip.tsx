@@ -31,18 +31,13 @@ export function AccountChip({
   avatar?: string | null;
 }) {
   const metadataAvatar = avatarFromMetadata(avatar);
-  const [savedAvatar, setSavedAvatar] = useSavedAvatar(metadataAvatar ?? "bot");
-  const [selectedAvatar, setSelectedAvatar] = useState<AvatarId | "initial">(
-    metadataAvatar ?? savedAvatar
-  );
+  const [choice, setChoice] = useState<AvatarId | "initial" | null>(null);
+  const [saved, setSaved] = useSavedAvatar(metadataAvatar ?? "bot");
+  const selected = choice ?? metadataAvatar ?? saved;
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const initial = email.slice(0, 1).toUpperCase();
-
-  useEffect(() => {
-    queueMicrotask(() => setSelectedAvatar(metadataAvatar ?? savedAvatar));
-  }, [metadataAvatar, savedAvatar]);
 
   useEffect(() => {
     if (!open) return;
@@ -64,8 +59,8 @@ export function AccountChip({
   }, [open]);
 
   function select(next: AvatarId | "initial") {
-    setSavedAvatar(next === "initial" ? "initial" : next);
-    setSelectedAvatar(next);
+    setChoice(next);
+    setSaved(next);
     setOpen(false);
     buttonRef.current?.focus();
     void createClient()
@@ -80,11 +75,7 @@ export function AccountChip({
           id="avatar-picker"
           className="hf-pop absolute bottom-full left-0 z-50 mb-2"
         >
-          <AvatarPicker
-            value={selectedAvatar}
-            initial={initial}
-            onChange={select}
-          />
+          <AvatarPicker value={selected} initial={initial} onChange={select} />
         </div>
       )}
       <button
@@ -99,7 +90,7 @@ export function AccountChip({
           open && "bg-muted"
         )}
       >
-        {selectedAvatar === "initial" ? (
+        {selected === "initial" ? (
           <span
             aria-hidden
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,#ffc24b,#f472b6)] text-sm font-extrabold leading-none text-[#1c1633]"
@@ -108,7 +99,7 @@ export function AccountChip({
           </span>
         ) : (
           <AnimatedAvatar
-            id={selectedAvatar}
+            id={selected}
             size={36}
             className="ring-2 ring-card"
           />

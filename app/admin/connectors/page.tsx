@@ -1,16 +1,48 @@
 import type { Metadata } from "next";
+import {
+  AlertTriangle,
+  KeyRound,
+  Link2,
+  Lock,
+  Plug,
+  ShieldCheck,
+  UsersRound,
+} from "lucide-react";
 import { requireAdminPage } from "@/lib/admin/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   ConnectorForm,
   type ConnectorInitial,
 } from "@/components/admin/connector-form";
+import {
+  AdminHero,
+  AdminPage,
+  HeroChip,
+  Panel,
+  StatGrid,
+  StatTile,
+  type StatTone,
+} from "@/components/admin/ui/admin-kit";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Identity connectors",
   robots: { index: false, follow: false },
 };
+
+const PROVIDER_LABEL: Record<string, string> = {
+  entra: "Microsoft Entra ID",
+  google: "Google Workspace",
+};
+
+function statusTone(status: string | undefined): StatTone {
+  if (!status) return "neutral";
+  if (status === "active" || status === "connected" || status === "healthy")
+    return "good";
+  if (status === "error" || status === "failed") return "danger";
+  if (status === "disabled") return "neutral";
+  return "warn";
+}
 
 export default async function ConnectorsPage() {
   const session = await requireAdminPage("/admin/connectors");
@@ -28,21 +60,76 @@ export default async function ConnectorsPage() {
         status: row.data.status,
       }
     : null;
+  const providerLabel = initial
+    ? (PROVIDER_LABEL[initial.provider] ?? initial.provider)
+    : "Not connected";
   return (
-    <section className="flex flex-1 flex-col px-4 py-10 sm:px-6 lg:px-8">
-      <div className="mx-auto w-full max-w-3xl">
-        <p className="text-sm text-muted-foreground">Administration</p>
-        <h1 className="mt-2 text-3xl font-bold">Identity connectors</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Secrets are encrypted server-side and never returned to the browser.
+    <AdminPage>
+      <AdminHero
+        eyebrow="Identity connectors"
+        title="Integrations"
+        description="Secrets are encrypted server-side and never returned to the browser."
+        icon={Plug}
+        tone="forest"
+      >
+        <div className="flex flex-wrap gap-2">
+          <HeroChip label="Provider" value={providerLabel} />
+          <HeroChip
+            label="Status"
+            value={initial?.status ?? "not configured"}
+            pulse={statusTone(initial?.status) === "good"}
+          />
+        </div>
+      </AdminHero>
+
+      {row.error && (
+        <p
+          role="status"
+          className="hf-rise flex items-center gap-2 rounded-2xl border border-status-warning/40 bg-status-warning/10 p-3 text-sm font-bold text-status-warning"
+        >
+          <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden />
+          Connector tables not applied
         </p>
-        {row.error && (
-          <p className="mt-6 rounded-2xl border border-border bg-muted p-3 text-sm text-muted-foreground">
-            Connector tables not applied
-          </p>
-        )}
+      )}
+
+      <StatGrid>
+        <StatTile
+          label="Provider"
+          value={providerLabel}
+          icon={KeyRound}
+          index={0}
+        />
+        <StatTile
+          label="Status"
+          value={initial?.status ?? "—"}
+          icon={ShieldCheck}
+          tone={statusTone(initial?.status)}
+          index={1}
+        />
+        <StatTile
+          label="Allowed groups"
+          value={initial?.allowedGroupIds.length ?? 0}
+          icon={UsersRound}
+          tone="info"
+          index={2}
+        />
+        <StatTile
+          label="Recovery URL"
+          value={initial?.resetUrl ? "Set" : "Not set"}
+          icon={Link2}
+          tone={initial?.resetUrl ? "good" : "neutral"}
+          index={3}
+        />
+      </StatGrid>
+
+      <Panel
+        title="Identity connector"
+        description="Choose a provider, save its credentials, then test the connection."
+        icon={Lock}
+        delay={0.1}
+      >
         <ConnectorForm initial={initial} />
-      </div>
-    </section>
+      </Panel>
+    </AdminPage>
   );
 }

@@ -18,7 +18,7 @@ import { QUICK_SEARCHES, SEARCH_PROMPTS } from "@/components/home/home-copy";
 import {
   HowItWorks,
   QuickTips,
-  SystemStatusCard,
+  StillStuckCard,
 } from "@/components/home/dashboard-extras";
 import { ResultsNav } from "@/components/results-nav";
 import { filterIssues } from "@/lib/search";
@@ -514,7 +514,7 @@ export function HomePage({
                   <div className="mt-10 grid gap-5 md:grid-cols-2">
                     <HowItWorks className="hf-rise md:col-span-2" />
                     <QuickTips className="hf-rise" />
-                    <SystemStatusCard className="hf-rise" />
+                    <StillStuckCard className="hf-rise" />
                   </div>
                 )}
               </>

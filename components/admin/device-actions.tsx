@@ -8,6 +8,13 @@ import {
   revokeEnrollmentTokenAction,
 } from "@/app/actions/admin-devices";
 
+const SMALL_FIELD =
+  "h-9 min-w-0 rounded-xl border border-border bg-card px-3 text-xs font-semibold text-foreground shadow-sm transition-colors hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+const DANGER_BUTTON =
+  "inline-flex h-9 items-center gap-1.5 rounded-xl border border-status-danger/40 bg-status-danger/10 px-3 text-xs font-extrabold text-status-danger shadow-sm transition-colors hover:bg-status-danger/20 disabled:opacity-60";
+const PRIMARY_SMALL_BUTTON =
+  "inline-flex h-9 items-center gap-1.5 rounded-xl bg-primary px-3 text-xs font-extrabold text-primary-foreground shadow-sm transition-transform hover:-translate-y-px disabled:opacity-60";
+
 export function RevokeTokenButton({ id }: { id: string }) {
   const [pending, startTransition] = useTransition();
   const router = useRouter();
@@ -15,7 +22,7 @@ export function RevokeTokenButton({ id }: { id: string }) {
     <button
       type="button"
       disabled={pending}
-      className="glass-pill px-3 py-1 text-xs"
+      className={DANGER_BUTTON}
       onClick={() =>
         startTransition(async () => {
           await revokeEnrollmentTokenAction(id);
@@ -54,17 +61,18 @@ export function RevokeDeviceButton({ id }: { id: string }) {
         onChange={(event) => setReason(event.target.value)}
         placeholder="Reason"
         maxLength={500}
-        className="w-48 rounded-xl border border-border/70 bg-background/60 px-2 py-1 text-xs"
+        className={`w-48 ${SMALL_FIELD}`}
       />
-      <button
-        type="submit"
-        disabled={pending}
-        className="glass-pill px-3 py-1 text-xs"
-      >
+      <button type="submit" disabled={pending} className={DANGER_BUTTON}>
         {pending ? "Revoking…" : "Revoke"}
       </button>
       {message && (
-        <span className="text-xs text-muted-foreground">{message}</span>
+        <span
+          role="status"
+          className="hf-swap text-xs font-bold text-muted-foreground"
+        >
+          {message}
+        </span>
       )}
     </form>
   );
@@ -95,7 +103,7 @@ export function DeviceShadowReviewForm({ id }: { id: string }) {
       <select
         value={status}
         onChange={(event) => setStatus(event.target.value)}
-        className="rounded-xl border border-border/70 bg-background/60 px-2 py-1 text-xs"
+        className={SMALL_FIELD}
       >
         <option value="agree">Agree</option>
         <option value="disagree">Disagree</option>
@@ -106,17 +114,18 @@ export function DeviceShadowReviewForm({ id }: { id: string }) {
         onChange={(event) => setNote(event.target.value)}
         placeholder="Review note"
         maxLength={2000}
-        className="min-w-56 rounded-xl border border-border/70 bg-background/60 px-2 py-1 text-xs"
+        className={`min-w-56 flex-1 ${SMALL_FIELD}`}
       />
-      <button
-        type="submit"
-        disabled={pending}
-        className="glass-pill px-3 py-1 text-xs"
-      >
+      <button type="submit" disabled={pending} className={PRIMARY_SMALL_BUTTON}>
         {pending ? "Saving…" : "Save review"}
       </button>
       {message && (
-        <span className="text-xs text-muted-foreground">{message}</span>
+        <span
+          role="status"
+          className="hf-swap text-xs font-bold text-muted-foreground"
+        >
+          {message}
+        </span>
       )}
     </form>
   );

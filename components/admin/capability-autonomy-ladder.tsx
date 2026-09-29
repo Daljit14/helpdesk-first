@@ -2,19 +2,32 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { Layers, TrendingUp } from "lucide-react";
 import { setCapabilityTierAction } from "@/app/actions/admin-autonomy-ladder";
 import type { LadderCapability, LadderRow } from "@/lib/autonomy/ladder";
+import {
+  EmptyState,
+  StatusPill,
+  type StatTone,
+} from "@/components/admin/ui/admin-kit";
 
 type SerializableLadderRow = Omit<LadderRow, "capability"> & {
   capability: LadderCapability;
 };
 
-const tones = {
-  disabled: "border-muted-foreground/40 text-muted-foreground",
-  shadow: "border-violet-500/50 text-violet-700 dark:text-violet-300",
-  consent: "border-amber-500/50 text-amber-700 dark:text-amber-300",
-  autorun: "border-emerald-500/50 text-emerald-700 dark:text-emerald-300",
-} as const;
+const tones: Record<string, StatTone> = {
+  disabled: "neutral",
+  shadow: "info",
+  consent: "warn",
+  autorun: "good",
+};
+
+const FIELD =
+  "h-10 min-w-0 rounded-xl border border-border bg-card px-3 text-sm font-semibold text-foreground shadow-sm transition-colors hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60";
+const OUTLINE_BUTTON =
+  "inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-card px-4 text-sm font-extrabold text-foreground shadow-sm transition-all hover:-translate-y-px hover:border-primary/40 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0";
+const PRIMARY_BUTTON =
+  "inline-flex h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-extrabold text-primary-foreground shadow-sm transition-transform hover:-translate-y-px disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0";
 
 export function CapabilityAutonomyLadder({
   rows,
@@ -39,8 +52,8 @@ export function CapabilityAutonomyLadder({
       },
     }));
   return (
-    <div className="space-y-4">
-      {rows.map((row) => {
+    <div className="grid gap-4 xl:grid-cols-2">
+      {rows.map((row, index) => {
         const draft = drafts[row.capability.id] ?? {
           tier: row.tier,
           reason: "",
@@ -50,28 +63,61 @@ export function CapabilityAutonomyLadder({
           : 0;
         return (
           <article
-            className="glass-strong rounded-2xl p-4"
+            className="hf-adm-card hf-rise rounded-2xl border border-border bg-card/60 p-4"
+            style={{ animationDelay: `${Math.min(index, 12) * 0.05}s` }}
             key={row.capability.id}
           >
             <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <h3 className="font-semibold">{row.capability.description}</h3>
-                <p className="text-xs text-muted-foreground">
+              <div className="min-w-0">
+                <h3 className="font-extrabold">{row.capability.description}</h3>
+                <p className="font-mono text-xs text-muted-foreground">
                   {row.capability.id}
                 </p>
               </div>
-              <span
-                className={`rounded-full border px-2 py-1 text-xs font-medium ${tones[row.tier]}`}
+              <StatusPill
+                tone={tones[row.tier] ?? "neutral"}
+                pulse={row.tier === "autorun"}
               >
                 {row.tier}
+              </StatusPill>
+            </div>
+            <div className="mt-3 space-y-1.5">
+              <div className="flex justify-between text-xs font-bold text-muted-foreground">
+                <span>Verified: {percent}%</span>
+                <span>Live runs: {row.live_runs}</span>
+              </div>
+              <span className="block h-2 overflow-hidden rounded-full bg-muted">
+                <span
+                  className="hf-adm-grow block h-full rounded-full bg-status-success"
+                  style={{
+                    width: `${percent}%`,
+                    animationDelay: `${0.2 + Math.min(index, 12) * 0.05}s`,
+                  }}
+                />
               </span>
             </div>
-            <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-muted-foreground sm:grid-cols-5">
-              <span>Live runs: {row.live_runs}</span>
-              <span>Verified: {percent}%</span>
-              <span>Rollback failures: {row.rollback_failures}</span>
-              <span>Security incidents: {row.security_incidents}</span>
-              <span>Reversible: {row.reversible ? "yes" : "no"}</span>
+            <div className="mt-3 flex flex-wrap gap-1.5 text-xs font-bold">
+              <span
+                className={`rounded-full px-2.5 py-1 ${
+                  row.rollback_failures > 0
+                    ? "bg-status-warning/15 text-status-warning"
+                    : "bg-muted text-muted-foreground"
+                }`}
+              >
+                Rollback failures: {row.rollback_failures}
+              </span>
+              <span
+                className={`rounded-full px-2.5 py-1 ${
+                  row.security_incidents > 0
+                    ? "bg-status-danger/15 text-status-danger"
+                    : "bg-muted text-muted-foreground"
+                }`}
+              >
+                Security incidents: {row.security_incidents}
+              </span>
+              <span className="rounded-full bg-muted px-2.5 py-1 text-muted-foreground">
+                Reversible: {row.reversible ? "yes" : "no"}
+              </span>
             </div>
             <div className="mt-4 flex flex-col gap-2 sm:flex-row">
               <select
@@ -81,7 +127,7 @@ export function CapabilityAutonomyLadder({
                 onChange={(event) =>
                   updateDraft(row.capability.id, { tier: event.target.value })
                 }
-                className="rounded-lg border bg-background px-2 py-2 text-sm"
+                className={FIELD}
               >
                 {(["disabled", "shadow", "consent"] as const).map((tier) => (
                   <option key={tier}>{tier}</option>
@@ -94,7 +140,7 @@ export function CapabilityAutonomyLadder({
                   updateDraft(row.capability.id, { reason: event.target.value })
                 }
                 placeholder="Reason (required)"
-                className="min-w-0 flex-1 rounded-lg border bg-background px-3 py-2 text-sm"
+                className={`${FIELD} flex-1`}
               />
               <button
                 type="button"
@@ -109,7 +155,7 @@ export function CapabilityAutonomyLadder({
                     if (!("error" in result)) router.refresh();
                   })
                 }
-                className="rounded-lg border px-3 py-2 text-sm"
+                className={OUTLINE_BUTTON}
               >
                 Save
               </button>
@@ -128,8 +174,9 @@ export function CapabilityAutonomyLadder({
                   if (!("error" in result)) router.refresh();
                 })
               }
-              className="mt-3 rounded-lg bg-foreground px-3 py-2 text-sm text-background disabled:cursor-not-allowed disabled:opacity-40"
+              className={`${PRIMARY_BUTTON} mt-3`}
             >
+              <TrendingUp className="h-4 w-4" aria-hidden />
               Promote to autorun
             </button>
             {!row.promotion.eligible && (
@@ -143,9 +190,13 @@ export function CapabilityAutonomyLadder({
         );
       })}
       {rows.length === 0 && (
-        <p className="text-sm text-muted-foreground">
-          No enabled write capabilities are configured.
-        </p>
+        <div className="xl:col-span-2">
+          <EmptyState
+            icon={Layers}
+            title="No capabilities on the ladder"
+            body="No enabled write capabilities are configured."
+          />
+        </div>
       )}
     </div>
   );

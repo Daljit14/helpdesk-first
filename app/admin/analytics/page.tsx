@@ -6,21 +6,20 @@ import {
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
-  title: "Operations",
+  title: "Analytics and Trust Center",
   robots: { index: false, follow: false },
 };
 
-export default async function OperationsPage({
+export default async function AnalyticsPage({
   searchParams,
 }: {
   searchParams: Promise<OperationsSearchParams>;
 }) {
-  const params = await searchParams;
   return (
     <OperationsView
-      path="/admin/operations"
-      initialTab={params.queue ? "tickets" : "overview"}
-      params={params}
+      path="/admin/analytics"
+      initialTab="analytics"
+      params={await searchParams}
     />
   );
 }

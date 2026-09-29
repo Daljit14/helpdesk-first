@@ -1,7 +1,37 @@
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Lock, MessageSquare } from "lucide-react";
+import {
+  Activity,
+  AlertTriangle,
+  ArrowLeft,
+  Bot,
+  CheckCircle2,
+  Clock,
+  Cpu,
+  FileText,
+  History,
+  Laptop,
+  Lock,
+  MessageSquare,
+  Paperclip,
+  ShieldCheck,
+  Sparkles,
+  Ticket,
+  Timer,
+  UserRound,
+} from "lucide-react";
+import {
+  AdminHero,
+  AdminPage,
+  EmptyState,
+  HeroChip,
+  Panel,
+  StatusPill,
+  heroButton,
+  type StatTone,
+} from "@/components/admin/ui/admin-kit";
 import { TicketUpdateForm } from "@/components/admin/ticket-update-form";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAudit, requireAdminPage } from "@/lib/admin/auth";
@@ -121,50 +151,206 @@ function verificationExceptionDetails(report: unknown) {
   return { method, reason };
 }
 
-function statusTone(status: string) {
+/** Aurora tone for a ticket status (matches the admin ticket queue). */
+function statusTone(status: string): StatTone {
   switch (status) {
     case "New":
     case "AI Reviewing":
     case "AI Resolving":
-      return "bg-indigo-500/15 text-indigo-700 dark:text-indigo-200";
+      return "primary";
     case "Needs Human":
-      return "bg-amber-500/15 text-amber-800 dark:text-amber-200";
+    case "Reopened":
+      return "warn";
     case "In Progress":
-      return "bg-sky-500/15 text-sky-800 dark:text-sky-200";
+    case "Pending Verification":
+      return "info";
+    case "Resolved":
+      return "good";
     case "Waiting":
     case "Waiting for User":
-      return "bg-violet-500/15 text-violet-800 dark:text-violet-200";
-    case "Pending Verification":
-      return "bg-teal-500/15 text-teal-800 dark:text-teal-200";
-    case "Resolved":
-      return "bg-emerald-500/15 text-emerald-800 dark:text-emerald-200";
     case "Closed":
-      return "bg-muted text-muted-foreground";
     default:
-      return "bg-muted text-muted-foreground";
+      return "neutral";
   }
 }
 
-function priorityTone(priority: string) {
+function priorityTone(priority: string): StatTone {
   switch (priority) {
     case "Urgent":
-      return "bg-red-500/15 text-red-800 dark:text-red-200";
+      return "danger";
     case "High":
-      return "bg-orange-500/15 text-orange-800 dark:text-orange-200";
-    case "Low":
-      return "bg-slate-500/15 text-slate-700 dark:text-slate-200";
-    case "Normal":
+      return "warn";
     default:
-      return "bg-muted text-muted-foreground";
+      return "neutral";
   }
+}
+
+function formatWhen(value: string) {
+  return new Date(value).toLocaleString();
+}
+
+function formatDuration(ms: number) {
+  const minutes = Math.max(0, Math.round(Math.abs(ms) / 60_000));
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ${minutes % 60}m`;
+  return `${Math.floor(hours / 24)}d ${hours % 24}h`;
+}
+
+type SlaSnapshot = {
+  state: "Breached" | "Due <1h" | "On track" | "Met" | "Missed";
+  tone: StatTone;
+  countdown: string;
+  progress: number;
+};
+
+/**
+ * SLA state for the ticket. Lives outside the component so the clock read
+ * stays out of render (React purity lint).
+ */
+function slaSnapshot(
+  createdAt: string,
+  due: string,
+  status: string,
+  finishedAt: string | null
+): SlaSnapshot {
+  const created = Date.parse(createdAt);
+  const dueAt = Date.parse(due);
+  const done = status === "Resolved" || status === "Closed";
+  const end = done && finishedAt ? Date.parse(finishedAt) : Date.now();
+  const remaining = dueAt - end;
+  const progress = Math.min(
+    1,
+    Math.max(0, (end - created) / Math.max(1, dueAt - created))
+  );
+  if (done) {
+    return remaining >= 0
+      ? {
+          state: "Met",
+          tone: "good",
+          countdown: "Resolved within SLA",
+          progress,
+        }
+      : {
+          state: "Missed",
+          tone: "danger",
+          countdown: `Resolved ${formatDuration(remaining)} late`,
+          progress,
+        };
+  }
+  if (remaining < 0)
+    return {
+      state: "Breached",
+      tone: "danger",
+      countdown: `Overdue by ${formatDuration(remaining)}`,
+      progress,
+    };
+  if (remaining < 60 * 60 * 1000)
+    return {
+      state: "Due <1h",
+      tone: "warn",
+      countdown: `${formatDuration(remaining)} left`,
+      progress,
+    };
+  return {
+    state: "On track",
+    tone: "good",
+    countdown: `${formatDuration(remaining)} left`,
+    progress,
+  };
+}
+
+const SLA_BAR: Record<StatTone, string> = {
+  primary: "hf-adm-bar",
+  good: "bg-status-success",
+  warn: "bg-status-warning",
+  danger: "bg-status-danger",
+  info: "bg-status-info",
+  neutral: "bg-muted-foreground",
+};
+
+/** Wrapper for self-styled child cards: drops their own top margin. */
+const embedClass = "hf-rise min-w-0 [&>*]:mt-0!";
+
+/** Vertical animated timeline (dot + connecting line). */
+function TimelineList({
+  items,
+  empty,
+}: {
+  items: {
+    key: string;
+    title: ReactNode;
+    detail?: ReactNode;
+    when: string;
+    tone?: StatTone;
+  }[];
+  empty: string;
+}) {
+  if (items.length === 0)
+    return <p className="text-sm text-muted-foreground">{empty}</p>;
+  const dot: Record<StatTone, string> = {
+    primary: "bg-primary",
+    good: "bg-status-success",
+    warn: "bg-status-warning",
+    danger: "bg-status-danger",
+    info: "bg-status-info",
+    neutral: "bg-muted-foreground",
+  };
+  return (
+    <ol className="relative">
+      {items.map((item, index) => (
+        <li
+          key={item.key}
+          className="hf-rise relative flex gap-3 pb-5 text-sm last:pb-0"
+          style={{ animationDelay: `${0.05 + Math.min(index, 12) * 0.05}s` }}
+        >
+          {index < items.length - 1 && (
+            <span
+              aria-hidden
+              className="absolute left-[7px] top-4 h-full w-px bg-border"
+            />
+          )}
+          <span
+            aria-hidden
+            className="relative mt-1 flex h-[15px] w-[15px] shrink-0 items-center justify-center rounded-full bg-card ring-2 ring-border"
+          >
+            <span
+              className={`h-[7px] w-[7px] rounded-full ${dot[item.tone ?? "primary"]}`}
+            />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="font-extrabold">{item.title}</p>
+            {item.detail && (
+              <p className="mt-0.5 break-words text-muted-foreground">
+                {item.detail}
+              </p>
+            )}
+            <p className="mt-0.5 text-xs font-semibold text-muted-foreground">
+              {formatWhen(item.when)}
+            </p>
+          </div>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function eventTone(value: string | null | undefined): StatTone {
+  if (!value) return "primary";
+  if (/resolv|closed|verified|passed/i.test(value)) return "good";
+  if (/escalat|breach|fail|reopen/i.test(value)) return "warn";
+  return "primary";
 }
 
 function TicketAccessDenied() {
   return (
     <section className="flex flex-1 items-center justify-center px-4 py-12 sm:px-6">
-      <div className="glass-strong w-full max-w-xl space-y-5 p-6">
+      <div className="glass-strong hf-rise w-full max-w-xl space-y-5 p-6">
+        <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-status-warning/15 text-status-warning">
+          <AlertTriangle className="h-6 w-6" aria-hidden />
+        </span>
         <div>
-          <h1 className="text-2xl font-semibold">
+          <h1 className="text-2xl font-extrabold">
             This ticket isn&apos;t in your organization or isn&apos;t assigned
             to you.
           </h1>
@@ -175,8 +361,9 @@ function TicketAccessDenied() {
         </div>
         <Link
           href="/admin/tickets"
-          className="inline-flex rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
+          className="inline-flex h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-extrabold text-primary-foreground shadow-sm transition-transform hover:-translate-y-px disabled:opacity-60"
         >
+          <ArrowLeft className="h-4 w-4" aria-hidden />
           Back to tickets
         </Link>
       </div>
@@ -437,215 +624,349 @@ export default async function AdminTicketPage({
     }
   }
 
+  const sla = slaSnapshot(
+    ticket.created_at,
+    due,
+    status,
+    ticket.resolved_at ?? ticket.closed_at ?? null
+  );
+  const platformLabel = normalizePlatform(ticket.platform);
+  const categoryText = ticket.category ?? categoryLabel(ticket.issue_id);
+  const publicComments = (comments ?? []).filter(
+    (comment) => comment.visibility === "public"
+  );
+  const internalComments = (comments ?? []).filter(
+    (comment) => comment.visibility === "internal"
+  );
+  const attachmentControls = Object.fromEntries(
+    secureAttachments.map((attachment) => [
+      attachment.id,
+      <AdminAttachmentControls
+        key={`controls-${attachment.id}`}
+        attachment={attachment}
+      />,
+    ])
+  );
+
   return (
-    <section className="flex flex-1 flex-col px-4 py-10 sm:px-6 lg:px-8">
-      <div className="mx-auto w-full max-w-7xl">
-        {uiV2 && (
-          <AdminBreadcrumbs
-            items={[
-              { label: "Operations", href: "/admin/operations" },
-              { label: "Ticket queue", href: "/admin/operations#tickets" },
-              { label: toTicketId(ticket.id) },
-            ]}
+    <AdminPage>
+      {uiV2 && (
+        <AdminBreadcrumbs
+          items={[
+            { label: "Operations", href: "/admin/operations" },
+            { label: "Ticket queue", href: "/admin/tickets" },
+            { label: toTicketId(ticket.id) },
+          ]}
+        />
+      )}
+      <AdminHero
+        tone="aurora"
+        icon={Ticket}
+        eyebrow={<span className="font-mono">{toTicketId(ticket.id)}</span>}
+        title={ticket.issue_title}
+        description={`${categoryText} · ${platformLabel} · Created ${formatWhen(ticket.created_at)}`}
+        actions={
+          <Link href="/admin/tickets" className={heroButton}>
+            <ArrowLeft className="h-4 w-4" aria-hidden />
+            Ticket queue
+          </Link>
+        }
+      >
+        <div className="flex flex-wrap gap-2">
+          <HeroChip label="Status" value={status} />
+          <HeroChip label="Priority" value={priority} />
+          <HeroChip
+            label="SLA"
+            value={`${sla.state} · ${sla.countdown}`}
+            pulse={sla.state === "On track" || sla.state === "Due <1h"}
           />
-        )}
-        <p className="font-mono text-sm text-muted-foreground">
-          {toTicketId(ticket.id)}
-        </p>
-        <h1 className="mt-2 text-3xl font-bold">{ticket.issue_title}</h1>
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <RecordExclusionControl
-            table="tickets"
-            recordId={uuid}
-            canExclude={session.role === "org_admin"}
-            excluded={excluded}
+          <HeroChip
+            label="Assigned"
+            value={ticket.assigned_agent ?? "Unassigned"}
           />
         </div>
-        {uiV2 && (
-          <nav
-            aria-label="Ticket sections"
-            className="mt-6 overflow-x-auto rounded-2xl border border-border bg-card p-4 lg:sticky lg:top-24 lg:z-10"
-          >
-            <ol className="flex min-w-max gap-4 text-sm lg:flex-wrap">
-              {[
-                ["User problem", "user-problem"],
-                ["Device and platform", "device-platform"],
-                ["Investigation and evidence", "investigation"],
-                ["Diagnosis package", "diagnosis"],
-                ["Likely causes and confidence", "classification"],
-                ["Questions and answers", "questions"],
-                ["Steps attempted and outcomes", "step-outcomes"],
-                ["Withheld/restricted steps", "restricted-steps"],
-                ["Public conversation", "public-conversation"],
-                ["Internal notes", "internal-notes"],
-                ["Attachments", "attachments"],
-                ["Tools and actions used", "tools-actions"],
-                ["Assignment and SLA", "assignment-sla"],
-                ["Resolution and verification", "resolution"],
-                ["Activity timeline", "timeline"],
-              ].map(([label, id], index) => (
-                <li key={id}>
-                  <a
-                    href={`#${id}`}
-                    className="underline-offset-4 hover:underline"
-                  >
-                    {index + 1}. {label}
-                  </a>
-                </li>
-              ))}
-            </ol>
-          </nav>
-        )}
-        <div
-          id={uiV2 ? "assignment-sla" : undefined}
-          className="glass mt-6 grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-3"
+      </AdminHero>
+
+      {uiV2 && (
+        <nav
+          aria-label="Ticket sections"
+          className="glass hf-rise overflow-x-auto p-3"
+          style={{ animationDelay: "0.05s" }}
         >
-          <p className="flex items-center gap-2">
-            <span>Status:</span>
-            <span
-              className={
-                uiV2
-                  ? "v2-badge bg-muted text-foreground"
-                  : `glass-pill px-2 py-1 text-xs ${statusTone(status)}`
-              }
-            >
-              {status}
-            </span>
-          </p>
-          <p className="flex items-center gap-2">
-            <span>Priority:</span>
-            <span
-              className={`glass-pill px-2 py-1 text-xs ${priorityTone(priority)}`}
-            >
-              {priority}
-            </span>
-          </p>
-          <p>Category: {ticket.category ?? categoryLabel(ticket.issue_id)}</p>
-          <p>Platform: {normalizePlatform(ticket.platform)}</p>
-          <p>Agent: {ticket.assigned_agent ?? "Unassigned"}</p>
-          <p>SLA due: {new Date(due).toLocaleString()}</p>
-          <p>Created: {new Date(ticket.created_at).toLocaleString()}</p>
-          <p>
-            Updated:{" "}
-            {new Date(ticket.updated_at ?? ticket.created_at).toLocaleString()}
-          </p>
-        </div>
-        <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
-          <div className="min-w-0 space-y-6">
-            <div id={uiV2 ? "user-problem" : undefined} className="glass p-5">
-              <h2 className="font-semibold">Description</h2>
-              <p className="mt-3 whitespace-pre-wrap text-muted-foreground">
-                {ticket.message}
-              </p>
-              {!secureAttachmentsEnabled && attachmentUrl && (
+          <ol className="flex min-w-max gap-2 text-xs font-bold xl:min-w-0 xl:flex-wrap">
+            {[
+              ["User problem", "user-problem"],
+              ["Device and platform", "device-platform"],
+              ["Investigation and evidence", "investigation"],
+              ["Diagnosis package", "diagnosis"],
+              ["Likely causes and confidence", "classification"],
+              ["Questions and answers", "questions"],
+              ["Steps attempted and outcomes", "step-outcomes"],
+              ["Withheld/restricted steps", "restricted-steps"],
+              ["Public conversation", "public-conversation"],
+              ["Internal notes", "internal-notes"],
+              ["Attachments", "attachments"],
+              ["Tools and actions used", "tools-actions"],
+              ["Assignment and SLA", "assignment-sla"],
+              ["Resolution and verification", "resolution"],
+              ["Activity timeline", "timeline"],
+            ].map(([label, id], index) => (
+              <li key={id}>
                 <a
-                  href={attachmentUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-4 inline-block underline underline-offset-4"
+                  href={`#${id}`}
+                  className="inline-flex items-center rounded-full border border-border bg-card px-3 py-1.5 transition-colors hover:border-primary/40 hover:bg-muted/60"
                 >
-                  Open attachment (link valid 60 s)
+                  {index + 1}. {label}
                 </a>
-              )}
+              </li>
+            ))}
+          </ol>
+        </nav>
+      )}
+
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_400px] xl:items-start">
+        {/* Main column */}
+        <div className="flex min-w-0 flex-col gap-5">
+          <Panel
+            id={uiV2 ? "user-problem" : undefined}
+            title="Description"
+            icon={FileText}
+            delay={0.05}
+          >
+            <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-muted-foreground">
+              {ticket.message}
+            </p>
+            <div
+              id={uiV2 ? "device-platform" : undefined}
+              className="mt-4 flex flex-wrap items-center gap-2 text-xs font-bold"
+            >
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-1 text-muted-foreground">
+                <Laptop className="h-3.5 w-3.5" aria-hidden />
+                {platformLabel}
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-1 text-muted-foreground">
+                <Sparkles className="h-3.5 w-3.5" aria-hidden />
+                {categoryText}
+              </span>
             </div>
-            {secureAttachmentsEnabled &&
-              (uiV2 ? (
-                <div id="attachments">
-                  <AttachmentList
-                    attachments={secureAttachments}
-                    adminControls={Object.fromEntries(
-                      secureAttachments.map((attachment) => [
-                        attachment.id,
-                        <AdminAttachmentControls
-                          key={`controls-${attachment.id}`}
-                          attachment={attachment}
-                        />,
-                      ])
-                    )}
+            {!secureAttachmentsEnabled && attachmentUrl && (
+              <a
+                href={attachmentUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-4 inline-flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-sm font-bold underline-offset-4 transition-colors hover:border-primary/40 hover:underline"
+              >
+                <Paperclip className="h-4 w-4" aria-hidden />
+                Open attachment (link valid 60 s)
+              </a>
+            )}
+          </Panel>
+
+          {workflowEnabled && (
+            <>
+              <Panel
+                id={uiV2 ? "public-conversation" : undefined}
+                title="Conversation"
+                description="Messages the requester can see"
+                icon={MessageSquare}
+                delay={0.08}
+              >
+                {publicComments.length === 0 ? (
+                  <EmptyState
+                    icon={MessageSquare}
+                    title="No public messages yet"
+                  />
+                ) : (
+                  <div className="space-y-3">
+                    {publicComments.map((comment, index) => {
+                      const fromRequester = comment.author_type === "user";
+                      const AuthorIcon =
+                        comment.author_type === "ai" ||
+                        comment.author_type === "assistant"
+                          ? Bot
+                          : UserRound;
+                      return (
+                        <div
+                          key={comment.id}
+                          className={`hf-rise flex items-start gap-2.5 ${
+                            fromRequester ? "" : "flex-row-reverse"
+                          }`}
+                          style={{
+                            animationDelay: `${0.1 + Math.min(index, 10) * 0.04}s`,
+                          }}
+                        >
+                          <span
+                            aria-hidden
+                            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
+                              fromRequester
+                                ? "bg-muted text-muted-foreground"
+                                : "bg-secondary text-secondary-foreground"
+                            }`}
+                          >
+                            <AuthorIcon className="h-4 w-4" aria-hidden />
+                          </span>
+                          <div
+                            className={`min-w-0 max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm ${
+                              fromRequester
+                                ? "rounded-tl-md bg-muted/70"
+                                : "rounded-tr-md bg-primary/10"
+                            }`}
+                          >
+                            <p className="whitespace-pre-wrap break-words">
+                              <strong>{comment.author_type}:</strong>{" "}
+                              {comment.message}
+                            </p>
+                            <p className="mt-1 text-[11px] font-semibold text-muted-foreground">
+                              {formatWhen(comment.created_at)}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </Panel>
+
+              <section
+                id={uiV2 ? "internal-notes" : undefined}
+                aria-describedby={
+                  uiV2 ? "internal-notes-description" : undefined
+                }
+                className="glass hf-rise overflow-hidden border-dashed border-status-warning/40 bg-status-warning/5 p-5 sm:px-6"
+                style={{ animationDelay: "0.1s" }}
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="flex min-w-0 items-start gap-3">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-status-warning/15 text-status-warning">
+                      <Lock className="h-4 w-4" aria-hidden />
+                    </span>
+                    <div className="min-w-0">
+                      <h2 className="text-lg font-extrabold">Internal notes</h2>
+                      <p
+                        id={uiV2 ? "internal-notes-description" : undefined}
+                        className="text-sm text-muted-foreground"
+                      >
+                        Internal — not visible to user
+                      </p>
+                    </div>
+                  </div>
+                  <StatusPill tone="warn">Private — staff only</StatusPill>
+                </div>
+                <div className="mt-4 space-y-3">
+                  {internalComments.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      No internal notes yet.
+                    </p>
+                  ) : (
+                    internalComments.map((comment) => (
+                      <div
+                        key={comment.id}
+                        className="rounded-2xl border border-status-warning/25 bg-status-warning/10 p-3 text-sm"
+                      >
+                        <p className="whitespace-pre-wrap break-words">
+                          {comment.message}
+                        </p>
+                        <p className="mt-1 text-[11px] font-semibold text-muted-foreground">
+                          {formatWhen(comment.created_at)}
+                        </p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </section>
+
+              {investigation && (
+                <div
+                  id={uiV2 ? "investigation" : undefined}
+                  className={embedClass}
+                  style={{ animationDelay: "0.12s" }}
+                >
+                  <TicketInvestigation
+                    investigation={investigation.investigation}
+                    turns={investigation.turns}
                   />
                 </div>
-              ) : (
-                <AttachmentList
-                  attachments={secureAttachments}
-                  adminControls={Object.fromEntries(
-                    secureAttachments.map((attachment) => [
-                      attachment.id,
-                      <AdminAttachmentControls
-                        key={`controls-${attachment.id}`}
-                        attachment={attachment}
-                      />,
-                    ])
-                  )}
-                />
-              ))}
-            {workflowEnabled && (
-              <>
+              )}
+
+              {escalationPackage && (
                 <div
-                  id={uiV2 ? "classification" : undefined}
-                  className="glass grid gap-4 p-5 sm:grid-cols-2"
+                  id={uiV2 ? "diagnosis" : undefined}
+                  className={embedClass}
+                  style={{ animationDelay: "0.14s" }}
                 >
-                  <h2 className="font-semibold sm:col-span-2">
-                    AI classification
-                  </h2>
-                  <p>
-                    Recommended guide: {ticket.ai_recommended_issue_id ?? "—"}
-                  </p>
-                  {citation && <p>Guide version: v{citation.version}</p>}
-                  <p>Confidence: {ticket.ai_confidence ?? "—"}</p>
-                  <p>Risk: {ticket.ai_risk_level ?? "—"}</p>
-                  <p>
-                    Handoff reason:{" "}
-                    {formatHandoffReason(ticket.handoff_reason ?? null) ?? "—"}
-                  </p>
-                  <p>
-                    AI attempts: {ticket.ai_failed_attempts ?? 0} failed of 2
-                  </p>
-                  <p>
-                    Diagnostic questions asked: {ticket.ai_question_count ?? 0}
-                  </p>
-                  <p
-                    id={uiV2 ? "questions" : undefined}
-                    className="sm:col-span-2"
-                  >
-                    Diagnostic answers:{" "}
-                    {Array.isArray(ticket.diagnostic_answers) &&
-                    ticket.diagnostic_answers.length === 0
-                      ? "None recorded"
-                      : JSON.stringify(ticket.diagnostic_answers ?? [])}
-                  </p>
+                  <EscalationPackageCard
+                    pkg={escalationPackage}
+                    snapshotAt={escalationSnapshotAt}
+                  />
                 </div>
-                {escalationPackage &&
-                  (uiV2 ? (
-                    <div id="diagnosis">
-                      <EscalationPackageCard
-                        pkg={escalationPackage}
-                        snapshotAt={escalationSnapshotAt}
-                      />
+              )}
+
+              <Panel
+                id={uiV2 ? "classification" : undefined}
+                title="AI classification"
+                icon={Cpu}
+                delay={0.16}
+              >
+                <dl className="grid gap-3 text-sm sm:grid-cols-2">
+                  {[
+                    [
+                      "Recommended guide:",
+                      ticket.ai_recommended_issue_id ?? "—",
+                    ],
+                    ...(citation
+                      ? [["Guide version:", `v${citation.version}`]]
+                      : []),
+                    ["Confidence:", String(ticket.ai_confidence ?? "—")],
+                    ["Risk:", ticket.ai_risk_level ?? "—"],
+                    [
+                      "Handoff reason:",
+                      formatHandoffReason(ticket.handoff_reason ?? null) ?? "—",
+                    ],
+                    [
+                      "AI attempts:",
+                      `${ticket.ai_failed_attempts ?? 0} failed of 2`,
+                    ],
+                    [
+                      "Diagnostic questions asked:",
+                      String(ticket.ai_question_count ?? 0),
+                    ],
+                  ].map(([label, value]) => (
+                    <div
+                      key={label}
+                      className="rounded-2xl border border-border bg-card/60 p-3"
+                    >
+                      <dt className="text-xs font-bold text-muted-foreground">
+                        {label}
+                      </dt>
+                      <dd className="mt-0.5 break-words font-extrabold">
+                        {value}
+                      </dd>
                     </div>
-                  ) : (
-                    <EscalationPackageCard
-                      pkg={escalationPackage}
-                      snapshotAt={escalationSnapshotAt}
-                    />
                   ))}
-                {investigation &&
-                  (uiV2 ? (
-                    <div id="investigation">
-                      <TicketInvestigation
-                        investigation={investigation.investigation}
-                        turns={investigation.turns}
-                      />
-                    </div>
-                  ) : (
-                    <TicketInvestigation
-                      investigation={investigation.investigation}
-                      turns={investigation.turns}
-                    />
-                  ))}
-                {agentSession && (
-                  <div className="glass p-5">
-                    <h2 className="font-semibold">Agent session</h2>
-                    <p className="mt-1 text-sm text-muted-foreground">
+                  <div
+                    id={uiV2 ? "questions" : undefined}
+                    className="rounded-2xl border border-border bg-card/60 p-3 sm:col-span-2"
+                  >
+                    <dt className="text-xs font-bold text-muted-foreground">
+                      Diagnostic answers:
+                    </dt>
+                    <dd className="mt-0.5 break-words font-mono text-xs">
+                      {Array.isArray(ticket.diagnostic_answers) &&
+                      ticket.diagnostic_answers.length === 0
+                        ? "None recorded"
+                        : JSON.stringify(ticket.diagnostic_answers ?? [])}
+                    </dd>
+                  </div>
+                </dl>
+              </Panel>
+
+              {agentSession && (
+                <Panel
+                  title="Agent session"
+                  icon={Bot}
+                  delay={0.18}
+                  description={
+                    <>
                       Actions proposed:{" "}
                       {
                         agentSession.steps.filter(
@@ -670,166 +991,120 @@ export default async function AdminTicketPage({
                               .includes("passed")
                         ).length
                       }
-                    </p>
-                    <div className="mt-3 space-y-2 text-sm">
-                      {agentSession.steps.length === 0 ? (
-                        <p className="text-muted-foreground">
-                          No agent steps recorded.
-                        </p>
-                      ) : (
-                        agentSession.steps.map((step, index) => (
-                          <div
-                            key={`${step.kind}-${step.created_at}-${index}`}
-                            className="rounded-xl border border-border/60 p-3"
-                          >
-                            <p className="font-medium">
-                              {agentStepLabels[step.kind] ?? step.kind}
-                              {step.tool_name ? ` · ${step.tool_name}` : ""}
-                            </p>
-                            {step.result_summary && (
-                              <p className="mt-1 text-muted-foreground">
-                                {step.result_summary}
-                              </p>
-                            )}
-                            <p className="mt-1 text-xs text-muted-foreground">
-                              {new Date(step.created_at).toLocaleString()}
-                            </p>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                )}
-                {uiV2 && (
-                  <div id="restricted-steps" className="glass p-5">
-                    <h2 className="font-semibold">Withheld/restricted steps</h2>
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      No restricted steps are recorded for this ticket.
-                    </p>
-                  </div>
-                )}
-                <div
-                  id={uiV2 ? "step-outcomes" : undefined}
-                  className="glass p-5"
-                >
-                  <h2 className="font-semibold">Step outcomes</h2>
-                  <ul className="mt-3 space-y-2 text-sm">
-                    {(stepOutcomes ?? []).length === 0 ? (
-                      <li className="text-muted-foreground">
-                        No outcomes recorded.
-                      </li>
-                    ) : (
-                      (stepOutcomes ?? []).map((outcome) => (
-                        <li key={`${outcome.guide_slug}-${outcome.step_index}`}>
-                          Step {outcome.step_index + 1} → {outcome.outcome} ·{" "}
-                          {new Date(outcome.created_at).toLocaleString()}
-                        </li>
-                      ))
-                    )}
-                  </ul>
-                </div>
-                <div
-                  id={uiV2 ? "public-conversation" : undefined}
-                  className="glass p-5"
-                >
-                  <h2
-                    className={
-                      uiV2
-                        ? "flex items-center gap-2 font-semibold"
-                        : "font-semibold"
-                    }
-                  >
-                    {uiV2 && <MessageSquare className="h-4 w-4" aria-hidden />}
-                    Conversation
-                  </h2>
-                  <div className="mt-3 space-y-3">
-                    {(comments ?? [])
-                      .filter((comment) => comment.visibility === "public")
-                      .map((comment) => (
-                        <p
-                          key={comment.id}
-                          className="rounded-2xl bg-muted/60 p-3"
-                        >
-                          <strong>{comment.author_type}:</strong>{" "}
-                          {comment.message}
-                        </p>
-                      ))}
-                  </div>
-                </div>
-                <div
-                  id={uiV2 ? "internal-notes" : undefined}
-                  className={`glass ${
-                    uiV2
-                      ? "border-dashed border-border bg-muted/30 p-5"
-                      : "border-amber-500/30 bg-amber-500/10 p-5"
-                  }`}
-                  aria-describedby={
-                    uiV2 ? "internal-notes-description" : undefined
+                    </>
                   }
                 >
-                  <div className="flex items-center justify-between gap-3">
-                    <h2
-                      className={
-                        uiV2
-                          ? "flex items-center gap-2 font-semibold"
-                          : "font-semibold"
-                      }
-                    >
-                      {uiV2 && <Lock className="h-4 w-4" aria-hidden />}
-                      Internal notes
-                    </h2>
-                    <span
-                      className={
-                        uiV2
-                          ? "glass-pill px-3 py-1 text-xs"
-                          : "glass-pill bg-amber-500/15 px-3 py-1 text-xs text-amber-800 dark:text-amber-200"
-                      }
-                    >
-                      Private — staff only
-                    </span>
-                  </div>
-                  <p
-                    id={uiV2 ? "internal-notes-description" : undefined}
-                    className={
-                      uiV2
-                        ? "mt-1 text-sm text-muted-foreground"
-                        : "mt-1 text-sm text-amber-800 dark:text-amber-200"
-                    }
-                  >
-                    Internal — not visible to user
-                  </p>
-                  <div className="mt-3 space-y-3">
-                    {(comments ?? [])
-                      .filter((comment) => comment.visibility === "internal")
-                      .map((comment) => (
-                        <p
-                          key={comment.id}
-                          className="rounded-2xl bg-amber-500/10 p-3"
-                        >
-                          {comment.message}
-                        </p>
-                      ))}
-                  </div>
-                </div>
-                <div
-                  id={uiV2 ? "tools-actions" : undefined}
-                  className="glass p-5"
-                >
-                  <h2 className="font-semibold">System activity</h2>
-                  <ul className="mt-3 space-y-2 text-sm">
-                    {(workflowEvents ?? []).map((event) => (
-                      <li key={event.id}>
-                        {event.event_type} ·{" "}
-                        {new Date(event.created_at).toLocaleString()}
+                  <TimelineList
+                    empty="No agent steps recorded."
+                    items={agentSession.steps.map((step, index) => ({
+                      key: `${step.kind}-${step.created_at}-${index}`,
+                      title: `${agentStepLabels[step.kind] ?? step.kind}${
+                        step.tool_name ? ` · ${step.tool_name}` : ""
+                      }`,
+                      detail: step.result_summary ?? undefined,
+                      when: step.created_at,
+                      tone: eventTone(step.result_summary ?? step.kind),
+                    }))}
+                  />
+                </Panel>
+              )}
+
+              <Panel
+                id={uiV2 ? "step-outcomes" : undefined}
+                title="Step outcomes"
+                icon={CheckCircle2}
+                delay={0.2}
+              >
+                <ul className="space-y-2 text-sm">
+                  {(stepOutcomes ?? []).length === 0 ? (
+                    <li className="text-muted-foreground">
+                      No outcomes recorded.
+                    </li>
+                  ) : (
+                    (stepOutcomes ?? []).map((outcome, index) => (
+                      <li
+                        key={`${outcome.guide_slug}-${outcome.step_index}`}
+                        className="hf-adm-row flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-border bg-card/60 px-3 py-2"
+                        style={{
+                          animationDelay: `${Math.min(index, 10) * 0.04}s`,
+                        }}
+                      >
+                        <span className="font-bold">
+                          Step {outcome.step_index + 1} → {outcome.outcome} ·{" "}
+                          <span className="font-semibold text-muted-foreground">
+                            {formatWhen(outcome.created_at)}
+                          </span>
+                        </span>
+                        <StatusPill tone={eventTone(outcome.outcome)}>
+                          {outcome.outcome}
+                        </StatusPill>
                       </li>
-                    ))}
-                  </ul>
-                </div>
-                <div className="glass p-5">
-                  <h2 className="font-semibold">Tools &amp; actions</h2>
-                  <ul className="mt-3 space-y-2 text-sm">
-                    {(actions ?? []).map((action) => (
-                      <li key={action.id}>
+                    ))
+                  )}
+                </ul>
+              </Panel>
+
+              {uiV2 && (
+                <Panel
+                  id="restricted-steps"
+                  title="Withheld/restricted steps"
+                  icon={ShieldCheck}
+                  delay={0.22}
+                >
+                  <p className="text-sm text-muted-foreground">
+                    No restricted steps are recorded for this ticket.
+                  </p>
+                </Panel>
+              )}
+            </>
+          )}
+
+          {secureAttachmentsEnabled && (
+            <div
+              id={uiV2 ? "attachments" : undefined}
+              className={embedClass}
+              style={{ animationDelay: "0.24s" }}
+            >
+              <AttachmentList
+                attachments={secureAttachments}
+                adminControls={attachmentControls}
+              />
+            </div>
+          )}
+
+          {workflowEnabled && (
+            <>
+              <Panel
+                id={uiV2 ? "tools-actions" : undefined}
+                title="System activity"
+                icon={Activity}
+                delay={0.26}
+              >
+                <TimelineList
+                  empty="No system activity recorded."
+                  items={(workflowEvents ?? []).map((event) => ({
+                    key: String(event.id),
+                    title: event.event_type,
+                    when: event.created_at,
+                    tone: eventTone(event.event_type),
+                  }))}
+                />
+              </Panel>
+              <Panel title="Tools & actions" icon={Cpu} delay={0.28}>
+                {(actions ?? []).length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    No tools or actions recorded.
+                  </p>
+                ) : (
+                  <ul className="space-y-2.5 text-sm">
+                    {(actions ?? []).map((action, index) => (
+                      <li
+                        key={action.id}
+                        className="hf-adm-row rounded-2xl border border-border bg-card/60 p-3"
+                        style={{
+                          animationDelay: `${Math.min(index, 10) * 0.04}s`,
+                        }}
+                      >
                         <strong>{action.tool_name}</strong>
                         {action.tool_version ? ` v${action.tool_version}` : ""}
                         {action.approval_type
@@ -850,118 +1125,292 @@ export default async function AdminTicketPage({
                       </li>
                     ))}
                   </ul>
-                </div>
-              </>
-            )}
-            {resolutionTrackingEnabled && (
-              <div id={uiV2 ? "resolution" : undefined} className="glass p-5">
-                <h2 className="font-semibold">Resolution</h2>
-                {exceptionDetails && (
-                  <div className="glass-pill mt-3 inline-flex flex-col items-start gap-1 px-3 py-2 text-sm">
-                    <strong>Verified by employee exception</strong>
-                    <span>Method: {exceptionDetails.method}</span>
-                    <span>Reason: {exceptionDetails.reason}</span>
-                  </div>
                 )}
-                <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
-                  <div>
-                    <dt className="font-medium">Resolved by</dt>
-                    <dd>
-                      {ticket.resolution_source === "ai"
-                        ? "AI assistant"
-                        : ticket.resolution_source === "agent" ||
-                            ticket.resolution_source === "employee"
-                          ? "Support agent"
-                          : ticket.resolution_source === "self_service"
-                            ? "Self-service"
-                            : "—"}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="font-medium">AI attempted</dt>
-                    <dd>
-                      {ticket.ai_attempted ? "Yes" : "No"}
-                      {ticket.ai_attempted_at
-                        ? ` · ${new Date(ticket.ai_attempted_at).toLocaleString()}`
-                        : ""}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="font-medium">Recommended guide</dt>
-                    <dd>{recommendedIssue?.title ?? "—"}</dd>
-                  </div>
-                  <div>
-                    <dt className="font-medium">Escalated</dt>
-                    <dd>
-                      {ticket.escalated ? "Yes" : "No"}
-                      {ticket.escalated_at
-                        ? ` · ${new Date(ticket.escalated_at).toLocaleString()}`
-                        : ""}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="font-medium">Escalation reason</dt>
-                    <dd>{ticket.escalation_reason ?? "—"}</dd>
-                  </div>
-                  <div>
-                    <dt className="font-medium">User confirmed</dt>
-                    <dd>
-                      {ticket.user_confirmed && ticket.user_confirmed_at
-                        ? new Date(ticket.user_confirmed_at).toLocaleString()
-                        : "Not confirmed"}
-                    </dd>
-                  </div>
-                  <div className="sm:col-span-2">
-                    <dt className="font-medium">Resolution summary</dt>
-                    <dd>{ticket.resolution_summary ?? "—"}</dd>
-                  </div>
-                </dl>
-              </div>
-            )}
-            <div id={uiV2 ? "timeline" : undefined} className="glass p-5">
-              <h2 className="font-semibold">Timeline</h2>
-              <ol className="mt-4 space-y-3">
-                {(events ?? []).map((event, index) => (
-                  <li key={`${event.created_at}-${index}`} className="text-sm">
-                    <span className="font-medium">{event.event_type}</span>
-                    <span className="ml-2 text-muted-foreground">
-                      {event.from_value ? `${event.from_value} → ` : ""}
-                      {event.to_value ?? ""}
-                      {" · "}
-                      {new Date(event.created_at).toLocaleString()}
-                    </span>
-                  </li>
-                ))}
-              </ol>
-            </div>
-          </div>
-          <aside className="space-y-6 lg:sticky lg:top-24">
-            <TicketUpdateForm
-              ticketId={uuid}
-              status={status}
-              priority={priority}
-              assignedAgent={ticket.assigned_agent ?? ""}
-              resolutionTrackingEnabled={resolutionTrackingEnabled}
-              resolutionSummary={ticket.resolution_summary ?? ""}
-              workflowEnabled={workflowEnabled}
-              uiV2={uiV2}
+              </Panel>
+            </>
+          )}
+
+          {resolutionTrackingEnabled && (
+            <Panel
+              id={uiV2 ? "resolution" : undefined}
+              title="Resolution"
+              icon={CheckCircle2}
+              delay={0.3}
+            >
+              {exceptionDetails && (
+                <div className="mb-4 inline-flex flex-col items-start gap-1 rounded-2xl border border-status-warning/30 bg-status-warning/10 px-3 py-2 text-sm">
+                  <strong className="inline-flex items-center gap-1.5">
+                    <AlertTriangle
+                      className="h-4 w-4 text-status-warning"
+                      aria-hidden
+                    />
+                    Verified by employee exception
+                  </strong>
+                  <span>Method: {exceptionDetails.method}</span>
+                  <span>Reason: {exceptionDetails.reason}</span>
+                </div>
+              )}
+              <dl className="grid gap-3 text-sm sm:grid-cols-2">
+                <div>
+                  <dt className="text-xs font-bold text-muted-foreground">
+                    Resolved by
+                  </dt>
+                  <dd className="font-extrabold">
+                    {ticket.resolution_source === "ai"
+                      ? "AI assistant"
+                      : ticket.resolution_source === "agent" ||
+                          ticket.resolution_source === "employee"
+                        ? "Support agent"
+                        : ticket.resolution_source === "self_service"
+                          ? "Self-service"
+                          : "—"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-bold text-muted-foreground">
+                    AI attempted
+                  </dt>
+                  <dd className="font-extrabold">
+                    {ticket.ai_attempted ? "Yes" : "No"}
+                    {ticket.ai_attempted_at
+                      ? ` · ${formatWhen(ticket.ai_attempted_at)}`
+                      : ""}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-bold text-muted-foreground">
+                    Recommended guide
+                  </dt>
+                  <dd className="font-extrabold">
+                    {recommendedIssue?.title ?? "—"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-bold text-muted-foreground">
+                    Escalated
+                  </dt>
+                  <dd className="font-extrabold">
+                    {ticket.escalated ? "Yes" : "No"}
+                    {ticket.escalated_at
+                      ? ` · ${formatWhen(ticket.escalated_at)}`
+                      : ""}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-bold text-muted-foreground">
+                    Escalation reason
+                  </dt>
+                  <dd className="font-extrabold">
+                    {ticket.escalation_reason ?? "—"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-bold text-muted-foreground">
+                    User confirmed
+                  </dt>
+                  <dd className="font-extrabold">
+                    {ticket.user_confirmed && ticket.user_confirmed_at
+                      ? formatWhen(ticket.user_confirmed_at)
+                      : "Not confirmed"}
+                  </dd>
+                </div>
+                <div className="sm:col-span-2">
+                  <dt className="text-xs font-bold text-muted-foreground">
+                    Resolution summary
+                  </dt>
+                  <dd className="font-extrabold">
+                    {ticket.resolution_summary ?? "—"}
+                  </dd>
+                </div>
+              </dl>
+            </Panel>
+          )}
+
+          <Panel
+            id={uiV2 ? "timeline" : undefined}
+            title="Timeline"
+            icon={History}
+            delay={0.32}
+          >
+            <TimelineList
+              empty="No ticket events recorded yet."
+              items={(events ?? []).map((event, index) => ({
+                key: `${event.created_at}-${index}`,
+                title: event.event_type,
+                detail:
+                  event.from_value || event.to_value
+                    ? `${event.from_value ? `${event.from_value} → ` : ""}${
+                        event.to_value ?? ""
+                      }`
+                    : undefined,
+                when: event.created_at,
+                tone: eventTone(event.to_value ?? event.event_type),
+              }))}
             />
-            {workflowEnabled && (
-              <TicketWorkflowActions
-                ticketId={uuid}
-                canClaim={!ticket.assigned_agent_id}
-                isAdmin={session.role === "org_admin"}
-                members={workflowMembers}
-                status={ticket.status}
-                assignedAgentId={ticket.assigned_agent_id}
-                allowVerificationException={
-                  organizationPolicy.allowVerificationException
-                }
-              />
-            )}
-          </aside>
+          </Panel>
         </div>
+
+        {/* Action rail */}
+        <aside className="flex min-w-0 flex-col gap-5 xl:sticky xl:top-20 xl:max-h-[calc(100vh-6rem)] xl:overflow-y-auto xl:pb-2 xl:pr-1">
+          <Panel
+            id={uiV2 ? "assignment-sla" : undefined}
+            title="Assignment and SLA"
+            icon={Timer}
+            delay={0.06}
+          >
+            <div className="rounded-2xl border border-border bg-card/60 p-3.5">
+              <div className="flex items-center justify-between gap-2">
+                <StatusPill
+                  tone={sla.tone}
+                  pulse={sla.state === "Breached" || sla.state === "Due <1h"}
+                >
+                  {sla.state}
+                </StatusPill>
+                <span className="inline-flex items-center gap-1.5 text-xs font-bold text-muted-foreground">
+                  <Clock className="h-3.5 w-3.5" aria-hidden />
+                  {sla.countdown}
+                </span>
+              </div>
+              <span
+                className="mt-3 block h-2 overflow-hidden rounded-full bg-muted"
+                role="meter"
+                aria-label="SLA time used"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={Math.round(sla.progress * 100)}
+              >
+                <span
+                  className={`hf-adm-grow block h-full rounded-full ${SLA_BAR[sla.tone]}`}
+                  style={{
+                    width: `${Math.max(2, Math.round(sla.progress * 100))}%`,
+                    animationDelay: "0.3s",
+                  }}
+                />
+              </span>
+              <p className="mt-2 text-xs font-semibold text-muted-foreground">
+                SLA due: {formatWhen(due)}
+              </p>
+            </div>
+            <dl className="mt-4 grid grid-cols-2 gap-x-3 gap-y-3 text-sm">
+              <div>
+                <dt className="text-xs font-bold text-muted-foreground">
+                  Status:
+                </dt>
+                <dd className="mt-1">
+                  <StatusPill tone={statusTone(status)}>{status}</StatusPill>
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs font-bold text-muted-foreground">
+                  Priority:
+                </dt>
+                <dd className="mt-1">
+                  <StatusPill
+                    tone={priorityTone(priority)}
+                    pulse={priority === "Urgent"}
+                  >
+                    {priority}
+                  </StatusPill>
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs font-bold text-muted-foreground">
+                  Category:
+                </dt>
+                <dd className="font-extrabold">{categoryText}</dd>
+              </div>
+              <div>
+                <dt className="text-xs font-bold text-muted-foreground">
+                  Platform:
+                </dt>
+                <dd className="font-extrabold">{platformLabel}</dd>
+              </div>
+              <div>
+                <dt className="text-xs font-bold text-muted-foreground">
+                  Created:
+                </dt>
+                <dd className="font-semibold">
+                  {formatWhen(ticket.created_at)}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs font-bold text-muted-foreground">
+                  Updated:
+                </dt>
+                <dd className="font-semibold">
+                  {formatWhen(ticket.updated_at ?? ticket.created_at)}
+                </dd>
+              </div>
+            </dl>
+          </Panel>
+
+          <Panel title="People" icon={UserRound} delay={0.1}>
+            <ul className="space-y-2.5 text-sm">
+              <li className="flex items-center gap-3 rounded-2xl border border-border bg-card/60 p-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                  <UserRound className="h-4 w-4" aria-hidden />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-xs font-bold text-muted-foreground">
+                    Requester
+                  </span>
+                  <span
+                    className="block truncate font-mono text-xs font-semibold"
+                    title={ticket.user_id}
+                  >
+                    {ticket.user_id}
+                  </span>
+                </span>
+              </li>
+              <li className="flex items-center gap-3 rounded-2xl border border-border bg-card/60 p-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary text-secondary-foreground">
+                  <ShieldCheck className="h-4 w-4" aria-hidden />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-xs font-bold text-muted-foreground">
+                    Agent:
+                  </span>
+                  <span className="block truncate font-extrabold">
+                    {ticket.assigned_agent ?? "Unassigned"}
+                  </span>
+                </span>
+              </li>
+            </ul>
+            <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-4">
+              <RecordExclusionControl
+                table="tickets"
+                recordId={uuid}
+                canExclude={session.role === "org_admin"}
+                excluded={excluded}
+              />
+            </div>
+          </Panel>
+
+          <TicketUpdateForm
+            ticketId={uuid}
+            status={status}
+            priority={priority}
+            assignedAgent={ticket.assigned_agent ?? ""}
+            resolutionTrackingEnabled={resolutionTrackingEnabled}
+            resolutionSummary={ticket.resolution_summary ?? ""}
+            workflowEnabled={workflowEnabled}
+            uiV2={uiV2}
+          />
+          {workflowEnabled && (
+            <TicketWorkflowActions
+              ticketId={uuid}
+              canClaim={!ticket.assigned_agent_id}
+              isAdmin={session.role === "org_admin"}
+              members={workflowMembers}
+              status={ticket.status}
+              assignedAgentId={ticket.assigned_agent_id}
+              allowVerificationException={
+                organizationPolicy.allowVerificationException
+              }
+            />
+          )}
+        </aside>
       </div>
-    </section>
+    </AdminPage>
   );
 }

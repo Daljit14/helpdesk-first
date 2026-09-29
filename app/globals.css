@@ -98,6 +98,104 @@ body {
     );
     color: #ffffff;
   }
+  .hf-adm-hero--ocean {
+    background: linear-gradient(120deg, #1d4ed8 0%, #0ea5e9 50%, #22d3ee 100%);
+  }
+  .hf-adm-hero--sunset {
+    background: linear-gradient(120deg, #c2410c 0%, #f97316 45%, #ec4899 100%);
+  }
+  .hf-adm-hero--forest {
+    background: linear-gradient(120deg, #047857 0%, #10b981 50%, #14b8a6 100%);
+  }
+  .hf-adm-hero--midnight {
+    background: linear-gradient(120deg, #1e1b4b 0%, #3730a3 50%, #6d28d9 100%);
+  }
+  .hf-adm-hero--rose {
+    background: linear-gradient(120deg, #9d174d 0%, #e11d48 50%, #f472b6 100%);
+  }
+  .dark .hf-adm-hero--ocean {
+    background: linear-gradient(120deg, #1e3a8a 0%, #0369a1 50%, #0e7490 100%);
+  }
+  .dark .hf-adm-hero--sunset {
+    background: linear-gradient(120deg, #7c2d12 0%, #c2410c 45%, #be185d 100%);
+  }
+  .dark .hf-adm-hero--forest {
+    background: linear-gradient(120deg, #064e3b 0%, #047857 50%, #0f766e 100%);
+  }
+  .dark .hf-adm-hero--rose {
+    background: linear-gradient(120deg, #831843 0%, #be123c 50%, #db2777 100%);
+  }
+  .hf-adm-rise-bar {
+    transform-origin: bottom;
+    animation: hf-adm-grow-y 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+  .hf-db-stream::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: -40%;
+    width: 2px;
+    height: 40%;
+    transform: translateX(-50%);
+    border-radius: 9999px;
+    background: linear-gradient(to bottom, transparent, rgb(255 255 255 / 0.9));
+    animation: hf-db-fall 3.5s linear infinite;
+    animation-delay: inherit;
+    animation-duration: inherit;
+  }
+  .hf-db-sweep {
+    background: conic-gradient(
+      from 0deg,
+      color-mix(in srgb, var(--primary) 35%, transparent),
+      transparent 30%
+    );
+    animation: hf-spin 3s linear infinite;
+    mask: radial-gradient(circle, transparent 38%, #000 40%);
+  }
+  .hf-adm-medallion {
+    animation: hf-bob 4s ease-in-out infinite;
+  }
+  .hf-adm-orbit {
+    animation: hf-spin 14s linear infinite;
+  }
+  /* Tables on admin pages */
+  .adm-page table thead tr {
+    background: color-mix(in srgb, var(--muted) 75%, transparent);
+  }
+  .adm-page table th {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--muted-foreground);
+    letter-spacing: 0;
+  }
+  .adm-page table tbody tr {
+    transition: background-color 0.15s;
+    animation: hf-rise 0.45s ease both;
+  }
+  .adm-page table tbody tr:hover {
+    background: color-mix(in srgb, var(--muted) 55%, transparent);
+  }
+  .adm-page table tbody tr:nth-child(2) {
+    animation-delay: 0.03s;
+  }
+  .adm-page table tbody tr:nth-child(3) {
+    animation-delay: 0.06s;
+  }
+  .adm-page table tbody tr:nth-child(4) {
+    animation-delay: 0.09s;
+  }
+  .adm-page table tbody tr:nth-child(5) {
+    animation-delay: 0.12s;
+  }
+  .adm-page table tbody tr:nth-child(6) {
+    animation-delay: 0.15s;
+  }
+  .adm-page table tbody tr:nth-child(n + 7) {
+    animation-delay: 0.18s;
+  }
+  .adm-page .glass-strong {
+    border-radius: var(--radius-3xl);
+  }
   .hf-adm-blob {
     animation: hf-blob-a 10s ease-in-out infinite;
   }
@@ -889,6 +987,22 @@ body {
   }
   to {
     transform: scaleX(1);
+  }
+}
+@keyframes hf-adm-grow-y {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+@keyframes hf-db-fall {
+  from {
+    top: -40%;
+  }
+  to {
+    top: 110%;
   }
 }
 @keyframes hf-adm-slide {

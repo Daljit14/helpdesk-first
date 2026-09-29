@@ -22,14 +22,14 @@ export function DeviceJobCancel({
       {!open ? (
         <button
           type="button"
-          className="glass-pill px-2 py-1 text-xs"
+          className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-status-danger/40 bg-status-danger/10 px-3 text-xs font-extrabold text-status-danger transition-colors hover:bg-status-danger/20"
           onClick={() => setOpen(true)}
         >
           Cancel job
         </button>
       ) : (
         <form
-          className="flex flex-wrap gap-2"
+          className="hf-swap flex flex-wrap items-center gap-2"
           onSubmit={(event) => {
             event.preventDefault();
             startTransition(async () => {
@@ -50,16 +50,20 @@ export function DeviceJobCancel({
             maxLength={300}
             required
             placeholder="Reason"
-            className="rounded-xl border border-border/70 bg-background/60 px-2 py-1 text-xs"
+            className="h-8 min-w-0 rounded-xl border border-border bg-card px-3 text-xs font-semibold text-foreground shadow-sm transition-colors hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
           <button
             type="submit"
             disabled={pending}
-            className="glass-pill px-2 py-1 text-xs"
+            className="inline-flex h-8 items-center gap-1.5 rounded-xl bg-status-danger px-3 text-xs font-extrabold text-white shadow-sm transition-transform hover:-translate-y-px disabled:opacity-60"
           >
             {pending ? "Cancelling…" : "Confirm"}
           </button>
-          {message && <span className="text-xs">{message}</span>}
+          {message && (
+            <span role="status" className="text-xs font-bold">
+              {message}
+            </span>
+          )}
         </form>
       )}
     </div>

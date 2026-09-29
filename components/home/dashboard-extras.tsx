@@ -2,175 +2,16 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Lightbulb, RefreshCw, Search, ListChecks, Ticket } from "lucide-react";
+import {
+  Headset,
+  Lightbulb,
+  ListChecks,
+  MessagesSquare,
+  Search,
+  Ticket,
+} from "lucide-react";
+import { AnimatedAvatar } from "@/components/avatar/animated-avatar";
 import { cn } from "@/lib/utils";
-
-type StatusResponse = {
-  ok: boolean;
-  checks: Record<string, { ok: boolean; ms: number | null }>;
-  timestamp: string;
-};
-
-const CHECK_LABELS: Record<string, string> = {
-  app: "Help desk",
-  database: "Database",
-};
-
-/** Live mini status card fed by /api/status; refreshes every 30 seconds. */
-export function SystemStatusCard({ className }: { className?: string }) {
-  const [status, setStatus] = useState<StatusResponse | null>(null);
-  const [failed, setFailed] = useState(false);
-  const [checkedAt, setCheckedAt] = useState<number | null>(null);
-  const [now, setNow] = useState(() => Date.now());
-
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      try {
-        const res = await fetch("/api/status", { cache: "no-store" });
-        if (cancelled) return;
-        if (!res.ok) throw new Error("status");
-        setStatus((await res.json()) as StatusResponse);
-        setFailed(false);
-      } catch {
-        if (!cancelled) setFailed(true);
-      } finally {
-        if (!cancelled) setCheckedAt(Date.now());
-      }
-    }
-    void load();
-    const refresh = window.setInterval(load, 30_000);
-    const tick = window.setInterval(() => setNow(Date.now()), 1_000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(refresh);
-      window.clearInterval(tick);
-    };
-  }, []);
-
-  const healthy = Boolean(status?.ok) && !failed;
-  const label = !checkedAt
-    ? "Checking…"
-    : failed
-      ? "Unavailable"
-      : healthy
-        ? "All good"
-        : "Degraded";
-  const dbMs = status?.checks.database?.ms ?? null;
-  const seconds = checkedAt
-    ? Math.max(0, Math.round((now - checkedAt) / 1000))
-    : 0;
-
-  return (
-    <section
-      aria-labelledby="home-status-heading"
-      className={cn(
-        "flex flex-col gap-4 rounded-[28px] border border-border bg-card p-6 shadow-sm",
-        className
-      )}
-    >
-      <div className="flex items-center justify-between gap-3">
-        <h2 id="home-status-heading" className="text-lg font-extrabold">
-          System status
-        </h2>
-        <span
-          role="status"
-          className={cn(
-            "inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-xs font-extrabold",
-            healthy
-              ? "bg-[color-mix(in_srgb,var(--status-success)_15%,transparent)] text-[color-mix(in_srgb,var(--status-success)_80%,var(--foreground))]"
-              : "bg-muted text-muted-foreground"
-          )}
-        >
-          <span className="relative h-2 w-2">
-            {healthy && (
-              <span className="hf-ping absolute inset-0 rounded-full bg-status-success" />
-            )}
-            <span
-              className={cn(
-                "absolute inset-0 rounded-full",
-                healthy ? "bg-status-success" : "bg-muted-foreground"
-              )}
-            />
-          </span>
-          {label}
-        </span>
-      </div>
-
-      <div className="flex items-center gap-3 rounded-2xl bg-muted p-3">
-        <svg
-          width="112"
-          height="36"
-          viewBox="0 0 120 40"
-          aria-hidden
-          className="shrink-0"
-        >
-          <path
-            d="M0 26 L24 26 L30 10 L36 34 L42 20 L48 26 L70 26 L76 14 L82 30 L88 26 L120 26"
-            fill="none"
-            stroke="var(--primary)"
-            strokeWidth={2.4}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className={healthy ? "hf-draw" : undefined}
-          />
-        </svg>
-        <span className="flex flex-col">
-          <span className="text-xs font-bold text-muted-foreground">
-            Database response
-          </span>
-          <span className="text-lg font-extrabold">
-            {dbMs === null ? "—" : `${dbMs} ms`}
-          </span>
-        </span>
-      </div>
-
-      <ul className="grid gap-1.5 text-sm font-semibold">
-        {Object.entries(
-          (status?.checks ?? { app: null, database: null }) as Record<
-            string,
-            { ok: boolean; ms: number | null } | null
-          >
-        ).map(([key, check]) => (
-          <li
-            key={key}
-            className="flex items-center justify-between rounded-xl px-2 py-1.5 hover:bg-muted"
-          >
-            <span>{CHECK_LABELS[key] ?? key}</span>
-            <span
-              className={cn(
-                "inline-flex items-center gap-1.5 text-xs font-extrabold",
-                check?.ok
-                  ? "text-[color-mix(in_srgb,var(--status-success)_80%,var(--foreground))]"
-                  : "text-muted-foreground"
-              )}
-            >
-              <span
-                className={cn(
-                  "h-1.5 w-1.5 rounded-full",
-                  check?.ok
-                    ? "hf-pulse bg-status-success"
-                    : "bg-muted-foreground"
-                )}
-              />
-              {check === null ? "Checking…" : check.ok ? "Operational" : "Down"}
-            </span>
-          </li>
-        ))}
-      </ul>
-
-      <div className="mt-auto flex items-center justify-between text-xs font-semibold text-muted-foreground">
-        <span className="inline-flex items-center gap-1.5">
-          <RefreshCw className="hf-spin-slow h-3 w-3" aria-hidden />
-          {checkedAt ? `Checked ${seconds}s ago` : "Checking…"}
-        </span>
-        <Link href="/status" className="font-bold text-primary hover:underline">
-          Status page
-        </Link>
-      </div>
-    </section>
-  );
-}
 
 const STEPS = [
   {
@@ -329,6 +170,51 @@ export function QuickTips({ className }: { className?: string }) {
             </span>
           </button>
         ))}
+      </div>
+    </section>
+  );
+}
+
+/** Replaces the old status card on the home page: a friendly "still stuck?" CTA. */
+export function StillStuckCard({ className }: { className?: string }) {
+  return (
+    <section
+      aria-labelledby="still-stuck-heading"
+      className={cn(
+        "relative flex flex-col gap-3 overflow-hidden rounded-[28px] border border-border bg-[linear-gradient(150deg,#efe9ff,#fde7f6)] p-6 dark:bg-[linear-gradient(150deg,#241c45,#2e1a36)]",
+        className
+      )}
+    >
+      <span
+        aria-hidden
+        className="hf-blob-a pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-[radial-gradient(closest-side,rgb(124_92_255/0.3),transparent)]"
+      />
+      <div className="relative flex items-center gap-3">
+        <AnimatedAvatar id="bot" size={44} />
+        <div>
+          <h2 id="still-stuck-heading" className="text-base font-extrabold">
+            Still stuck?
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Chat with the assistant, or hand it to a real person.
+          </p>
+        </div>
+      </div>
+      <div className="relative flex flex-wrap gap-2">
+        <Link
+          href="/assistant"
+          className="inline-flex h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-extrabold text-primary-foreground shadow-sm transition-transform hover:-translate-y-px"
+        >
+          <MessagesSquare className="h-4 w-4" aria-hidden />
+          Start a chat
+        </Link>
+        <Link
+          href="/assistant?intent=human"
+          className="inline-flex h-10 items-center gap-2 rounded-xl border border-border bg-card px-4 text-sm font-extrabold transition-colors hover:bg-muted"
+        >
+          <Headset className="h-4 w-4" aria-hidden />
+          Talk to a person
+        </Link>
       </div>
     </section>
   );

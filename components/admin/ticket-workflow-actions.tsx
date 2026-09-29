@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState, useTransition } from "react";
+import { Activity } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   addInternalNote,
@@ -48,9 +49,11 @@ const initialResolution: ResolutionValues = {
 };
 
 const fieldClass =
-  "w-full rounded-2xl border border-border/70 bg-background/60 p-3 text-foreground backdrop-blur";
+  "min-h-10 w-full min-w-0 rounded-xl border border-border bg-card px-3 py-2 text-sm font-semibold text-foreground shadow-sm transition-colors hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 const buttonClass =
-  "glass-pill px-4 py-2 disabled:cursor-not-allowed disabled:opacity-60";
+  "inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-extrabold text-primary-foreground shadow-sm transition-transform hover:-translate-y-px disabled:cursor-not-allowed disabled:opacity-60";
+const sectionHeadingClass =
+  "text-xs font-extrabold uppercase tracking-wide text-muted-foreground";
 
 export function TicketWorkflowActions({
   ticketId,
@@ -158,11 +161,28 @@ export function TicketWorkflowActions({
   };
 
   return (
-    <section className="glass mt-6 p-5">
-      <h2 className="font-semibold">Employee actions</h2>
+    <section
+      className="glass hf-rise p-5 sm:px-6 [&_label]:text-sm [&_label]:font-bold"
+      style={{ animationDelay: "0.12s" }}
+    >
+      <div className="flex items-start gap-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-secondary text-secondary-foreground">
+          <Activity className="h-4 w-4" aria-hidden />
+        </span>
+        <div className="min-w-0">
+          <h2 className="text-lg font-extrabold">Employee actions</h2>
+          <p className="text-sm text-muted-foreground">
+            Claim, reply, record work and resolve
+          </p>
+        </div>
+      </div>
       {notice && (
         <p
-          className="mt-3 rounded-2xl bg-muted/60 p-3 text-sm"
+          className={`hf-swap mt-3 rounded-xl border p-3 text-sm font-semibold ${
+            notice.type === "error"
+              ? "border-destructive/30 bg-destructive/10 text-destructive"
+              : "border-status-success/30 bg-status-success/10 text-status-success"
+          }`}
           role={notice.type === "error" ? "alert" : "status"}
         >
           {notice.text}
@@ -182,7 +202,7 @@ export function TicketWorkflowActions({
         )}
         {isAdmin && (
           <form
-            className="flex flex-wrap items-end gap-2"
+            className="flex w-full flex-wrap items-end gap-2 [&>label]:min-w-0 [&>label]:flex-1"
             onSubmit={(event) => {
               event.preventDefault();
               if (selectedAgent)
@@ -300,6 +320,7 @@ export function TicketWorkflowActions({
         <Button
           type="submit"
           variant="secondary"
+          className="h-10 rounded-xl font-extrabold"
           disabled={pending || !internalMessage.trim()}
           aria-busy={pending}
         >
@@ -380,7 +401,7 @@ export function TicketWorkflowActions({
         <label htmlFor="workflow-status" className="font-medium">
           Change status
         </label>
-        <div className="flex flex-wrap gap-3">
+        <div className="flex gap-2 [&>select]:flex-1">
           <select
             id="workflow-status"
             value={nextStatus}
@@ -455,7 +476,7 @@ export function TicketWorkflowActions({
           });
         }}
       >
-        <h3 className="font-medium">Record tool or action</h3>
+        <h3 className={sectionHeadingClass}>Record tool or action</h3>
         <label htmlFor="tool-name">Tool name</label>
         <input
           id="tool-name"
@@ -511,8 +532,10 @@ export function TicketWorkflowActions({
           />
           Consent received
         </label>
-        <details className="rounded-2xl border border-border/70 p-3">
-          <summary className="cursor-pointer font-medium">Details</summary>
+        <details className="rounded-xl border border-border bg-card/60 p-3">
+          <summary className="cursor-pointer text-sm font-bold">
+            Details
+          </summary>
           <div className="mt-3 grid gap-3">
             <label htmlFor="tool-version">Tool version</label>
             <input
@@ -630,11 +653,11 @@ export function TicketWorkflowActions({
         className="mt-6 grid gap-3 border-t border-border pt-5"
         onSubmit={submitResolutionForm}
       >
-        <h3 className="font-medium">Resolution report</h3>
+        <h3 className={sectionHeadingClass}>Resolution report</h3>
         {resolutionError && (
           <p
             role="alert"
-            className="rounded-md bg-destructive/10 p-3 text-destructive"
+            className="hf-swap rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm font-semibold text-destructive"
           >
             {resolutionError}
           </p>
@@ -693,7 +716,7 @@ export function TicketWorkflowActions({
         </select>
         {resolution.verificationMethod !== "user_confirmed" && (
           <>
-            <p className="rounded-2xl bg-amber-500/10 p-3 text-sm">
+            <p className="rounded-xl border border-status-warning/30 bg-status-warning/10 p-3 text-sm font-semibold">
               Allowed only when your organization permits verification
               exceptions
             </p>

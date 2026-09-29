@@ -2,14 +2,37 @@
 
 import Link from "next/link";
 import { useState, useTransition } from "react";
+import { Activity, CheckCircle2, RefreshCw, XCircle } from "lucide-react";
 import {
   reviewFindingAction,
   runKnowledgeHealthNowAction,
 } from "@/app/actions/knowledge-health";
 import type { Finding } from "@/lib/knowledge/health";
-import { Button } from "@/components/ui/button";
+import {
+  EmptyState,
+  Panel,
+  StatusPill,
+  type StatTone,
+} from "@/components/admin/ui/admin-kit";
+
+const PRIMARY_BUTTON =
+  "inline-flex h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-extrabold text-primary-foreground shadow-sm transition-transform hover:-translate-y-px disabled:opacity-60";
+const SMALL_PRIMARY =
+  "inline-flex h-8 items-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-extrabold text-primary-foreground shadow-sm transition-transform hover:-translate-y-px disabled:opacity-60";
+const SMALL_OUTLINE =
+  "inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-xs font-extrabold text-foreground transition-colors hover:border-primary/40 hover:bg-muted/60 disabled:opacity-60";
 
 const severityOrder = ["critical", "warning", "info"] as const;
+const severityTone: Record<string, StatTone> = {
+  critical: "danger",
+  warning: "warn",
+  info: "info",
+};
+const severityBorder: Record<string, string> = {
+  critical: "border-status-danger/40 bg-status-danger/5",
+  warning: "border-status-warning/40 bg-status-warning/5",
+  info: "border-border bg-card/40",
+};
 const kindLabels: Record<string, string> = {
   outdated: "Outdated",
   broken_link: "Broken link",
@@ -54,27 +77,41 @@ export function KnowledgeHealth({
   }
 
   return (
-    <section className="glass mt-6 overflow-hidden p-4">
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-xl font-semibold">Knowledge health</h2>
-          <p className="text-sm text-muted-foreground">
-            Advisory findings from recent support outcomes and guide metadata.
-          </p>
-        </div>
-        <Button type="button" onClick={runScan} disabled={pending}>
+    <Panel
+      title="Knowledge health"
+      description="Advisory findings from recent support outcomes and guide metadata."
+      icon={Activity}
+      delay={0.3}
+      actions={
+        <button
+          type="button"
+          onClick={runScan}
+          disabled={pending}
+          className={PRIMARY_BUTTON}
+        >
+          <RefreshCw
+            className={`h-4 w-4 ${pending ? "animate-spin" : ""}`}
+            aria-hidden
+          />
           Run scan now
-        </Button>
-      </div>
+        </button>
+      }
+    >
       {message && (
-        <p className="mb-3 text-sm" role="status">
+        <p
+          className="hf-swap mb-4 flex items-center gap-2 rounded-2xl border border-primary/30 bg-secondary/60 p-3 text-sm font-bold"
+          role="status"
+        >
+          <CheckCircle2 className="h-4 w-4 text-primary" aria-hidden />
           {message}
         </p>
       )}
       {findings.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          No findings yet — the nightly scan runs at 03:30 UTC.
-        </p>
+        <EmptyState
+          icon={CheckCircle2}
+          title="All clear"
+          body="No findings yet — the nightly scan runs at 03:30 UTC."
+        />
       ) : (
         <div className="space-y-5">
           {severityOrder.map((severity) => {
@@ -82,32 +119,48 @@ export function KnowledgeHealth({
             if (severityFindings.length === 0) return null;
             return (
               <div key={severity}>
-                <h3 className="mb-2 text-sm font-semibold capitalize">
+                <h3 className="mb-2 flex items-center gap-2 text-sm font-extrabold capitalize">
                   {severity}
+                  <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground tabular-nums">
+                    {severityFindings.length}
+                  </span>
                 </h3>
                 <div className="space-y-3">
-                  {severityFindings.map((finding) => (
+                  {severityFindings.map((finding, index) => (
                     <article
                       key={finding.id}
-                      className="rounded-2xl border border-border/60 p-4"
+                      className={`hf-adm-card hf-adm-row rounded-2xl border p-4 ${
+                        severityBorder[finding.severity] ?? "border-border"
+                      }`}
+                      style={{
+                        animationDelay: `${Math.min(index, 12) * 0.04}s`,
+                      }}
                     >
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="glass-pill px-2 py-1 text-xs capitalize">
-                          {finding.severity}
-                        </span>
-                        <span className="glass-pill px-2 py-1 text-xs">
+                        <StatusPill
+                          tone={severityTone[finding.severity] ?? "neutral"}
+                          pulse={
+                            finding.severity === "critical" &&
+                            finding.status === "open"
+                          }
+                        >
+                          <span className="capitalize">{finding.severity}</span>
+                        </StatusPill>
+                        <StatusPill tone="neutral">
                           {kindLabels[finding.kind] ?? finding.kind}
-                        </span>
+                        </StatusPill>
                         {finding.guideSlug && (
                           <Link
-                            className="font-mono text-xs underline"
+                            className="font-mono text-xs font-bold text-primary hover:underline"
                             href={`/issues/${finding.guideSlug}`}
                           >
                             {finding.guideSlug}
                           </Link>
                         )}
                       </div>
-                      <p className="mt-2 text-sm">{finding.summary}</p>
+                      <p className="mt-2 text-sm font-semibold">
+                        {finding.summary}
+                      </p>
                       <p className="mt-2 text-xs text-muted-foreground">
                         Last seen{" "}
                         <time dateTime={finding.lastSeenAt}>
@@ -116,23 +169,24 @@ export function KnowledgeHealth({
                       </p>
                       {canWrite && finding.status === "open" && (
                         <div className="mt-3 flex flex-wrap gap-2">
-                          <Button
+                          <button
                             type="button"
-                            size="sm"
+                            className={SMALL_PRIMARY}
                             disabled={pending}
                             onClick={() => review(finding.id, "acknowledged")}
                           >
+                            <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />
                             Acknowledge
-                          </Button>
-                          <Button
+                          </button>
+                          <button
                             type="button"
-                            size="sm"
-                            variant="outline"
+                            className={SMALL_OUTLINE}
                             disabled={pending}
                             onClick={() => review(finding.id, "dismissed")}
                           >
+                            <XCircle className="h-3.5 w-3.5" aria-hidden />
                             Dismiss
-                          </Button>
+                          </button>
                         </div>
                       )}
                     </article>
@@ -143,6 +197,6 @@ export function KnowledgeHealth({
           })}
         </div>
       )}
-    </section>
+    </Panel>
   );
 }

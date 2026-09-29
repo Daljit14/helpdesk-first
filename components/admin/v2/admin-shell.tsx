@@ -19,6 +19,10 @@ import {
   UsersRound,
   X,
   BarChart3,
+  HeartPulse,
+  Laptop,
+  Sparkles,
+  UserCheck,
 } from "lucide-react";
 import Link from "next/link";
 import { BrandMark } from "@/components/shell/brand-mark";
@@ -42,11 +46,83 @@ const icons = {
   shield: ShieldCheck,
   plug: Plug,
   settings: Settings,
+  pulse: HeartPulse,
+  laptop: Laptop,
+  sparkles: Sparkles,
+  match: UserCheck,
 } as const;
 
-function DepartmentIcon({ name }: { name: string }) {
-  const Icon = icons[name as keyof typeof icons] ?? Activity;
-  return <Icon className="h-4 w-4 shrink-0" aria-hidden />;
+/** Accent colour per sidebar group, used for the icon tiles. */
+const GROUP_TINT: Record<string, string> = {
+  Overview: "bg-[#7c5cff]/15 text-[#6d4aff] dark:text-[#b9a2ff]",
+  Support: "bg-[#0ea5e9]/15 text-[#0284c7] dark:text-[#7dd3fc]",
+  People: "bg-[#f59e0b]/15 text-[#b45309] dark:text-[#fcd34d]",
+  "Data & security": "bg-[#f43f5e]/15 text-[#be123c] dark:text-[#fda4af]",
+  Configure: "bg-[#10b981]/15 text-[#047857] dark:text-[#6ee7b7]",
+};
+
+type StatusState = "ok" | "degraded" | "down" | "unknown";
+
+/** Tiny live health indicator in the sidebar footer (polls /api/status). */
+function SidebarStatus({ compact }: { compact: boolean }) {
+  const [state, setState] = useState<StatusState>("unknown");
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const response = await fetch("/api/status", { cache: "no-store" });
+        if (!response.ok) throw new Error("status");
+        const body = (await response.json()) as {
+          ok: boolean;
+          degraded?: boolean;
+        };
+        if (!cancelled)
+          setState(body.ok ? (body.degraded ? "degraded" : "ok") : "down");
+      } catch {
+        if (!cancelled) setState("unknown");
+      }
+    };
+    void load();
+    const timer = window.setInterval(() => void load(), 60_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, []);
+  const label = {
+    ok: "All systems operational",
+    degraded: "Running with warnings",
+    down: "Issue detected",
+    unknown: "Checking status…",
+  }[state];
+  const dot = {
+    ok: "bg-status-success",
+    degraded: "bg-status-warning",
+    down: "bg-status-danger",
+    unknown: "bg-muted-foreground",
+  }[state];
+  return (
+    <Link
+      href="/admin/status"
+      title={label}
+      className={`group flex items-center gap-2.5 rounded-xl border border-border bg-muted/50 text-xs font-bold transition-colors hover:border-primary/40 hover:bg-muted ${
+        compact ? "justify-center p-2.5" : "px-3 py-2.5"
+      }`}
+    >
+      <span className="relative h-2.5 w-2.5 shrink-0" aria-hidden>
+        <span className={`hf-ping absolute inset-0 rounded-full ${dot}`} />
+        <span className={`absolute inset-0 rounded-full ${dot}`} />
+      </span>
+      <span className={compact ? "sr-only" : "min-w-0 flex-1 truncate"}>
+        {label}
+      </span>
+      {!compact && (
+        <span className="text-muted-foreground transition-transform group-hover:translate-x-0.5">
+          →
+        </span>
+      )}
+    </Link>
+  );
 }
 
 export function departmentForPath(
@@ -55,38 +131,26 @@ export function departmentForPath(
   departments: Department[],
   hash = ""
 ) {
-  if (pathname === "/admin/operations" && hash === "#tickets") {
-    return (
-      departments.find((department) => department.id === "ticket-queue") ??
-      departments[0]
-    );
-  }
-  if (pathname.startsWith("/admin/tickets")) {
-    return (
-      departments.find((department) => department.id === "ticket-queue") ??
-      departments[0]
-    );
-  }
+  const byId = (id: string) =>
+    departments.find((department) => department.id === id) ?? departments[0];
   const queue = searchParams.get("queue");
-  if (pathname === "/admin/operations" && queue === "ai_working") {
-    return (
-      departments.find((department) => department.id === "ai-investigations") ??
-      departments[0]
-    );
+  const ticketsView =
+    pathname.startsWith("/admin/tickets") ||
+    (pathname === "/admin/operations" &&
+      (Boolean(queue) || hash === "#tickets"));
+  if (ticketsView) {
+    if (queue === "ai_working") return byId("ai-investigations");
+    if (queue === "needs_human") return byId("capability-matching");
+    return byId("ticket-queue");
   }
-  if (pathname === "/admin/operations" && queue === "needs_human") {
-    return (
-      departments.find(
-        (department) => department.id === "capability-matching"
-      ) ?? departments[0]
-    );
-  }
+  if (pathname === "/admin/operations" && hash === "#analytics")
+    return byId("analytics");
   return (
     departments.find((department) => {
       const path = department.href.split("?")[0].split("#")[0];
       return (
         pathname === path ||
-        (path !== "/admin/operations" && pathname.startsWith(path))
+        (path !== "/admin/operations" && pathname.startsWith(`${path}/`))
       );
     }) ?? departments[0]
   );
@@ -204,93 +268,183 @@ export function AdminShell({
   function submitTicketSearch(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const value = ticketSearch.trim();
-    if (value)
-      router.push(`/admin/operations?ref=${encodeURIComponent(value)}`);
+    if (value) router.push(`/admin/tickets?ref=${encodeURIComponent(value)}`);
   }
 
   function navigation(closeDrawer = false) {
     if (closeDrawer) setDrawerOpen(false);
   }
 
-  const sidebar = (mobile = false) => (
-    <nav aria-label="Admin navigation" className="flex min-h-0 flex-1 flex-col">
-      <div className="border-b border-border p-3">
-        <label
-          htmlFor={`admin-department-search${mobile ? "-mobile" : ""}`}
-          className="sr-only"
-        >
-          Search departments
-        </label>
-        <div className="flex items-center gap-2 rounded-xl border border-border px-3">
-          <Search className="h-4 w-4 text-muted-foreground" aria-hidden />
-          <input
-            id={`admin-department-search${mobile ? "-mobile" : ""}`}
-            aria-label="Search departments"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            className="min-w-0 flex-1 bg-transparent py-2 text-sm outline-none"
-            placeholder="Search"
-          />
+  const sidebar = (mobile = false) => {
+    const compact = collapsed && !mobile;
+    const groups: { name: string | null; items: Department[] }[] = [];
+    for (const department of filtered) {
+      const name = department.group ?? null;
+      const last = groups[groups.length - 1];
+      if (last && last.name === name) last.items.push(department);
+      else groups.push({ name, items: [department] });
+    }
+    let order = 0;
+    return (
+      <nav
+        aria-label="Admin navigation"
+        className="flex min-h-0 flex-1 flex-col"
+      >
+        <div className={`border-b border-border ${compact ? "p-2" : "p-3"}`}>
+          <label
+            htmlFor={`admin-department-search${mobile ? "-mobile" : ""}`}
+            className="sr-only"
+          >
+            Search departments
+          </label>
+          <div
+            className={`flex items-center gap-2 rounded-xl border border-border bg-muted/50 transition-colors focus-within:border-primary/50 focus-within:bg-card ${
+              compact ? "justify-center px-2" : "px-3"
+            }`}
+          >
+            <Search
+              className="h-4 w-4 shrink-0 text-muted-foreground"
+              aria-hidden
+            />
+            <input
+              id={`admin-department-search${mobile ? "-mobile" : ""}`}
+              aria-label="Search departments"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              className={`min-w-0 flex-1 bg-transparent py-2 text-sm outline-none ${
+                compact ? "sr-only" : ""
+              }`}
+              placeholder="Search departments"
+            />
+          </div>
+          <p
+            className={`mt-2 px-1 text-[11px] font-bold text-muted-foreground ${
+              compact ? "sr-only" : ""
+            }`}
+            aria-live="polite"
+          >
+            {filtered.length} departments
+          </p>
         </div>
-        <p className="mt-2 text-xs text-muted-foreground" aria-live="polite">
-          {filtered.length} departments
-        </p>
-      </div>
-      <ul className="min-h-0 flex-1 space-y-1 overflow-y-auto p-3">
-        {filtered.map((department, index) => {
-          const active = current?.id === department.id;
-          const content = (
-            <>
-              <DepartmentIcon name={department.icon} />
-              <span className={collapsed && !mobile ? "sr-only" : "truncate"}>
-                {department.label}
-              </span>
-              {!department.available && !(collapsed && !mobile) && (
-                <span className="ml-auto text-[0.68rem] text-muted-foreground">
-                  Planned
-                </span>
+        <div className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
+          {filtered.length === 0 && !compact && (
+            <p className="px-2 py-6 text-center text-sm text-muted-foreground">
+              No department matches “{query}”.
+            </p>
+          )}
+          {groups.map((group) => (
+            <div key={group.name ?? "all"} className="mb-2">
+              {group.name && !compact && (
+                <p className="px-2 pb-1 pt-3 text-[10.5px] font-extrabold uppercase tracking-[0.08em] text-muted-foreground/80">
+                  {group.name}
+                </p>
               )}
-            </>
-          );
-          return (
-            <li
-              key={department.id}
-              className="hf-adm-nav-in relative"
-              style={{ animationDelay: `${Math.min(index, 14) * 0.03}s` }}
-            >
-              {active && (
+              {group.name && compact && (
                 <span
                   aria-hidden
-                  className="absolute -left-3 top-2 bottom-2 w-1 rounded-r-full bg-gradient-to-b from-primary to-[var(--adm-accent-2)]"
+                  className="mx-auto my-2 block h-px w-6 bg-border"
                 />
               )}
-              {department.available ? (
-                <Link
-                  href={department.href}
-                  aria-current={active ? "page" : undefined}
-                  onClick={() => navigation(true)}
-                  className={`v2-touch flex items-center gap-3 rounded-xl px-3 py-2 text-sm ${
-                    active
-                      ? "hf-pill-in bg-secondary font-semibold text-secondary-foreground"
-                      : "hf-navlink text-muted-foreground hover:bg-muted hover:text-foreground"
-                  }`}
-                >
-                  {content}
-                </Link>
-              ) : (
-                <span
-                  aria-disabled="true"
-                  className="v2-touch flex items-center gap-3 rounded-xl px-3 py-2 text-sm text-muted-foreground"
-                >
-                  {content}
-                </span>
-              )}
-            </li>
-          );
-        })}
-      </ul>
-    </nav>
-  );
+              <ul className="space-y-0.5">
+                {group.items.map((department) => {
+                  const active = current?.id === department.id;
+                  const index = order++;
+                  const tint =
+                    GROUP_TINT[department.group ?? ""] ??
+                    "bg-muted text-muted-foreground";
+                  const badge =
+                    department.id === "notifications" &&
+                    pendingNotifications > 0
+                      ? pendingNotifications > 9
+                        ? "9+"
+                        : String(pendingNotifications)
+                      : null;
+                  const Icon =
+                    icons[department.icon as keyof typeof icons] ?? Activity;
+                  const content = (
+                    <>
+                      <span
+                        className={`relative flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] transition-transform duration-200 group-hover:scale-110 ${
+                          active ? "bg-white/20 text-white" : tint
+                        }`}
+                      >
+                        <Icon className="h-4 w-4" aria-hidden />
+                        {badge && compact && (
+                          <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full border-2 border-card bg-destructive" />
+                        )}
+                      </span>
+                      <span
+                        className={
+                          compact ? "sr-only" : "min-w-0 flex-1 truncate"
+                        }
+                      >
+                        {department.label}
+                      </span>
+                      {badge && !compact && (
+                        <span
+                          className={`rounded-full px-1.5 text-[10px] font-extrabold ${
+                            active
+                              ? "bg-white/25 text-white"
+                              : "bg-destructive text-white"
+                          }`}
+                        >
+                          {badge}
+                        </span>
+                      )}
+                      {!department.available && !compact && (
+                        <span className="ml-auto rounded-full bg-muted px-2 py-0.5 text-[0.65rem] font-bold text-muted-foreground">
+                          Planned
+                        </span>
+                      )}
+                    </>
+                  );
+                  const base = `group v2-touch flex items-center gap-3 rounded-2xl text-[13.5px] ${
+                    compact ? "justify-center p-1.5" : "py-1.5 pl-1.5 pr-3"
+                  }`;
+                  return (
+                    <li
+                      key={department.id}
+                      className="hf-adm-nav-in relative"
+                      style={{
+                        animationDelay: `${Math.min(index, 16) * 0.03}s`,
+                      }}
+                    >
+                      {department.available ? (
+                        <Link
+                          href={department.href}
+                          title={compact ? department.label : undefined}
+                          aria-current={active ? "page" : undefined}
+                          onClick={() => navigation(true)}
+                          className={`${base} ${
+                            active
+                              ? "hf-pill-in bg-gradient-to-r from-primary to-[var(--adm-accent-2)] font-extrabold text-white shadow-[0_10px_24px_-12px_var(--primary)]"
+                              : "font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                          }`}
+                        >
+                          {content}
+                        </Link>
+                      ) : (
+                        <span
+                          aria-disabled="true"
+                          title={compact ? department.label : undefined}
+                          className={`${base} cursor-not-allowed font-semibold text-muted-foreground opacity-70`}
+                        >
+                          {content}
+                        </span>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
+        </div>
+        <div className={`border-t border-border ${compact ? "p-2" : "p-3"}`}>
+          <SidebarStatus compact={compact} />
+        </div>
+      </nav>
+    );
+  };
 
   return (
     <div className="flex min-h-full flex-1 flex-col">
@@ -418,8 +572,8 @@ export function AdminShell({
       <div className="flex min-h-0 flex-1">
         <aside
           id="admin-sidebar"
-          className={`hidden shrink-0 border-r border-border bg-card lg:flex lg:flex-col ${
-            collapsed ? "w-16" : "w-68"
+          className={`sticky top-16 hidden h-[calc(100dvh-4rem)] shrink-0 border-r border-border bg-card transition-[width] duration-300 lg:flex lg:flex-col ${
+            collapsed ? "w-[76px]" : "w-72"
           }`}
         >
           {sidebar()}

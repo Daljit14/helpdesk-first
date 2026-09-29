@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { KeyRound } from "lucide-react";
 import { createEnrollmentTokenAction } from "@/app/actions/admin-devices";
 
 type State =
@@ -10,7 +11,10 @@ type State =
 
 const initialState: State = null;
 const fieldClass =
-  "mt-1 block w-full rounded-2xl border border-border/70 bg-background/60 p-2 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring";
+  "block h-10 w-full min-w-0 rounded-xl border border-border bg-card px-3 text-sm font-semibold text-foreground shadow-sm transition-colors hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+const labelClass = "grid gap-1.5 text-sm font-bold";
+const PRIMARY_BUTTON =
+  "inline-flex h-10 w-fit items-center gap-2 rounded-xl bg-primary px-4 text-sm font-extrabold text-primary-foreground shadow-sm transition-transform hover:-translate-y-px disabled:opacity-60";
 
 export function DeviceEnrollmentForm() {
   const [state, action, pending] = useActionState(
@@ -34,18 +38,20 @@ export function DeviceEnrollmentForm() {
   const [copied, setCopied] = useState(false);
 
   return (
-    <div className="glass-strong grid gap-4 p-5">
-      <div>
-        <h2 className="font-semibold">Enroll a device</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          The enrollment token is shown only once.
-        </p>
+    <div className="glass hf-rise grid gap-4 p-5 sm:p-6">
+      <div className="flex items-start gap-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-secondary text-secondary-foreground">
+          <KeyRound className="h-4 w-4" aria-hidden />
+        </span>
+        <div className="min-w-0">
+          <h2 className="text-lg font-extrabold">Enroll a device</h2>
+          <p className="text-sm text-muted-foreground">
+            The enrollment token is shown only once.
+          </p>
+        </div>
       </div>
       <form action={action} className="grid gap-4">
-        <label
-          className="grid gap-2 text-sm font-medium"
-          htmlFor="device-label"
-        >
+        <label className={labelClass} htmlFor="device-label">
           Label
           <input
             id="device-label"
@@ -55,10 +61,7 @@ export function DeviceEnrollmentForm() {
             className={fieldClass}
           />
         </label>
-        <label
-          className="grid gap-2 text-sm font-medium"
-          htmlFor="device-class"
-        >
+        <label className={labelClass} htmlFor="device-class">
           Device class
           <select
             id="device-class"
@@ -71,7 +74,7 @@ export function DeviceEnrollmentForm() {
           </select>
         </label>
         <div className="grid gap-4 sm:grid-cols-2">
-          <label className="grid gap-2 text-sm font-medium" htmlFor="token-ttl">
+          <label className={labelClass} htmlFor="token-ttl">
             TTL hours
             <input
               id="token-ttl"
@@ -83,10 +86,7 @@ export function DeviceEnrollmentForm() {
               className={fieldClass}
             />
           </label>
-          <label
-            className="grid gap-2 text-sm font-medium"
-            htmlFor="token-uses"
-          >
+          <label className={labelClass} htmlFor="token-uses">
             Maximum uses
             <input
               id="token-uses"
@@ -102,29 +102,28 @@ export function DeviceEnrollmentForm() {
         {state && "error" in state && (
           <p
             role="alert"
-            className="rounded-2xl bg-destructive/10 p-3 text-sm text-destructive"
+            className="hf-swap rounded-2xl border border-status-danger/30 bg-status-danger/10 p-3 text-sm font-bold text-status-danger"
           >
             {state.error}
           </p>
         )}
-        <button
-          type="submit"
-          disabled={pending}
-          className="glass-pill w-fit px-4 py-2"
-        >
+        <button type="submit" disabled={pending} className={PRIMARY_BUTTON}>
+          <KeyRound className="h-4 w-4" aria-hidden />
           {pending ? "Creating…" : "Create enrollment token"}
         </button>
       </form>
       {state && "success" in state && (
-        <div className="rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-4">
-          <p className="text-sm font-medium">Copy this token now</p>
+        <div className="hf-swap rounded-2xl border border-status-success/40 bg-status-success/10 p-4">
+          <p className="text-sm font-extrabold text-status-success">
+            Copy this token now
+          </p>
           <div className="mt-2 flex flex-wrap gap-2">
-            <code className="min-w-0 flex-1 break-all rounded-xl bg-background/70 p-3 text-sm">
+            <code className="min-w-0 flex-1 break-all rounded-xl border border-border bg-card p-3 font-mono text-sm">
               {state.token}
             </code>
             <button
               type="button"
-              className="glass-pill px-3 py-2"
+              className="inline-flex h-10 items-center gap-2 rounded-xl border border-border bg-card px-3.5 text-sm font-extrabold shadow-sm transition-colors hover:border-primary/40"
               onClick={() => {
                 void navigator.clipboard.writeText(state.token);
                 setCopied(true);

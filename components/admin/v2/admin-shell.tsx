@@ -52,8 +52,15 @@ function DepartmentIcon({ name }: { name: string }) {
 export function departmentForPath(
   pathname: string,
   searchParams: { get(name: string): string | null },
-  departments: Department[]
+  departments: Department[],
+  hash = ""
 ) {
+  if (pathname === "/admin/operations" && hash === "#tickets") {
+    return (
+      departments.find((department) => department.id === "ticket-queue") ??
+      departments[0]
+    );
+  }
   if (pathname.startsWith("/admin/tickets")) {
     return (
       departments.find((department) => department.id === "ticket-queue") ??
@@ -109,7 +116,8 @@ export function AdminShell({
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [ticketSearch, setTicketSearch] = useState("");
-  const current = departmentForPath(pathname, searchParams, departments);
+  const [hash, setHash] = useState("");
+  const current = departmentForPath(pathname, searchParams, departments, hash);
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
     if (!needle) return departments;
@@ -126,6 +134,13 @@ export function AdminShell({
     previousPathname.current = pathname;
     setDrawerOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    const updateHash = () => setHash(window.location.hash);
+    updateHash();
+    window.addEventListener("hashchange", updateHash);
+    return () => window.removeEventListener("hashchange", updateHash);
+  }, []);
 
   useEffect(() => {
     try {
@@ -222,7 +237,7 @@ export function AdminShell({
         </p>
       </div>
       <ul className="min-h-0 flex-1 space-y-1 overflow-y-auto p-3">
-        {filtered.map((department) => {
+        {filtered.map((department, index) => {
           const active = current?.id === department.id;
           const content = (
             <>
@@ -238,7 +253,17 @@ export function AdminShell({
             </>
           );
           return (
-            <li key={department.id}>
+            <li
+              key={department.id}
+              className="hf-adm-nav-in relative"
+              style={{ animationDelay: `${Math.min(index, 14) * 0.03}s` }}
+            >
+              {active && (
+                <span
+                  aria-hidden
+                  className="absolute -left-3 top-2 bottom-2 w-1 rounded-r-full bg-gradient-to-b from-primary to-[var(--adm-accent-2)]"
+                />
+              )}
               {department.available ? (
                 <Link
                   href={department.href}
@@ -349,19 +374,27 @@ export function AdminShell({
             )}
             <Link
               href="/admin/notifications"
-              className="v2-touch relative inline-flex items-center justify-center rounded-xl hover:bg-muted"
+              className="hf-adm-ring v2-touch relative inline-flex items-center justify-center rounded-xl border border-border bg-card hover:bg-muted"
               aria-label="Notifications"
             >
-              <Bell aria-hidden />
+              <Bell className="h-[18px] w-[18px]" aria-hidden />
               {pendingNotifications > 0 && (
                 <span
-                  className="absolute right-2 top-2 h-2 w-2 rounded-full bg-destructive"
+                  className="absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full border-2 border-background bg-destructive px-1 text-[10px] font-extrabold text-white"
                   aria-label={`${pendingNotifications} pending notifications`}
-                />
+                >
+                  {pendingNotifications > 9 ? "9+" : pendingNotifications}
+                </span>
               )}
             </Link>
             <details className="relative">
-              <summary className="v2-touch cursor-pointer list-none rounded-xl px-3 py-2 text-sm hover:bg-muted">
+              <summary className="v2-touch flex cursor-pointer list-none items-center gap-2 rounded-full border border-border bg-card py-1 pl-1 pr-3 text-sm font-bold hover:bg-muted">
+                <span
+                  aria-hidden
+                  className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-[#ffc24b] to-[#f472b6] text-xs font-extrabold text-[#1c1633]"
+                >
+                  {roleLabel.charAt(0).toUpperCase()}
+                </span>
                 {roleLabel}
               </summary>
               <div className="absolute right-0 top-12 z-50 min-w-48 rounded-xl border border-border bg-card p-3 shadow-md">
@@ -408,7 +441,7 @@ export function AdminShell({
             </aside>
           </div>
         )}
-        <div role="main" className="min-w-0 flex-1 overflow-x-clip">
+        <div role="main" className="min-w-0 flex-1">
           {children}
         </div>
       </div>

@@ -140,7 +140,7 @@ export function DatabaseOverview({ initial }: { initial: DbOverview }) {
       document.removeEventListener("visibilitychange", onVisibilityChange);
   }, []);
 
-  const refreshOverview = useCallback(async () => {
+  const refreshOverview = useCallback(async (advanceCursor = true) => {
     const response = await fetch("/api/admin/database", {
       cache: "no-store",
     });
@@ -148,7 +148,7 @@ export function DatabaseOverview({ initial }: { initial: DbOverview }) {
     const body = (await response.json()) as { overview: DbOverview };
     setOverview(body.overview);
     setUpdatedAt(body.overview.generatedAt);
-    cursorRef.current = body.overview.generatedAt;
+    if (advanceCursor) cursorRef.current = body.overview.generatedAt;
   }, []);
 
   const refreshSectionsIfNeeded = useCallback(
@@ -158,7 +158,7 @@ export function DatabaseOverview({ initial }: { initial: DbOverview }) {
       if (now - lastSectionRefreshRef.current < SECTION_REFRESH_INTERVAL)
         return;
       lastSectionRefreshRef.current = now;
-      await refreshOverview();
+      await refreshOverview(false);
     },
     [refreshOverview]
   );
@@ -276,7 +276,7 @@ export function DatabaseOverview({ initial }: { initial: DbOverview }) {
             <button
               type="button"
               aria-label="Refresh database"
-              onClick={() => void refreshOverview()}
+              onClick={() => void refreshOverview(!live)}
               className="glass-pill inline-flex items-center gap-2 px-3 py-2 text-sm"
             >
               <RefreshCw className="h-4 w-4" aria-hidden />

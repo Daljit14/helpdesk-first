@@ -72,7 +72,7 @@ function Navigation({
                   aria-current={active ? "page" : undefined}
                   onClick={onNavigate}
                   className={cn(
-                    "flex min-h-11 items-center gap-2 rounded-full text-sm font-semibold transition-colors",
+                    "flex min-h-11 items-center gap-2 whitespace-nowrap rounded-full text-sm font-semibold transition-colors",
                     layout === "row" ? "px-3 xl:px-4" : "px-4 py-3 text-base",
                     active
                       ? "bg-secondary text-primary"
@@ -108,7 +108,7 @@ function ThemeToggle({ compact = false }: { compact?: boolean }) {
     >
       {theme === "dark" ? <Sun aria-hidden /> : <Moon aria-hidden />}
       {!compact && (
-        <span className="hidden sm:inline">
+        <span className="hidden sm:inline lg:hidden xl:inline">
           {theme === "dark" ? "Light" : "Dark"}
         </span>
       )}

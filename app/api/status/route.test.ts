@@ -1,11 +1,15 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { GET } from "./route";
 
-const { isSupabaseConfigured, createAdminClient } = vi.hoisted(() => ({
-  isSupabaseConfigured: vi.fn(),
-  createAdminClient: vi.fn(),
-}));
+const { getAdminSession, isSupabaseConfigured, createAdminClient } = vi.hoisted(
+  () => ({
+    getAdminSession: vi.fn(),
+    isSupabaseConfigured: vi.fn(),
+    createAdminClient: vi.fn(),
+  })
+);
 
+vi.mock("@/lib/admin/auth", () => ({ getAdminSession }));
 vi.mock("@/lib/supabase/config", () => ({ isSupabaseConfigured }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient }));
 
@@ -68,12 +72,24 @@ function setupSupabase({
   });
 }
 
-function setupEnvironment() {
+function setupEnvironment({ admin = true }: { admin?: boolean } = {}) {
   vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://supabase.example");
   vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "anon-key");
   vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "service-key");
   vi.stubEnv("NODE_ENV", "test");
   isSupabaseConfigured.mockReturnValue(true);
+  getAdminSession.mockResolvedValue(
+    admin
+      ? {
+          userId: "admin-user",
+          email: "admin@example.com",
+          role: "org_admin",
+          organizationId: "org-1",
+          displayName: "Admin",
+          isPlatformAdmin: true,
+        }
+      : null
+  );
   setupSupabase();
 }
 
@@ -145,6 +161,26 @@ describe("status endpoint", () => {
       { label: "Files stored", value: "4" },
       { label: "Uploaded (24h)", value: "1" },
     ]);
+  });
+
+  test("strips internal status details for unauthenticated callers", async () => {
+    setupEnvironment({ admin: false });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response(null, { status: 200 }))
+    );
+
+    const body = await (await GET()).json();
+
+    for (const check of Object.values(body.checks) as Record<
+      string,
+      unknown
+    >[]) {
+      expect(Object.keys(check).sort()).toEqual(["degraded", "ms", "ok"]);
+      expect(check.ms).toBeNull();
+      expect(check).not.toHaveProperty("facts");
+      expect(check).not.toHaveProperty("detail");
+    }
   });
 
   test("reports a failed authentication health check", async () => {

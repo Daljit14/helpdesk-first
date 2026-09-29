@@ -8,8 +8,6 @@ import { cn } from "@/lib/utils";
 
 type StatusCheck = {
   ok: boolean;
-  ms: number | null;
-  detail?: string;
   degraded?: boolean;
 };
 

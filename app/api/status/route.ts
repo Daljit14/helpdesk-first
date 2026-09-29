@@ -1,5 +1,6 @@
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getAdminSession } from "@/lib/admin/auth";
 import { getAiModel, getAiProviderKind } from "@/lib/ai/config";
 import {
   createRateLimiter,
@@ -341,9 +342,32 @@ export async function GET(request?: Request) {
   };
   const allOk = Object.values(checks).every((check) => check.ok);
   const degraded = Object.values(checks).some((check) => check.degraded);
+  let adminSession = null;
+  try {
+    adminSession = await getAdminSession();
+  } catch {
+    adminSession = null;
+  }
+  const responseChecks = adminSession
+    ? checks
+    : Object.fromEntries(
+        Object.entries(checks).map(([name, check]) => [
+          name,
+          {
+            ok: check.ok,
+            degraded: Boolean(check.degraded),
+            ms: null,
+          },
+        ])
+      );
 
   return Response.json(
-    { ok: allOk, degraded, checks, timestamp: new Date().toISOString() },
+    {
+      ok: allOk,
+      degraded,
+      checks: responseChecks,
+      timestamp: new Date().toISOString(),
+    },
     { headers: { "Cache-Control": "no-store" } }
   );
 }

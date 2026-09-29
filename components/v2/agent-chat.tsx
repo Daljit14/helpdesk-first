@@ -198,7 +198,7 @@ export function AgentChat({
     <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6">
       <div className="rounded-3xl border border-border/60 bg-background/80 p-6 shadow-sm">
         <div className="flex items-center gap-3">
-          <Bot className="size-5" aria-hidden />
+          <Bot className="hf-bob size-5" aria-hidden />
           <div>
             <p className="font-semibold">AI support assistant</p>
             <p className="text-sm text-muted-foreground">
@@ -231,7 +231,10 @@ export function AgentChat({
             const Icon = iconFor(event);
             if (event.type === "final_answer")
               return (
-                <div key={event.id} className="rounded-2xl bg-muted p-4">
+                <div
+                  key={event.id}
+                  className="hf-rise rounded-2xl bg-muted p-4"
+                >
                   <p>{event.text}</p>
                   {event.evidence.length > 0 && (
                     <div className="mt-3">
@@ -255,7 +258,7 @@ export function AgentChat({
               return (
                 <div
                   key={event.id}
-                  className="rounded-2xl border border-primary/30 bg-primary/5 p-4"
+                  className="hf-rise rounded-2xl border border-primary/30 bg-primary/5 p-4"
                 >
                   <p className="font-medium">Approval needed</p>
                   <p className="mt-2 text-sm">{event.card.whatHappens}</p>
@@ -543,6 +546,7 @@ export function AgentChat({
             <LifeBuoy className="mr-2 size-4" /> Talk to a human
           </Button>
           <Button
+            className="hf-lift"
             onClick={() => void send()}
             disabled={
               pending ||

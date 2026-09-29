@@ -103,7 +103,7 @@ describe("HomeStart", () => {
   it("renders the problem form and device links", () => {
     render(<HomeStart />);
     expect(
-      screen.getByRole("heading", { name: "What can we help you fix?" })
+      screen.getByRole("heading", { name: "What can we fix today?" })
     ).toBeInTheDocument();
     expect(screen.getByLabelText("What's the problem?")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "iOS" })).toHaveAttribute(

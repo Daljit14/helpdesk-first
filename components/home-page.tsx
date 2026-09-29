@@ -266,8 +266,8 @@ export function HomePage({
             </h1>
             <p className="mt-4 max-w-2xl text-lg text-muted-foreground">
               Search what&apos;s going wrong, or pick your device and a
-              category. You&apos;ll get calm, safe steps — and a real person
-              if you need one.
+              category. You&apos;ll get calm, safe steps — and a real person if
+              you need one.
             </p>
           </header>
         )}

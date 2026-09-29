@@ -27,10 +27,7 @@ export function Header({ user }: { user?: User | null }) {
           className="flex items-center gap-2 whitespace-nowrap text-base font-semibold tracking-tight sm:text-lg"
         >
           <Headset
-            className={cn(
-              "h-5 w-5",
-              uiV2 ? "text-foreground" : "text-primary"
-            )}
+            className={cn("h-5 w-5", uiV2 ? "text-foreground" : "text-primary")}
             aria-hidden
           />
           <span>HelpDesk First</span>

@@ -185,10 +185,7 @@ export function HomeStart({
               {openTickets.slice(0, 3).map((ticket) => {
                 const state = ticketState({ status: ticket.status });
                 return (
-                  <li
-                    key={ticket.id}
-                    className="glass glass-interactive p-4"
-                  >
+                  <li key={ticket.id} className="glass glass-interactive p-4">
                     <Link
                       href={`/tickets/${ticket.id}`}
                       className="flex items-start justify-between gap-4"

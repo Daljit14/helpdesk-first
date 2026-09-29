@@ -153,7 +153,9 @@ export default async function IssuePage({
           </div>
 
           <div className="mt-6 flex flex-wrap items-center gap-2 border-t border-border pt-5 text-sm">
-            <span className="mr-1 font-semibold text-foreground">Applies to:</span>
+            <span className="mr-1 font-semibold text-foreground">
+              Applies to:
+            </span>
             {issue.devices.map((device) => {
               const selected =
                 query.platform?.toString().toLowerCase() ===

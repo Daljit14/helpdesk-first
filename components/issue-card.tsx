@@ -37,7 +37,10 @@ export function IssueCard({
             <div
               className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${getCategoryTone(issue.category)}`}
             >
-              {createElement(Icon, { className: "h-5 w-5", "aria-hidden": true })}
+              {createElement(Icon, {
+                className: "h-5 w-5",
+                "aria-hidden": true,
+              })}
             </div>
             <div>
               <h2 className="text-lg font-semibold leading-snug decoration-primary/40 decoration-2 underline-offset-4 group-hover:underline">

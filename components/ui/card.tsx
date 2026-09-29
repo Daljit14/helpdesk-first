@@ -23,7 +23,10 @@ function CardTitle({
 }: React.HTMLAttributes<HTMLHeadingElement>) {
   return (
     <h2
-      className={cn("font-heading text-xl font-semibold tracking-tight", className)}
+      className={cn(
+        "font-heading text-xl font-semibold tracking-tight",
+        className
+      )}
       {...props}
     />
   );

@@ -146,7 +146,7 @@ body {
     animation: hf-eyes 4s infinite;
   }
   .hf-bubble {
-    animation: hf-bubble 5s ease-in-out infinite;
+    animation: hf-bubble 4s ease-in-out infinite;
   }
   .hf-shimmer {
     background-size: 200% 100%;
@@ -502,18 +502,13 @@ body {
 }
 @keyframes hf-bubble {
   0%,
-  15% {
-    opacity: 0;
-    transform: translateY(6px) scale(0.9);
-  }
-  25%,
-  85% {
-    opacity: 1;
-    transform: none;
-  }
   100% {
-    opacity: 0;
-    transform: translateY(-4px);
+    opacity: 1;
+    transform: translateY(0);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-3px);
   }
 }
 @keyframes hf-shimmer {

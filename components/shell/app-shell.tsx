@@ -90,9 +90,9 @@ function Navigation({
 function AssistantHelper({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <div className="hf-hue relative overflow-hidden rounded-[20px] bg-[linear-gradient(120deg,var(--muted),#fdf2f8,#eef6ff,var(--muted))] p-4 text-foreground dark:bg-[linear-gradient(120deg,#2c2350,#3a1f3d,#1f2a4d,#2c2350)]">
-      <div className="flex items-start gap-2.5">
+      <div className="flex items-center gap-2.5">
         <AssistantBot className="pointer-events-none" />
-        <span className="hf-bubble pointer-events-none mt-1 rounded-xl rounded-bl-sm bg-card px-2.5 py-1.5 text-xs font-bold shadow-sm">
+        <span className="hf-bubble pointer-events-none self-center rounded-xl rounded-bl-sm bg-card px-2.5 py-1.5 text-xs font-bold leading-none shadow-sm">
           Hi! Need a hand?
         </span>
       </div>

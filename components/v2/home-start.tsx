@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { ArrowRight, Bot, Monitor, Plus } from "lucide-react";
+import { Bot, Monitor, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { SAFE_USE_WARNING } from "@/lib/ui-copy";
 import { normalizePlatform, platformSlug } from "@/lib/platform";
@@ -234,22 +234,86 @@ export function HomeStart({
           ) : (
             <Link
               href="/browse"
-              className="hf-rise hf-lift flex min-h-[190px] flex-col justify-between rounded-[28px] bg-[#ece8fd] p-6 text-[#2d205b] dark:bg-[#2c2350] dark:text-white"
+              className="hf-rise hf-lift flex min-w-0 items-center justify-between gap-5 rounded-[28px] bg-[#ece8fd] p-6 text-[#2d205b] dark:bg-[#2c2350] dark:text-white"
             >
-              <span className="text-xs font-extrabold uppercase tracking-[0.14em] text-primary">
-                Start here
-              </span>
-              <span>
-                <span className="block text-2xl font-extrabold">
+              <span className="min-w-0">
+                <span className="block text-xs font-extrabold uppercase tracking-[0.14em] text-primary">
+                  Start here
+                </span>
+                <span className="mt-1 block text-2xl font-extrabold">
                   Start with a guide
                 </span>
-                <span className="mt-1 block text-sm opacity-75">
+                <span className="mt-1 block truncate text-sm opacity-75">
                   Browse approved fixes and find the right next step.
                 </span>
+                <span className="hf-lift mt-4 inline-flex min-h-10 items-center gap-2 rounded-xl bg-foreground px-4 text-sm font-bold text-background">
+                  Browse guides →
+                </span>
               </span>
-              <span className="inline-flex items-center gap-2 text-sm font-extrabold">
-                Browse guides <ArrowRight className="h-4 w-4" aria-hidden />
-              </span>
+              <svg
+                aria-hidden
+                viewBox="0 0 120 96"
+                className="hidden h-[110px] w-[160px] shrink-0 overflow-visible sm:block"
+              >
+                <path
+                  d="M20 17C47 17 43 45 68 45s21 30 44 30"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeDasharray="5 5"
+                  strokeLinecap="round"
+                  strokeWidth="2.5"
+                  className="hf-dash"
+                />
+                <rect
+                  x="8"
+                  y="8"
+                  width="34"
+                  height="18"
+                  rx="7"
+                  fill="var(--card)"
+                  stroke="var(--primary)"
+                  strokeWidth="1.5"
+                  className="hf-lift"
+                />
+                <rect
+                  x="51"
+                  y="36"
+                  width="34"
+                  height="18"
+                  rx="7"
+                  fill="var(--card)"
+                  stroke="var(--primary)"
+                  strokeWidth="1.5"
+                  className="hf-lift"
+                />
+                <rect
+                  x="86"
+                  y="66"
+                  width="26"
+                  height="18"
+                  rx="7"
+                  fill="var(--card)"
+                  stroke="var(--primary)"
+                  strokeWidth="1.5"
+                  className="hf-lift"
+                />
+                <circle
+                  cx="99"
+                  cy="75"
+                  r="7"
+                  fill="var(--primary)"
+                  className="hf-glow"
+                />
+                <path
+                  d="m95 75 3 3 5-6"
+                  fill="none"
+                  stroke="var(--primary-foreground)"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2.5"
+                  className="hf-draw"
+                />
+              </svg>
             </Link>
           )}
           <section
@@ -455,7 +519,7 @@ export function HomeStart({
           </div>
         </section>
 
-        <div className="mt-12 grid gap-5 md:grid-cols-2">
+        <div className="mt-12 grid items-start gap-5 md:grid-cols-2">
           <HowItWorks className="hf-rise md:col-span-2" />
           <QuickTips className="hf-rise" />
           <SystemStatusCard className="hf-rise" />

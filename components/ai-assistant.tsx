@@ -302,7 +302,7 @@ function ClarifyView({
         {question.text}
       </label>
       <p className="text-sm text-muted-foreground" aria-live="polite">
-        Question {previousAnswers.length + 1} of 3
+        Question {Math.min(previousAnswers.length + 1, 3)} of 3
       </p>
       <textarea
         id="diagnostic-answer"

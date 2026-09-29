@@ -2,7 +2,11 @@ import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAiModel, getAiProviderKind } from "@/lib/ai/config";
-import { getRateLimiterKind } from "@/lib/ai/rate-limit";
+import {
+  createRateLimiter,
+  getClientIp,
+  getRateLimiterKind,
+} from "@/lib/ai/rate-limit";
 
 export type StatusCheck = {
   ok: boolean;
@@ -12,6 +16,10 @@ export type StatusCheck = {
 };
 
 const FETCH_TIMEOUT_MS = 4_000;
+const statusLimiter = createRateLimiter(
+  { windowMs: 60_000, maxRequests: 30 },
+  "status"
+);
 
 async function fetchHealth(url: string, apiKey: string): Promise<StatusCheck> {
   const start = Date.now();
@@ -123,7 +131,21 @@ function rateLimiterCheck(): StatusCheck {
   };
 }
 
-export async function GET() {
+export async function GET(request?: Request) {
+  const rateLimit = await statusLimiter.check(
+    getClientIp(request ?? new Request("http://localhost/api/status"))
+  );
+  if (!rateLimit.allowed) {
+    return Response.json(
+      { error: "Too many requests." },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(Math.max(1, rateLimit.retryAfter ?? 60)),
+        },
+      }
+    );
+  }
   const configured = isSupabaseConfigured();
   const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim();

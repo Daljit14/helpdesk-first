@@ -236,6 +236,21 @@ describe("AdminDashboard", () => {
     );
   });
 
+  test("keeps operation filters collapsed until opened", () => {
+    render(<AdminDashboard initialSnapshot={snapshot()} uiV2 />);
+
+    const filters = screen.getByText("Filters", { exact: true });
+    const details = filters.closest("details");
+    expect(details).not.toHaveAttribute("open");
+
+    fireEvent.click(filters);
+
+    expect(details).toHaveAttribute("open");
+    expect(
+      screen.getByRole("combobox", { name: "Status" }).parentElement
+    ).toHaveClass("xl:grid-cols-4");
+  });
+
   test("renders a breached SLA state for overdue tickets", () => {
     render(
       <AdminDashboard

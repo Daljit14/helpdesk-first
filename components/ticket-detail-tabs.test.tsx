@@ -55,6 +55,20 @@ describe("TicketDetailTabs", () => {
     });
   });
 
+  test("keeps a clicked tab active while the URL update is pending", () => {
+    query = "tab=overview";
+    render(<TicketDetailTabs tabs={tabs} defaultTab="overview" />);
+
+    fireEvent.click(screen.getByRole("tab", { name: /Conversation/ }));
+
+    expect(
+      screen.getByText("Conversation content").parentElement
+    ).not.toHaveAttribute("hidden");
+    expect(screen.getByText("Overview content").parentElement).toHaveAttribute(
+      "hidden"
+    );
+  });
+
   test("honors a matching tab query parameter", () => {
     query = "tab=conversation";
     render(<TicketDetailTabs tabs={tabs} defaultTab="overview" />);

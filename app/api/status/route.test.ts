@@ -145,4 +145,28 @@ describe("status endpoint", () => {
       detail: "Timed out",
     });
   });
+
+  test("rate limits the 31st request from an IP", async () => {
+    setupEnvironment();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response(null, { status: 200 }))
+    );
+
+    const requests = Array.from(
+      { length: 31 },
+      () =>
+        new Request("https://helpdesk.example/api/status", {
+          headers: { "x-forwarded-for": "status-test-ip" },
+        })
+    );
+    const responses = [];
+    for (const request of requests) responses.push(await GET(request));
+
+    expect(
+      responses.slice(0, 30).every((response) => response.status === 200)
+    ).toBe(true);
+    expect(responses[30].status).toBe(429);
+    expect(responses[30].headers.get("Retry-After")).toMatch(/^\d+$/);
+  });
 });

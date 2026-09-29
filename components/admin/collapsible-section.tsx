@@ -42,7 +42,8 @@ export function CollapsibleSection({
       className={`glass-strong ${className}`}
     >
       <summary
-        onClick={() => {
+        onClick={(event) => {
+          event.preventDefault();
           const nextOpen = !open;
           setOpen(nextOpen);
           window.localStorage.setItem(storageKey, nextOpen ? "open" : "closed");

@@ -362,6 +362,8 @@ export function AdminDashboard({
     organizationPolicy?.allowVerificationException ?? false
   );
   const FilterContainer = uiV2 ? "details" : "div";
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const filtersStorageKey = "hf-admin-section:filters";
   const activeFilterCount = Object.entries(filters).filter(
     ([key, value]) =>
       !["page", "pageSize", "from", "to"].includes(key) &&
@@ -455,6 +457,31 @@ export function AdminDashboard({
   };
   const updateFilter = (key: keyof AdminFilters, value: string | number) => {
     updateFilters({ [key]: value });
+  };
+  useEffect(() => {
+    if (!uiV2) return;
+    const stored = window.localStorage.getItem(filtersStorageKey);
+    if (stored !== "open" && stored !== "closed") return;
+    const timeout = window.setTimeout(
+      () => setFiltersOpen(stored === "open"),
+      0
+    );
+    return () => window.clearTimeout(timeout);
+  }, [uiV2]);
+  const clearFilters = () => {
+    updateFilters({
+      status: "",
+      queue: undefined,
+      risk: undefined,
+      handoffReason: "",
+      minConfidence: undefined,
+      resolutionSource: undefined,
+      priority: "",
+      category: "",
+      platform: "",
+      agent: "",
+      sla: "",
+    });
   };
   const applyQueueChip = (
     kind: "queue" | "status" | "priority",
@@ -995,14 +1022,46 @@ export function AdminDashboard({
             <FilterContainer
               className={`mt-4 grid gap-3 ${
                 uiV2
-                  ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 [&_input]:w-full [&_input]:min-w-0 [&_select]:w-full [&_select]:min-w-0"
+                  ? "sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 [&_input]:w-full [&_input]:min-w-0 [&_select]:w-full [&_select]:min-w-0"
                   : ""
               }`}
-              {...(uiV2 ? { open: true } : {})}
+              {...(uiV2 ? { open: filtersOpen } : {})}
             >
               {uiV2 && (
-                <summary className="v2-touch col-span-full cursor-pointer list-none rounded-xl border border-border px-3 py-2 font-medium md:hidden">
-                  Filters ({activeFilterCount} active)
+                <summary
+                  className="v2-touch col-span-full cursor-pointer list-none rounded-xl border border-border px-3 py-2 font-medium [&::-webkit-details-marker]:hidden"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    const nextOpen = !filtersOpen;
+                    setFiltersOpen(nextOpen);
+                    window.localStorage.setItem(
+                      filtersStorageKey,
+                      nextOpen ? "open" : "closed"
+                    );
+                  }}
+                >
+                  <span className="flex items-center justify-between gap-3">
+                    <span>Filters</span>
+                    <span className="flex items-center gap-3">
+                      <span className="rounded-full bg-muted px-2 py-0.5 text-xs">
+                        {activeFilterCount}
+                      </span>
+                      {activeFilterCount > 0 && (
+                        <button
+                          type="button"
+                          aria-label="Clear filters"
+                          className="rounded-full border border-border px-2 py-1 text-xs hover:bg-muted"
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            clearFilters();
+                          }}
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </span>
+                  </span>
                 </summary>
               )}
               <select

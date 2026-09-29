@@ -33,13 +33,13 @@ export function TicketDetailTabs({
   );
 
   useEffect(() => {
-    const nextTab =
-      tabFromUrl && tabs.some((tab) => tab.id === tabFromUrl)
-        ? tabFromUrl
-        : fallbackTab;
-    const timeout = window.setTimeout(() => setActiveTab(nextTab), 0);
-    return () => window.clearTimeout(timeout);
-  }, [fallbackTab, tabFromUrl, tabs]);
+    if (tabFromUrl && tabs.some((tab) => tab.id === tabFromUrl)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setActiveTab(tabFromUrl);
+    }
+    // The URL is the only external value that should synchronize this state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabFromUrl]);
 
   function selectTab(id: string) {
     setActiveTab(id);

@@ -19,6 +19,7 @@ type Check = {
   ok: boolean;
   ms: number | null;
   detail?: string;
+  facts?: { label: string; value: string }[];
   degraded?: boolean;
 };
 type StatusBody = {
@@ -326,34 +327,36 @@ export function SystemStatusPanel() {
                     {check?.detail ?? "—"}
                   </span>
                 </span>
-                {latencies.length > 1 ? (
+                {typeof check?.ms === "number" && latencies.length > 1 && (
                   <Sparkline
                     points={latencies}
                     id={`status-${service.key}`}
                     width={84}
                     height={30}
                   />
-                ) : (
-                  <span className="text-xs font-bold text-muted-foreground">
-                    {typeof check?.ms === "number" ? `${check.ms} ms` : ""}
-                  </span>
                 )}
               </div>
+              {check?.facts?.length ? (
+                <dl className="space-y-1.5 border-t border-border pt-3">
+                  {check.facts.map((fact) => (
+                    <div
+                      key={fact.label}
+                      className="flex items-center justify-between gap-3 text-xs"
+                    >
+                      <dt className="font-semibold text-muted-foreground">
+                        {fact.label}
+                      </dt>
+                      <dd className="text-right font-extrabold">
+                        {fact.value}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              ) : null}
               {typeof check?.ms === "number" && (
-                <div>
-                  <div className="flex justify-between text-[11px] font-bold text-muted-foreground">
-                    <span>Response</span>
-                    <span>{check.ms} ms</span>
-                  </div>
-                  <span className="mt-1 block h-1.5 overflow-hidden rounded-full bg-muted">
-                    <span
-                      className={`hf-adm-grow block h-full rounded-full ${check.ms > 1500 ? "bg-status-danger" : check.ms > 600 ? "bg-status-warning" : "bg-status-success"}`}
-                      style={{
-                        width: `${Math.max(4, Math.min(100, (check.ms / 2000) * 100))}%`,
-                      }}
-                    />
-                  </span>
-                </div>
+                <p className="text-[11px] font-bold text-muted-foreground">
+                  Round trip {check.ms} ms
+                </p>
               )}
             </article>
           );

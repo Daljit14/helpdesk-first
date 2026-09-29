@@ -10,7 +10,7 @@ export default function StatusPage() {
       <div className="mx-auto w-full max-w-5xl">
         <PageHeader
           title="System status"
-          description="Live health of HelpDesk First and its database."
+          description="Can you sign in, chat, and submit tickets right now? Live check, updated every 30 seconds."
         />
         <StatusWidget />
       </div>

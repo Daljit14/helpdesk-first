@@ -574,10 +574,12 @@ export async function getOperationsData(
     : rows;
   const queueRows =
     filters.queue === "sla_breached"
-      ? filteredRows.filter((row) => row.slaState === "Breached")
+      ? filteredRows.filter((row) =>
+          ["Breached", "Due <1h"].includes(row.slaState)
+        )
       : filteredRows;
   const pagedRows = needsSlaFilter
-    ? filteredRows.slice(
+    ? queueRows.slice(
         (filters.page - 1) * filters.pageSize,
         filters.page * filters.pageSize
       )
@@ -605,10 +607,7 @@ export async function getOperationsData(
       rows: pagedRows,
       page: filters.page,
       pageSize: filters.pageSize,
-      total:
-        needsSlaFilter || filters.queue === "sla_breached"
-          ? queueRows.length
-          : (result.count ?? 0),
+      total: needsSlaFilter ? queueRows.length : (result.count ?? 0),
     },
     filters,
   };

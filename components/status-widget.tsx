@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -20,161 +20,166 @@ type StatusResponse = {
   timestamp: string;
 };
 
-const serviceNames: Record<string, string> = {
-  app: "Help desk",
-  database: "Database",
-  auth: "Authentication",
-  storage: "File storage",
-  ai: "AI assistant",
-  notifications: "Notifications",
-  rateLimiter: "Rate limiting",
+type CapabilityState = "ok" | "degraded" | "down" | "checking";
+
+type Capability = {
+  name: string;
+  state: CapabilityState;
+  text: string;
 };
 
-function formatDuration(value: number | null) {
-  return value === null ? "—" : `${Math.round(value)}ms`;
+function stateFor(check: StatusCheck | undefined): CapabilityState {
+  if (!check) return "checking";
+  if (!check.ok) return "down";
+  return check.degraded ? "degraded" : "ok";
 }
 
-function useCountUp(target: number | null) {
-  const [value, setValue] = useState(target ?? 0);
-  const reducedMotion = useSyncExternalStore(
-    (onChange) => {
-      if (typeof window.matchMedia !== "function") return () => {};
-      const media = window.matchMedia("(prefers-reduced-motion: reduce)");
-      media.addEventListener("change", onChange);
-      return () => media.removeEventListener("change", onChange);
+function combinedState(
+  ...checks: (StatusCheck | undefined)[]
+): CapabilityState {
+  if (checks.some((check) => !check)) return "checking";
+  if (checks.some((check) => !check?.ok)) return "down";
+  if (checks.some((check) => check?.degraded)) return "degraded";
+  return "ok";
+}
+
+function stateLabel(state: CapabilityState) {
+  return {
+    ok: "Operational",
+    degraded: "Degraded",
+    down: "Unavailable",
+    checking: "Checking…",
+  }[state];
+}
+
+function indicatorClass(state: CapabilityState) {
+  return {
+    ok: "bg-status-success",
+    degraded: "bg-status-warning",
+    down: "bg-status-danger",
+    checking: "bg-muted-foreground",
+  }[state];
+}
+
+function capabilityRows(
+  checks: Record<string, StatusCheck> | undefined
+): Capability[] {
+  const auth = checks?.auth;
+  const app = checks?.app;
+  const database = checks?.database;
+  const ai = checks?.ai;
+  const storage = checks?.storage;
+  const notifications = checks?.notifications;
+  const authState = stateFor(auth);
+  const browseState = combinedState(app, database);
+  const aiState = stateFor(ai);
+  const databaseState = stateFor(database);
+  const storageState = stateFor(storage);
+  const ticketState =
+    databaseState === "down"
+      ? "down"
+      : storageState === "down" || databaseState === "degraded"
+        ? "degraded"
+        : databaseState === "checking" || storageState === "checking"
+          ? "checking"
+          : "ok";
+  const notificationState = stateFor(notifications);
+
+  return [
+    {
+      name: "Sign in & accounts",
+      state: authState,
+      text:
+        authState === "ok"
+          ? "You can sign in normally"
+          : authState === "checking"
+            ? "Checking sign-in"
+            : "Sign-in may fail — try again in a few minutes",
     },
-    () =>
-      typeof window.matchMedia === "function" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches,
-    () => false
-  );
-
-  useEffect(() => {
-    if (target === null) return;
-    if (reducedMotion) return;
-    const start = performance.now();
-    const from = value ?? 0;
-    let frame = 0;
-    const tick = (now: number) => {
-      const progress = Math.min((now - start) / 400, 1);
-      setValue(from + (target - from) * (1 - (1 - progress) ** 3));
-      if (progress < 1) frame = requestAnimationFrame(tick);
-    };
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reducedMotion, target]);
-
-  if (target === null) return null;
-  if (reducedMotion) return Math.round(target);
-  return Math.round(value);
+    {
+      name: "Browse guides & search",
+      state: browseState,
+      text:
+        browseState === "ok"
+          ? "Guides and search are available"
+          : browseState === "checking"
+            ? "Checking guides and search"
+            : "Guides may load slowly",
+    },
+    {
+      name: "AI assistant",
+      state: aiState,
+      text:
+        aiState === "ok"
+          ? "Chat with the assistant is available"
+          : aiState === "degraded"
+            ? "Assistant gives limited answers right now"
+            : aiState === "checking"
+              ? "Checking the assistant"
+              : "Assistant unavailable — use guides or contact support",
+    },
+    {
+      name: "Tickets & file uploads",
+      state: ticketState,
+      text:
+        ticketState === "ok"
+          ? "You can submit tickets and attach screenshots"
+          : ticketState === "checking"
+            ? "Checking tickets and file uploads"
+            : ticketState === "down"
+              ? "Ticket submission unavailable"
+              : "Uploads may fail — you can still submit a ticket without attachments",
+    },
+    {
+      name: "Email updates",
+      state: notificationState,
+      text:
+        notificationState === "ok"
+          ? "Ticket emails are being delivered"
+          : notificationState === "checking"
+            ? "Checking email updates"
+            : "Emails may be delayed",
+    },
+  ];
 }
 
-function CheckRow({
-  name,
-  check,
+function CapabilityRow({
+  capability,
   index,
 }: {
-  name: string;
-  check: StatusCheck | null;
+  capability: Capability;
   index: number;
 }) {
-  const ms = useCountUp(check?.ms ?? null);
-  const state = !check
-    ? "Checking…"
-    : !check.ok
-      ? "Down"
-      : check.degraded
-        ? "Degraded"
-        : "Operational";
-  const unhealthy = Boolean(check && (!check.ok || check.degraded));
-
   return (
     <li
       className="hf-rise rounded-2xl border border-border bg-card p-4"
       style={{ animationDelay: `${index * 0.05}s` }}
-      title={check?.detail ?? state}
     >
-      <div className="flex items-center justify-between gap-3">
-        <span className="flex min-w-0 items-center gap-2.5 font-bold">
-          <span className="relative flex h-2.5 w-2.5 shrink-0">
-            {unhealthy && (
-              <span className="hf-ping absolute inset-0 rounded-full bg-status-warning" />
+      <div className="flex items-start gap-3">
+        <span className="relative mt-1 flex h-2.5 w-2.5 shrink-0">
+          {capability.state === "degraded" && (
+            <span className="hf-ping absolute inset-0 rounded-full bg-status-warning" />
+          )}
+          <span
+            className={cn(
+              "relative h-2.5 w-2.5 rounded-full",
+              indicatorClass(capability.state)
             )}
-            <span
-              className={cn(
-                "relative h-2.5 w-2.5 rounded-full",
-                !check
-                  ? "bg-muted-foreground"
-                  : !check.ok
-                    ? "bg-status-danger"
-                    : check.degraded
-                      ? "bg-status-warning"
-                      : "bg-status-success"
-              )}
-            />
-          </span>
-          {serviceNames[name] ?? name}
+          />
         </span>
-        <span className="shrink-0 text-sm font-extrabold text-muted-foreground">
-          {formatDuration(ms)}
-        </span>
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <h2 className="font-bold">{capability.name}</h2>
+            <span className="text-xs font-extrabold text-muted-foreground">
+              {stateLabel(capability.state)}
+            </span>
+          </div>
+          <p className="mt-1 text-sm font-semibold text-muted-foreground">
+            {capability.text}
+          </p>
+        </div>
       </div>
-      <span className="mt-1 block pl-5 text-xs font-semibold text-muted-foreground">
-        {state}
-        <span className="sr-only">. {check?.detail ?? ""}</span>
-      </span>
     </li>
-  );
-}
-
-function Sparkline({ values }: { values: number[] }) {
-  if (values.length < 2) return null;
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const range = Math.max(max - min, 1);
-  const points = values
-    .map((value, index) => {
-      const x = (index / (values.length - 1)) * 100;
-      const y = 36 - ((value - min) / range) * 28 - 4;
-      return `${x},${y}`;
-    })
-    .join(" ");
-  const lastValue = values[values.length - 1];
-  const lastY = 36 - ((lastValue - min) / range) * 28 - 4;
-  return (
-    <span className="flex h-10 items-center">
-      <svg
-        viewBox="0 0 100 36"
-        preserveAspectRatio="none"
-        className="h-10 w-32 overflow-hidden text-primary sm:w-44"
-        role="img"
-        aria-label="Status latency sparkline"
-      >
-        <polygon
-          points={`${points} 100,36 0,36`}
-          fill="currentColor"
-          opacity=".12"
-          className="hf-fill"
-        />
-        <polyline
-          points={points}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="3"
-          vectorEffect="non-scaling-stroke"
-          strokeLinecap="round"
-          className="hf-draw"
-        />
-        <circle
-          cx="100"
-          cy={lastY}
-          r="2"
-          fill="currentColor"
-          className="hf-ping"
-        />
-      </svg>
-    </span>
   );
 }
 
@@ -183,7 +188,6 @@ export function StatusWidget() {
   const [loading, setLoading] = useState(true);
   const [lastChecked, setLastChecked] = useState<string | null>(null);
   const [requestFailed, setRequestFailed] = useState(false);
-  const [history, setHistory] = useState<number[]>([]);
 
   const check = useCallback(async () => {
     setLoading(true);
@@ -193,17 +197,6 @@ export function StatusWidget() {
       const nextStatus = (await res.json()) as StatusResponse;
       setStatus(nextStatus);
       setRequestFailed(false);
-      const databaseMs = nextStatus.checks.database?.ms;
-      if (databaseMs !== null && databaseMs !== undefined) {
-        setHistory((current) => {
-          const next = [...current, databaseMs].slice(-30);
-          window.localStorage.setItem(
-            "hf-status-history",
-            JSON.stringify(next)
-          );
-          return next;
-        });
-      }
     } catch {
       setStatus(null);
       setRequestFailed(true);
@@ -214,26 +207,10 @@ export function StatusWidget() {
   }, []);
 
   useEffect(() => {
-    try {
-      const saved = JSON.parse(
-        window.localStorage.getItem("hf-status-history") ?? "[]"
-      );
-      if (Array.isArray(saved)) {
-        const values = saved
-          .filter((value): value is number => typeof value === "number")
-          .slice(-30);
-        queueMicrotask(() => setHistory(values));
-      }
-    } catch {
-      window.localStorage.removeItem("hf-status-history");
-    }
-  }, []);
-
-  useEffect(() => {
     const initial = window.setTimeout(() => void check(), 0);
     const refresh = window.setInterval(() => {
       if (document.visibilityState === "visible") void check();
-    }, 60_000);
+    }, 30_000);
     return () => {
       window.clearTimeout(initial);
       window.clearInterval(refresh);
@@ -245,14 +222,11 @@ export function StatusWidget() {
   const overallLabel = loading
     ? "Checking…"
     : overallDown
-      ? "Unavailable"
+      ? "Service disruption"
       : overallDegraded
-        ? "Degraded"
+        ? "Some services degraded"
         : "All systems operational";
-
-  const checks = Object.entries(
-    status?.checks ?? { app: null, database: null }
-  ) as Array<[string, StatusCheck | null]>;
+  const rows = capabilityRows(status?.checks);
 
   return (
     <div className="mt-8">
@@ -292,35 +266,37 @@ export function StatusWidget() {
                 : "Waiting for first check"}
             </p>
           </div>
-          <div className="flex items-center gap-3">
-            <Sparkline values={history} />
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => void check()}
-              disabled={loading}
-              aria-label="Refresh system status"
-              aria-busy={loading}
-            >
-              <RefreshCw className="h-4 w-4" aria-hidden />
-              <span className="sr-only">Refresh</span>
-            </Button>
-          </div>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => void check()}
+            disabled={loading}
+            aria-label="Refresh system status"
+            aria-busy={loading}
+          >
+            <RefreshCw className="h-4 w-4" aria-hidden />
+            <span className="sr-only">Refresh</span>
+          </Button>
         </div>
       </section>
 
       <ul className="mt-5 grid gap-3 sm:grid-cols-2">
-        {checks.map(([name, check], index) => (
-          <CheckRow key={name} name={name} check={check} index={index} />
+        {rows.map((capability, index) => (
+          <CapabilityRow
+            key={capability.name}
+            capability={capability}
+            index={index}
+          />
         ))}
       </ul>
 
       <p className="mt-5 text-center text-xs font-semibold text-muted-foreground">
-        Need help?{" "}
         <Link href="/browse" className="text-primary hover:underline">
           Browse guides
-        </Link>{" "}
-        ·{" "}
+        </Link>
+      </p>
+      <p className="mt-2 text-center text-xs font-semibold text-muted-foreground">
+        Having trouble anyway?{" "}
         <Link href="/assistant" className="text-primary hover:underline">
           Ask the assistant
         </Link>{" "}

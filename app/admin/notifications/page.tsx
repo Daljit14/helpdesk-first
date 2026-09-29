@@ -1,32 +1,103 @@
 import { notFound } from "next/navigation";
+import { AlertTriangle, Bell, CheckCircle2, Clock, Inbox } from "lucide-react";
 import { requireAdminPage } from "@/lib/admin/auth";
 import { getNotificationOutbox } from "@/app/actions/notifications";
 import { NotificationOutbox } from "@/components/admin/notification-outbox";
-import { isUiV2Enabled } from "@/lib/ui-v2";
-import { AdminBreadcrumbs } from "@/components/admin/v2/breadcrumbs";
+import {
+  AdminHero,
+  AdminPage,
+  HeroChip,
+  Panel,
+  StatGrid,
+  StatTile,
+} from "@/components/admin/ui/admin-kit";
 
 export const dynamic = "force-dynamic";
+
+function summarize(rows: { status: string }[]) {
+  const count = (...statuses: string[]) =>
+    rows.filter((row) => statuses.includes(row.status)).length;
+  return {
+    total: rows.length,
+    pending: count("pending", "sending"),
+    sent: count("sent"),
+    failed: count("failed", "dead"),
+    dead: count("dead"),
+  };
+}
 
 export default async function NotificationsPage() {
   const session = await requireAdminPage("/admin/notifications");
   if (!session) notFound();
   const rows = await getNotificationOutbox(session.organizationId);
   if (!rows) notFound();
+  const stats = summarize(rows);
+  const deliveryRate = stats.total > 0 ? stats.sent / stats.total : 0;
   return (
-    <main className="mx-auto w-full max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-      {isUiV2Enabled() && (
-        <AdminBreadcrumbs items={[{ label: "Notifications" }]} />
-      )}
-      <h1 className="text-3xl font-bold">Notifications</h1>
-      <p className="mt-2 text-muted-foreground">
-        Pending, sent, and dead outbox notifications.
-      </p>
-      <div className="mt-8">
+    <AdminPage>
+      <AdminHero
+        eyebrow="Data & security"
+        title="Notifications"
+        description="Pending, sent, and dead outbox notifications."
+        icon={Bell}
+        tone="sunset"
+      >
+        <div className="flex flex-wrap gap-2">
+          <HeroChip label="In outbox" value={stats.total} />
+          <HeroChip
+            label="Waiting"
+            value={stats.pending}
+            pulse={stats.pending > 0}
+          />
+          <HeroChip label="Dead" value={stats.dead} />
+        </div>
+      </AdminHero>
+
+      <StatGrid>
+        <StatTile
+          label="Total"
+          value={stats.total}
+          icon={Inbox}
+          index={0}
+          hint="latest 200 notifications"
+        />
+        <StatTile
+          label="Pending"
+          value={stats.pending}
+          icon={Clock}
+          tone="warn"
+          index={1}
+          hint="pending or sending"
+        />
+        <StatTile
+          label="Sent"
+          value={stats.sent}
+          icon={CheckCircle2}
+          tone="good"
+          index={2}
+          progress={deliveryRate}
+          hint={`${Math.round(deliveryRate * 100)}% delivered`}
+        />
+        <StatTile
+          label="Failed or dead"
+          value={stats.failed}
+          icon={AlertTriangle}
+          tone="danger"
+          index={3}
+        />
+      </StatGrid>
+
+      <Panel
+        title="Outbox"
+        description="Filter by status and replay dead notifications."
+        icon={Bell}
+        delay={0.1}
+      >
         <NotificationOutbox
           rows={rows}
           canReplay={session.role === "org_admin"}
         />
-      </div>
-    </main>
+      </Panel>
+    </AdminPage>
   );
 }

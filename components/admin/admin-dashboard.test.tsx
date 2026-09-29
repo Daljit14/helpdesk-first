@@ -122,7 +122,12 @@ describe("AdminDashboard", () => {
       },
     ];
     render(
-      <AdminDashboard initialSnapshot={data} resolutionTrackingEnabled uiV2 />
+      <AdminDashboard
+        initialSnapshot={data}
+        resolutionTrackingEnabled
+        uiV2
+        initialTab="analytics"
+      />
     );
 
     expect(screen.getByText(/LIVE/)).toHaveClass("text-foreground");
@@ -138,6 +143,20 @@ describe("AdminDashboard", () => {
 
     fireEvent.keyDown(chart, { key: "ArrowLeft" });
     expect(screen.getByText("Total")).toBeInTheDocument();
+  });
+
+  test("opens the tab a sidebar route asks for", () => {
+    render(
+      <AdminDashboard initialSnapshot={snapshot()} initialTab="tickets" />
+    );
+    expect(screen.getByRole("tab", { name: /tickets/i })).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
+    expect(screen.getByRole("tab", { name: /analytics/i })).toHaveAttribute(
+      "aria-selected",
+      "false"
+    );
   });
 
   test("switches between dashboard tabs", () => {

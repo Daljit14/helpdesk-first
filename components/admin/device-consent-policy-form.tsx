@@ -16,9 +16,16 @@ export function DeviceConsentPolicyForm({
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState("");
   return (
-    <label className="flex items-center gap-2 rounded-xl border border-border/60 p-3 text-sm">
+    <label
+      className={`hf-adm-row flex cursor-pointer items-center gap-3 rounded-2xl border p-3 text-sm font-bold transition-colors hover:border-primary/40 ${
+        checked
+          ? "border-status-success/40 bg-status-success/10"
+          : "border-border bg-card/60"
+      }`}
+    >
       <input
         type="checkbox"
+        className="h-4 w-4 accent-primary"
         checked={checked}
         disabled={pending}
         onChange={(event) => {
@@ -45,7 +52,9 @@ export function DeviceConsentPolicyForm({
         {deviceClass} · {category}
       </span>
       {message && (
-        <span className="text-xs text-muted-foreground">{message}</span>
+        <span className="hf-swap text-xs font-semibold text-muted-foreground">
+          {message}
+        </span>
       )}
     </label>
   );

@@ -20,7 +20,12 @@ export type ConnectorInitial = {
 
 const initialState: ConnectorActionState | null = null;
 const fieldClass =
-  "mt-1 block w-full rounded-2xl border border-border/70 bg-background/60 p-2 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring";
+  "block min-h-10 w-full min-w-0 rounded-xl border border-border bg-card px-3 py-2 text-sm font-semibold text-foreground shadow-sm transition-colors hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+const labelClass = "grid gap-1.5 text-sm font-bold";
+const PRIMARY_BUTTON =
+  "inline-flex h-10 w-fit items-center gap-2 rounded-xl bg-primary px-4 text-sm font-extrabold text-primary-foreground shadow-sm transition-transform hover:-translate-y-px disabled:opacity-60";
+const SECONDARY_BUTTON =
+  "inline-flex h-10 w-fit items-center gap-2 rounded-xl border border-border bg-card px-4 text-sm font-extrabold text-foreground shadow-sm transition-colors hover:border-primary/40 hover:bg-muted/60 disabled:opacity-60";
 
 function ActionMessage({
   state,
@@ -33,7 +38,7 @@ function ActionMessage({
     return (
       <p
         role="alert"
-        className="rounded-2xl bg-destructive/10 p-3 text-sm text-destructive"
+        className="hf-swap rounded-2xl border border-status-danger/30 bg-status-danger/10 p-3 text-sm font-bold text-status-danger"
       >
         {state.error}
       </p>
@@ -42,7 +47,7 @@ function ActionMessage({
     return (
       <p
         role="status"
-        className="rounded-2xl border border-border bg-muted p-3 text-sm"
+        className="hf-swap rounded-2xl border border-status-success/30 bg-status-success/10 p-3 text-sm font-bold text-status-success"
       >
         {success}
       </p>
@@ -74,10 +79,10 @@ export function ConnectorForm({
   const hasSecret = initial !== null;
 
   return (
-    <div className="mt-6 space-y-4">
-      <form action={saveAction} className="glass-strong grid gap-4 p-5">
+    <div className="space-y-4">
+      <form action={saveAction} className="grid gap-4 sm:grid-cols-2">
         <label
-          className="grid gap-2 text-sm font-medium"
+          className={`${labelClass} sm:col-span-2`}
           htmlFor="connector-provider"
         >
           Provider
@@ -94,10 +99,7 @@ export function ConnectorForm({
         </label>
         {provider === "entra" ? (
           <>
-            <label
-              className="grid gap-2 text-sm font-medium"
-              htmlFor="connector-tenant"
-            >
+            <label className={labelClass} htmlFor="connector-tenant">
               Tenant ID
               <input
                 id="connector-tenant"
@@ -106,10 +108,7 @@ export function ConnectorForm({
                 className={fieldClass}
               />
             </label>
-            <label
-              className="grid gap-2 text-sm font-medium"
-              htmlFor="connector-client"
-            >
+            <label className={labelClass} htmlFor="connector-client">
               Client ID
               <input
                 id="connector-client"
@@ -118,10 +117,7 @@ export function ConnectorForm({
                 className={fieldClass}
               />
             </label>
-            <label
-              className="grid gap-2 text-sm font-medium"
-              htmlFor="connector-secret"
-            >
+            <label className={labelClass} htmlFor="connector-secret">
               Client secret
               <input
                 id="connector-secret"
@@ -134,7 +130,7 @@ export function ConnectorForm({
         ) : (
           <>
             <label
-              className="grid gap-2 text-sm font-medium"
+              className={`${labelClass} sm:col-span-2`}
               htmlFor="connector-service-account"
             >
               Google service-account JSON
@@ -145,10 +141,7 @@ export function ConnectorForm({
                 className={fieldClass}
               />
             </label>
-            <label
-              className="grid gap-2 text-sm font-medium"
-              htmlFor="connector-admin-subject"
-            >
+            <label className={labelClass} htmlFor="connector-admin-subject">
               Google admin subject
               <input
                 id="connector-admin-subject"
@@ -160,10 +153,7 @@ export function ConnectorForm({
             </label>
           </>
         )}
-        <label
-          className="grid gap-2 text-sm font-medium"
-          htmlFor="connector-groups"
-        >
+        <label className={labelClass} htmlFor="connector-groups">
           Allowed group IDs
           <input
             id="connector-groups"
@@ -172,10 +162,7 @@ export function ConnectorForm({
             className={fieldClass}
           />
         </label>
-        <label
-          className="grid gap-2 text-sm font-medium"
-          htmlFor="connector-reset-url"
-        >
+        <label className={labelClass} htmlFor="connector-reset-url">
           Recovery URL
           <input
             id="connector-reset-url"
@@ -185,44 +172,46 @@ export function ConnectorForm({
             className={fieldClass}
           />
         </label>
-        {hasSecret && (
-          <p className="text-xs text-muted-foreground">
-            Secret set — enter a new value to rotate
-          </p>
-        )}
-        <ActionMessage state={saveState} success="Connector saved." />
-        <button
-          type="submit"
-          disabled={savePending}
-          className="glass-pill w-fit px-4 py-2"
-        >
-          {savePending ? "Saving…" : "Save connector"}
-        </button>
+        <div className="grid gap-3 sm:col-span-2">
+          {hasSecret && (
+            <p className="text-xs font-semibold text-muted-foreground">
+              Secret set — enter a new value to rotate
+            </p>
+          )}
+          <ActionMessage state={saveState} success="Connector saved." />
+          <button
+            type="submit"
+            disabled={savePending}
+            className={PRIMARY_BUTTON}
+          >
+            {savePending ? "Saving…" : "Save connector"}
+          </button>
+        </div>
       </form>
-      <div className="flex flex-wrap gap-3">
-        <form action={testAction}>
+      <div className="flex flex-wrap items-start gap-3 border-t border-border pt-4">
+        <form action={testAction} className="grid gap-2">
           <ActionMessage state={testState} success="Connector test passed." />
           <button
             type="submit"
             disabled={testPending}
-            className="glass-pill px-4 py-2"
+            className={SECONDARY_BUTTON}
           >
             {testPending ? "Testing…" : "Test connector"}
           </button>
         </form>
-        <form action={disableAction}>
+        <form action={disableAction} className="grid gap-2">
           <ActionMessage state={disableState} success="Connector disabled." />
           <button
             type="submit"
             disabled={disablePending}
-            className="glass-pill px-4 py-2"
+            className={`${SECONDARY_BUTTON} hover:border-status-danger/40 hover:text-status-danger`}
           >
             {disablePending ? "Disabling…" : "Disable"}
           </button>
         </form>
       </div>
       {initial?.status && (
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs font-semibold text-muted-foreground">
           Current status: {initial.status}
         </p>
       )}

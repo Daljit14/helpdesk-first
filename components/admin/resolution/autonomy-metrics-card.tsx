@@ -1,4 +1,21 @@
+import {
+  Activity,
+  AlertTriangle,
+  Bot,
+  CheckCircle2,
+  Clock,
+  Lightbulb,
+  TrendingUp,
+  XCircle,
+} from "lucide-react";
 import type { AutonomyMetrics } from "@/lib/analytics/autonomy-metrics";
+import {
+  BarRows,
+  EmptyState,
+  Panel,
+  StatTile,
+  type StatTone,
+} from "@/components/admin/ui/admin-kit";
 
 function percent(value: number): string {
   return `${Math.round(value * 100)}%`;
@@ -13,87 +30,99 @@ function duration(value: number): string {
 }
 
 const headlineLabels = [
-  ["sessions", "Sessions"],
-  ["aiResolved", "AI resolved"],
-  ["aiResolutionRate", "AI resolution rate"],
-  ["falseResolved", "False resolved"],
-  ["escalated", "Escalated"],
-  ["escalationRate", "Escalation rate"],
+  ["sessions", "Sessions", Activity, "primary"],
+  ["aiResolved", "AI resolved", CheckCircle2, "good"],
+  ["aiResolutionRate", "AI resolution rate", TrendingUp, "good"],
+  ["falseResolved", "False resolved", XCircle, "danger"],
+  ["escalated", "Escalated", AlertTriangle, "warn"],
+  ["escalationRate", "Escalation rate", TrendingUp, "warn"],
 ] as const;
 
 export function AutonomyMetricsCard({ metrics }: { metrics: AutonomyMetrics }) {
   if (metrics.sessions === 0) {
     return (
-      <section className="glass p-6" aria-labelledby="autonomy-metrics-title">
-        <h2 id="autonomy-metrics-title" className="text-xl font-semibold">
-          Requester-agent outcome metrics
-        </h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Outcome metrics will appear here after requester-agent sessions are
-          recorded for this organization.
-        </p>
-      </section>
+      <Panel
+        id="autonomy-metrics"
+        title="Requester-agent outcome metrics"
+        icon={Bot}
+        delay={0.1}
+      >
+        <EmptyState
+          icon={Bot}
+          title="No sessions yet"
+          body="Outcome metrics will appear here after requester-agent sessions are recorded for this organization."
+        />
+      </Panel>
     );
   }
 
   return (
-    <section
-      className="glass space-y-6 p-6"
-      aria-labelledby="autonomy-metrics-title"
+    <Panel
+      id="autonomy-metrics"
+      title="Requester-agent outcome metrics"
+      description={`Last ${metrics.window.windowDays} days`}
+      icon={Bot}
+      delay={0.1}
     >
-      <div>
-        <p className="text-sm text-muted-foreground">
-          Last {metrics.window.windowDays} days
-        </p>
-        <h2 id="autonomy-metrics-title" className="mt-1 text-xl font-semibold">
-          Requester-agent outcome metrics
-        </h2>
-      </div>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
-        {headlineLabels.map(([key, label]) => {
-          const value =
-            key === "aiResolutionRate" || key === "escalationRate"
-              ? percent(metrics[key])
-              : String(metrics[key]);
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+        {headlineLabels.map(([key, label, icon, tone], index) => {
+          const isRate = key === "aiResolutionRate" || key === "escalationRate";
+          const value = isRate ? percent(metrics[key]) : String(metrics[key]);
           return (
-            <div key={key} className="rounded-xl border border-border p-4">
-              <p className="text-xs text-muted-foreground">{label}</p>
-              <p className="mt-2 text-2xl font-semibold">{value}</p>
-            </div>
+            <StatTile
+              key={key}
+              label={label}
+              value={value}
+              icon={icon}
+              tone={tone as StatTone}
+              index={index}
+              progress={isRate ? metrics[key] : undefined}
+            />
           );
         })}
       </div>
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div>
-          <h3 className="font-medium">Escalation reasons</h3>
+      <div className="mt-5 grid gap-5 lg:grid-cols-2">
+        <div className="rounded-2xl border border-border p-4">
+          <h3 className="mb-3 flex items-center gap-2 font-extrabold">
+            <AlertTriangle
+              className="h-4 w-4 text-status-warning"
+              aria-hidden
+            />
+            Escalation reasons
+          </h3>
           {metrics.escalationReasons.length === 0 ? (
-            <p className="mt-2 text-sm text-muted-foreground">None recorded.</p>
+            <p className="text-sm text-muted-foreground">None recorded.</p>
           ) : (
-            <ul className="mt-2 space-y-2 text-sm">
-              {metrics.escalationReasons.map((reason) => (
-                <li className="flex justify-between gap-4" key={reason.reason}>
-                  <span>{reason.reason}</span>
-                  <span className="font-medium">{reason.count}</span>
-                </li>
-              ))}
-            </ul>
+            <BarRows
+              tone="warn"
+              items={metrics.escalationReasons.map((reason) => ({
+                key: reason.reason,
+                count: reason.count,
+              }))}
+            />
           )}
         </div>
-        <div>
-          <h3 className="font-medium">Unhandled intents</h3>
+        <div className="rounded-2xl border border-border p-4">
+          <h3 className="flex items-center gap-2 font-extrabold">
+            <Lightbulb className="h-4 w-4 text-status-info" aria-hidden />
+            Unhandled intents
+          </h3>
           <p className="mt-2 text-sm text-muted-foreground">
             {metrics.unhandledIntentCount} intent
             {metrics.unhandledIntentCount === 1 ? "" : "s"} without a guide
             match.
           </p>
           {metrics.unhandledIntents.length > 0 && (
-            <ul className="mt-3 space-y-2 text-sm">
-              {metrics.unhandledIntents.map((intent) => (
+            <ul className="mt-3 max-h-72 space-y-2 overflow-auto text-sm">
+              {metrics.unhandledIntents.map((intent, index) => (
                 <li
-                  className="rounded-lg border border-border p-3"
+                  className="hf-adm-row rounded-xl border border-border bg-muted/30 p-3"
+                  style={{ animationDelay: `${Math.min(index, 12) * 0.04}s` }}
                   key={intent.sessionId}
                 >
-                  <p>{intent.query || "No message recorded."}</p>
+                  <p className="font-semibold">
+                    {intent.query || "No message recorded."}
+                  </p>
                   <p className="mt-1 text-xs text-muted-foreground">
                     {intent.startedAt}
                   </p>
@@ -103,14 +132,20 @@ export function AutonomyMetricsCard({ metrics }: { metrics: AutonomyMetrics }) {
           )}
         </div>
       </div>
-      <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground">
-        <span>
-          Median AI resolution: {duration(metrics.medianAiResolutionMs)}
+      <div className="mt-4 flex flex-wrap gap-2 text-sm font-bold text-muted-foreground">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-status-success/15 px-3 py-1.5 text-status-success">
+          <Clock className="h-3.5 w-3.5" aria-hidden />
+          <span>
+            Median AI resolution: {duration(metrics.medianAiResolutionMs)}
+          </span>
         </span>
-        <span>
-          Median human resolution: {duration(metrics.medianHumanResolutionMs)}
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1.5">
+          <Clock className="h-3.5 w-3.5" aria-hidden />
+          <span>
+            Median human resolution: {duration(metrics.medianHumanResolutionMs)}
+          </span>
         </span>
       </div>
-    </section>
+    </Panel>
   );
 }

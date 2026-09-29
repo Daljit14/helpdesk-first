@@ -5,9 +5,15 @@ import {
   updateTicket,
   type UpdateTicketState,
 } from "@/app/actions/admin-tickets";
-import { Button } from "@/components/ui/button";
+import { SlidersHorizontal } from "lucide-react";
 
-const ADMIN_OUTLINE_BUTTON = "glass-pill text-foreground hover:bg-muted";
+const PRIMARY_BUTTON =
+  "inline-flex h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-extrabold text-primary-foreground shadow-sm transition-transform hover:-translate-y-px disabled:opacity-60";
+const FIELD_CLASS =
+  "h-10 w-full min-w-0 rounded-xl border border-border bg-card px-3 text-sm font-semibold text-foreground shadow-sm transition-colors hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+const TEXTAREA_CLASS =
+  "w-full min-w-0 rounded-xl border border-border bg-card px-3 py-2 text-sm font-semibold text-foreground shadow-sm transition-colors hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+const LABEL_CLASS = "grid gap-1.5 text-xs font-bold text-muted-foreground";
 
 const statuses = [
   "New",
@@ -56,12 +62,22 @@ export function TicketUpdateForm({
     useState(resolutionSummary);
 
   return (
-    <form action={action} className="glass mt-6 p-5">
-      <h2 className="font-semibold">Update ticket</h2>
+    <form action={action} className="glass hf-rise p-5 sm:px-6">
+      <div className="flex items-start gap-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-secondary text-secondary-foreground">
+          <SlidersHorizontal className="h-4 w-4" aria-hidden />
+        </span>
+        <div className="min-w-0">
+          <h2 className="text-lg font-extrabold">Update ticket</h2>
+          <p className="text-sm text-muted-foreground">
+            Status, priority and owner
+          </p>
+        </div>
+      </div>
       {state?.error && (
         <p
           role="alert"
-          className="mt-4 rounded-2xl bg-destructive/10 p-3 text-destructive"
+          className="hf-swap mt-4 rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm font-semibold text-destructive"
         >
           {state.error}
         </p>
@@ -71,8 +87,8 @@ export function TicketUpdateForm({
           role="status"
           className={
             uiV2
-              ? "mt-4 rounded-2xl border border-border bg-muted p-3 text-foreground"
-              : "mt-4 rounded-2xl bg-emerald-500/10 p-3 text-emerald-700 dark:text-emerald-300"
+              ? "hf-swap mt-4 rounded-xl border border-border bg-muted p-3 text-sm font-semibold text-foreground"
+              : "hf-swap mt-4 rounded-xl border border-status-success/30 bg-status-success/10 p-3 text-sm font-semibold text-status-success"
           }
         >
           {uiV2 && <span aria-hidden="true">✓ </span>}
@@ -80,11 +96,8 @@ export function TicketUpdateForm({
         </p>
       )}
       <input type="hidden" name="ticketId" value={ticketId} />
-      <div className="mt-4 grid min-w-0 gap-4 [&>label]:min-w-0 [&_input]:min-w-0 [&_select]:min-w-0">
-        <label
-          className="grid gap-2 text-sm font-medium"
-          htmlFor="ticket-status"
-        >
+      <div className="mt-4 grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-1 [&>label]:min-w-0 [&_input]:min-w-0 [&_select]:min-w-0">
+        <label className={LABEL_CLASS} htmlFor="ticket-status">
           Status
           <select
             id="ticket-status"
@@ -93,7 +106,7 @@ export function TicketUpdateForm({
             onChange={(event) =>
               setCurrentStatus(event.target.value as (typeof statuses)[number])
             }
-            className="h-10 rounded-2xl border border-border/70 bg-background/60 px-3 text-foreground outline-none backdrop-blur focus-visible:ring-2 focus-visible:ring-ring"
+            className={FIELD_CLASS}
           >
             {(workflowEnabled
               ? [...statuses, ...workflowStatuses]
@@ -111,10 +124,7 @@ export function TicketUpdateForm({
             ))}
           </select>
         </label>
-        <label
-          className="grid gap-2 text-sm font-medium"
-          htmlFor="ticket-priority"
-        >
+        <label className={LABEL_CLASS} htmlFor="ticket-priority">
           Priority
           <select
             id="ticket-priority"
@@ -125,7 +135,7 @@ export function TicketUpdateForm({
                 event.target.value as (typeof priorities)[number]
               )
             }
-            className="h-10 rounded-2xl border border-border/70 bg-background/60 px-3 text-foreground outline-none backdrop-blur focus-visible:ring-2 focus-visible:ring-ring"
+            className={FIELD_CLASS}
           >
             {priorities.map((value) => (
               <option key={value} value={value}>
@@ -134,10 +144,7 @@ export function TicketUpdateForm({
             ))}
           </select>
         </label>
-        <label
-          className="grid gap-2 text-sm font-medium"
-          htmlFor="ticket-assigned-agent"
-        >
+        <label className={LABEL_CLASS} htmlFor="ticket-assigned-agent">
           Assigned agent
           <input
             id="ticket-assigned-agent"
@@ -145,13 +152,13 @@ export function TicketUpdateForm({
             value={currentAssignedAgent}
             onChange={(event) => setCurrentAssignedAgent(event.target.value)}
             maxLength={80}
-            className="h-10 rounded-2xl border border-border/70 bg-background/60 px-3 text-foreground outline-none backdrop-blur focus-visible:ring-2 focus-visible:ring-ring"
+            className={FIELD_CLASS}
           />
         </label>
       </div>
       {resolutionTrackingEnabled && (
         <label
-          className="mt-4 grid gap-2 text-sm font-medium"
+          className={`mt-4 ${LABEL_CLASS}`}
           htmlFor="ticket-resolution-summary"
         >
           Resolution summary (private)
@@ -164,22 +171,21 @@ export function TicketUpdateForm({
             }
             maxLength={500}
             rows={3}
-            className="rounded-2xl border border-border/70 bg-background/60 p-3 text-foreground outline-none backdrop-blur focus-visible:ring-2 focus-visible:ring-ring"
+            className={TEXTAREA_CLASS}
           />
         </label>
       )}
       {!resolutionTrackingEnabled && (
         <input type="hidden" name="resolutionSummary" value="" />
       )}
-      <Button
+      <button
         type="submit"
         disabled={pending}
         aria-busy={pending}
-        className={`mt-5 ${ADMIN_OUTLINE_BUTTON}`}
-        variant="outline"
+        className={`mt-5 w-full justify-center ${PRIMARY_BUTTON}`}
       >
         Save changes
-      </Button>
+      </button>
     </form>
   );
 }

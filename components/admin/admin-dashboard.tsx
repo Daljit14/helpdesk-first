@@ -40,7 +40,7 @@ import { ResolutionChart } from "@/components/admin/ops/resolution-chart";
 
 type RefreshStatus = "idle" | "refreshing" | "error";
 type Freshness = "LIVE" | "DELAYED" | "STALE";
-type TabId = "overview" | "tickets" | "team" | "policy";
+export type TabId = "overview" | "analytics" | "tickets" | "team" | "policy";
 type Tone = "danger" | "warn" | "info" | "good" | "neutral";
 
 const CONTROL =
@@ -594,12 +594,18 @@ export function AdminDashboard({
   workflowEnabled = false,
   organizationPolicy,
   uiV2 = false,
+  initialTab = "overview",
+  basePath = "/admin/operations",
 }: {
   initialSnapshot: OperationsData;
   resolutionTrackingEnabled?: boolean;
   workflowEnabled?: boolean;
   organizationPolicy?: OrganizationPolicy;
   uiV2?: boolean;
+  /** Which tab opens first — sidebar departments deep-link here. */
+  initialTab?: TabId;
+  /** Route that owns this view; filter changes keep the URL on it. */
+  basePath?: string;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -610,7 +616,7 @@ export function AdminDashboard({
   const [now, setNow] = useState(initialTime);
   const [status, setStatus] = useState<RefreshStatus>("idle");
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<TabId>("overview");
+  const [tab, setTab] = useState<TabId>(initialTab);
   const [search, setSearch] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
   const referenceFilter = searchParams.get("ref")?.trim().toLowerCase() ?? "";
@@ -684,10 +690,10 @@ export function AdminDashboard({
   const applyFilters = useCallback(
     (next: AdminFilters) => {
       setFilters(next);
-      router.replace(`/admin/operations?${makeQuery(next)}`, { scroll: false });
+      router.replace(`${basePath}?${makeQuery(next)}`, { scroll: false });
       void refresh(next);
     },
-    [refresh, router]
+    [basePath, refresh, router]
   );
 
   const updateFilter = (key: keyof AdminFilters, value: string | number) =>
@@ -706,32 +712,26 @@ export function AdminDashboard({
     setTab("tickets");
   };
 
-  // Sidebar links such as "Ticket Queue" (#tickets) and "AI Investigations"
-  // (?queue=ai_working) land here: open the Tickets tab and apply the queue.
-  const urlQueue = searchParams.get("queue");
-  const appliedUrlQueue = useRef<string | null>(null);
+  // Old bookmarks (#tickets, #analytics) still open the matching tab. Sidebar
+  // departments now use real routes (/admin/tickets, /admin/analytics) that
+  // pass `initialTab` and the queue filter from the server.
   useEffect(() => {
-    const openTicketsFromHash = () => {
-      if (window.location.hash === "#tickets")
-        queueMicrotask(() => setTab("tickets"));
+    const openTabFromHash = () => {
+      const hash = window.location.hash;
+      if (hash === "#tickets") queueMicrotask(() => setTab("tickets"));
+      if (hash === "#analytics") queueMicrotask(() => setTab("analytics"));
     };
-    openTicketsFromHash();
-    window.addEventListener("hashchange", openTicketsFromHash);
-    return () => window.removeEventListener("hashchange", openTicketsFromHash);
+    openTabFromHash();
+    window.addEventListener("hashchange", openTabFromHash);
+    return () => window.removeEventListener("hashchange", openTabFromHash);
   }, []);
+  // A new department link (same component, new initialTab) switches tab.
+  const lastInitialTab = useRef(initialTab);
   useEffect(() => {
-    if (!urlQueue || appliedUrlQueue.current === urlQueue) return;
-    appliedUrlQueue.current = urlQueue;
-    queueMicrotask(() => {
-      setTab("tickets");
-      if (filters.queue !== urlQueue)
-        applyFilters({
-          ...filters,
-          queue: urlQueue as AdminFilters["queue"],
-          page: 1,
-        });
-    });
-  }, [urlQueue, filters, applyFilters]);
+    if (lastInitialTab.current === initialTab) return;
+    lastInitialTab.current = initialTab;
+    queueMicrotask(() => setTab(initialTab));
+  }, [initialTab]);
 
   const age = now - lastSuccessAt;
   const freshness: Freshness =
@@ -864,6 +864,7 @@ export function AdminDashboard({
 
   const tabs: { id: TabId; label: string; count?: number }[] = [
     { id: "overview", label: "Overview" },
+    { id: "analytics", label: "Analytics" },
     { id: "tickets", label: "Tickets", count: snapshot.tickets.total },
     { id: "team", label: "Team", count: metrics.agentWorkload.length },
     ...(showPolicy ? [{ id: "policy" as const, label: "Policy" }] : []),
@@ -1255,107 +1256,6 @@ export function AdminDashboard({
           ))}
         </section>
 
-        {resolutionTrackingEnabled && resolution && (
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.75fr)_minmax(0,1fr)]">
-            <Card aria-labelledby="res-h" delay={0.15}>
-              <h2 id="res-h" className="text-lg font-extrabold">
-                Resolution tracking
-              </h2>
-              <p className="mb-3 text-xs font-semibold text-muted-foreground">
-                Hover the chart for daily detail · click a series to hide it
-              </p>
-              <ResolutionChart daily={daily} />
-            </Card>
-            <Card
-              aria-labelledby="mix-h"
-              delay={0.2}
-              className="flex flex-col gap-4"
-            >
-              <h2 id="mix-h" className="text-lg font-extrabold">
-                Who solved it
-              </h2>
-              <div className="flex flex-wrap items-center gap-5">
-                <Donut
-                  label={`AI resolution rate ${resolution.aiResolutionRate}%`}
-                  center={
-                    <CountUp value={resolution.aiResolutionRate} suffix="%" />
-                  }
-                  caption="AI rate"
-                  slices={[
-                    {
-                      label: "AI",
-                      value: resolution.aiSolved,
-                      color: "var(--adm-ai)",
-                    },
-                    {
-                      label: "Agents",
-                      value: resolution.agentSolved,
-                      color: "var(--adm-agent)",
-                    },
-                    {
-                      label: "Escalated",
-                      value: resolution.escalated,
-                      color: "var(--adm-esc)",
-                    },
-                  ]}
-                />
-                <ul className="min-w-40 flex-1 space-y-2.5 text-[13px] font-bold">
-                  {[
-                    ["Solved by AI", resolution.aiSolved, "var(--adm-ai)"],
-                    [
-                      "Solved by agents",
-                      resolution.agentSolved,
-                      "var(--adm-agent)",
-                    ],
-                    ["Escalated", resolution.escalated, "var(--adm-esc)"],
-                  ].map(([label, value, color]) => (
-                    <li key={String(label)} className="flex items-center gap-2">
-                      <i
-                        aria-hidden
-                        className="h-2.5 w-2.5 rounded-[3px]"
-                        style={{ background: String(color) }}
-                      />
-                      {label}
-                      <span className="ml-auto font-extrabold tabular-nums">
-                        {value}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <dl className="grid grid-cols-2 gap-2.5 border-t border-border pt-4">
-                {[
-                  ["Total tickets", resolution.totalTickets],
-                  ["Open", resolution.openTickets],
-                  [
-                    "AI resolution rate",
-                    `${resolution.aiResolutionRate}%`,
-                    `of ${resolution.aiAttempted ?? 0} AI-attempted`,
-                  ],
-                  [
-                    "Avg resolution time",
-                    formatDuration(resolution.avgResolutionMinutes),
-                  ],
-                ].map(([label, value, note]) => (
-                  <div key={String(label)} className="rounded-2xl bg-muted p-3">
-                    <dt className="text-xs font-bold text-muted-foreground">
-                      {label}
-                    </dt>
-                    <dd className="mt-0.5 text-lg font-extrabold tabular-nums">
-                      {value}
-                    </dd>
-                    {note && (
-                      <dd className="text-[11px] font-semibold text-muted-foreground">
-                        {note}
-                      </dd>
-                    )}
-                  </div>
-                ))}
-              </dl>
-            </Card>
-          </div>
-        )}
-
         {workflowEnabled && workflow && (
           <Card aria-labelledby="flow-h" delay={0.25}>
             <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -1482,8 +1382,118 @@ export function AdminDashboard({
             <BarList items={teamLoad} label="team" hotAt={6} />
           </Card>
         </div>
+      </div>
 
-        <Card id="analytics" aria-labelledby="glance-h" delay={0.45}>
+      {/* ---------- Analytics ---------- */}
+      <div
+        role="tabpanel"
+        id="ops-panel-analytics"
+        aria-labelledby="ops-tab-analytics"
+        hidden={tab !== "analytics"}
+        className="space-y-5"
+      >
+        {resolutionTrackingEnabled && resolution && (
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.75fr)_minmax(0,1fr)]">
+            <Card aria-labelledby="res-h" delay={0.15}>
+              <h2 id="res-h" className="text-lg font-extrabold">
+                Resolution tracking
+              </h2>
+              <p className="mb-3 text-xs font-semibold text-muted-foreground">
+                Hover the chart for daily detail · click a series to hide it
+              </p>
+              <ResolutionChart daily={daily} />
+            </Card>
+            <Card
+              aria-labelledby="mix-h"
+              delay={0.2}
+              className="flex flex-col gap-4"
+            >
+              <h2 id="mix-h" className="text-lg font-extrabold">
+                Who solved it
+              </h2>
+              <div className="flex flex-wrap items-center gap-5">
+                <Donut
+                  label={`AI resolution rate ${resolution.aiResolutionRate}%`}
+                  center={
+                    <CountUp value={resolution.aiResolutionRate} suffix="%" />
+                  }
+                  caption="AI rate"
+                  slices={[
+                    {
+                      label: "AI",
+                      value: resolution.aiSolved,
+                      color: "var(--adm-ai)",
+                    },
+                    {
+                      label: "Agents",
+                      value: resolution.agentSolved,
+                      color: "var(--adm-agent)",
+                    },
+                    {
+                      label: "Escalated",
+                      value: resolution.escalated,
+                      color: "var(--adm-esc)",
+                    },
+                  ]}
+                />
+                <ul className="min-w-40 flex-1 space-y-2.5 text-[13px] font-bold">
+                  {[
+                    ["Solved by AI", resolution.aiSolved, "var(--adm-ai)"],
+                    [
+                      "Solved by agents",
+                      resolution.agentSolved,
+                      "var(--adm-agent)",
+                    ],
+                    ["Escalated", resolution.escalated, "var(--adm-esc)"],
+                  ].map(([label, value, color]) => (
+                    <li key={String(label)} className="flex items-center gap-2">
+                      <i
+                        aria-hidden
+                        className="h-2.5 w-2.5 rounded-[3px]"
+                        style={{ background: String(color) }}
+                      />
+                      {label}
+                      <span className="ml-auto font-extrabold tabular-nums">
+                        {value}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <dl className="grid grid-cols-2 gap-2.5 border-t border-border pt-4">
+                {[
+                  ["Total tickets", resolution.totalTickets],
+                  ["Open", resolution.openTickets],
+                  [
+                    "AI resolution rate",
+                    `${resolution.aiResolutionRate}%`,
+                    `of ${resolution.aiAttempted ?? 0} AI-attempted`,
+                  ],
+                  [
+                    "Avg resolution time",
+                    formatDuration(resolution.avgResolutionMinutes),
+                  ],
+                ].map(([label, value, note]) => (
+                  <div key={String(label)} className="rounded-2xl bg-muted p-3">
+                    <dt className="text-xs font-bold text-muted-foreground">
+                      {label}
+                    </dt>
+                    <dd className="mt-0.5 text-lg font-extrabold tabular-nums">
+                      {value}
+                    </dd>
+                    {note && (
+                      <dd className="text-[11px] font-semibold text-muted-foreground">
+                        {note}
+                      </dd>
+                    )}
+                  </div>
+                ))}
+              </dl>
+            </Card>
+          </div>
+        )}
+
+        <Card id="analytics-glance" aria-labelledby="glance-h" delay={0.45}>
           <h2 id="glance-h" className="text-lg font-extrabold">
             At a glance
           </h2>

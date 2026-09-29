@@ -81,7 +81,7 @@ test("workflow dashboard and ticket detail are accessible", async ({
     "Resolved by AI",
     "Resolved by employees",
   ]) {
-    await expect(page.getByText(label, { exact: true })).toBeVisible();
+    await expect(page.getByText(label, { exact: true }).first()).toBeVisible();
   }
   await page.goto(`/admin/tickets/${process.env.ADMIN_E2E_TICKET_ID}`);
   for (const heading of [

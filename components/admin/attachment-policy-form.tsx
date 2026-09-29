@@ -3,6 +3,12 @@
 import { useState, useTransition } from "react";
 import { adminUpdateAttachmentPolicy } from "@/app/actions/admin-attachments";
 import type { AttachmentPolicy } from "@/lib/attachments/policy";
+import { ShieldCheck } from "lucide-react";
+
+const FIELD =
+  "h-10 w-full min-w-0 rounded-xl border border-border bg-card px-3 text-sm font-semibold text-foreground shadow-sm transition-colors hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+const PRIMARY_BUTTON =
+  "inline-flex h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-extrabold text-primary-foreground shadow-sm transition-transform hover:-translate-y-px disabled:opacity-60";
 
 export function AttachmentPolicyForm({
   organizationId,
@@ -24,11 +30,8 @@ export function AttachmentPolicyForm({
   }
 
   return (
-    <form
-      onSubmit={save}
-      className="glass-strong grid gap-4 p-5 sm:grid-cols-2"
-    >
-      <label className="grid gap-1 text-sm">
+    <form onSubmit={save} className="grid gap-4 sm:grid-cols-2">
+      <label className="grid gap-1.5 text-sm font-bold">
         Max files per ticket
         <input
           type="number"
@@ -41,10 +44,10 @@ export function AttachmentPolicyForm({
               maxFilesPerTicket: Number(event.target.value),
             }))
           }
-          className="rounded-xl border border-border/60 bg-background/50 p-2"
+          className={FIELD}
         />
       </label>
-      <label className="grid gap-1 text-sm">
+      <label className="grid gap-1.5 text-sm font-bold">
         Max file bytes
         <input
           type="number"
@@ -57,10 +60,10 @@ export function AttachmentPolicyForm({
               maxFileBytes: Number(event.target.value),
             }))
           }
-          className="rounded-xl border border-border/60 bg-background/50 p-2"
+          className={FIELD}
         />
       </label>
-      <label className="grid gap-1 text-sm">
+      <label className="grid gap-1.5 text-sm font-bold">
         Max total bytes
         <input
           type="number"
@@ -73,10 +76,10 @@ export function AttachmentPolicyForm({
               maxTotalBytes: Number(event.target.value),
             }))
           }
-          className="rounded-xl border border-border/60 bg-background/50 p-2"
+          className={FIELD}
         />
       </label>
-      <label className="grid gap-1 text-sm">
+      <label className="grid gap-1.5 text-sm font-bold">
         Retention days
         <input
           type="number"
@@ -89,19 +92,21 @@ export function AttachmentPolicyForm({
               retentionDays: Number(event.target.value),
             }))
           }
-          className="rounded-xl border border-border/60 bg-background/50 p-2"
+          className={FIELD}
         />
       </label>
-      <div className="flex items-center gap-3 sm:col-span-2">
-        <button
-          type="submit"
-          disabled={pending}
-          className="glass-pill px-4 py-2"
-        >
+      <div className="flex flex-wrap items-center gap-3 sm:col-span-2">
+        <button type="submit" disabled={pending} className={PRIMARY_BUTTON}>
+          <ShieldCheck className="h-4 w-4" aria-hidden />
           {pending ? "Saving…" : "Save policy"}
         </button>
         {notice && (
-          <span className="text-sm text-muted-foreground">{notice}</span>
+          <span
+            role="status"
+            className="hf-swap text-sm font-bold text-muted-foreground"
+          >
+            {notice}
+          </span>
         )}
       </div>
     </form>

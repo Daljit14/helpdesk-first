@@ -1,72 +1,94 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import Link from "next/link";
+import { Mail, Settings, ShieldCheck, UserCog, UsersRound } from "lucide-react";
 import { OrganizationPanel } from "@/components/admin/organization-panel";
 import { requireAdminPage } from "@/lib/admin/auth";
-import { getOrganizationPolicy } from "@/lib/admin/policies";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { isUiV2Enabled } from "@/lib/ui-v2";
-import { AdminBreadcrumbs } from "@/components/admin/v2/breadcrumbs";
+import { loadOrganizationData } from "@/lib/admin/organization-data";
+import {
+  AdminHero,
+  AdminPage,
+  HeroChip,
+  StatGrid,
+  StatTile,
+  heroButton,
+} from "@/components/admin/ui/admin-kit";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
-  title: "Organization",
+  title: "Users and Employees",
   robots: { index: false, follow: false },
 };
 
 export default async function OrganizationPage() {
   const session = await requireAdminPage("/admin/organization");
   if (session.role !== "org_admin") notFound();
-  const admin = createAdminClient();
-  const [
-    { data: organization },
-    { data: members },
-    { data: domains },
-    { data: invitations },
-  ] = await Promise.all([
-    admin
-      .from("organizations")
-      .select("name")
-      .eq("id", session.organizationId)
-      .maybeSingle(),
-    admin
-      .from("organization_members")
-      .select("user_id,role,joined_via")
-      .eq("organization_id", session.organizationId)
-      .order("created_at"),
-    admin
-      .from("organization_domains")
-      .select("id,domain,verified,verification_token")
-      .eq("organization_id", session.organizationId)
-      .order("created_at"),
-    admin
-      .from("organization_invitations")
-      .select("id,email,role,expires_at")
-      .eq("organization_id", session.organizationId)
-      .is("accepted_at", null)
-      .is("revoked_at", null)
-      .order("created_at", { ascending: false }),
-  ]);
-  const policy = await getOrganizationPolicy(session.organizationId);
+  const data = await loadOrganizationData(session.organizationId);
+  const count = (role: string) =>
+    data.members.filter(
+      (member) =>
+        member.role === role ||
+        (role === "org_admin" && member.role === "admin")
+    ).length;
   return (
-    <section className="flex flex-1 flex-col px-4 py-10 sm:px-6 lg:px-8">
-      <div className="mx-auto w-full max-w-5xl">
-        {isUiV2Enabled() && (
-          <AdminBreadcrumbs items={[{ label: "Organization" }]} />
-        )}
-        <p className="text-sm text-muted-foreground">Administration</p>
-        <h1 className="mt-2 text-3xl font-bold">Organization</h1>
-        <div className="mt-6">
-          <OrganizationPanel
-            organizationName={organization?.name ?? "Organization"}
-            allowVerificationException={policy.allowVerificationException}
-            slaTargets={policy.slaTargets}
-            timezone={policy.timezone}
-            members={members ?? []}
-            domains={domains ?? []}
-            invitations={invitations ?? []}
-          />
+    <AdminPage>
+      <AdminHero
+        eyebrow={data.organizationName}
+        title="Users and Employees"
+        description="Everyone who can sign in to your help desk, what they can do, and who is still invited."
+        icon={UsersRound}
+        tone="sunset"
+        actions={
+          <Link href="/admin/settings" className={heroButton}>
+            <Settings className="h-4 w-4" aria-hidden />
+            Organization settings
+          </Link>
+        }
+      >
+        <div className="flex flex-wrap gap-2">
+          <HeroChip label="Members" value={data.members.length} />
+          <HeroChip label="Pending invites" value={data.invitations.length} />
         </div>
-      </div>
-    </section>
+      </AdminHero>
+      <StatGrid>
+        <StatTile
+          label="Members"
+          value={data.members.length}
+          icon={UsersRound}
+          index={0}
+        />
+        <StatTile
+          label="Organization admins"
+          value={count("org_admin")}
+          icon={ShieldCheck}
+          tone="primary"
+          index={1}
+        />
+        <StatTile
+          label="Support agents"
+          value={count("support_agent")}
+          icon={UserCog}
+          tone="info"
+          index={2}
+        />
+        <StatTile
+          label="Pending invites"
+          value={data.invitations.length}
+          icon={Mail}
+          tone="warn"
+          index={3}
+        />
+      </StatGrid>
+      <OrganizationPanel
+        view="people"
+        organizationName={data.organizationName}
+        allowVerificationException={data.policy.allowVerificationException}
+        slaTargets={data.policy.slaTargets}
+        timezone={data.policy.timezone}
+        members={data.members}
+        domains={data.domains}
+        invitations={data.invitations}
+      />
+    </AdminPage>
   );
 }

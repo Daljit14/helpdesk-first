@@ -22,7 +22,7 @@ import { TypewriterText } from "@/components/assistant/typewriter-text";
 import {
   HowItWorks,
   QuickTips,
-  SystemStatusCard,
+  StillStuckCard,
 } from "@/components/home/dashboard-extras";
 import { cn } from "@/lib/utils";
 
@@ -370,7 +370,7 @@ export function HomeStart({
           </div>
           <div className="grid gap-5">
             <QuickTips className="hf-rise" />
-            <SystemStatusCard className="hf-rise" />
+            <StillStuckCard className="hf-rise" />
           </div>
         </div>
       </div>

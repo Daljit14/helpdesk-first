@@ -56,7 +56,7 @@ const departments: Department[] = [
   {
     id: "ticket-queue",
     label: "Ticket Queue",
-    href: "/admin/operations#tickets",
+    href: "/admin/tickets",
     icon: "ticket",
     available: true,
     keywords: ["tickets", "queue"],
@@ -64,7 +64,7 @@ const departments: Department[] = [
   {
     id: "ai-investigations",
     label: "AI Investigations",
-    href: "/admin/operations?queue=ai_working",
+    href: "/admin/tickets?queue=ai_working",
     icon: "brain",
     available: true,
     keywords: ["investigation"],
@@ -72,7 +72,7 @@ const departments: Department[] = [
   {
     id: "capability-matching",
     label: "Capability Matching",
-    href: "/admin/operations?queue=needs_human",
+    href: "/admin/tickets?queue=needs_human",
     icon: "users",
     available: true,
     keywords: ["assign"],
@@ -96,7 +96,7 @@ const departments: Department[] = [
   {
     id: "planned",
     label: "Security and Audit",
-    href: "/admin/organization#security",
+    href: "/admin/security",
     icon: "shield",
     available: false,
     keywords: ["audit"],
@@ -134,6 +134,9 @@ describe("AdminShell", () => {
     ["/admin/tickets/ticket-123", "", "ticket-queue"],
     ["/admin/operations", "ai_working", "ai-investigations"],
     ["/admin/operations", "needs_human", "capability-matching"],
+    ["/admin/tickets", "ai_working", "ai-investigations"],
+    ["/admin/tickets", "needs_human", "capability-matching"],
+    ["/admin/operations", "", "operations"],
   ])("resolves %s with queue=%s to %s", (pathname, queue, expectedId) => {
     expect(
       departmentForPath(
@@ -181,7 +184,7 @@ describe("AdminShell", () => {
       target: { value: "TCK-12345678" },
     });
     fireEvent.submit(screen.getByLabelText("Search tickets").closest("form")!);
-    expect(push).toHaveBeenCalledWith("/admin/operations?ref=TCK-12345678");
+    expect(push).toHaveBeenCalledWith("/admin/tickets?ref=TCK-12345678");
   });
 
   it("opens the mobile drawer and closes it with Escape, restoring focus", () => {

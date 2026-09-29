@@ -441,7 +441,7 @@ export function AdminShell({
             </aside>
           </div>
         )}
-        <div role="main" className="min-w-0 flex-1">
+        <div role="main" className="min-w-0 flex-1 overflow-x-clip">
           {children}
         </div>
       </div>

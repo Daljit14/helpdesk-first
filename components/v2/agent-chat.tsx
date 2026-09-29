@@ -479,7 +479,7 @@ export function AgentChat({
           disabled={pending || terminal}
           aria-label="Describe your IT problem"
           placeholder="Describe the IT problem you need help with."
-          className="mt-6 min-h-28 w-full rounded-2xl border border-input bg-background p-3 text-sm"
+          className="mt-6 min-h-28 w-full rounded-3xl border border-input bg-card p-4 text-base outline-none transition-[border-color,box-shadow] focus:border-primary focus:ring-4 focus:ring-primary/15"
         />
         {visionEnabled && (
           <div className="mt-3 flex flex-wrap items-center gap-2">

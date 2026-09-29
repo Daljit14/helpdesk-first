@@ -7,13 +7,14 @@ import {
   Bookmark,
   Bot,
   ChevronRight,
-  Headset,
-  LayoutDashboard,
+  Home,
+  LogOut,
   Menu,
   Moon,
   Search,
   Sun,
   Ticket,
+  UserRound,
 } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { logoutAction } from "@/app/actions/auth";
@@ -23,10 +24,12 @@ import { useTheme } from "@/components/theme-provider";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { breadcrumbsForPath } from "@/components/shell/breadcrumbs-for-path";
 import { AppFooter } from "@/components/shell/app-footer";
+import { BrandMark, BrandName } from "@/components/shell/brand-mark";
+import { buttonVariants } from "@/lib/button-variants";
 import { cn } from "@/lib/utils";
 
 const navItems = [
-  { href: "/", label: "Start", icon: LayoutDashboard },
+  { href: "/", label: "Start", icon: Home },
   { href: "/browse", label: "Browse solutions", icon: Search },
   { href: "/assistant", label: "Support Assistant", icon: Bot, ai: true },
   { href: "/tickets", label: "My tickets", icon: Ticket },
@@ -43,36 +46,68 @@ function Navigation({
   aiEnabled,
   onNavigate,
   label = "Primary navigation",
+  layout = "row",
 }: {
   pathname: string;
   aiEnabled: boolean;
   onNavigate?: () => void;
   label?: string;
+  layout?: "row" | "column";
 }) {
   return (
     <nav aria-label={label}>
-      <ul className="grid gap-1">
+      <ul
+        className={cn(
+          layout === "row" ? "flex items-center gap-1" : "grid gap-1.5"
+        )}
+      >
         {navItems
           .filter((item) => !item.ai || aiEnabled)
-          .map(({ href, label, icon: Icon }) => (
-            <li key={href}>
-              <Link
-                href={href}
-                aria-current={isActive(pathname, href) ? "page" : undefined}
-                onClick={onNavigate}
-                className={cn(
-                  "flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-nav-muted hover:bg-nav-foreground/10 hover:text-nav-foreground",
-                  isActive(pathname, href) &&
-                    "bg-nav-foreground/10 text-nav-foreground"
-                )}
-              >
-                <Icon className="h-4 w-4" aria-hidden />
-                {label}
-              </Link>
-            </li>
-          ))}
+          .map(({ href, label, icon: Icon }) => {
+            const active = isActive(pathname, href);
+            return (
+              <li key={href}>
+                <Link
+                  href={href}
+                  aria-current={active ? "page" : undefined}
+                  onClick={onNavigate}
+                  className={cn(
+                    "flex min-h-11 items-center gap-2 rounded-full text-sm font-semibold transition-colors",
+                    layout === "row" ? "px-3 xl:px-4" : "px-4 py-3 text-base",
+                    active
+                      ? "bg-secondary text-primary"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  )}
+                >
+                  <Icon
+                    className={cn("h-4 w-4", layout === "column" && "h-5 w-5")}
+                    aria-hidden
+                  />
+                  {label}
+                </Link>
+              </li>
+            );
+          })}
       </ul>
     </nav>
+  );
+}
+
+function ThemeToggle({ compact = false }: { compact?: boolean }) {
+  const { theme, toggleTheme } = useTheme();
+  const label = `Switch to ${theme === "dark" ? "light" : "dark"} mode`;
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon-sm"
+      className={cn(compact ? "" : "hidden sm:inline-flex")}
+      onClick={toggleTheme}
+      aria-label={label}
+      title={label}
+    >
+      {theme === "dark" ? <Sun aria-hidden /> : <Moon aria-hidden />}
+    </Button>
   );
 }
 
@@ -88,7 +123,6 @@ export function AppShell({
   aiEnabled?: boolean;
 }) {
   const pathname = usePathname() ?? "/";
-  const { theme, toggleTheme } = useTheme();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const drawerTriggerRef = useRef<HTMLButtonElement>(null);
   const previousPathname = useRef(pathname);
@@ -103,138 +137,92 @@ export function AppShell({
   if (pathname.startsWith("/admin")) return <>{children}</>;
 
   const breadcrumbs = breadcrumbsForPath(pathname);
-  return (
-    <div className="min-h-full bg-background text-foreground lg:grid lg:grid-cols-[240px_1fr]">
-      <aside className="sticky top-0 hidden h-screen flex-col overflow-y-auto bg-nav px-4 py-5 text-nav-foreground lg:flex">
-        <Link
-          href="/"
-          className="flex items-center gap-2 px-3 text-lg font-semibold"
-        >
-          <Headset className="h-5 w-5 text-primary" aria-hidden />
-          HelpDesk First
-        </Link>
-        <div className="mt-8">
-          <Navigation pathname={pathname} aiEnabled={aiEnabled} />
-        </div>
-        <div className="mt-auto grid gap-3 border-t border-nav-muted/30 pt-4">
-          <Link
-            href="/status"
-            className="flex min-h-11 items-center gap-3 px-3 py-2 text-sm text-nav-muted hover:text-nav-foreground"
-          >
-            <Activity className="h-4 w-4" aria-hidden />
-            System status
-          </Link>
-          {email ? (
-            <div className="flex items-center gap-3 px-3 text-sm text-nav-muted">
-              <span className="min-w-0 truncate" title={email}>
-                {email}
-              </span>
-            </div>
-          ) : (
-            <Link
-              href="/login"
-              className="flex min-h-11 items-center gap-3 px-3 py-2 text-sm text-nav-muted hover:text-nav-foreground"
-            >
-              Log in
-            </Link>
-          )}
-          {email ? (
-            <form action={logoutAction}>
-              <Button
-                type="submit"
-                variant="ghost"
-                className="w-full justify-start px-3 text-nav-muted hover:bg-nav-foreground/10 hover:text-nav-foreground"
-              >
-                Log out
-              </Button>
-            </form>
-          ) : (
-            <Link
-              href="/signup"
-              className="flex min-h-11 items-center gap-3 px-3 py-2 text-sm text-nav-muted hover:text-nav-foreground"
-            >
-              Sign up
-            </Link>
-          )}
-          {staff && (
-            <Link
-              href="/admin/login"
-              className="flex min-h-11 items-center gap-3 px-3 py-2 text-sm text-nav-muted hover:text-nav-foreground"
-            >
-              Staff console
-            </Link>
-          )}
-        </div>
-      </aside>
+  const showBreadcrumbs = pathname !== "/" && breadcrumbs.length > 1;
 
-      <div className="flex min-h-screen min-w-0 flex-col">
-        <header className="flex h-14 items-center justify-between border-b border-border bg-card px-4 sm:px-8">
-          <div className="flex min-w-0 items-center gap-3">
-            <Button
-              ref={drawerTriggerRef}
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="lg:hidden"
-              aria-label="Open navigation"
-              aria-expanded={drawerOpen}
-              onClick={() => setDrawerOpen(true)}
-            >
-              <Menu aria-hidden />
-            </Button>
-            <div className="min-w-0">
-              <Breadcrumbs items={breadcrumbs} />
-            </div>
+  return (
+    <div className="flex min-h-full flex-col bg-background text-foreground">
+      <header className="sticky top-0 z-40 px-3 pt-3 sm:px-6">
+        <div className="mx-auto flex h-16 max-w-6xl items-center gap-3 rounded-full border border-border bg-card/90 pl-3 pr-2 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-card/80">
+          <Button
+            ref={drawerTriggerRef}
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="lg:hidden"
+            aria-label="Open navigation"
+            aria-expanded={drawerOpen}
+            onClick={() => setDrawerOpen(true)}
+          >
+            <Menu aria-hidden />
+          </Button>
+
+          <Link
+            href="/"
+            className="flex shrink-0 items-center gap-2.5 rounded-full pr-2"
+          >
+            <BrandMark />
+            <BrandName className="hidden sm:inline lg:hidden xl:inline" />
+          </Link>
+
+          <div className="mx-auto hidden lg:block">
+            <Navigation pathname={pathname} aiEnabled={aiEnabled} />
           </div>
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="hidden sm:inline-flex"
-              onClick={toggleTheme}
-              aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
-            >
-              {theme === "dark" ? <Sun aria-hidden /> : <Moon aria-hidden />}
-              <span className="ml-2">
-                {theme === "dark" ? "Light" : "Dark"}
-              </span>
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="sm:hidden"
-              onClick={toggleTheme}
-              aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
-            >
-              {theme === "dark" ? <Sun aria-hidden /> : <Moon aria-hidden />}
-            </Button>
+
+          <div className="ml-auto flex items-center gap-1.5 lg:ml-0">
+            <ThemeToggle />
             {email ? (
-              <form action={logoutAction} className="hidden sm:block">
-                <Button type="submit" variant="outline" size="sm">
-                  Log out
-                </Button>
-              </form>
+              <>
+                <span
+                  className="hidden max-w-48 items-center gap-2 truncate rounded-full bg-muted px-3 py-2 text-sm font-medium 2xl:inline-flex"
+                  title={email}
+                >
+                  <UserRound className="h-4 w-4 shrink-0" aria-hidden />
+                  <span className="truncate">{email}</span>
+                </span>
+                <form action={logoutAction} className="hidden sm:block">
+                  <Button type="submit" variant="outline" size="sm">
+                    <LogOut aria-hidden />
+                    Log out
+                  </Button>
+                </form>
+              </>
             ) : (
-              <Link
-                href="/login"
-                className="hidden rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-secondary sm:block"
-              >
-                Log in
-              </Link>
+              <>
+                <Link
+                  href="/login"
+                  className={cn(
+                    buttonVariants({ variant: "ghost", size: "sm" }),
+                    "hidden sm:inline-flex"
+                  )}
+                >
+                  Log in
+                </Link>
+                <Link
+                  href="/signup"
+                  className={buttonVariants({ variant: "default", size: "sm" })}
+                >
+                  Sign up
+                </Link>
+              </>
             )}
           </div>
-        </header>
-        <main
-          id="main-content"
-          tabIndex={-1}
-          className="min-w-0 flex-1 focus:outline-none"
-        >
-          {children}
-        </main>
-        <AppFooter signedIn={Boolean(email)} staff={staff} />
-      </div>
+        </div>
+      </header>
+
+      {showBreadcrumbs && (
+        <div className="mx-auto w-full max-w-6xl px-5 pt-5 sm:px-9">
+          <Breadcrumbs items={breadcrumbs} />
+        </div>
+      )}
+
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="min-w-0 flex-1 focus:outline-none"
+      >
+        {children}
+      </main>
+      <AppFooter signedIn={Boolean(email)} staff={staff} />
 
       <Sheet
         open={drawerOpen}
@@ -242,51 +230,73 @@ export function AppShell({
         title="Navigation"
         triggerRef={drawerTriggerRef}
       >
-        <div className="mb-4 flex items-center gap-2 px-3 text-lg font-semibold">
-          <Headset className="h-5 w-5 text-primary" aria-hidden />
-          HelpDesk First
+        <div className="mb-5 flex items-center gap-2.5 px-2">
+          <BrandMark />
+          <BrandName />
         </div>
         <Navigation
           pathname={pathname}
           aiEnabled={aiEnabled}
           onNavigate={() => setDrawerOpen(false)}
           label="Mobile"
+          layout="column"
         />
-        <div className="mt-6 border-t border-nav-muted/30 pt-4">
+        <div className="mt-6 grid gap-1.5 border-t border-border pt-5">
           <Link
             href="/status"
             onClick={() => setDrawerOpen(false)}
-            className="flex min-h-11 items-center gap-3 rounded-lg px-3 py-3 text-sm text-nav-muted hover:bg-nav-foreground/10 hover:text-nav-foreground"
+            className="flex min-h-11 items-center gap-3 rounded-full px-4 py-3 text-sm font-semibold text-muted-foreground hover:bg-muted hover:text-foreground"
           >
             <Activity className="h-4 w-4" aria-hidden />
             System status
             <ChevronRight className="ml-auto h-4 w-4" aria-hidden />
           </Link>
+          {staff && (
+            <Link
+              href="/admin/login"
+              onClick={() => setDrawerOpen(false)}
+              className="flex min-h-11 items-center gap-3 rounded-full px-4 py-3 text-sm font-semibold text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              Staff console
+              <ChevronRight className="ml-auto h-4 w-4" aria-hidden />
+            </Link>
+          )}
+          <div className="flex items-center justify-between rounded-full px-4 py-1 text-sm text-muted-foreground">
+            <span>Appearance</span>
+            <ThemeToggle compact />
+          </div>
           {email ? (
             <>
               <p
-                className="truncate px-3 py-3 text-sm text-nav-muted"
+                className="truncate px-4 py-3 text-sm text-muted-foreground"
                 title={email}
               >
                 {email}
               </p>
-              <form action={logoutAction}>
-                <button
-                  type="submit"
-                  className="min-h-11 w-full rounded-lg px-3 py-3 text-left text-sm text-nav-muted hover:bg-nav-foreground/10 hover:text-nav-foreground"
-                >
+              <form action={logoutAction} className="px-2">
+                <Button type="submit" variant="outline" className="w-full">
+                  <LogOut aria-hidden />
                   Log out
-                </button>
+                </Button>
               </form>
             </>
           ) : (
-            <Link
-              href="/login"
-              onClick={() => setDrawerOpen(false)}
-              className="block min-h-11 rounded-lg px-3 py-3 text-sm text-nav-muted hover:bg-nav-foreground/10 hover:text-nav-foreground"
-            >
-              Log in
-            </Link>
+            <div className="grid gap-2 px-2 pt-2">
+              <Link
+                href="/login"
+                onClick={() => setDrawerOpen(false)}
+                className={cn(buttonVariants({ variant: "outline" }), "w-full")}
+              >
+                Log in
+              </Link>
+              <Link
+                href="/signup"
+                onClick={() => setDrawerOpen(false)}
+                className={cn(buttonVariants({ variant: "default" }), "w-full")}
+              >
+                Sign up
+              </Link>
+            </div>
           )}
         </div>
       </Sheet>

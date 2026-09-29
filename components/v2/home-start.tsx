@@ -74,16 +74,16 @@ export function HomeStart({
 
   return (
     <section className="px-4 py-10 sm:px-6 lg:px-10">
-      <div className="mx-auto max-w-6xl">
-        <div className="max-w-3xl">
-          <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">
+      <div className="hero-wash mx-auto max-w-6xl">
+        <div className="max-w-3xl pt-2">
+          <h1 className="text-[2.5rem] font-bold leading-[1.05] tracking-tight sm:text-6xl">
             What can we help you fix?
           </h1>
-          <p className="mt-3 text-lg text-muted-foreground">
+          <p className="mt-4 text-lg text-muted-foreground">
             Describe your issue or explore a troubleshooting guide.
           </p>
         </div>
-        <div className="mt-8 max-w-2xl rounded-xl border border-border bg-card p-5 shadow-sm">
+        <div className="mt-8 max-w-2xl rounded-[32px] border border-border bg-card p-6 shadow-md sm:p-8">
           <div className="grid gap-5">
             <Field id="start-problem" label="What's the problem?">
               <textarea
@@ -92,7 +92,7 @@ export function HomeStart({
                 value={description}
                 onChange={(event) => setDescription(event.target.value)}
                 placeholder="e.g. My laptop won't connect to the office Wi-Fi since this morning"
-                className="w-full rounded-lg border border-input bg-background px-3 py-3 outline-none focus:border-primary"
+                className="w-full rounded-3xl border border-input bg-surface px-4 py-3 text-base outline-none transition-[border-color,box-shadow] focus:border-primary focus:ring-4 focus:ring-primary/15"
               />
             </Field>
             <Field id="start-platform" label="Device (optional)">
@@ -100,7 +100,7 @@ export function HomeStart({
                 id="start-platform"
                 value={platform}
                 onChange={(event) => setPlatform(event.target.value)}
-                className="h-11 rounded-lg border border-input bg-background px-3"
+                className="h-12 rounded-full border border-input bg-surface px-4 outline-none focus:border-primary focus:ring-4 focus:ring-primary/15"
               >
                 <option value="">Not sure</option>
                 <option value="Windows">Windows</option>
@@ -122,7 +122,7 @@ export function HomeStart({
               <Link
                 href={canSubmit ? assistantHref("human") : "#start-problem"}
                 className={cn(
-                  "inline-flex min-h-11 items-center justify-center rounded-lg border border-border px-5 font-medium hover:bg-secondary",
+                  "inline-flex min-h-12 items-center justify-center rounded-full border border-border px-6 font-semibold hover:bg-secondary",
                   !canSubmit && "text-muted-foreground"
                 )}
               >
@@ -143,7 +143,7 @@ export function HomeStart({
             <div>
               <h2
                 id="popular-solutions-heading"
-                className="text-xl font-semibold"
+                className="text-2xl font-semibold"
               >
                 Popular solutions
               </h2>
@@ -171,7 +171,7 @@ export function HomeStart({
         {signedIn && openTickets.length > 0 && (
           <section className="mt-12" aria-labelledby="open-tickets-heading">
             <div className="flex items-end justify-between gap-4">
-              <h2 id="open-tickets-heading" className="text-xl font-semibold">
+              <h2 id="open-tickets-heading" className="text-2xl font-semibold">
                 Your open tickets
               </h2>
               <Link
@@ -187,7 +187,7 @@ export function HomeStart({
                 return (
                   <li
                     key={ticket.id}
-                    className="rounded-xl border border-border bg-card p-4"
+                    className="glass glass-interactive p-4"
                   >
                     <Link
                       href={`/tickets/${ticket.id}`}
@@ -211,7 +211,7 @@ export function HomeStart({
         )}
 
         <section className="mt-12" aria-labelledby="browse-device-heading">
-          <h2 id="browse-device-heading" className="text-xl font-semibold">
+          <h2 id="browse-device-heading" className="text-2xl font-semibold">
             Browse by device
           </h2>
           <div className="mt-3 flex flex-wrap gap-2">
@@ -219,7 +219,7 @@ export function HomeStart({
               <Link
                 key={device}
                 href={`/browse?platform=${device}`}
-                className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium hover:bg-secondary"
+                className="chip"
               >
                 <Monitor className="h-4 w-4" aria-hidden />
                 {device === "ios"

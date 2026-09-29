@@ -74,7 +74,7 @@ export function Sheet({
   return createPortal(
     <>
       <div
-        className="fixed inset-0 z-50 bg-slate-950/50"
+        className="fixed inset-0 z-50 bg-[#2a1b3d]/40 backdrop-blur-[2px]"
         aria-hidden="true"
         onClick={() => onOpenChange(false)}
       />
@@ -83,16 +83,16 @@ export function Sheet({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="fixed inset-y-0 left-0 z-50 flex w-[min(320px,85vw)] flex-col bg-nav p-5 text-nav-foreground shadow-xl"
+        className="fixed inset-y-2 left-2 z-50 flex w-[min(340px,88vw)] flex-col rounded-[28px] border border-border bg-card p-5 text-card-foreground shadow-md"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-nav-muted/30 pb-4">
-          <h2 className="font-semibold">{title}</h2>
+        <div className="flex items-center justify-between border-b border-border pb-4">
+          <h2 className="text-sm font-semibold text-muted-foreground">{title}</h2>
           <Button
             type="button"
             variant="ghost"
             size="icon-sm"
-            className="text-nav-foreground hover:bg-nav-foreground/10 hover:text-nav-foreground"
+            className="w-auto px-3"
             aria-label="Close navigation"
             onClick={() => onOpenChange(false)}
           >

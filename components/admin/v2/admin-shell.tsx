@@ -20,6 +20,7 @@ import {
   BarChart3,
 } from "lucide-react";
 import Link from "next/link";
+import { BrandMark } from "@/components/shell/brand-mark";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { adminLogout } from "@/app/actions/admin-auth";
@@ -234,10 +235,10 @@ export function AdminShell({
                   href={department.href}
                   aria-current={active ? "page" : undefined}
                   onClick={() => navigation(true)}
-                  className={`v2-touch flex items-center gap-3 rounded-xl px-3 py-2 text-sm ${
+                  className={`v2-touch flex items-center gap-3 rounded-full px-3 py-2 text-sm ${
                     active
-                      ? "bg-primary text-primary-foreground"
-                      : "hover:bg-muted"
+                      ? "bg-secondary font-semibold text-primary"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
                   }`}
                 >
                   {content}
@@ -259,7 +260,7 @@ export function AdminShell({
 
   return (
     <div className="flex min-h-full flex-1 flex-col">
-      <header className="sticky top-0 z-40 border-b border-border bg-background">
+      <header className="sticky top-0 z-40 border-b border-border bg-card/90 backdrop-blur supports-[backdrop-filter]:bg-card/80">
         <div className="flex min-h-16 items-center gap-3 px-4">
           <button
             ref={hamburgerRef}
@@ -285,7 +286,14 @@ export function AdminShell({
               <ChevronLeft aria-hidden />
             )}
           </button>
-          <p className="min-w-0 flex-1 truncate font-semibold">
+          <Link
+            href="/admin/operations"
+            className="hidden shrink-0 items-center gap-2 rounded-full sm:flex"
+            aria-label="HelpDesk First operations home"
+          >
+            <BrandMark className="h-8 w-8" />
+          </Link>
+          <p className="min-w-0 flex-1 truncate font-heading text-lg font-semibold">
             {current?.label ?? "Admin"}
           </p>
           <form
@@ -295,7 +303,7 @@ export function AdminShell({
             <label htmlFor="admin-ticket-search" className="sr-only">
               Search tickets
             </label>
-            <div className="flex items-center gap-2 rounded-xl border border-border px-3">
+            <div className="flex items-center gap-2 rounded-full border border-input bg-surface px-4 focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/15">
               <Search className="h-4 w-4 text-muted-foreground" aria-hidden />
               <input
                 id="admin-ticket-search"
@@ -340,7 +348,7 @@ export function AdminShell({
               <summary className="v2-touch cursor-pointer list-none rounded-xl px-3 py-2 text-sm hover:bg-muted">
                 {roleLabel}
               </summary>
-              <div className="absolute right-0 top-12 z-50 min-w-48 rounded-xl border border-border bg-card p-3 shadow-md">
+              <div className="absolute right-0 top-12 z-50 min-w-52 rounded-3xl border border-border bg-card p-3 shadow-md">
                 <p className="mb-2 text-xs text-muted-foreground">
                   {roleLabel}
                 </p>

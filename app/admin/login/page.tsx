@@ -7,6 +7,7 @@ import {
   isMicrosoftSsoEnabled,
 } from "@/lib/admin/flags";
 import { getTurnstileSiteKey } from "@/lib/auth/captcha";
+import { BrandMark } from "@/components/shell/brand-mark";
 
 export const metadata: Metadata = {
   title: "Admin sign in",
@@ -25,9 +26,10 @@ export default async function AdminLoginPage({
       ? params.next
       : "/admin/operations";
   return (
-    <section className="flex flex-1 items-center justify-center px-4 py-16">
-      <div className="glass-strong w-full max-w-md p-8">
-        <h1 className="text-2xl font-bold">Admin sign in</h1>
+    <section className="hero-wash flex flex-1 items-center justify-center px-4 py-16">
+      <div className="glass-strong w-full max-w-md p-8 shadow-md sm:p-9">
+        <BrandMark className="mb-5 h-11 w-11" />
+        <h1 className="text-3xl font-bold">Admin sign in</h1>
         <p className="mt-2 text-sm text-muted-foreground">
           Use your authorized HelpDesk First account.
         </p>

@@ -397,7 +397,7 @@ export function TroubleshootingGuide({
             <BackToResults />
           </div>
 
-          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
+          <h1 className="text-4xl font-bold leading-[1.1] tracking-tight sm:text-5xl">
             {issue.title}
           </h1>
 
@@ -602,7 +602,7 @@ function StepView({
         Step {visiblePosition + 1} of {total}
       </p>
 
-      <div className="glass-strong p-6">
+      <div className="glass-strong p-6 shadow-md sm:p-8">
         <h2
           data-testid="step-title"
           className={`text-xl font-semibold ${
@@ -664,14 +664,14 @@ function StepView({
       )}
 
       {safetyWarning && index === 0 && (
-        <div className="glass border-l-4 border-amber-500 bg-amber-50/60 p-4 text-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
+        <div className="rounded-3xl border border-accent-foreground/20 bg-accent p-5 text-accent-foreground">
           <p className="font-semibold">Safety note</p>
           <p className="mt-1">{safetyWarning}</p>
         </div>
       )}
 
       {escalationWarning && (
-        <div className="glass border-l-4 border-destructive bg-destructive/5 p-4 text-destructive">
+        <div className="rounded-3xl border border-destructive/30 bg-destructive/10 p-5 text-destructive">
           <p className="font-semibold">Escalate if needed</p>
           <p className="mt-1">{escalationWarning}</p>
         </div>

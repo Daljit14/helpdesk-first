@@ -38,7 +38,7 @@ export function InstallPrompt() {
 
   return (
     <div className="glass glass--solid fixed bottom-4 left-1/2 z-50 flex w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 items-center gap-3 p-4">
-      <Download className="h-5 w-5 shrink-0 text-indigo-500" aria-hidden />
+      <Download className="h-5 w-5 shrink-0 text-primary" aria-hidden />
       <p className="flex-1 text-sm">
         Install HelpDesk First for quicker, offline-friendly access.
       </p>

@@ -29,7 +29,7 @@ export function Header({ user }: { user?: User | null }) {
           <Headset
             className={cn(
               "h-5 w-5",
-              uiV2 ? "text-foreground" : "text-indigo-500"
+              uiV2 ? "text-foreground" : "text-primary"
             )}
             aria-hidden
           />

@@ -20,11 +20,14 @@ export function Breadcrumbs({
           >
             {index > 0 && <ChevronRight className="h-4 w-4" aria-hidden />}
             {item.href ? (
-              <Link href={item.href} className="hover:text-foreground">
+              <Link
+                href={item.href}
+                className="rounded-full underline-offset-4 hover:text-foreground hover:underline"
+              >
                 {item.label}
               </Link>
             ) : (
-              <span aria-current="page" className="text-foreground">
+              <span aria-current="page" className="font-semibold text-foreground">
                 {item.label}
               </span>
             )}

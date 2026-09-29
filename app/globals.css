@@ -89,16 +89,15 @@ body {
   .hero-wash {
     position: relative;
     isolation: isolate;
-    overflow: clip;
   }
 
   .hero-wash::before {
     content: "";
     position: absolute;
-    inset: -2rem -1rem auto;
+    inset: -1.5rem 0 auto;
     height: 22rem;
     z-index: -1;
-    border-radius: 0 0 var(--radius-4xl) var(--radius-4xl);
+    border-radius: var(--radius-4xl);
     background:
       radial-gradient(
         38rem 16rem at 12% 20%,
@@ -110,6 +109,16 @@ body {
         color-mix(in srgb, var(--primary) 16%, transparent),
         transparent 70%
       );
+    mask-image: radial-gradient(
+      120% 100% at 50% 0%,
+      black 40%,
+      transparent 100%
+    );
+    -webkit-mask-image: radial-gradient(
+      120% 100% at 50% 0%,
+      black 40%,
+      transparent 100%
+    );
     pointer-events: none;
   }
 

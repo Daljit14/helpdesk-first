@@ -75,7 +75,7 @@ export function HomeStart({
   return (
     <section className="px-4 py-10 sm:px-6 lg:px-10">
       <div className="hero-wash mx-auto max-w-6xl">
-        <div className="max-w-3xl pt-2">
+        <div className="mx-auto max-w-3xl pt-2 text-center">
           <h1 className="text-[2.5rem] font-bold leading-[1.05] tracking-tight sm:text-6xl">
             What can we help you fix?
           </h1>
@@ -83,7 +83,7 @@ export function HomeStart({
             Describe your issue or explore a troubleshooting guide.
           </p>
         </div>
-        <div className="mt-8 max-w-2xl rounded-[32px] border border-border bg-card p-6 shadow-md sm:p-8">
+        <div className="mx-auto mt-8 w-full max-w-2xl rounded-[32px] border border-border bg-card p-6 shadow-md sm:p-8">
           <div className="grid gap-5">
             <Field id="start-problem" label="What's the problem?">
               <textarea

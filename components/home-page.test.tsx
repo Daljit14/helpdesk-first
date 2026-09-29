@@ -10,10 +10,13 @@ import { HomePage } from "./home-page";
 
 const mocks = vi.hoisted(() => ({
   replace: vi.fn(),
+  push: vi.fn(),
+  searchParams: new URLSearchParams(),
 }));
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ replace: mocks.replace }),
+  useRouter: () => ({ replace: mocks.replace, push: mocks.push }),
+  useSearchParams: () => mocks.searchParams,
 }));
 
 vi.mock("@/components/search-box", () => ({
@@ -68,6 +71,7 @@ vi.stubGlobal("matchMedia", () => ({ matches: false }));
 afterEach(() => {
   cleanup();
   mocks.replace.mockReset();
+  mocks.push.mockReset();
 });
 
 describe("HomePage", () => {
@@ -104,5 +108,34 @@ describe("HomePage", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Computer" })[0]);
     expect(screen.getByText(/matching problems/)).toBeInTheDocument();
     expect(screen.getByLabelText("Search results")).toBeInTheDocument();
+  });
+
+  it("removes one active filter and pushes the remaining URL state", () => {
+    render(
+      <HomePage
+        basePath="/browse"
+        initialQuery="wifi"
+        initialCategory="computer"
+        initialPlatform="Mac"
+      />
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Remove filter: Platform Mac",
+      })
+    );
+
+    expect(mocks.push).toHaveBeenCalledWith(
+      "/browse?q=wifi&category=computer",
+      {
+        scroll: false,
+      }
+    );
+    expect(
+      screen.queryByRole("button", {
+        name: "Remove filter: Platform Mac",
+      })
+    ).not.toBeInTheDocument();
   });
 });

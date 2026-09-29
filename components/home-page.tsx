@@ -1,13 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Bot, ChevronRight, History, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/lib/button-variants";
 import { cn } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/ui/page-header";
 import { Sheet } from "@/components/ui/sheet";
 import { SearchBox } from "@/components/search-box";
@@ -49,7 +48,9 @@ export function HomePage({
   basePath = "/",
 }: HomePageProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const isFirstRender = useRef(true);
+  const isFirstUrlSync = useRef(true);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
   const resultsEndRef = useRef<HTMLDivElement>(null);
@@ -67,6 +68,27 @@ export function HomePage({
   const [sessionCount, setSessionCount] = useState(0);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
+  const urlFilters = useMemo(() => {
+    const rawPlatform = searchParams.get("platform");
+    return {
+      query: searchParams.get("q")?.trim() ?? "",
+      categoryId: searchParams.get("category") || null,
+      platform: normalizePlatform(rawPlatform),
+      platformInvalid:
+        Boolean(rawPlatform?.trim()) && !normalizePlatform(rawPlatform),
+    };
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (isFirstUrlSync.current) {
+      isFirstUrlSync.current = false;
+      return;
+    }
+    setQuery(urlFilters.query);
+    setCategoryId(urlFilters.categoryId);
+    setPlatform(urlFilters.platform);
+  }, [urlFilters]);
+
   useEffect(() => {
     queueMicrotask(() => {
       setActiveSessions(getActiveSessions());
@@ -76,10 +98,10 @@ export function HomePage({
 
   const matchingCount = useMemo(
     () =>
-      initialPlatformInvalid
+      urlFilters.platformInvalid
         ? 0
         : filterIssues({ query, categoryId, platform }).length,
-    [query, categoryId, platform, initialPlatformInvalid]
+    [query, categoryId, platform, urlFilters.platformInvalid]
   );
 
   const backParams = useMemo(() => {
@@ -91,7 +113,7 @@ export function HomePage({
   }, [query, categoryId, platform]);
 
   const hasActiveFilters = Boolean(
-    query || categoryId || platform || initialPlatformInvalid
+    query || categoryId || platform || urlFilters.platformInvalid
   );
   const browseNeedsFilter = basePath === "/browse" && !hasActiveFilters;
   const categoryCounts = useMemo(
@@ -119,6 +141,24 @@ export function HomePage({
       const search = params.toString();
       const href = search ? `${basePath}?${search}` : basePath;
       router.replace(href, { scroll: false });
+    },
+    [basePath, router]
+  );
+
+  const pushUrl = useCallback(
+    (
+      nextQuery: string,
+      nextCategory: string | null,
+      nextPlatform: Platform | null
+    ) => {
+      const params = new URLSearchParams();
+      if (nextQuery) params.set("q", nextQuery);
+      if (nextCategory) params.set("category", nextCategory);
+      if (nextPlatform) params.set("platform", platformSlug(nextPlatform));
+      const search = params.toString();
+      router.push(search ? `${basePath}?${search}` : basePath, {
+        scroll: false,
+      });
     },
     [basePath, router]
   );
@@ -177,6 +217,31 @@ export function HomePage({
     setCategoryId(null);
     setPlatform(null);
     router.replace(basePath, { scroll: false });
+  }
+
+  function selectCategory(nextCategory: string | null) {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    setCategoryId(nextCategory);
+    pushUrl(query, nextCategory, platform);
+    if (nextCategory) scrollToResults();
+  }
+
+  function selectPlatform(nextPlatform: Platform | null) {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    setPlatform(nextPlatform);
+    pushUrl(query, categoryId, nextPlatform);
+    if (nextPlatform) scrollToResults();
+  }
+
+  function removeFilter(filter: "query" | "category" | "platform") {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    const nextQuery = filter === "query" ? "" : query;
+    const nextCategory = filter === "category" ? null : categoryId;
+    const nextPlatform = filter === "platform" ? null : platform;
+    setQuery(nextQuery);
+    setCategoryId(nextCategory);
+    setPlatform(nextPlatform);
+    pushUrl(nextQuery, nextCategory, nextPlatform);
   }
 
   return (
@@ -239,10 +304,7 @@ export function HomePage({
                 <PlatformButtons
                   selected={platform}
                   variant="list"
-                  onSelect={(nextPlatform) => {
-                    setPlatform(nextPlatform);
-                    if (nextPlatform) scrollToResults();
-                  }}
+                  onSelect={selectPlatform}
                 />
               </div>
               <div className="mt-5">
@@ -250,10 +312,7 @@ export function HomePage({
                 <CategoryGrid
                   selected={categoryId}
                   variant="list"
-                  onSelect={(nextCategory) => {
-                    setCategoryId(nextCategory);
-                    if (nextCategory) scrollToResults();
-                  }}
+                  onSelect={selectCategory}
                 />
               </div>
             </div>
@@ -310,9 +369,39 @@ export function HomePage({
                 className="mt-4 flex flex-wrap gap-2"
                 aria-label="Active filters"
               >
-                {query && <Badge>Search: {query}</Badge>}
-                {platform && <Badge>Platform: {platform}</Badge>}
-                {categoryId && <Badge>Category: {categoryId}</Badge>}
+                {query && (
+                  <button
+                    type="button"
+                    className="inline-flex min-h-11 items-center gap-2 rounded-full border border-border bg-card px-3 py-2 text-sm hover:bg-muted"
+                    aria-label={`Remove filter: Search ${query}`}
+                    onClick={() => removeFilter("query")}
+                  >
+                    Search: {query}
+                    <X className="h-4 w-4" aria-hidden />
+                  </button>
+                )}
+                {platform && (
+                  <button
+                    type="button"
+                    className="inline-flex min-h-11 items-center gap-2 rounded-full border border-border bg-card px-3 py-2 text-sm hover:bg-muted"
+                    aria-label={`Remove filter: Platform ${platform}`}
+                    onClick={() => removeFilter("platform")}
+                  >
+                    Platform: {platform}
+                    <X className="h-4 w-4" aria-hidden />
+                  </button>
+                )}
+                {categoryId && (
+                  <button
+                    type="button"
+                    className="inline-flex min-h-11 items-center gap-2 rounded-full border border-border bg-card px-3 py-2 text-sm hover:bg-muted"
+                    aria-label={`Remove filter: Category ${categoryId}`}
+                    onClick={() => removeFilter("category")}
+                  >
+                    Category: {categoryId}
+                    <X className="h-4 w-4" aria-hidden />
+                  </button>
+                )}
               </div>
             )}
 
@@ -332,10 +421,7 @@ export function HomePage({
                     <CategoryGrid
                       selected={categoryId}
                       counts={categoryCounts}
-                      onSelect={(nextCategory) => {
-                        setCategoryId(nextCategory);
-                        if (nextCategory) scrollToResults();
-                      }}
+                      onSelect={selectCategory}
                     />
                   </div>
                 </section>
@@ -415,7 +501,7 @@ export function HomePage({
                 selected={platform}
                 variant="list"
                 onSelect={(nextPlatform) => {
-                  setPlatform(nextPlatform);
+                  selectPlatform(nextPlatform);
                   setFiltersOpen(false);
                 }}
               />
@@ -426,7 +512,7 @@ export function HomePage({
                 selected={categoryId}
                 variant="list"
                 onSelect={(nextCategory) => {
-                  setCategoryId(nextCategory);
+                  selectCategory(nextCategory);
                   setFiltersOpen(false);
                 }}
               />

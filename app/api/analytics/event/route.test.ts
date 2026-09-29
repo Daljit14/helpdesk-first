@@ -19,11 +19,12 @@ afterEach(() => {
   mockedTouch.mockReset();
 });
 
-function request(body: unknown, cookie?: string) {
+function request(body: unknown, cookie?: string, ip = "10.0.0.1") {
   return new Request("http://localhost/api/analytics/event", {
     method: "POST",
     headers: {
       "Content-Type": "text/plain",
+      "x-forwarded-for": ip,
       ...(cookie ? { Cookie: cookie } : {}),
     },
     body: JSON.stringify(body),
@@ -104,5 +105,45 @@ describe("analytics event route", () => {
     expect(response.status).toBe(200);
     expect(mockedTouch).toHaveBeenCalledWith("session-1");
     expect(mockedRecord).not.toHaveBeenCalled();
+  });
+
+  test("allows 60 requests and rate-limits the 61st per IP", async () => {
+    const ip = "198.51.100.10";
+    for (let index = 0; index < 60; index += 1) {
+      expect(
+        (await POST(request({ type: "page_view", path: "/" }, undefined, ip)))
+          .status
+      ).toBe(200);
+    }
+    const limited = await POST(
+      request({ type: "page_view", path: "/" }, undefined, ip)
+    );
+    expect(limited.status).toBe(429);
+    expect(limited.headers.get("retry-after")).toBeTruthy();
+    expect(await limited.json()).toEqual({ error: "Too many requests." });
+  });
+
+  test("rejects bodies larger than 4096 characters", async () => {
+    const response = await POST(
+      new Request("http://localhost/api/analytics/event", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-forwarded-for": "198.51.100.11",
+        },
+        body: "a".repeat(4097),
+      })
+    );
+    expect(response.status).toBe(413);
+    expect(await response.json()).toEqual({
+      error: "Request body too large.",
+    });
+  });
+
+  test("keeps a different IP unaffected", async () => {
+    const response = await POST(
+      request({ type: "page_view", path: "/" }, undefined, "198.51.100.12")
+    );
+    expect(response.status).toBe(200);
   });
 });

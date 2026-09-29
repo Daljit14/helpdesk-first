@@ -1,8 +1,18 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AdminShell, departmentForPath } from "./admin-shell";
 import type { Department } from "./departments";
 
+const navigationState = vi.hoisted(() => ({
+  pathname: "/admin/operations",
+}));
 const push = vi.fn();
 
 vi.mock("next/link", () => ({
@@ -21,7 +31,7 @@ vi.mock("next/link", () => ({
 }));
 
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/admin/operations",
+  usePathname: () => navigationState.pathname,
   useSearchParams: () => new URLSearchParams(),
   useRouter: () => ({ push }),
 }));
@@ -93,8 +103,8 @@ const departments: Department[] = [
   },
 ];
 
-function renderShell() {
-  return render(
+function shell() {
+  return (
     <AdminShell
       departments={departments}
       organizationName="Acme"
@@ -107,10 +117,15 @@ function renderShell() {
   );
 }
 
+function renderShell() {
+  return render(shell());
+}
+
 afterEach(() => {
   cleanup();
   localStorage.clear();
   push.mockReset();
+  navigationState.pathname = "/admin/operations";
 });
 
 describe("AdminShell", () => {
@@ -182,6 +197,40 @@ describe("AdminShell", () => {
       screen.queryByRole("dialog", { name: "Admin navigation" })
     ).not.toBeInTheDocument();
     expect(open).toHaveFocus();
+  });
+
+  it("shows every department in the mobile drawer after a desktop search", () => {
+    renderShell();
+    fireEvent.change(screen.getByLabelText("Search departments"), {
+      target: { value: "drafts" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Open navigation" }));
+
+    const drawer = screen.getByRole("dialog", { name: "Admin navigation" });
+    expect(
+      within(drawer).getByRole("link", { name: /Operations Dashboard/ })
+    ).toHaveAttribute("aria-current", "page");
+    expect(within(drawer).getByText("7 departments")).toBeInTheDocument();
+    expect(
+      within(drawer).getByRole("link", { name: /Database/ })
+    ).toBeInTheDocument();
+  });
+
+  it("closes the mobile drawer when the pathname changes", async () => {
+    const rendered = renderShell();
+    fireEvent.click(screen.getByRole("button", { name: "Open navigation" }));
+    expect(
+      screen.getByRole("dialog", { name: "Admin navigation" })
+    ).toBeInTheDocument();
+
+    navigationState.pathname = "/admin/database";
+    rendered.rerender(shell());
+
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "Admin navigation" })
+      ).not.toBeInTheDocument()
+    );
   });
 
   it("keeps department output serializable", () => {

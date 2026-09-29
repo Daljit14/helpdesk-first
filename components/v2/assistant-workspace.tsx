@@ -243,7 +243,7 @@ export function AssistantWorkspace({
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col">
       <div className="mb-6 flex items-center gap-3">
-        <Bot className="h-7 w-7" aria-hidden />
+        <Bot className="hf-bob h-7 w-7" aria-hidden />
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">
             Support Assistant
@@ -268,7 +268,7 @@ export function AssistantWorkspace({
               key={label}
               aria-current={current ? "step" : undefined}
               className={cn(
-                "border-b-2 pb-2",
+                "border-b-2 pb-2 transition-[width,transform] duration-300",
                 current ? "border-foreground text-foreground" : "border-border"
               )}
             >
@@ -280,9 +280,11 @@ export function AssistantWorkspace({
 
       <div role="log" aria-live="polite" className="space-y-5">
         {userTurns.map((text, index) => (
-          <ConversationBubble key={`${index}-${text}`} role="user">
-            <p className="whitespace-pre-wrap">{text}</p>
-          </ConversationBubble>
+          <div className="hf-rise" key={`${index}-${text}`}>
+            <ConversationBubble role="user">
+              <p className="whitespace-pre-wrap">{text}</p>
+            </ConversationBubble>
+          </div>
         ))}
         {ticketIntent ? (
           <div className="space-y-4">
@@ -473,7 +475,10 @@ export function AssistantWorkspace({
 function Message({ side, text }: { side: "user" | "assistant"; text: string }) {
   return (
     <div
-      className={cn("flex", side === "user" ? "justify-end" : "justify-start")}
+      className={cn(
+        "hf-rise flex",
+        side === "user" ? "justify-end" : "justify-start"
+      )}
     >
       <div
         className={cn(

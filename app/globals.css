@@ -166,6 +166,17 @@ body {
     stroke-dasharray: 600;
     animation: hf-draw 2.4s ease-in-out infinite;
   }
+  .hf-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+  .hf-scrollbar::-webkit-scrollbar {
+    width: 6px;
+  }
+  .hf-scrollbar::-webkit-scrollbar-thumb {
+    border-radius: 9999px;
+    background: var(--border);
+  }
   .hf-dash {
     animation: hf-dash 1s linear infinite;
   }

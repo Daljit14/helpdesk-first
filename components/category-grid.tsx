@@ -10,6 +10,7 @@ type CategoryGridProps = {
   onSelect: (id: string | null) => void;
   variant?: "cards" | "list";
   counts?: Record<string, number>;
+  limit?: number;
 };
 
 export function CategoryGrid({
@@ -17,11 +18,13 @@ export function CategoryGrid({
   onSelect,
   variant = "cards",
   counts,
+  limit,
 }: CategoryGridProps) {
+  const visibleCategories = limit ? categories.slice(0, limit) : categories;
   if (variant === "list") {
     return (
       <ul className="grid gap-1">
-        {categories.map((category) => {
+        {visibleCategories.map((category) => {
           const Icon = category.icon;
           const isSelected = selected === category.id;
           const look = categoryLook(category.id);
@@ -59,7 +62,7 @@ export function CategoryGrid({
 
   return (
     <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-      {categories.map((category, index) => {
+      {visibleCategories.map((category, index) => {
         const isSelected = selected === category.id;
         const look = categoryLook(category.id);
         return (

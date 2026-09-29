@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 type StatusCheck = {
   ok: boolean;
@@ -20,7 +21,7 @@ type StatusResponse = {
 };
 
 const serviceNames: Record<string, string> = {
-  app: "App",
+  app: "Help desk",
   database: "Database",
   auth: "Authentication",
   storage: "File storage",
@@ -29,27 +30,106 @@ const serviceNames: Record<string, string> = {
   rateLimiter: "Rate limiting",
 };
 
-function statusClass(check: StatusCheck) {
-  if (!check.ok) return "bg-destructive";
-  if (check.degraded) return "bg-status-warning";
-  return "bg-status-success";
+function formatDuration(value: number | null) {
+  return value === null ? "—" : `${Math.round(value)}ms`;
 }
 
-function statusLabel(check: StatusCheck) {
-  if (!check.ok) return "Down";
-  if (check.degraded) return "Degraded";
-  return "Operational";
+function useCountUp(target: number | null) {
+  const [value, setValue] = useState(target ?? 0);
+  const reducedMotion = useSyncExternalStore(
+    (onChange) => {
+      if (typeof window.matchMedia !== "function") return () => {};
+      const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+      media.addEventListener("change", onChange);
+      return () => media.removeEventListener("change", onChange);
+    },
+    () =>
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+    () => false
+  );
+
+  useEffect(() => {
+    if (target === null) return;
+    if (reducedMotion) return;
+    const start = performance.now();
+    const from = value ?? 0;
+    let frame = 0;
+    const tick = (now: number) => {
+      const progress = Math.min((now - start) / 400, 1);
+      setValue(from + (target - from) * (1 - (1 - progress) ** 3));
+      if (progress < 1) frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reducedMotion, target]);
+
+  if (target === null) return null;
+  if (reducedMotion) return Math.round(target);
+  return Math.round(value);
 }
 
-function formatDuration(value: number) {
-  return `${Math.round(value)}ms`;
+function CheckRow({
+  name,
+  check,
+  index,
+}: {
+  name: string;
+  check: StatusCheck | null;
+  index: number;
+}) {
+  const ms = useCountUp(check?.ms ?? null);
+  const state = !check
+    ? "Checking…"
+    : !check.ok
+      ? "Down"
+      : check.degraded
+        ? "Degraded"
+        : "Operational";
+  const unhealthy = Boolean(check && (!check.ok || check.degraded));
+
+  return (
+    <li
+      className="hf-rise rounded-2xl border border-border bg-card p-4"
+      style={{ animationDelay: `${index * 0.05}s` }}
+      title={check?.detail ?? state}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <span className="flex min-w-0 items-center gap-2.5 font-bold">
+          <span className="relative flex h-2.5 w-2.5 shrink-0">
+            {unhealthy && (
+              <span className="hf-ping absolute inset-0 rounded-full bg-status-warning" />
+            )}
+            <span
+              className={cn(
+                "relative h-2.5 w-2.5 rounded-full",
+                !check
+                  ? "bg-muted-foreground"
+                  : !check.ok
+                    ? "bg-status-danger"
+                    : check.degraded
+                      ? "bg-status-warning"
+                      : "bg-status-success"
+              )}
+            />
+          </span>
+          {serviceNames[name] ?? name}
+        </span>
+        <span className="shrink-0 text-sm font-extrabold text-muted-foreground">
+          {formatDuration(ms)}
+        </span>
+      </div>
+      <span className="mt-1 block pl-5 text-xs font-semibold text-muted-foreground">
+        {state}
+        <span className="sr-only">. {check?.detail ?? ""}</span>
+      </span>
+    </li>
+  );
 }
 
 function Sparkline({ values }: { values: number[] }) {
-  if (values.length < 2)
-    return (
-      <p className="text-sm text-muted-foreground">Waiting for more checks…</p>
-    );
+  if (values.length < 2) return null;
   const min = Math.min(...values);
   const max = Math.max(...values);
   const range = Math.max(max - min, 1);
@@ -61,11 +141,11 @@ function Sparkline({ values }: { values: number[] }) {
     .join(" ");
   return (
     <svg
-      viewBox="0 0 100 100"
+      viewBox="0 0 100 36"
       preserveAspectRatio="none"
-      className="h-20 w-full overflow-visible text-primary"
+      className="h-10 w-32 overflow-visible text-primary sm:w-44"
       role="img"
-      aria-label="Database response time sparkline"
+      aria-label="Status latency sparkline"
     >
       <polyline
         points={points}
@@ -73,6 +153,8 @@ function Sparkline({ values }: { values: number[] }) {
         stroke="currentColor"
         strokeWidth="3"
         vectorEffect="non-scaling-stroke"
+        strokeLinecap="round"
+        className="hf-draw"
       />
     </svg>
   );
@@ -89,31 +171,26 @@ export function StatusWidget() {
     setLoading(true);
     try {
       const res = await fetch("/api/status", { cache: "no-store" });
-      if (!res.ok) {
-        setRequestFailed(true);
-        setStatus(null);
-      } else {
-        const nextStatus = (await res.json()) as StatusResponse;
-        setRequestFailed(false);
-        setStatus(nextStatus);
-        const databaseMs = nextStatus.checks.database?.ms;
-        if (databaseMs !== null && databaseMs !== undefined) {
-          setHistory((current) => {
-            const next = [...current, databaseMs].slice(-30);
-            window.localStorage.setItem(
-              "hf-status-history",
-              JSON.stringify(next)
-            );
-            return next;
-          });
-        }
+      if (!res.ok) throw new Error("status");
+      const nextStatus = (await res.json()) as StatusResponse;
+      setStatus(nextStatus);
+      setRequestFailed(false);
+      const databaseMs = nextStatus.checks.database?.ms;
+      if (databaseMs !== null && databaseMs !== undefined) {
+        setHistory((current) => {
+          const next = [...current, databaseMs].slice(-30);
+          window.localStorage.setItem(
+            "hf-status-history",
+            JSON.stringify(next)
+          );
+          return next;
+        });
       }
-      setLastChecked(new Date().toISOString());
     } catch {
       setStatus(null);
       setRequestFailed(true);
-      setLastChecked(new Date().toISOString());
     } finally {
+      setLastChecked(new Date().toISOString());
       setLoading(false);
     }
   }, []);
@@ -127,8 +204,7 @@ export function StatusWidget() {
         const values = saved
           .filter((value): value is number => typeof value === "number")
           .slice(-30);
-        const timeout = window.setTimeout(() => setHistory(values), 0);
-        return () => window.clearTimeout(timeout);
+        queueMicrotask(() => setHistory(values));
       }
     } catch {
       window.localStorage.removeItem("hf-status-history");
@@ -146,147 +222,105 @@ export function StatusWidget() {
     };
   }, [check]);
 
-  const historyStats = useMemo(() => {
-    if (!history.length) return null;
-    return {
-      min: Math.min(...history),
-      avg: history.reduce((sum, value) => sum + value, 0) / history.length,
-      max: Math.max(...history),
-    };
-  }, [history]);
-
+  const overallDown = requestFailed || Boolean(status && !status.ok);
+  const overallDegraded = Boolean(status?.degraded);
   const overallLabel = loading
     ? "Checking…"
-    : requestFailed
+    : overallDown
       ? "Unavailable"
-      : status?.ok
-        ? status.degraded
-          ? "Degraded"
-          : "Healthy"
-        : "Unavailable";
-  const overallClass =
-    requestFailed || (status && !status.ok)
-      ? "bg-destructive/10 text-destructive"
-      : status?.degraded
-        ? "bg-status-warning/20 text-foreground"
-        : "bg-status-success/20 text-foreground";
+      : overallDegraded
+        ? "Degraded"
+        : "All systems operational";
+
+  const checks = Object.entries(
+    status?.checks ?? { app: null, database: null }
+  ) as Array<[string, StatusCheck | null]>;
 
   return (
-    <div className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.85fr)]">
-      <section className="rounded-2xl border border-border bg-card p-6 shadow-sm">
-        <div className="flex items-center justify-between gap-3">
-          <span
-            className={`rounded-full px-3 py-1 text-sm font-medium ${overallClass}`}
-          >
-            {overallLabel}
-          </span>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => void check()}
-            disabled={loading}
-            aria-label="Refresh system status"
-            aria-busy={loading}
-          >
-            <RefreshCw className="h-4 w-4" aria-hidden />
-            <span className="sr-only">Refresh</span>
-          </Button>
+    <div className="mt-8">
+      <section className="rounded-[28px] border border-border bg-card p-5 shadow-sm sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <span
+              className={cn(
+                "inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-extrabold",
+                overallDown
+                  ? "bg-destructive/10 text-destructive"
+                  : overallDegraded
+                    ? "bg-status-warning/15 text-foreground"
+                    : "bg-status-success/15 text-foreground"
+              )}
+            >
+              <span className="relative flex h-2.5 w-2.5">
+                {(overallDown || overallDegraded) && (
+                  <span className="hf-ping absolute inset-0 rounded-full bg-status-warning" />
+                )}
+                <span
+                  className={cn(
+                    "relative h-2.5 w-2.5 rounded-full",
+                    overallDown
+                      ? "bg-status-danger"
+                      : overallDegraded
+                        ? "bg-status-warning"
+                        : "bg-status-success"
+                  )}
+                />
+              </span>
+              {overallLabel}
+            </span>
+            <p className="mt-2 text-xs font-semibold text-muted-foreground">
+              {lastChecked
+                ? `Last checked ${new Date(lastChecked).toLocaleTimeString()}`
+                : "Waiting for first check"}
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <Sparkline values={history} />
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => void check()}
+              disabled={loading}
+              aria-label="Refresh system status"
+              aria-busy={loading}
+            >
+              <RefreshCw className="h-4 w-4" aria-hidden />
+              <span className="sr-only">Refresh</span>
+            </Button>
+          </div>
         </div>
-        <span role="status" aria-live="polite" className="sr-only">
-          {loading
-            ? "Checking system status…"
-            : lastChecked
-              ? `Status updated ${new Date(lastChecked).toLocaleTimeString()}`
-              : ""}
-        </span>
-        {lastChecked && (
-          <p className="mt-3 text-xs text-muted-foreground">
-            Last checked {new Date(lastChecked).toLocaleTimeString()}
-          </p>
-        )}
-        {status && (
-          <ul className="mt-5 space-y-3">
-            {Object.entries(status.checks).map(([name, check]) => (
-              <li
-                key={name}
-                className="flex items-center justify-between gap-3 border-b border-border/60 pb-3 last:border-0 last:pb-0"
-              >
-                <span className="flex min-w-0 items-center gap-2">
-                  <span
-                    className={`h-2.5 w-2.5 shrink-0 rounded-full ${statusClass(check)}`}
-                  />
-                  <span>{serviceNames[name] ?? name}</span>
-                </span>
-                <span className="text-right text-sm text-muted-foreground">
-                  <span className="block">
-                    {check.detail ?? statusLabel(check)}
-                  </span>
-                  {check.ms !== null && <span>{formatDuration(check.ms)}</span>}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
       </section>
 
-      <div className="space-y-6">
-        <section className="rounded-2xl border border-border bg-card p-6 shadow-sm">
-          <h2 className="font-semibold">
-            Database response time (this browser&apos;s checks)
-          </h2>
-          <div className="mt-4">
-            <Sparkline values={history} />
-          </div>
-          {historyStats && (
-            <dl className="mt-3 grid grid-cols-3 gap-3 text-xs text-muted-foreground">
-              <div>
-                <dt>Min</dt>
-                <dd className="font-medium text-foreground">
-                  {formatDuration(historyStats.min)}
-                </dd>
-              </div>
-              <div>
-                <dt>Avg</dt>
-                <dd className="font-medium text-foreground">
-                  {formatDuration(historyStats.avg)}
-                </dd>
-              </div>
-              <div>
-                <dt>Max</dt>
-                <dd className="font-medium text-foreground">
-                  {formatDuration(historyStats.max)}
-                </dd>
-              </div>
-            </dl>
-          )}
-        </section>
-        <section className="rounded-2xl border border-border bg-card p-6 shadow-sm">
-          <h2 className="font-semibold">What to do if something is down</h2>
-          <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-muted-foreground">
-            <li>
-              <Link className="text-primary hover:underline" href="/browse">
-                Browse troubleshooting guides
-              </Link>{" "}
-              for a self-service fix.
-            </li>
-            <li>
-              <Link className="text-primary hover:underline" href="/assistant">
-                Ask the assistant
-              </Link>{" "}
-              for guided help.
-            </li>
-            <li>
-              <Link
-                className="text-primary hover:underline"
-                href="/assistant?intent=human"
-              >
-                Contact support
-              </Link>{" "}
-              if you still need a person.
-            </li>
-          </ul>
-        </section>
-      </div>
+      <ul className="mt-5 grid gap-3 sm:grid-cols-2">
+        {checks.map(([name, check], index) => (
+          <CheckRow key={name} name={name} check={check} index={index} />
+        ))}
+      </ul>
+
+      <p className="mt-5 text-center text-xs font-semibold text-muted-foreground">
+        Need help?{" "}
+        <Link href="/browse" className="text-primary hover:underline">
+          Browse guides
+        </Link>{" "}
+        ·{" "}
+        <Link href="/assistant" className="text-primary hover:underline">
+          Ask the assistant
+        </Link>{" "}
+        ·{" "}
+        <Link
+          href="/assistant?intent=human"
+          className="text-primary hover:underline"
+        >
+          Contact support
+        </Link>
+      </p>
+      <span role="status" aria-live="polite" className="sr-only">
+        {loading
+          ? "Checking system status…"
+          : lastChecked
+            ? `Status updated ${new Date(lastChecked).toLocaleTimeString()}`
+            : ""}
+      </span>
     </div>
   );
 }

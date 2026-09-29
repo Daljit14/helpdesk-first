@@ -315,24 +315,55 @@ export function HomePage({
               Filters
             </Button>
           </div>
-          <aside aria-label="Filters" className="mb-6 hidden lg:mb-0 lg:block">
-            <div className="sticky top-24 rounded-[24px] border border-border bg-card p-4 shadow-sm">
-              <h2 className="px-1 text-base font-extrabold">Filters</h2>
-              <div className="mt-4">
-                <p className="mb-2 text-sm font-medium">Platform</p>
-                <PlatformButtons
-                  selected={platform}
-                  variant="list"
-                  onSelect={selectPlatform}
-                />
+          <aside
+            aria-label="Filters"
+            className="mb-6 hidden self-start lg:mb-0 lg:block"
+          >
+            <div className="sticky top-24 max-h-[calc(100vh-7rem)] overflow-y-auto rounded-[24px] border border-border bg-card p-4 shadow-sm hf-scrollbar">
+              <div className="flex items-center justify-between gap-3 px-1 text-base font-extrabold">
+                <span className="flex items-center gap-2">
+                  Filters
+                  {hasActiveFilters && (
+                    <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] text-primary">
+                      Active
+                    </span>
+                  )}
+                </span>
+                {hasActiveFilters && (
+                  <button
+                    type="button"
+                    className="rounded-full px-2 py-1 text-xs font-bold text-muted-foreground hover:bg-muted hover:text-foreground"
+                    onClick={clearFilters}
+                  >
+                    Clear
+                  </button>
+                )}
               </div>
-              <div className="mt-5">
-                <p className="mb-2 text-sm font-medium">Category</p>
-                <CategoryGrid
-                  selected={categoryId}
-                  variant="list"
-                  onSelect={selectCategory}
-                />
+              <div className="mt-4 grid gap-5">
+                <details open>
+                  <summary className="flex cursor-pointer list-none items-center justify-between text-sm font-bold [&::-webkit-details-marker]:hidden">
+                    Platform <span aria-hidden>⌄</span>
+                  </summary>
+                  <div className="mt-2 grid grid-cols-2 gap-2 [&>div]:contents">
+                    <PlatformButtons
+                      selected={platform}
+                      variant="list"
+                      onSelect={selectPlatform}
+                    />
+                  </div>
+                </details>
+                <details open>
+                  <summary className="flex cursor-pointer list-none items-center justify-between text-sm font-bold [&::-webkit-details-marker]:hidden">
+                    Category <span aria-hidden>⌄</span>
+                  </summary>
+                  <div className="mt-2">
+                    <CategoryGrid
+                      selected={categoryId}
+                      variant="list"
+                      onSelect={selectCategory}
+                    />
+                  </div>
+                </details>
               </div>
             </div>
           </aside>

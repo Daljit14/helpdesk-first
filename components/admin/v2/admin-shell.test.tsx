@@ -76,6 +76,14 @@ const departments: Department[] = [
     keywords: ["guides", "drafts"],
   },
   {
+    id: "database",
+    label: "Database",
+    href: "/admin/database",
+    icon: "database",
+    available: true,
+    keywords: ["data", "live"],
+  },
+  {
     id: "planned",
     label: "Security and Audit",
     href: "/admin/organization#security",

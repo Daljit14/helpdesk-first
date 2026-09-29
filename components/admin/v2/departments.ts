@@ -5,6 +5,7 @@ export type Department = {
   icon: string;
   available: boolean;
   keywords: string[];
+  description?: string;
 };
 
 export type DepartmentSession = {
@@ -138,6 +139,15 @@ export function buildDepartments(
       icon: "chart",
       available: true,
       keywords: ["analytics", "trust", "reports"],
+    },
+    {
+      id: "database",
+      label: "Database",
+      href: "/admin/database",
+      icon: "database",
+      available: true,
+      keywords: ["data", "tables", "live activity", "users"],
+      description: "All stored data and a live activity tracker",
     },
     ...(session.role === "org_admin"
       ? [

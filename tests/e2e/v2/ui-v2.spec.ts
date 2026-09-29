@@ -13,8 +13,10 @@ const requesterReady = Boolean(
 async function signInAdmin(page: Page) {
   await page.goto("/admin/login");
   await page.getByLabel("Email").fill(process.env.ADMIN_E2E_EMAIL!);
-  await page.getByLabel("Password").fill(process.env.ADMIN_E2E_PASSWORD!);
-  await page.getByRole("button", { name: "Sign in" }).click();
+  await page
+    .getByLabel("Password", { exact: true })
+    .fill(process.env.ADMIN_E2E_PASSWORD!);
+  await page.getByRole("button", { name: "Log in" }).click();
   await page.waitForTimeout(3000);
   await expect(page).toHaveURL(/\/admin\/operations$/);
 }
@@ -22,7 +24,9 @@ async function signInAdmin(page: Page) {
 async function signInRequester(page: Page) {
   await page.goto("/login?next=/tickets");
   await page.getByLabel("Email").fill(process.env.USER_E2E_EMAIL!);
-  await page.getByLabel("Password").fill(process.env.USER_E2E_PASSWORD!);
+  await page
+    .getByLabel("Password", { exact: true })
+    .fill(process.env.USER_E2E_PASSWORD!);
   await page.getByRole("button", { name: /Log in|Sign in/ }).click();
   await page.waitForTimeout(3000);
   await expect(page).toHaveURL(/\/tickets$/);

@@ -10,10 +10,12 @@ test("requester ticket portal is available to an authenticated user", async ({
   );
   await page.goto("/login?next=/tickets");
   await page.getByLabel("Email").fill(process.env.USER_E2E_EMAIL!);
-  await page.getByLabel("Password").fill(process.env.USER_E2E_PASSWORD!);
-  await page.getByRole("button", { name: "Sign in" }).click();
-  await page.goto("/tickets");
-  await expect(page.getByRole("heading", { name: "Tickets" })).toBeVisible();
+  await page
+    .getByLabel("Password", { exact: true })
+    .fill(process.env.USER_E2E_PASSWORD!);
+  await page.getByRole("button", { name: "Log in" }).click();
+  await expect(page).toHaveURL(/\/tickets$/);
+  await expect(page.getByRole("heading", { name: "My tickets" })).toBeVisible();
   await expect(page.getByText("Open tickets")).toBeVisible();
   await expect(page.getByText("Previous tickets")).toBeVisible();
   const results = await new AxeBuilder({ page })

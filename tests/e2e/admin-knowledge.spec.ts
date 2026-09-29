@@ -13,8 +13,10 @@ test("admin knowledge governance table is accessible", async ({ page }) => {
   );
   await page.goto("/admin/login");
   await page.getByLabel("Email").fill(process.env.ADMIN_E2E_EMAIL!);
-  await page.getByLabel("Password").fill(process.env.ADMIN_E2E_PASSWORD!);
-  await page.getByRole("button", { name: "Sign in" }).click();
+  await page
+    .getByLabel("Password", { exact: true })
+    .fill(process.env.ADMIN_E2E_PASSWORD!);
+  await page.getByRole("button", { name: "Log in" }).click();
   await page.goto("/admin/knowledge");
   await expect(
     page.getByRole("heading", { name: "Approved support guides" })

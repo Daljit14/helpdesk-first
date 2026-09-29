@@ -16,7 +16,9 @@ test("authenticated secure attachment upload reaches Ready", async ({
   );
   await page.goto("/login?next=/issues/wifi-disconnecting");
   await page.getByLabel("Email").fill(process.env.USER_E2E_EMAIL!);
-  await page.getByLabel("Password").fill(process.env.USER_E2E_PASSWORD!);
+  await page
+    .getByLabel("Password", { exact: true })
+    .fill(process.env.USER_E2E_PASSWORD!);
   await page.getByRole("button", { name: /sign in/i }).click();
   await page.goto("/issues/wifi-disconnecting");
   await page.getByRole("button", { name: /submit a ticket/i }).click();

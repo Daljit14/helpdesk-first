@@ -1,12 +1,18 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { StatusWidget } from "./status-widget";
 
 describe("StatusWidget", () => {
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
   it("labels the refresh control and announces updates", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({
+        ok: true,
         json: async () => ({ ok: true, checks: {}, timestamp: "" }),
       })
     );
@@ -15,5 +21,86 @@ describe("StatusWidget", () => {
       screen.getByRole("button", { name: "Refresh system status" })
     ).toBeInTheDocument();
     expect(screen.getByRole("status")).toBeInTheDocument();
+  });
+
+  it("shows capability rows with plain-language status copy", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          ok: true,
+          checks: {
+            app: { ok: true, ms: null },
+            database: { ok: true, ms: 120 },
+            auth: { ok: true, ms: 80 },
+            storage: { ok: true, ms: 90 },
+            ai: { ok: true, ms: null },
+            notifications: { ok: true, ms: 70 },
+            rateLimiter: { ok: true, ms: null },
+          },
+          timestamp: new Date().toISOString(),
+        }),
+      })
+    );
+
+    render(<StatusWidget />);
+
+    await waitFor(() =>
+      expect(
+        screen.getByText("Guides and search are available")
+      ).toBeInTheDocument()
+    );
+    expect(screen.getByText("Sign in & accounts")).toBeInTheDocument();
+    expect(
+      screen.getByText("Chat with the assistant is available")
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("You can submit tickets and attach screenshots")
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Ticket emails are being delivered")
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/\d+\s*ms/i)).not.toBeInTheDocument();
+  });
+
+  it("shows the requested degraded and down capability copy", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          ok: false,
+          degraded: true,
+          checks: {
+            app: { ok: true, ms: null },
+            database: { ok: false, ms: 120 },
+            auth: { ok: false, ms: 80 },
+            storage: { ok: false, ms: 90 },
+            ai: { ok: true, ms: null, degraded: true },
+            notifications: { ok: false, ms: 70 },
+            rateLimiter: { ok: true, ms: null },
+          },
+          timestamp: new Date().toISOString(),
+        }),
+      })
+    );
+
+    render(<StatusWidget />);
+
+    await waitFor(() =>
+      expect(
+        screen.getByText("Sign-in may fail — try again in a few minutes")
+      ).toBeInTheDocument()
+    );
+    expect(screen.getByText("Guides may load slowly")).toBeInTheDocument();
+    expect(
+      screen.getByText("Assistant gives limited answers right now")
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Ticket submission unavailable")
+    ).toBeInTheDocument();
+    expect(screen.getByText("Emails may be delayed")).toBeInTheDocument();
+    expect(screen.getByText("Service disruption")).toBeInTheDocument();
   });
 });

@@ -285,3 +285,126 @@ test("maps workflow confidence, risk, handoff, and reopened filters", async () =
   );
   expect(ticketBuilder.eq).toHaveBeenCalledWith("status", "Reopened");
 });
+
+test("SLA at risk queue returns breached and due-soon tickets only", async () => {
+  vi.stubEnv("OPERATIONS_PSEUDONYM_SALT", "test-salt");
+  mocks.isResolutionTrackingEnabled.mockReturnValue(false);
+  const ticketRows = [
+    {
+      id: "00000000-0000-4000-8000-000000000001",
+      user_id: "user-1",
+      issue_id: "network",
+      issue_title: "Network issue",
+      category: "network",
+      status: "In Progress",
+      priority: "Normal",
+      assigned_agent: "Agent",
+      platform: "Windows",
+      created_at: "2025-01-01T00:00:00.000Z",
+      updated_at: "2025-01-01T00:00:00.000Z",
+      first_response_at: null,
+      resolved_at: null,
+      human_response_due_at: "2020-01-01T00:00:00.000Z",
+      attachment_path: null,
+      resolution_source: null,
+      ai_attempted: false,
+      escalated: false,
+    },
+    {
+      id: "00000000-0000-4000-8000-000000000002",
+      user_id: "user-2",
+      issue_id: "email",
+      issue_title: "Email issue",
+      category: "email",
+      status: "In Progress",
+      priority: "Normal",
+      assigned_agent: "Agent",
+      platform: "Windows",
+      created_at: "2025-01-01T00:00:00.000Z",
+      updated_at: "2025-01-01T00:00:00.000Z",
+      first_response_at: null,
+      resolved_at: null,
+      human_response_due_at: new Date(
+        Date.now() + 30 * 60 * 1000
+      ).toISOString(),
+      attachment_path: null,
+      resolution_source: null,
+      ai_attempted: false,
+      escalated: false,
+    },
+    {
+      id: "00000000-0000-4000-8000-000000000003",
+      user_id: "user-3",
+      issue_id: "account",
+      issue_title: "Account issue",
+      category: "account",
+      status: "Closed",
+      priority: "Normal",
+      assigned_agent: "Agent",
+      platform: "Windows",
+      created_at: "2025-01-01T00:00:00.000Z",
+      updated_at: "2025-01-01T00:00:00.000Z",
+      first_response_at: null,
+      resolved_at: "2025-01-01T01:00:00.000Z",
+      human_response_due_at: "2020-01-01T00:00:00.000Z",
+      attachment_path: null,
+      resolution_source: null,
+      ai_attempted: false,
+      escalated: false,
+    },
+  ];
+  const ticketBuilder = {
+    select: vi.fn(() => ticketBuilder),
+    eq: vi.fn(() => ticketBuilder),
+    in: vi.fn(() => ticketBuilder),
+    gte: vi.fn(() => ticketBuilder),
+    lte: vi.fn(() => ticketBuilder),
+    order: vi.fn(() => ticketBuilder),
+    limit: vi.fn().mockResolvedValue({
+      data: ticketRows,
+      count: ticketRows.length,
+      error: null,
+    }),
+  };
+  const organizationBuilder = {
+    select: vi.fn(() => organizationBuilder),
+    eq: vi.fn(() => organizationBuilder),
+    maybeSingle: vi
+      .fn()
+      .mockResolvedValue({ data: { name: "Org A" }, error: null }),
+  };
+  mocks.createAdminClient.mockReturnValue({
+    rpc: vi.fn().mockResolvedValue({ data: {}, error: null }),
+    from: vi.fn((table: string) =>
+      table === "tickets" ? ticketBuilder : organizationBuilder
+    ),
+  });
+
+  const firstPage = await getOperationsData(session, {
+    from: "2025-01-01T00:00:00.000Z",
+    page: 1,
+    pageSize: 1,
+    queue: "sla_breached",
+  });
+  const secondPage = await getOperationsData(session, {
+    from: "2025-01-01T00:00:00.000Z",
+    page: 2,
+    pageSize: 1,
+    queue: "sla_breached",
+  });
+
+  expect(firstPage.tickets.rows.map((row) => row.slaState)).toEqual([
+    "Breached",
+  ]);
+  expect(secondPage.tickets.rows.map((row) => row.slaState)).toEqual([
+    "Due <1h",
+  ]);
+  expect(firstPage.tickets.rows.some((row) => row.status === "Closed")).toBe(
+    false
+  );
+  expect(secondPage.tickets.rows.some((row) => row.status === "Closed")).toBe(
+    false
+  );
+  expect(firstPage.tickets.total).toBe(2);
+  expect(secondPage.tickets.total).toBe(2);
+});

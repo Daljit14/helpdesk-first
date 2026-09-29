@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  ArrowRight,
   Bookmark,
   Bot,
   ChevronRight,
@@ -22,8 +23,10 @@ import { useTheme } from "@/components/theme-provider";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { breadcrumbsForPath } from "@/components/shell/breadcrumbs-for-path";
 import { AppFooter } from "@/components/shell/app-footer";
-import { AvatarPicker } from "@/components/shell/avatar-picker";
-import { AssistantBot, BrandMark } from "@/components/shell/brand-mark";
+import { BrandMark } from "@/components/shell/brand-mark";
+import { AnimatedAvatar } from "@/components/avatar/animated-avatar";
+import { AccountChip } from "@/components/shell/account-chip";
+import { TypewriterText } from "@/components/assistant/typewriter-text";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -87,27 +90,64 @@ function Navigation({
   );
 }
 
+const HELPER_LINES = [
+  "Hi! Need a hand?",
+  "Wi-Fi acting up?",
+  "Printer offline again?",
+  "Forgot a password?",
+  "I can find the right fix.",
+];
+
+function RotatingBubble() {
+  const [index, setIndex] = useState(0);
+  useEffect(() => {
+    const id = window.setInterval(
+      () => setIndex((value) => (value + 1) % HELPER_LINES.length),
+      3200
+    );
+    return () => window.clearInterval(id);
+  }, []);
+  return (
+    <span className="relative min-w-0 flex-1 rounded-2xl rounded-bl-md bg-card px-3 py-2 text-xs font-bold shadow-sm">
+      <TypewriterText key={index} text={HELPER_LINES[index]} speed={35} />
+    </span>
+  );
+}
+
 function AssistantHelper({ onNavigate }: { onNavigate?: () => void }) {
   return (
-    <div className="hf-hue relative shrink-0 overflow-hidden rounded-[20px] bg-[linear-gradient(120deg,var(--muted),#fdf2f8,#eef6ff,var(--muted))] p-4 text-foreground dark:bg-[linear-gradient(120deg,#2c2350,#3a1f3d,#1f2a4d,#2c2350)]">
-      <div className="flex items-end gap-2.5">
-        <AssistantBot className="pointer-events-none" />
-        <span className="hf-bubble pointer-events-none mb-1.5 rounded-xl rounded-bl-sm bg-card px-2.5 py-1.5 text-xs font-bold leading-none shadow-sm">
-          Hi! Need a hand?
-        </span>
+    <>
+      <div className="hf-hue relative overflow-hidden rounded-[22px] bg-[linear-gradient(120deg,var(--muted),#fdf2f8,#eef6ff,var(--muted))] p-4 text-foreground [@media(max-height:780px)]:hidden dark:bg-[linear-gradient(120deg,#2c2350,#3a1f3d,#1f2a4d,#2c2350)]">
+        <div className="flex items-center gap-2.5">
+          <AnimatedAvatar id="bot" size={48} className="bg-card shadow-sm" />
+          <RotatingBubble />
+        </div>
+        <p className="mt-3 text-[15px] font-extrabold">Stuck on something?</p>
+        <p className="mt-1 text-[13px] leading-snug text-muted-foreground">
+          Chat with the assistant — it can hand you to a person.
+        </p>
+        <Link
+          href="/assistant"
+          onClick={onNavigate}
+          className="group mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-foreground px-4 text-[13px] font-bold text-background transition-transform hover:-translate-y-0.5"
+        >
+          Start a chat
+          <ArrowRight
+            className="h-4 w-4 transition-transform group-hover:translate-x-1"
+            aria-hidden
+          />
+        </Link>
       </div>
-      <p className="mt-2.5 text-[15px] font-extrabold">Stuck on something?</p>
-      <p className="mt-1 text-[13px] leading-snug text-muted-foreground">
-        Chat with the assistant — it can hand you to a person.
-      </p>
       <Link
         href="/assistant"
         onClick={onNavigate}
-        className="hf-lift relative z-10 mt-3 inline-flex min-h-10 items-center rounded-xl bg-foreground px-3.5 text-[13px] font-bold text-background"
+        className="hidden min-h-12 items-center gap-3 rounded-2xl bg-muted px-3 text-sm font-bold [@media(max-height:780px)]:flex"
       >
+        <AnimatedAvatar id="bot" size={32} className="bg-card" />
         Start a chat
+        <ArrowRight className="ml-auto h-4 w-4" aria-hidden />
       </Link>
-    </div>
+    </>
   );
 }
 
@@ -135,7 +175,7 @@ function SidebarFooter({
       </Link>
       {email ? (
         <>
-          <AvatarPicker email={email} avatar={avatar} />
+          <AccountChip email={email} avatar={avatar} />
           <form action={logoutAction} className="px-2">
             <Button
               type="submit"
@@ -220,7 +260,7 @@ export function AppShell({
 
   return (
     <div className="min-h-full bg-background text-foreground lg:grid lg:grid-cols-[264px_1fr]">
-      <aside className="sticky top-0 hidden h-screen flex-col gap-7 overflow-y-auto border-r border-border bg-nav px-4 py-6 text-nav-foreground lg:flex">
+      <aside className="sticky top-0 hidden h-screen flex-col gap-6 overflow-y-auto [@media(max-height:780px)]:gap-4 border-r border-border bg-nav px-4 py-6 text-nav-foreground lg:flex">
         <Brand />
         <Navigation pathname={pathname} aiEnabled={aiEnabled} />
         {aiEnabled && <AssistantHelper />}

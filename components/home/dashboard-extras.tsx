@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 
 type StatusResponse = {
   ok: boolean;
+  degraded?: boolean;
   checks: Record<
     string,
     { ok: boolean; ms: number | null; degraded?: boolean }
@@ -56,14 +57,17 @@ export function SystemStatusCard({ className }: { className?: string }) {
     };
   }, []);
 
-  const healthy = Boolean(status?.ok) && !failed;
+  const healthy = Boolean(status?.ok) && !failed && !status?.degraded;
+  const degraded = Boolean(status?.degraded) && !failed;
   const label = !checkedAt
     ? "Checking…"
     : failed
       ? "Unavailable"
-      : healthy
-        ? "All good"
-        : "Degraded";
+      : degraded
+        ? "Degraded"
+        : healthy
+          ? "All good"
+          : "Degraded";
   const dbMs = status?.checks.database?.ms ?? null;
   const seconds = checkedAt
     ? Math.max(0, Math.round((now - checkedAt) / 1000))
@@ -97,7 +101,11 @@ export function SystemStatusCard({ className }: { className?: string }) {
             <span
               className={cn(
                 "absolute inset-0 rounded-full",
-                healthy ? "bg-status-success" : "bg-muted-foreground"
+                healthy
+                  ? "bg-status-success"
+                  : degraded
+                    ? "bg-status-warning"
+                    : "bg-muted-foreground"
               )}
             />
           </span>

@@ -211,6 +211,31 @@ describe("AdminDashboard", () => {
     );
   });
 
+  test("renders an accessible sticky queue bar with exclusive chips", async () => {
+    vi.spyOn(global, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(snapshot()), { status: 200 })
+    );
+    render(<AdminDashboard initialSnapshot={snapshot()} uiV2 />);
+
+    expect(screen.getByRole("button", { name: "All" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    expect(screen.getByRole("button", { name: "AI working" })).toHaveAttribute(
+      "aria-pressed",
+      "false"
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "AI working" }));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(vi.mocked(global.fetch)).toHaveBeenCalledWith(
+      expect.stringContaining("queue=ai_working"),
+      expect.objectContaining({ cache: "no-store" })
+    );
+  });
+
   test("renders a breached SLA state for overdue tickets", () => {
     render(
       <AdminDashboard

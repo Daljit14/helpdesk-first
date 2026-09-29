@@ -235,6 +235,7 @@ test.describe("UI v2 numbered coverage", () => {
       page.getByRole("navigation", { name: /Ticket sections/i })
     ).toBeVisible();
     await expect(page.getByText("User problem")).toBeVisible();
+    await page.getByRole("tab", { name: "Activity" }).click();
     await expect(page.getByText("Activity timeline")).toBeVisible();
   });
 

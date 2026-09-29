@@ -29,6 +29,7 @@ import { getIssueSteps } from "@/lib/steps";
 import { TicketProgress } from "@/components/ticket-progress";
 import { TicketInvestigation } from "@/components/ticket-investigation";
 import { TicketConsentPrompt } from "@/components/ticket-consent-prompt";
+import { TicketDetailTabs } from "@/components/ticket-detail-tabs";
 import {
   decryptCommentRows,
   decryptInvestigationRow,
@@ -313,6 +314,10 @@ export default async function TicketPage({
     ["ai resolving", "waiting for user", "needs human", "in progress"].includes(
       ticket.status.toLowerCase()
     );
+  const guideSteps = recommendedIssue ? getIssueSteps(recommendedIssue) : [];
+  const completedGuideSteps = guideSteps.filter(
+    (_, index) => outcomes[index] !== undefined
+  ).length;
   const diagnosticAnswers = Array.isArray(ticket.diagnostic_answers)
     ? (ticket.diagnostic_answers as { questionId?: string; answer?: string }[])
     : [];
@@ -366,176 +371,243 @@ export default async function TicketPage({
           <ArrowLeft className="h-4 w-4" />
           Back to my tickets
         </Link>
-        <p className="font-mono text-sm text-muted-foreground">
-          {portalEnabled ? ticketReference(ticket.id) : "Ticket"}
-        </p>
-        <h1 className="mt-2 text-3xl font-bold">{ticket.issue_title}</h1>
-        <div className="mt-3">
-          <span
-            className="glass-pill inline-block px-3 py-1 text-sm"
-            title={ticket.status}
-          >
-            {portalEnabled ? status.label : ticket.status}
-          </span>
-          {portalEnabled && status.description && (
-            <p className="mt-2 text-sm text-muted-foreground">
-              {status.description}
+        <div className="mt-4 space-y-4">
+          <div>
+            <p className="font-mono text-sm text-muted-foreground">
+              {portalEnabled ? ticketReference(ticket.id) : "Ticket"}
             </p>
-          )}
-          {portalEnabled && status.attention && status.nextAction && (
-            <p className="glass-pill mt-3 inline-block px-3 py-2 text-sm">
-              {status.nextAction}
-            </p>
-          )}
-        </div>
-        {handoffReasonLabel(ticket.handoff_reason, ticket.status) && (
-          <p className="mt-3 text-sm text-muted-foreground">
-            Why a person is helping:{" "}
-            {handoffReasonLabel(ticket.handoff_reason, ticket.status)}
-          </p>
-        )}
-        {citation && (
-          <p className="mt-3 text-sm text-muted-foreground">
-            Source: {citation.title} · v{citation.version} · updated{" "}
-            {citation.retrievedAt
-              ? new Date(citation.retrievedAt).toLocaleDateString()
-              : "unknown"}{" "}
-            · {citation.supportedPlatforms.join(", ")}
-          </p>
-        )}
-        <TicketProgress
-          status={ticket.status}
-          description={status.description}
-          assignment={assignment}
-          assignedAgentId={ticket.assigned_agent_id}
-          resolverType={ticket.resolver_type}
-        />
-        <div className="glass-strong mt-6 p-5">
-          <h2 className="font-semibold">Original problem</h2>
-          <p className="mt-3 whitespace-pre-wrap">{ticket.message}</p>
-          <p className="mt-3 text-sm text-muted-foreground">
-            Platform: {ticket.platform ?? "Other"} · Created{" "}
-            {new Date(ticket.created_at).toLocaleString()}
-          </p>
-          {portalEnabled && visibleDiagnosticAnswers.length > 0 && (
-            <div className="mt-5">
-              <h2 className="font-semibold">What you told us</h2>
-              <ul className="mt-3 list-disc space-y-2 pl-5 text-sm">
-                {visibleDiagnosticAnswers.map((answer) => (
-                  <li key={answer.questionId}>
-                    <span className="font-medium">{answer.questionId}:</span>{" "}
-                    {answer.answer}
-                  </li>
-                ))}
-              </ul>
+            <h1 className="mt-2 text-3xl font-bold">{ticket.issue_title}</h1>
+            <div className="mt-3">
+              <span
+                className="glass-pill inline-block px-3 py-1 text-sm"
+                title={ticket.status}
+              >
+                {portalEnabled ? status.label : ticket.status}
+              </span>
+              {portalEnabled && status.description && (
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {status.description}
+                </p>
+              )}
+              {portalEnabled && status.attention && status.nextAction && (
+                <p className="glass-pill mt-3 inline-block px-3 py-2 text-sm">
+                  {status.nextAction}
+                </p>
+              )}
+            </div>
+            {handoffReasonLabel(ticket.handoff_reason, ticket.status) && (
+              <p className="mt-3 text-sm text-muted-foreground">
+                Why a person is helping:{" "}
+                {handoffReasonLabel(ticket.handoff_reason, ticket.status)}
+              </p>
+            )}
+            {citation && (
+              <p className="mt-3 text-sm text-muted-foreground">
+                Source: {citation.title} · v{citation.version} · updated{" "}
+                {citation.retrievedAt
+                  ? new Date(citation.retrievedAt).toLocaleDateString()
+                  : "unknown"}{" "}
+                · {citation.supportedPlatforms.join(", ")}
+              </p>
+            )}
+          </div>
+          <TicketProgress
+            status={ticket.status}
+            description={status.description}
+            assignment={assignment}
+            assignedAgentId={ticket.assigned_agent_id}
+            resolverType={ticket.resolver_type}
+          />
+          {portalEnabled && (
+            <div className="space-y-4">
+              {consentRequest.data &&
+                typeof consentRequest.data.capability_id === "string" &&
+                typeof consentRequest.data.capability_version === "number" && (
+                  <TicketConsentPrompt
+                    request={{
+                      id: consentRequest.data.id,
+                      capabilityId: consentRequest.data.capability_id,
+                      capabilityVersion: consentRequest.data.capability_version,
+                      riskLevel: consentRequest.data.risk_level ?? "unknown",
+                      expiresAt: consentRequest.data.expires_at,
+                    }}
+                  />
+                )}
+              <TicketPortalActions
+                ticketId={ticket.id}
+                status={ticket.status}
+                canReopen={canReopen}
+                rating={ticket.satisfaction_rating ?? null}
+                ratingComment={ticket.satisfaction_comment ?? null}
+                recommendedIssue={
+                  recommendedIssue
+                    ? { id: recommendedIssue.id, title: recommendedIssue.title }
+                    : null
+                }
+              />
             </div>
           )}
-          {portalEnabled && ticket.attachment_path && (
-            <AttachmentLink path={ticket.attachment_path} />
-          )}
         </div>
-        <AttachmentList attachments={attachments} />
-        {investigation && (
-          <TicketInvestigation
-            investigation={investigation.investigation}
-            turns={investigation.turns}
-          />
-        )}
-        {portalEnabled && (
-          <>
-            {consentRequest.data &&
-              typeof consentRequest.data.capability_id === "string" &&
-              typeof consentRequest.data.capability_version === "number" && (
-                <TicketConsentPrompt
-                  request={{
-                    id: consentRequest.data.id,
-                    capabilityId: consentRequest.data.capability_id,
-                    capabilityVersion: consentRequest.data.capability_version,
-                    riskLevel: consentRequest.data.risk_level ?? "unknown",
-                    expiresAt: consentRequest.data.expires_at,
-                  }}
+        <TicketDetailTabs
+          tabs={[
+            {
+              id: "overview",
+              label: "Overview",
+              content: (
+                <>
+                  <div className="glass-strong p-5">
+                    <h2 className="font-semibold">Original problem</h2>
+                    <p className="mt-3 whitespace-pre-wrap">{ticket.message}</p>
+                    <p className="mt-3 text-sm text-muted-foreground">
+                      Platform: {ticket.platform ?? "Other"} · Created{" "}
+                      {new Date(ticket.created_at).toLocaleString()}
+                    </p>
+                    {portalEnabled && visibleDiagnosticAnswers.length > 0 && (
+                      <div className="mt-5">
+                        <h2 className="font-semibold">What you told us</h2>
+                        <ul className="mt-3 list-disc space-y-2 pl-5 text-sm">
+                          {visibleDiagnosticAnswers.map((answer) => (
+                            <li key={answer.questionId}>
+                              <span className="font-medium">
+                                {answer.questionId}:
+                              </span>{" "}
+                              {answer.answer}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {portalEnabled && ticket.attachment_path && (
+                      <AttachmentLink path={ticket.attachment_path} />
+                    )}
+                  </div>
+                  <AttachmentList attachments={attachments} />
+                </>
+              ),
+            },
+            ...(showStepOutcomes && recommendedIssue
+              ? [
+                  {
+                    id: "guide",
+                    label: "Guide steps",
+                    badge: `${completedGuideSteps}/${guideSteps.length}`,
+                    content: (
+                      <TicketStepOutcomes
+                        ticketId={ticket.id}
+                        guideSlug={recommendedIssue.id}
+                        guideTitle={recommendedIssue.title}
+                        guideUrl={`/issues/${recommendedIssue.id}/guide`}
+                        steps={guideSteps}
+                        outcomes={outcomes}
+                      />
+                    ),
+                  },
+                ]
+              : []),
+            ...(investigation
+              ? [
+                  {
+                    id: "investigation",
+                    label: "Investigation",
+                    content: (
+                      <TicketInvestigation
+                        investigation={investigation.investigation}
+                        turns={investigation.turns}
+                      />
+                    ),
+                  },
+                ]
+              : []),
+            ...(portalEnabled
+              ? [
+                  {
+                    id: "activity",
+                    label: "Activity",
+                    badge: (events ?? []).length,
+                    content: (
+                      <section className="glass p-5">
+                        <h2 className="font-semibold">Activity timeline</h2>
+                        <ol className="mt-4 space-y-3">
+                          {(events ?? [])
+                            .filter((event) => eventLabels[event.event_type])
+                            .map((event, index) => (
+                              <li
+                                key={`${event.created_at}-${index}`}
+                                className="flex gap-3 text-sm"
+                              >
+                                {(() => {
+                                  const Icon = eventIcon(event.event_type);
+                                  return (
+                                    <span className="relative shrink-0">
+                                      <span className="absolute left-3 top-7 h-full w-px bg-border" />
+                                      <span className="relative z-10 flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary">
+                                        <Icon className="h-4 w-4" />
+                                      </span>
+                                    </span>
+                                  );
+                                })()}
+                                <span>
+                                  <span className="font-medium">
+                                    {(() => {
+                                      if (
+                                        event.event_type !== "comment.created"
+                                      )
+                                        return eventLabels[event.event_type];
+                                      return event.actor_type === "employee"
+                                        ? "Support replied"
+                                        : event.actor_type === "ai"
+                                          ? "Assistant replied"
+                                          : "You replied";
+                                    })()}
+                                  </span>
+                                  <span
+                                    className="ml-2 text-muted-foreground"
+                                    title={new Date(
+                                      event.created_at
+                                    ).toLocaleString()}
+                                  >
+                                    {relativeTime(event.created_at)}
+                                  </span>
+                                  {(event.detail as { preview?: string } | null)
+                                    ?.preview && (
+                                    <span className="mt-1 block text-muted-foreground">
+                                      {
+                                        (event.detail as { preview: string })
+                                          .preview
+                                      }
+                                    </span>
+                                  )}
+                                </span>
+                              </li>
+                            ))}
+                        </ol>
+                      </section>
+                    ),
+                  },
+                ]
+              : []),
+            {
+              id: "conversation",
+              label: "Conversation",
+              badge: comments.length,
+              content: (
+                <TicketConversation
+                  ticketId={ticket.id}
+                  userId={user.id}
+                  initialComments={(comments ?? []) as never}
+                  status={ticket.status}
+                  workflowEnabled={workflowEnabled}
                 />
-              )}
-            <TicketPortalActions
-              ticketId={ticket.id}
-              status={ticket.status}
-              canReopen={canReopen}
-              rating={ticket.satisfaction_rating ?? null}
-              ratingComment={ticket.satisfaction_comment ?? null}
-              recommendedIssue={
-                recommendedIssue
-                  ? { id: recommendedIssue.id, title: recommendedIssue.title }
-                  : null
-              }
-            />
-            {showStepOutcomes && recommendedIssue && (
-              <TicketStepOutcomes
-                ticketId={ticket.id}
-                guideSlug={recommendedIssue.id}
-                guideTitle={recommendedIssue.title}
-                guideUrl={`/issues/${recommendedIssue.id}/guide`}
-                steps={getIssueSteps(recommendedIssue)}
-                outcomes={outcomes}
-              />
-            )}
-            <section className="glass mt-6 p-5">
-              <h2 className="font-semibold">Activity timeline</h2>
-              <ol className="mt-4 space-y-3">
-                {(events ?? [])
-                  .filter((event) => eventLabels[event.event_type])
-                  .map((event, index) => (
-                    <li
-                      key={`${event.created_at}-${index}`}
-                      className="flex gap-3 text-sm"
-                    >
-                      {(() => {
-                        const Icon = eventIcon(event.event_type);
-                        return (
-                          <span className="relative shrink-0">
-                            <span className="absolute left-3 top-7 h-full w-px bg-border" />
-                            <span className="relative z-10 flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary">
-                              <Icon className="h-4 w-4" />
-                            </span>
-                          </span>
-                        );
-                      })()}
-                      <span>
-                        <span className="font-medium">
-                          {(() => {
-                            if (event.event_type !== "comment.created")
-                              return eventLabels[event.event_type];
-                            return event.actor_type === "employee"
-                              ? "Support replied"
-                              : event.actor_type === "ai"
-                                ? "Assistant replied"
-                                : "You replied";
-                          })()}
-                        </span>
-                        <span
-                          className="ml-2 text-muted-foreground"
-                          title={new Date(event.created_at).toLocaleString()}
-                        >
-                          {relativeTime(event.created_at)}
-                        </span>
-                        {(event.detail as { preview?: string } | null)
-                          ?.preview && (
-                          <span className="mt-1 block text-muted-foreground">
-                            {(event.detail as { preview: string }).preview}
-                          </span>
-                        )}
-                      </span>
-                    </li>
-                  ))}
-              </ol>
-            </section>
-          </>
-        )}
-        <TicketConversation
-          ticketId={ticket.id}
-          userId={user.id}
-          initialComments={(comments ?? []) as never}
-          status={ticket.status}
-          workflowEnabled={workflowEnabled}
+              ),
+            },
+          ]}
+          defaultTab={
+            ticket.status === "Pending Verification"
+              ? "conversation"
+              : showStepOutcomes && ticket.status === "AI Resolving"
+                ? "guide"
+                : "overview"
+          }
         />
       </div>
     </section>

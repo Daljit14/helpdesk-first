@@ -22,6 +22,7 @@ import type {
 import { formatSlaCountdown } from "@/lib/tickets/sla";
 import { updateOrganizationPolicy } from "@/app/actions/admin-workflow";
 import type { OrganizationPolicy } from "@/lib/admin/policies";
+import { CollapsibleSection } from "./collapsible-section";
 
 type RefreshStatus = "idle" | "refreshing" | "error";
 
@@ -446,12 +447,77 @@ export function AdminDashboard({
           .includes(referenceFilter)
       )
     : snapshot.tickets.rows;
-  const updateFilter = (key: keyof AdminFilters, value: string | number) => {
-    const next = { ...filters, [key]: value, page: 1 };
+  const updateFilters = (partial: Partial<AdminFilters>) => {
+    const next = { ...filters, ...partial, page: 1 };
     setFilters(next);
     router.replace(`/admin/operations?${makeQuery(next)}`, { scroll: false });
     void refresh(next);
   };
+  const updateFilter = (key: keyof AdminFilters, value: string | number) => {
+    updateFilters({ [key]: value });
+  };
+  const applyQueueChip = (
+    kind: "queue" | "status" | "priority",
+    value: string | null,
+    scroll = true
+  ) => {
+    const active = value !== null && filters[kind] === value;
+    updateFilters({
+      queue: (kind === "queue" && !active ? value : undefined) as
+        AdminFilters["queue"] | undefined,
+      status: kind === "status" && !active ? (value ?? "") : "",
+      priority: kind === "priority" && !active ? (value ?? "") : "",
+    });
+    if (scroll) {
+      const tickets = document.getElementById("tickets");
+      if (tickets && typeof tickets.scrollIntoView === "function") {
+        tickets.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }
+  };
+  const workflow = snapshot.workflow;
+  const atAGlance: [string, number, "queue" | "status" | "priority", string][] =
+    workflow
+      ? [
+          ["Needs human", workflow.needsHuman, "queue", "needs_human"],
+          ["AI resolving", workflow.aiResolving, "queue", "ai_working"],
+          ["Waiting for user", workflow.waitingForUser, "queue", "waiting"],
+          [
+            "Pending verification",
+            workflow.pendingVerification,
+            "status",
+            "Pending Verification",
+          ],
+          ["SLA at risk", workflow.slaAtRisk, "queue", "sla_breached"],
+          ["Reopened", workflow.reopenedCount, "queue", "reopened"],
+        ]
+      : [
+          ["Open", snapshot.metrics.openTickets, "status", "New"],
+          [
+            "In progress",
+            snapshot.metrics.inProgressTickets,
+            "status",
+            "In Progress",
+          ],
+          ["Waiting", snapshot.metrics.waitingTickets, "queue", "waiting"],
+          ["Urgent", snapshot.metrics.urgentOpenTickets, "priority", "Urgent"],
+          [
+            "SLA breached",
+            snapshot.metrics.slaBreached,
+            "queue",
+            "sla_breached",
+          ],
+          [
+            "Completed today",
+            snapshot.metrics.completedToday,
+            "status",
+            "Resolved",
+          ],
+        ];
+  const summary = (...parts: (string | number | null | undefined)[]) =>
+    parts
+      .filter((part) => part !== undefined && part !== null && part !== "")
+      .join(" · ");
   const maxCategory = Math.max(
     1,
     ...snapshot.metrics.ticketsByCategory.map((item) => item.count)
@@ -477,7 +543,7 @@ export function AdminDashboard({
 
   return (
     <div>
-      <div className="mx-auto w-full max-w-7xl space-y-8 px-4 py-10 sm:px-6 lg:px-8">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-10 sm:px-6 lg:px-8">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold">Operations</h1>
@@ -536,10 +602,29 @@ export function AdminDashboard({
             {staleMessage}
           </p>
         )}
+        <section className="order-2 grid grid-cols-3 gap-2 sm:grid-cols-6">
+          {atAGlance.map(([label, value, kind, filterValue]) => (
+            <button
+              key={label}
+              type="button"
+              className="glass-strong rounded-2xl p-3 text-left transition-colors hover:bg-muted"
+              onClick={() => applyQueueChip(kind, filterValue)}
+            >
+              <span className="block text-xs text-muted-foreground">
+                {label}
+              </span>
+              <span className="mt-1 block text-xl font-bold">{value}</span>
+            </button>
+          ))}
+        </section>
         {organizationPolicy && snapshot.role === "org_admin" && (
-          <section className="glass p-5">
-            <h2 className="font-semibold">Organization policy</h2>
-            <label className="mt-3 flex items-center gap-3 text-sm">
+          <CollapsibleSection
+            id="policy"
+            title="Organization policy"
+            defaultOpen={false}
+            className="order-3"
+          >
+            <label className="flex items-center gap-3 text-sm">
               <input
                 type="checkbox"
                 checked={policyEnabled}
@@ -547,12 +632,22 @@ export function AdminDashboard({
               />
               Allow verification exceptions
             </label>
-          </section>
+          </CollapsibleSection>
         )}
         {workflowEnabled && snapshot.workflow && (
-          <section className="glass p-5">
-            <h2 className="text-xl font-semibold">Ticket workflow</h2>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <CollapsibleSection
+            id="workflow"
+            title="Ticket workflow"
+            summary={summary(
+              `AI-resolved ${snapshot.workflow.resolvedByAi}`,
+              `Human-resolved ${snapshot.workflow.resolvedByEmployees}`,
+              snapshot.workflow.avgSatisfaction === null
+                ? null
+                : `Avg satisfaction ${snapshot.workflow.avgSatisfaction.toFixed(1)}`
+            )}
+            className="order-3"
+          >
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
               {[
                 ["Needs human", snapshot.workflow.needsHuman],
                 ["AI resolving", snapshot.workflow.aiResolving],
@@ -579,246 +674,276 @@ export function AdminDashboard({
                 </div>
               ))}
             </div>
-          </section>
+          </CollapsibleSection>
         )}
 
-        <div
-          id={uiV2 ? "analytics" : undefined}
-          className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4"
+        <CollapsibleSection
+          id="traffic"
+          title="Traffic & usage"
+          summary={summary(
+            `${snapshot.metrics.pageViewsToday} page views today`,
+            `${snapshot.metrics.activeUsers} active users`
+          )}
+          className="order-3"
         >
-          {metricLabels.map(([key, label]) => (
-            <div key={key} className={`glass p-4 ${metricTone(key)}`}>
-              <p className="text-sm text-muted-foreground">{label}</p>
-              <p className="mt-2 text-3xl font-bold">
-                {["avgFirstResponseMinutes", "avgResolutionMinutes"].includes(
-                  key
-                )
-                  ? (snapshot.metrics[key] as number).toFixed(1)
-                  : (snapshot.metrics[key] as number)}
-              </p>
-            </div>
-          ))}
-        </div>
+          <div
+            id={uiV2 ? "analytics" : undefined}
+            className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4"
+          >
+            {metricLabels.map(([key, label]) => (
+              <div key={key} className={`glass p-4 ${metricTone(key)}`}>
+                <p className="text-sm text-muted-foreground">{label}</p>
+                <p className="mt-2 text-3xl font-bold">
+                  {["avgFirstResponseMinutes", "avgResolutionMinutes"].includes(
+                    key
+                  )
+                    ? (snapshot.metrics[key] as number).toFixed(1)
+                    : (snapshot.metrics[key] as number)}
+                </p>
+              </div>
+            ))}
+          </div>
 
-        <div className="grid gap-6 lg:grid-cols-2">
-          {[
-            [
-              "Tickets by category",
-              snapshot.metrics.ticketsByCategory,
-              maxCategory,
-            ],
-            [
-              "Tickets by platform",
-              snapshot.metrics.ticketsByPlatform,
-              maxPlatform,
-            ],
-          ].map(([title, items, max]) => (
-            <section key={title as string} className="glass p-5">
-              <h2 className="font-semibold">{title as string}</h2>
-              <div className="mt-4 space-y-3">
-                {(items as { key: string; count: number }[]).map((item) => (
-                  <div key={item.key}>
-                    <div className="flex justify-between text-sm text-muted-foreground">
-                      <span>{item.key}</span>
-                      <span>{item.count}</span>
+          <div className="mt-6 grid gap-6 lg:grid-cols-2">
+            {[
+              [
+                "Tickets by category",
+                snapshot.metrics.ticketsByCategory,
+                maxCategory,
+              ],
+              [
+                "Tickets by platform",
+                snapshot.metrics.ticketsByPlatform,
+                maxPlatform,
+              ],
+            ].map(([title, items, max]) => (
+              <section key={title as string} className="glass p-5">
+                <h2 className="font-semibold">{title as string}</h2>
+                <div className="mt-4 space-y-3">
+                  {(items as { key: string; count: number }[]).map((item) => (
+                    <div key={item.key}>
+                      <div className="flex justify-between text-sm text-muted-foreground">
+                        <span>{item.key}</span>
+                        <span>{item.count}</span>
+                      </div>
+                      <div
+                        role="img"
+                        className="mt-1 h-2 rounded-full bg-primary"
+                        style={{
+                          width: `${(item.count / (max as number)) * 100}%`,
+                        }}
+                        aria-label={`${item.key}: ${item.count}`}
+                      />
                     </div>
-                    <div
-                      role="img"
-                      className="mt-1 h-2 rounded-full bg-primary"
-                      style={{
-                        width: `${(item.count / (max as number)) * 100}%`,
-                      }}
-                      aria-label={`${item.key}: ${item.count}`}
-                    />
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>
+        </CollapsibleSection>
+
+        <CollapsibleSection
+          id="workload"
+          title="Agent workload"
+          summary={summary(
+            `${snapshot.metrics.agentWorkload.length} agents`,
+            `${workflow?.unassignedNeedsHuman ?? Math.max(snapshot.metrics.openTickets - snapshot.metrics.agentWorkload.reduce((total, row) => total + row.open, 0), 0)} unassigned open`
+          )}
+          className="order-3"
+        >
+          <section
+            tabIndex={0}
+            aria-label="Agent workload"
+            className="overflow-x-auto"
+          >
+            <table className="w-full min-w-[700px] text-left text-sm">
+              <thead className="bg-muted/60 backdrop-blur">
+                <tr>
+                  {[
+                    "Agent",
+                    "Open",
+                    "Urgent",
+                    "Breached",
+                    "Waiting",
+                    "Resolved today",
+                  ].map((heading) => (
+                    <th key={heading} className="px-4 py-3">
+                      {heading}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {snapshot.metrics.agentWorkload.map((row) => (
+                  <tr
+                    key={row.agent}
+                    className="border-t border-border transition-colors hover:bg-muted/40"
+                  >
+                    <td className="px-4 py-3">{row.agent}</td>
+                    <td className="px-4 py-3">{row.open}</td>
+                    <td className="px-4 py-3">{row.urgent}</td>
+                    <td className="px-4 py-3">{row.breached}</td>
+                    <td className="px-4 py-3">{row.waiting}</td>
+                    <td className="px-4 py-3">{row.resolvedToday}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
+        </CollapsibleSection>
+
+        {resolutionTrackingEnabled && snapshot.resolution && (
+          <CollapsibleSection
+            id="resolution"
+            title="Resolution tracking"
+            summary={summary(
+              `AI resolution rate ${snapshot.resolution.aiResolutionRate}%`,
+              `avg ${formatDuration(snapshot.resolution.avgResolutionMinutes)}`
+            )}
+            className="order-3"
+          >
+            <div className="space-y-5">
+              <div className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-7">
+                {[
+                  [
+                    "Total tickets",
+                    snapshot.resolution.totalTickets,
+                    "border-border bg-card/40",
+                  ],
+                  [
+                    "Solved by AI",
+                    snapshot.resolution.aiSolved,
+                    "border-emerald-500/30 bg-emerald-500/10",
+                  ],
+                  [
+                    "Solved by agents",
+                    snapshot.resolution.agentSolved,
+                    "border-primary/30 bg-primary/10",
+                  ],
+                  [
+                    "Escalated",
+                    snapshot.resolution.escalated,
+                    "border-amber-500/30 bg-amber-500/10",
+                  ],
+                  [
+                    "Open",
+                    snapshot.resolution.openTickets,
+                    "border-sky-500/30 bg-sky-500/10",
+                  ],
+                  [
+                    "AI resolution rate",
+                    `${snapshot.resolution.aiResolutionRate}%`,
+                    "border-emerald-500/30 bg-emerald-500/10",
+                  ],
+                  [
+                    "Avg resolution time",
+                    formatDuration(snapshot.resolution.avgResolutionMinutes),
+                    "border-border bg-card/40",
+                  ],
+                ].map(([label, value, tone]) => (
+                  <div key={String(label)} className={`glass p-4 ${tone}`}>
+                    <p className="text-sm text-muted-foreground">{label}</p>
+                    <p className="mt-2 text-2xl font-bold">{value}</p>
+                    {label === "AI resolution rate" && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        of {snapshot.resolution?.aiAttempted ?? 0} AI-attempted
+                      </p>
+                    )}
                   </div>
                 ))}
               </div>
-            </section>
-          ))}
-        </div>
-
-        <section
-          tabIndex={0}
-          aria-label="Agent workload"
-          className="glass-strong overflow-x-auto"
-        >
-          <h2 className="border-b border-border p-5 font-semibold">
-            Agent workload
-          </h2>
-          <table className="w-full min-w-[700px] text-left text-sm">
-            <thead className="bg-muted/60 backdrop-blur">
-              <tr>
-                {[
-                  "Agent",
-                  "Open",
-                  "Urgent",
-                  "Breached",
-                  "Waiting",
-                  "Resolved today",
-                ].map((heading) => (
-                  <th key={heading} className="px-4 py-3">
-                    {heading}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {snapshot.metrics.agentWorkload.map((row) => (
-                <tr
-                  key={row.agent}
-                  className="border-t border-border transition-colors hover:bg-muted/40"
-                >
-                  <td className="px-4 py-3">{row.agent}</td>
-                  <td className="px-4 py-3">{row.open}</td>
-                  <td className="px-4 py-3">{row.urgent}</td>
-                  <td className="px-4 py-3">{row.breached}</td>
-                  <td className="px-4 py-3">{row.waiting}</td>
-                  <td className="px-4 py-3">{row.resolvedToday}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
-
-        {resolutionTrackingEnabled && snapshot.resolution && (
-          <section className="glass space-y-5 p-5">
-            <h2 className="font-semibold">Resolution tracking</h2>
-            <div className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-7">
-              {[
-                [
-                  "Total tickets",
-                  snapshot.resolution.totalTickets,
-                  "border-border bg-card/40",
-                ],
-                [
-                  "Solved by AI",
-                  snapshot.resolution.aiSolved,
-                  "border-emerald-500/30 bg-emerald-500/10",
-                ],
-                [
-                  "Solved by agents",
-                  snapshot.resolution.agentSolved,
-                  "border-primary/30 bg-primary/10",
-                ],
-                [
-                  "Escalated",
-                  snapshot.resolution.escalated,
-                  "border-amber-500/30 bg-amber-500/10",
-                ],
-                [
-                  "Open",
-                  snapshot.resolution.openTickets,
-                  "border-blue-200 bg-blue-50",
-                ],
-                [
-                  "AI resolution rate",
-                  `${snapshot.resolution.aiResolutionRate}%`,
-                  "border-emerald-200 bg-emerald-50",
-                ],
-                [
-                  "Avg resolution time",
-                  formatDuration(snapshot.resolution.avgResolutionMinutes),
-                  "border-border bg-card/40",
-                ],
-              ].map(([label, value, tone]) => (
-                <div key={String(label)} className={`glass p-4 ${tone}`}>
-                  <p className="text-sm text-muted-foreground">{label}</p>
-                  <p className="mt-2 text-2xl font-bold">{value}</p>
-                  {label === "AI resolution rate" && (
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      of {snapshot.resolution?.aiAttempted ?? 0} AI-attempted
-                    </p>
-                  )}
+              <div
+                role="img"
+                aria-label="Fourteen day resolution tracking chart"
+                className="space-y-2"
+              >
+                <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                  <span>
+                    <i
+                      className={`mr-1 inline-block h-2 w-2 ${
+                        uiV2 ? "bg-foreground" : "bg-emerald-500"
+                      }`}
+                    />
+                    AI solved
+                  </span>
+                  <span>
+                    <i
+                      className={`mr-1 inline-block h-2 w-2 ${
+                        uiV2 ? "bg-foreground/60" : "bg-blue-500"
+                      }`}
+                    />
+                    Agent solved
+                  </span>
+                  <span>
+                    <i
+                      className={`mr-1 inline-block h-2 w-2 ${
+                        uiV2 ? "bg-foreground/30" : "bg-orange-500"
+                      }`}
+                    />
+                    Escalated
+                  </span>
                 </div>
-              ))}
-            </div>
-            <div
-              role="img"
-              aria-label="Fourteen day resolution tracking chart"
-              className="space-y-2"
-            >
-              <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                <span>
-                  <i
-                    className={`mr-1 inline-block h-2 w-2 ${
-                      uiV2 ? "bg-foreground" : "bg-emerald-500"
-                    }`}
-                  />
-                  AI solved
-                </span>
-                <span>
-                  <i
-                    className={`mr-1 inline-block h-2 w-2 ${
-                      uiV2 ? "bg-foreground/60" : "bg-blue-500"
-                    }`}
-                  />
-                  Agent solved
-                </span>
-                <span>
-                  <i
-                    className={`mr-1 inline-block h-2 w-2 ${
-                      uiV2 ? "bg-foreground/30" : "bg-orange-500"
-                    }`}
-                  />
-                  Escalated
-                </span>
-              </div>
-              {snapshot.resolution.daily.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  No resolution activity.
-                </p>
-              ) : (
-                snapshot.resolution.daily.map((point) => {
-                  const total =
-                    point.aiSolved + point.agentSolved + point.escalated;
-                  const width = Math.max(total, 1);
-                  return (
-                    <div key={point.day} className="flex items-center gap-3">
-                      <span className="w-24 text-xs text-muted-foreground">
-                        {point.day}
-                      </span>
-                      <div className="flex h-5 flex-1 overflow-hidden rounded-full bg-muted">
-                        <div
-                          className={uiV2 ? "bg-foreground" : "bg-emerald-500"}
-                          style={{
-                            width: `${(point.aiSolved / width) * 100}%`,
-                          }}
-                        />
-                        <div
-                          className={uiV2 ? "bg-foreground/60" : "bg-blue-500"}
-                          style={{
-                            width: `${(point.agentSolved / width) * 100}%`,
-                          }}
-                        />
-                        <div
-                          className={
-                            uiV2 ? "bg-foreground/30" : "bg-orange-500"
-                          }
-                          style={{
-                            width: `${(point.escalated / width) * 100}%`,
-                          }}
-                        />
+                {snapshot.resolution.daily.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    No resolution activity.
+                  </p>
+                ) : (
+                  snapshot.resolution.daily.map((point) => {
+                    const total =
+                      point.aiSolved + point.agentSolved + point.escalated;
+                    const width = Math.max(total, 1);
+                    return (
+                      <div key={point.day} className="flex items-center gap-3">
+                        <span className="w-24 text-xs text-muted-foreground">
+                          {point.day}
+                        </span>
+                        <div className="flex h-5 flex-1 overflow-hidden rounded-full bg-muted">
+                          <div
+                            className={
+                              uiV2 ? "bg-foreground" : "bg-emerald-500"
+                            }
+                            style={{
+                              width: `${(point.aiSolved / width) * 100}%`,
+                            }}
+                          />
+                          <div
+                            className={
+                              uiV2 ? "bg-foreground/60" : "bg-blue-500"
+                            }
+                            style={{
+                              width: `${(point.agentSolved / width) * 100}%`,
+                            }}
+                          />
+                          <div
+                            className={
+                              uiV2 ? "bg-foreground/30" : "bg-orange-500"
+                            }
+                            style={{
+                              width: `${(point.escalated / width) * 100}%`,
+                            }}
+                          />
+                        </div>
+                        <span className="w-8 text-right text-xs">{total}</span>
                       </div>
-                      <span className="w-8 text-right text-xs">{total}</span>
-                    </div>
-                  );
-                })
-              )}
+                    );
+                  })
+                )}
+              </div>
             </div>
-          </section>
+          </CollapsibleSection>
         )}
 
-        <section id="tickets" className="glass-strong overflow-hidden">
-          <div className="border-b border-border p-5">
+        <section id="tickets" className="order-2 glass-strong">
+          <div className="sticky top-16 z-30 -mx-5 -mt-5 border-b border-border bg-card/95 px-5 pb-3 pt-5 backdrop-blur">
             <h2 className="font-semibold">Tickets</h2>
             {uiV2 && (
-              <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
+              <div className="mt-4 flex flex-wrap gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:flex-wrap lg:overflow-visible">
                 {[
+                  ["All", null, "all"],
                   ["Needs Human", "needs_human"],
                   ["Unassigned", "unassigned"],
                   ["Assigned to Me", "assigned_to_me"],
-                  ["AI Reviewing", "ai_working"],
-                  ["AI Resolving", "ai_working"],
+                  ["AI working", "ai_working"],
                   ["In Progress", "In Progress"],
                   ["Waiting for User", "waiting"],
                   ["Pending Verification", "Pending Verification"],
@@ -829,16 +954,38 @@ export function AdminDashboard({
                   <button
                     key={label}
                     type="button"
-                    className="v2-touch shrink-0 rounded-full border border-border px-3 py-2 text-sm hover:bg-muted"
-                    onClick={() =>
-                      updateFilter(
-                        value === "In Progress" ||
-                          value === "Pending Verification"
-                          ? "status"
-                          : "queue",
-                        value
-                      )
+                    aria-pressed={
+                      value === null
+                        ? !filters.queue && !filters.status && !filters.priority
+                        : filters.queue === value || filters.status === value
                     }
+                    className={`v2-touch shrink-0 rounded-full border px-3 py-2 text-sm ${
+                      (
+                        value === null
+                          ? !filters.queue &&
+                            !filters.status &&
+                            !filters.priority
+                          : filters.queue === value || filters.status === value
+                      )
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border hover:bg-muted"
+                    }`}
+                    onClick={() => {
+                      if (value === null) {
+                        updateFilters({
+                          queue: undefined,
+                          status: "",
+                          priority: "",
+                        });
+                        return;
+                      }
+                      const kind =
+                        value === "In Progress" ||
+                        value === "Pending Verification"
+                          ? "status"
+                          : "queue";
+                      applyQueueChip(kind, value);
+                    }}
                   >
                     {label}
                   </button>
@@ -1133,7 +1280,7 @@ export function AdminDashboard({
             </div>
           </div>
         </section>
-        <p className="text-sm text-muted-foreground">
+        <p className="order-4 text-sm text-muted-foreground">
           Pseudonymous operations data only — no emails, messages, or
           attachments.
         </p>

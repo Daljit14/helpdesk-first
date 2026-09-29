@@ -632,7 +632,10 @@ export function TicketWorkflowActions({
       >
         <h3 className="font-medium">Resolution report</h3>
         {resolutionError && (
-          <p role="alert" className="rounded-md bg-red-50 p-3 text-red-800">
+          <p
+            role="alert"
+            className="rounded-md bg-destructive/10 p-3 text-destructive"
+          >
             {resolutionError}
           </p>
         )}

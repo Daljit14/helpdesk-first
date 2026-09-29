@@ -72,7 +72,6 @@ export function HomePage({
   >([]);
   const [sessionCount, setSessionCount] = useState(0);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [desktopFiltersOpen, setDesktopFiltersOpen] = useState(false);
   const [promptIndex, setPromptIndex] = useState(0);
   const isHome = basePath !== "/browse";
 
@@ -321,68 +320,51 @@ export function HomePage({
             className="mb-6 hidden self-start lg:mb-0 lg:block"
           >
             <div className="sticky top-24 max-h-[calc(100vh-7rem)] overflow-y-auto rounded-[24px] border border-border bg-card p-4 shadow-sm hf-scrollbar">
-              <details
-                open={desktopFiltersOpen}
-                onToggle={(event) =>
-                  setDesktopFiltersOpen(event.currentTarget.open)
-                }
-              >
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-1 text-base font-extrabold [&::-webkit-details-marker]:hidden">
-                  <span className="flex items-center gap-2">
-                    <span
-                      aria-hidden
-                      className="transition-transform [[open]_&]:rotate-90"
-                    >
-                      ›
-                    </span>
-                    Filters
-                    {hasActiveFilters && (
-                      <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] text-primary">
-                        Active
-                      </span>
-                    )}
-                  </span>
+              <div className="flex items-center justify-between gap-3 px-1 text-base font-extrabold">
+                <span className="flex items-center gap-2">
+                  Filters
                   {hasActiveFilters && (
-                    <button
-                      type="button"
-                      className="rounded-full px-2 py-1 text-xs font-bold text-muted-foreground hover:bg-muted hover:text-foreground"
-                      onClick={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        clearFilters();
-                      }}
-                    >
-                      Clear
-                    </button>
+                    <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] text-primary">
+                      Active
+                    </span>
                   )}
-                </summary>
-                <div className="mt-4 grid gap-5">
-                  <details open>
-                    <summary className="flex cursor-pointer list-none items-center justify-between text-sm font-bold [&::-webkit-details-marker]:hidden">
-                      Platform <span aria-hidden>⌄</span>
-                    </summary>
-                    <div className="mt-2">
-                      <PlatformButtons
-                        selected={platform}
-                        variant="list"
-                        onSelect={selectPlatform}
-                      />
-                    </div>
-                  </details>
-                  <details open>
-                    <summary className="flex cursor-pointer list-none items-center justify-between text-sm font-bold [&::-webkit-details-marker]:hidden">
-                      Category <span aria-hidden>⌄</span>
-                    </summary>
-                    <div className="mt-2">
-                      <CategoryGrid
-                        selected={categoryId}
-                        variant="list"
-                        onSelect={selectCategory}
-                      />
-                    </div>
-                  </details>
-                </div>
-              </details>
+                </span>
+                {hasActiveFilters && (
+                  <button
+                    type="button"
+                    className="rounded-full px-2 py-1 text-xs font-bold text-muted-foreground hover:bg-muted hover:text-foreground"
+                    onClick={clearFilters}
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+              <div className="mt-4 grid gap-5">
+                <details open>
+                  <summary className="flex cursor-pointer list-none items-center justify-between text-sm font-bold [&::-webkit-details-marker]:hidden">
+                    Platform <span aria-hidden>⌄</span>
+                  </summary>
+                  <div className="mt-2 grid grid-cols-2 gap-2 [&>div]:contents">
+                    <PlatformButtons
+                      selected={platform}
+                      variant="list"
+                      onSelect={selectPlatform}
+                    />
+                  </div>
+                </details>
+                <details open>
+                  <summary className="flex cursor-pointer list-none items-center justify-between text-sm font-bold [&::-webkit-details-marker]:hidden">
+                    Category <span aria-hidden>⌄</span>
+                  </summary>
+                  <div className="mt-2">
+                    <CategoryGrid
+                      selected={categoryId}
+                      variant="list"
+                      onSelect={selectCategory}
+                    />
+                  </div>
+                </details>
+              </div>
             </div>
           </aside>
           <div className="min-w-0">

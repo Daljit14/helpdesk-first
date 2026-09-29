@@ -6,6 +6,18 @@ empty state until the organization has completed requester-agent sessions.
 Metrics cover AI resolution, false resolutions, escalations, escalation
 reasons, resolution durations, and unhandled intents over the last 30 days.
 
+**Baseline reset (2026-09-24).** Production test/bot data was removed with
+`supabase/ops/cleanup-test-data.sql` (dry-run first, then applied as one
+transaction in the Supabase SQL editor): 126 tickets (all 106 non-resolved
+tickets plus 20 resolved/closed tickets of 17 test accounts), 79 agent
+sessions, 73 resolution runs, 15 attachment rows, 16 ladder outcomes, all 73
+`record_exclusions` rows and the `devin-box` test device. 12 real
+resolved/closed tickets and all `auth.users` rows were kept. Post-checks: 0
+disabled triggers in `public`, 0 mock `ai_provider_calls`, 0 non-zero
+`capability_autonomy_stats` counters. No manual backup/PITR point was taken
+before applying; Supabase's scheduled backups are the only restore point.
+Resolution Center metrics start from this clean baseline.
+
 ## C2 requester-agent status
 
 Phase C3 adds a default-off, admin-promoted autonomy ladder with automatic

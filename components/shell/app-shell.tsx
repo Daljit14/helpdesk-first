@@ -22,6 +22,7 @@ import { useTheme } from "@/components/theme-provider";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { breadcrumbsForPath } from "@/components/shell/breadcrumbs-for-path";
 import { AppFooter } from "@/components/shell/app-footer";
+import { AvatarPicker } from "@/components/shell/avatar-picker";
 import { AssistantBot, BrandMark } from "@/components/shell/brand-mark";
 import { cn } from "@/lib/utils";
 
@@ -90,8 +91,8 @@ function AssistantHelper({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <div className="hf-hue relative overflow-hidden rounded-[20px] bg-[linear-gradient(120deg,var(--muted),#fdf2f8,#eef6ff,var(--muted))] p-4 text-foreground dark:bg-[linear-gradient(120deg,#2c2350,#3a1f3d,#1f2a4d,#2c2350)]">
       <div className="flex items-start gap-2.5">
-        <AssistantBot />
-        <span className="hf-bubble mt-1 rounded-xl rounded-bl-sm bg-card px-2.5 py-1.5 text-xs font-bold shadow-sm">
+        <AssistantBot className="pointer-events-none" />
+        <span className="hf-bubble pointer-events-none mt-1 rounded-xl rounded-bl-sm bg-card px-2.5 py-1.5 text-xs font-bold shadow-sm">
           Hi! Need a hand?
         </span>
       </div>
@@ -102,7 +103,7 @@ function AssistantHelper({ onNavigate }: { onNavigate?: () => void }) {
       <Link
         href="/assistant"
         onClick={onNavigate}
-        className="hf-lift mt-3 inline-flex min-h-10 items-center rounded-xl bg-foreground px-3.5 text-[13px] font-bold text-background"
+        className="hf-lift relative z-10 mt-3 inline-flex min-h-10 items-center rounded-xl bg-foreground px-3.5 text-[13px] font-bold text-background"
       >
         Start a chat
       </Link>
@@ -113,10 +114,12 @@ function AssistantHelper({ onNavigate }: { onNavigate?: () => void }) {
 function SidebarFooter({
   email,
   staff,
+  avatar,
   onNavigate,
 }: {
   email?: string | null;
   staff: boolean;
+  avatar?: string | null;
   onNavigate?: () => void;
 }) {
   const linkClass =
@@ -132,20 +135,7 @@ function SidebarFooter({
       </Link>
       {email ? (
         <>
-          <div className="flex items-center gap-2.5 px-3 py-1.5">
-            <span
-              aria-hidden
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,#ffc24b,#f472b6)] text-xs font-extrabold text-[#1c1633]"
-            >
-              {email.slice(0, 1).toUpperCase()}
-            </span>
-            <span
-              className="min-w-0 truncate text-[13px] font-medium text-nav-muted"
-              title={email}
-            >
-              {email}
-            </span>
-          </div>
+          <AvatarPicker email={email} avatar={avatar} />
           <form action={logoutAction} className="px-2">
             <Button
               type="submit"
@@ -201,11 +191,13 @@ export function AppShell({
   email,
   staff = false,
   aiEnabled = false,
+  avatar,
 }: {
   children: ReactNode;
   email?: string | null;
   staff?: boolean;
   aiEnabled?: boolean;
+  avatar?: string | null;
 }) {
   const pathname = usePathname() ?? "/";
   const { theme, toggleTheme } = useTheme();
@@ -233,7 +225,7 @@ export function AppShell({
         <Navigation pathname={pathname} aiEnabled={aiEnabled} />
         {aiEnabled && <AssistantHelper />}
         <div className="mt-auto">
-          <SidebarFooter email={email} staff={staff} />
+          <SidebarFooter email={email} staff={staff} avatar={avatar} />
         </div>
       </aside>
 
@@ -306,6 +298,7 @@ export function AppShell({
             <SidebarFooter
               email={email}
               staff={staff}
+              avatar={avatar}
               onNavigate={closeDrawer}
             />
           </div>

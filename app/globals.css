@@ -109,15 +109,11 @@ body {
         color-mix(in srgb, var(--primary) 16%, transparent),
         transparent 70%
       );
-    mask-image: radial-gradient(
-      120% 100% at 50% 0%,
-      black 40%,
-      transparent 100%
-    );
+    mask-image: radial-gradient(75% 100% at 50% 0%, black 25%, transparent 90%);
     -webkit-mask-image: radial-gradient(
-      120% 100% at 50% 0%,
-      black 40%,
-      transparent 100%
+      75% 100% at 50% 0%,
+      black 25%,
+      transparent 90%
     );
     pointer-events: none;
   }

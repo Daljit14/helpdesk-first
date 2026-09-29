@@ -21,14 +21,16 @@ export function EmptyState({
   return (
     <section
       className={cn(
-        "rounded-xl border border-dashed border-border bg-card p-8 text-center",
+        "rounded-[28px] border-2 border-dashed border-border bg-card/60 px-6 py-10 text-center",
         className
       )}
     >
       {Icon && (
-        <Icon className="mx-auto h-8 w-8 text-muted-foreground" aria-hidden />
+        <span className="mx-auto inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-accent text-accent-foreground">
+          <Icon className="h-7 w-7" aria-hidden />
+        </span>
       )}
-      <Heading className="mt-3 text-lg font-semibold">{title}</Heading>
+      <Heading className="mt-4 text-xl font-semibold">{title}</Heading>
       {description && (
         <p className="mx-auto mt-2 max-w-lg text-sm text-muted-foreground">
           {description}

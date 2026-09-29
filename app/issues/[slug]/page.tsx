@@ -22,6 +22,8 @@ import { getCurrentUser } from "@/lib/supabase/user";
 import { buildBrowseReturnHref } from "@/lib/browse-return";
 import { platformSlug } from "@/lib/platform";
 import { Badge } from "@/components/ui/badge";
+import { getCategoryIcon, getCategoryTone } from "@/components/category-icon";
+import { createElement } from "react";
 import {
   getBookmarkedIssueIds,
   getRatingTotals,
@@ -95,33 +97,41 @@ export default async function IssuePage({
   ]);
 
   return (
-    <section className="flex flex-1 flex-col px-4 py-12 sm:px-6 lg:px-8">
-      <div className="mx-auto w-full max-w-3xl">
+    <section className="flex flex-1 flex-col px-4 py-10 sm:px-6 lg:px-8">
+      <div className="hero-wash mx-auto w-full max-w-3xl">
         <RecentTracker issueId={issue.id} />
         <Link
           href={backHref}
-          className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+          className="inline-flex min-h-11 items-center gap-2 rounded-full bg-card px-4 text-sm font-semibold text-muted-foreground shadow-sm hover:text-foreground"
         >
-          <ArrowLeft className="h-4 w-4" />
+          <ArrowLeft className="h-4 w-4" aria-hidden />
           {hasBrowseParams ? "Back to results" : "Browse all solutions"}
         </Link>
 
-        <div className="mt-6 rounded-xl border border-border bg-card p-6 shadow-sm">
-          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
+        <div className="mt-6 rounded-[32px] border border-border bg-card p-6 shadow-md sm:p-8">
+          <span
+            className={`mb-5 flex h-14 w-14 items-center justify-center rounded-2xl ${getCategoryTone(issue.category)}`}
+          >
+            {createElement(getCategoryIcon(issue.category), {
+              className: "h-7 w-7",
+              "aria-hidden": true,
+            })}
+          </span>
+          <h1 className="text-4xl font-bold leading-[1.1] tracking-tight sm:text-5xl">
             {issue.title}
           </h1>
-          <p className="mt-2 text-muted-foreground">
+          <p className="mt-3 text-lg text-muted-foreground">
             {issue.symptoms[0] ?? issue.title}
           </p>
 
-          <div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+          <div className="mt-5 flex flex-wrap items-center gap-2 text-sm font-medium text-muted-foreground">
             <Badge variant="neutral">{category?.label ?? issue.category}</Badge>
-            <span className="inline-flex items-center gap-1">
-              <Gauge className="h-4 w-4" />
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1">
+              <Gauge className="h-4 w-4" aria-hidden />
               Difficulty {issue.difficulty}/3
             </span>
-            <span className="inline-flex items-center gap-1">
-              <Clock className="h-4 w-4" />
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1">
+              <Clock className="h-4 w-4" aria-hidden />
               {issue.time}
             </span>
             <Badge
@@ -142,8 +152,10 @@ export default async function IssuePage({
             </Badge>
           </div>
 
-          <div className="mt-4 flex flex-wrap gap-2 text-sm">
-            <span className="font-medium text-foreground">Applies to:</span>
+          <div className="mt-6 flex flex-wrap items-center gap-2 border-t border-border pt-5 text-sm">
+            <span className="mr-1 font-semibold text-foreground">
+              Applies to:
+            </span>
             {issue.devices.map((device) => {
               const selected =
                 query.platform?.toString().toLowerCase() ===
@@ -159,7 +171,7 @@ export default async function IssuePage({
                   key={device}
                   href={`/issues/${issue.id}?${params.toString()}`}
                   aria-current={selected ? "page" : undefined}
-                  className="rounded-full border border-border px-3 py-1 hover:border-primary"
+                  className="chip min-h-9 px-3 py-1"
                 >
                   {device}
                 </Link>
@@ -170,11 +182,11 @@ export default async function IssuePage({
 
         {issue.category === "network" && <NetworkCheckWidget />}
 
-        <div className="mt-6">
+        <div className="mt-6 flex flex-wrap items-center gap-3">
           <StartGuideButton slug={issue.id} />
           <Link
             href={`/assistant?q=${encodeURIComponent(issue.title)}&intent=human`}
-            className="ml-2 inline-flex min-h-11 items-center rounded-lg border border-border px-5 font-medium hover:bg-secondary"
+            className="inline-flex min-h-11 items-center rounded-full border border-border bg-card px-5 font-semibold hover:bg-secondary"
           >
             Contact support
           </Link>
@@ -191,20 +203,29 @@ export default async function IssuePage({
         />
 
         {safetyWarning && (
-          <div className="mt-6 rounded-lg border-l-4 border-amber-500 bg-amber-50 p-4 text-amber-900 dark:bg-amber-950 dark:text-amber-100">
+          <div className="mt-6 rounded-3xl border border-accent-foreground/20 bg-accent p-5 text-accent-foreground">
             <p className="font-semibold">Safety note</p>
             <p className="mt-1">{safetyWarning}</p>
           </div>
         )}
 
         <div className="mt-8">
-          <h2 className="text-xl font-semibold">
+          <h2 className="text-2xl font-semibold">
             Initial troubleshooting steps
           </h2>
-          <ol className="mt-4 list-decimal space-y-3 border-l border-border pl-8">
+          <ol className="mt-5 grid gap-3">
             {steps.map((step, index) => (
-              <li key={index} className="pl-2 text-muted-foreground">
-                {step}
+              <li
+                key={index}
+                className="flex items-start gap-4 rounded-3xl border border-border bg-card p-4 shadow-sm"
+              >
+                <span
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary font-heading text-sm font-bold text-primary"
+                  aria-hidden
+                >
+                  {index + 1}
+                </span>
+                <span className="pt-1 text-foreground">{step}</span>
               </li>
             ))}
           </ol>

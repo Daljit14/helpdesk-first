@@ -246,14 +246,37 @@ export function HomePage({
 
   return (
     <section className="flex flex-1 flex-col px-4 py-10 sm:px-6 lg:px-8">
-      <div className="mx-auto w-full max-w-6xl">
-        <PageHeader
-          title="Browse solutions"
-          description="Search issues, filter by category, or choose a platform to find Level-1 support guidance."
-        />
+      <div className="hero-wash mx-auto w-full max-w-6xl">
+        {basePath === "/browse" ? (
+          <PageHeader
+            title="Browse solutions"
+            description="Search issues, filter by category, or choose a platform to find Level-1 support guidance."
+          />
+        ) : (
+          <header className="max-w-3xl pt-2">
+            <p className="inline-flex items-center gap-2 rounded-full bg-accent px-3 py-1.5 text-sm font-semibold text-accent-foreground">
+              <span
+                className="h-2 w-2 rounded-full bg-status-success"
+                aria-hidden
+              />
+              Safe, step-by-step Level-1 help
+            </p>
+            <h1 className="mt-5 text-[2.5rem] font-bold leading-[1.05] tracking-tight sm:text-6xl">
+              Tech acting up? Let&apos;s sort it out together.
+            </h1>
+            <p className="mt-4 max-w-2xl text-lg text-muted-foreground">
+              Search what&apos;s going wrong, or pick your device and a
+              category. You&apos;ll get calm, safe steps — and a real person if
+              you need one.
+            </p>
+          </header>
+        )}
 
         {activeSessions.length > 0 && (
-          <div className="glass mt-6 p-4" aria-live="polite">
+          <div
+            className="mt-6 rounded-3xl border border-accent-foreground/20 bg-accent p-4 text-accent-foreground sm:p-5"
+            aria-live="polite"
+          >
             <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
               <div>
                 <p className="font-medium">
@@ -297,10 +320,12 @@ export function HomePage({
             </Button>
           </div>
           <aside aria-label="Filters" className="mb-6 hidden lg:mb-0 lg:block">
-            <div className="rounded-xl border border-border bg-card p-4">
-              <h2 className="font-semibold">Filters</h2>
+            <div className="sticky top-24 rounded-3xl border border-border bg-card p-5 shadow-sm">
+              <h2 className="text-lg font-semibold">Filters</h2>
               <div className="mt-4">
-                <p className="mb-2 text-sm font-medium">Platform</p>
+                <p className="mb-2 text-xs font-semibold text-muted-foreground">
+                  Platform
+                </p>
                 <PlatformButtons
                   selected={platform}
                   variant="list"
@@ -308,7 +333,9 @@ export function HomePage({
                 />
               </div>
               <div className="mt-5">
-                <p className="mb-2 text-sm font-medium">Category</p>
+                <p className="mb-2 text-xs font-semibold text-muted-foreground">
+                  Category
+                </p>
                 <CategoryGrid
                   selected={categoryId}
                   variant="list"
@@ -341,11 +368,13 @@ export function HomePage({
             {process.env.NEXT_PUBLIC_AI_ENABLED === "true" && (
               <Link
                 href="/assistant"
-                className="glass glass-interactive group mt-4 flex items-center gap-3 p-4 text-left"
+                className="glass glass-interactive group mt-4 flex items-center gap-4 p-4 text-left"
               >
-                <Bot className="h-5 w-5 shrink-0 text-primary" aria-hidden />
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-secondary text-primary">
+                  <Bot className="h-5 w-5" aria-hidden />
+                </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block font-medium">
+                  <span className="block font-semibold">
                     Not sure where to start? Ask the Support Assistant
                   </span>
                   <span className="mt-1 block text-sm text-muted-foreground">
@@ -372,7 +401,7 @@ export function HomePage({
                 {query && (
                   <button
                     type="button"
-                    className="inline-flex min-h-11 items-center gap-2 rounded-full border border-border bg-card px-3 py-2 text-sm hover:bg-muted"
+                    className="inline-flex min-h-11 items-center gap-2 rounded-full border border-primary/30 bg-secondary px-4 py-2 text-sm font-semibold text-primary hover:bg-secondary/70"
                     aria-label={`Remove filter: Search ${query}`}
                     onClick={() => removeFilter("query")}
                   >
@@ -383,7 +412,7 @@ export function HomePage({
                 {platform && (
                   <button
                     type="button"
-                    className="inline-flex min-h-11 items-center gap-2 rounded-full border border-border bg-card px-3 py-2 text-sm hover:bg-muted"
+                    className="inline-flex min-h-11 items-center gap-2 rounded-full border border-primary/30 bg-secondary px-4 py-2 text-sm font-semibold text-primary hover:bg-secondary/70"
                     aria-label={`Remove filter: Platform ${platform}`}
                     onClick={() => removeFilter("platform")}
                   >
@@ -394,7 +423,7 @@ export function HomePage({
                 {categoryId && (
                   <button
                     type="button"
-                    className="inline-flex min-h-11 items-center gap-2 rounded-full border border-border bg-card px-3 py-2 text-sm hover:bg-muted"
+                    className="inline-flex min-h-11 items-center gap-2 rounded-full border border-primary/30 bg-secondary px-4 py-2 text-sm font-semibold text-primary hover:bg-secondary/70"
                     aria-label={`Remove filter: Category ${categoryId}`}
                     onClick={() => removeFilter("category")}
                   >
@@ -435,7 +464,7 @@ export function HomePage({
                   >
                     Popular guides
                   </h2>
-                  <ul className="mt-4 grid gap-4">
+                  <ul className="mt-4 grid gap-4 md:grid-cols-2">
                     {popularIssues.map((issue) => (
                       <IssueCard
                         key={issue.id}

@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { Clock, Monitor } from "lucide-react";
 import type { Issue } from "@/lib/issues";
 import { normalizePlatform, platformSlug } from "@/lib/platform";
-import { getCategoryIcon } from "@/components/category-icon";
+import { getCategoryIcon, getCategoryTone } from "@/components/category-icon";
 import { RiskDot } from "@/components/risk-dot";
 import { DifficultyMeter } from "@/components/difficulty-meter";
 
@@ -30,15 +30,20 @@ export function IssueCard({
     <li className="relative">
       <Link
         href={href}
-        className="glass glass-interactive group block p-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="glass glass-interactive group flex h-full flex-col p-5 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/25"
       >
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-start gap-3">
-            <div className="mt-1 rounded-full bg-primary/10 p-2 text-primary">
-              {createElement(Icon, { className: "h-5 w-5" })}
+            <div
+              className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${getCategoryTone(issue.category)}`}
+            >
+              {createElement(Icon, {
+                className: "h-5 w-5",
+                "aria-hidden": true,
+              })}
             </div>
             <div>
-              <h2 className="text-lg font-semibold group-hover:underline">
+              <h2 className="text-lg font-semibold leading-snug decoration-primary/40 decoration-2 underline-offset-4 group-hover:underline">
                 {issue.title}
               </h2>
               <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
@@ -51,17 +56,17 @@ export function IssueCard({
           </div>
         </div>
 
-        <div className="mt-4 flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
-          <span className="glass-pill inline-flex items-center gap-1 px-3 py-1">
+        <div className="mt-auto flex flex-wrap items-center gap-2 pt-4 text-xs font-medium text-muted-foreground">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1.5">
             <DifficultyMeter level={issue.difficulty} />
             <span className="sr-only">Difficulty:</span> {issue.difficulty}/3
           </span>
-          <span className="glass-pill inline-flex items-center gap-1 px-3 py-1">
-            <Clock className="h-4 w-4" />
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1.5">
+            <Clock className="h-3.5 w-3.5" aria-hidden />
             {issue.time}
           </span>
-          <span className="glass-pill inline-flex items-center gap-1 px-3 py-1">
-            <Monitor className="h-4 w-4" />
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1.5">
+            <Monitor className="h-3.5 w-3.5" aria-hidden />
             {issue.devices.join(", ")}
           </span>
         </div>

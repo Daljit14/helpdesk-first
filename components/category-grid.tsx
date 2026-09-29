@@ -2,6 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import { categories } from "@/lib/helpdesk-data";
+import { getCategoryTone } from "@/components/category-icon";
 
 type CategoryGridProps = {
   selected: string | null;
@@ -36,16 +37,27 @@ export function CategoryGrid({
               onClick={() => onSelect(isSelected ? null : category.id)}
               className={cn(
                 isList
-                  ? "flex min-h-11 w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring hover:bg-secondary"
-                  : "glass glass-interactive flex min-h-32 w-full items-center gap-3 rounded-xl px-4 py-4 text-left text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring sm:flex-col sm:items-center sm:justify-center sm:gap-2 sm:text-center",
+                  ? "flex min-h-11 w-full items-center gap-3 rounded-full px-3 py-2 text-left text-sm font-semibold outline-none focus-visible:ring-4 focus-visible:ring-primary/25 hover:bg-muted"
+                  : "glass glass-interactive flex min-h-32 w-full items-center gap-3 px-4 py-4 text-left text-sm font-semibold outline-none focus-visible:ring-4 focus-visible:ring-primary/25 sm:flex-col sm:items-start sm:justify-between sm:gap-3 sm:p-5",
                 isSelected &&
-                  "border-foreground bg-foreground text-background hover:bg-foreground"
+                  "border-primary bg-primary text-primary-foreground hover:bg-primary"
               )}
             >
               <span
                 className={cn(
-                  isList ? "shrink-0" : "rounded-full p-2 sm:p-3",
-                  !isSelected && "text-primary"
+                  isList
+                    ? cn(
+                        "flex h-8 w-8 shrink-0 items-center justify-center rounded-xl",
+                        isSelected
+                          ? "bg-primary text-primary-foreground"
+                          : getCategoryTone(category.id)
+                      )
+                    : cn(
+                        "flex h-11 w-11 items-center justify-center rounded-2xl",
+                        isSelected
+                          ? "bg-primary-foreground/20 text-primary-foreground"
+                          : getCategoryTone(category.id)
+                      )
                 )}
               >
                 <Icon
@@ -60,7 +72,9 @@ export function CategoryGrid({
                 <span
                   className={cn(
                     "text-sm font-normal",
-                    isSelected ? "text-background/80" : "text-muted-foreground"
+                    isSelected
+                      ? "text-primary-foreground/80"
+                      : "text-muted-foreground"
                   )}
                 >
                   {counts[category.id] ?? 0}

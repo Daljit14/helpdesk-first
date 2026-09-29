@@ -17,7 +17,7 @@ export default async function CheckEmailPage({
   const next = params.next && isSafeNextPath(params.next) ? params.next : "/";
 
   return (
-    <section className="flex flex-1 flex-col items-center justify-center px-6 py-12 text-center">
+    <section className="hero-wash flex flex-1 flex-col items-center justify-center px-4 py-12 sm:px-6 text-center">
       <div className="w-full max-w-md space-y-4 rounded-xl border border-border bg-card p-8 shadow-sm">
         <PageHeader title="Verify your email" />
         <p className="text-muted-foreground">

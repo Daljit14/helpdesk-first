@@ -14,8 +14,10 @@ test.describe("AI Resolution Center", () => {
     );
     await page.goto("/admin/login");
     await page.getByLabel("Email").fill(process.env.ADMIN_E2E_EMAIL!);
-    await page.getByLabel("Password").fill(process.env.ADMIN_E2E_PASSWORD!);
-    await page.getByRole("button", { name: "Sign in" }).click();
+    await page
+      .getByLabel("Password", { exact: true })
+      .fill(process.env.ADMIN_E2E_PASSWORD!);
+    await page.getByRole("button", { name: "Log in" }).click();
   });
 
   test("renders the list and detail with accessible controls", async ({

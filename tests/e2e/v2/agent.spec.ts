@@ -13,7 +13,9 @@ const visionE2EReady = Boolean(
 async function signInRequester(page: Page) {
   await page.goto("/login?next=/assistant");
   await page.getByLabel("Email").fill(process.env.USER_E2E_EMAIL!);
-  await page.getByLabel("Password").fill(process.env.USER_E2E_PASSWORD!);
+  await page
+    .getByLabel("Password", { exact: true })
+    .fill(process.env.USER_E2E_PASSWORD!);
   await page.getByRole("button", { name: /Log in|Sign in/ }).click();
   await expect(page).toHaveURL(/\/assistant$/);
 }

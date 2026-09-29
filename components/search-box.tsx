@@ -28,7 +28,7 @@ export function SearchBox({
 
   return (
     <form onSubmit={handleSubmit} className="w-full" role="search">
-      <label htmlFor={id} className="mb-2 block text-sm font-medium">
+      <label htmlFor={id} className="mb-2 block text-sm font-semibold">
         Search problems
       </label>
       <div className="flex flex-col gap-2 sm:flex-row">
@@ -43,18 +43,18 @@ export function SearchBox({
             value={value}
             onChange={(event) => onChange(event.target.value)}
             placeholder={placeholder}
-            className="h-11 w-full rounded-lg border border-input bg-background py-3 pl-12 pr-3 text-base outline-none placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-[var(--focus)]"
+            className="h-14 w-full rounded-full border border-input bg-card py-3 pl-12 pr-4 text-base shadow-sm outline-none transition-[border-color,box-shadow] placeholder:text-muted-foreground/80 focus:border-primary focus:ring-4 focus:ring-primary/15"
           />
         </div>
-        <Button type="submit" className="min-h-11" size="sm">
+        <Button type="submit" className="min-h-14 px-7" size="lg">
           Search
         </Button>
         {onClear && (
           <Button
             type="button"
             variant="outline"
-            className="min-h-11"
-            size="sm"
+            className="min-h-14"
+            size="lg"
             onClick={onClear}
             disabled={!value}
           >

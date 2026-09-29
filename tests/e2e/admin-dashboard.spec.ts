@@ -66,9 +66,11 @@ test("workflow dashboard and ticket detail are accessible", async ({
   );
   await page.goto("/admin/login");
   await page.getByLabel("Email").fill(process.env.ADMIN_E2E_EMAIL!);
-  await page.getByLabel("Password").fill(process.env.ADMIN_E2E_PASSWORD!);
-  await page.getByRole("button", { name: "Sign in" }).click();
-  await page.goto("/admin/operations");
+  await page
+    .getByLabel("Password", { exact: true })
+    .fill(process.env.ADMIN_E2E_PASSWORD!);
+  await page.getByRole("button", { name: "Log in" }).click();
+  await expect(page).toHaveURL(/\/admin\/operations$/);
   for (const label of [
     "Needs human",
     "AI resolving",

@@ -34,7 +34,7 @@ export function IssueList({
     }
 
     return (
-      <div className="glass-strong p-8 text-center">
+      <div className="rounded-[28px] border-2 border-dashed border-border bg-card/60 p-10 text-center">
         <p className="text-lg font-medium">No matching problems found.</p>
         <p className="mt-2 text-muted-foreground">
           Try a different search term, category, or platform filter.
@@ -44,7 +44,7 @@ export function IssueList({
   }
 
   return (
-    <ul className="grid gap-4">
+    <ul className="grid gap-4 md:grid-cols-2">
       {issues.map((issue) => (
         <IssueCard key={issue.id} issue={issue} backParams={backParams} />
       ))}

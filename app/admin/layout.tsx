@@ -3,6 +3,7 @@ import Link from "next/link";
 import { adminLogout } from "@/app/actions/admin-auth";
 import { adminRoleLabel, getAdminSession } from "@/lib/admin/auth";
 import { Button } from "@/components/ui/button";
+import { BrandMark } from "@/components/shell/brand-mark";
 import { AdminThemeToggle } from "@/components/admin/admin-theme-toggle";
 import {
   isKnowledgeGovernanceEnabled,
@@ -30,7 +31,11 @@ function LegacyAdminLayout({
     <div className="flex min-h-full flex-1 flex-col">
       <header className="sticky top-3 z-40 px-4">
         <div className="glass-pill glass-pill--solid mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-4 px-5 py-2.5">
-          <Link href="/admin/operations" className="font-semibold">
+          <Link
+            href="/admin/operations"
+            className="flex items-center gap-2.5 font-heading text-lg font-semibold"
+          >
+            <BrandMark className="h-8 w-8" />
             HelpDesk First · Operations
           </Link>
           <div className="flex w-full flex-wrap items-center gap-4 text-sm md:w-auto">
@@ -45,34 +50,34 @@ function LegacyAdminLayout({
                 </span>
                 <nav className="flex flex-wrap gap-1 [&_a]:whitespace-nowrap">
                   <Link
-                    className="rounded-full px-3 py-2 hover:bg-muted"
+                    className="rounded-full px-3 py-2 font-semibold text-muted-foreground hover:bg-muted hover:text-foreground"
                     href="/admin/operations"
                   >
                     Operations
                   </Link>
                   {isKnowledgeGovernanceEnabled() && (
                     <Link
-                      className="whitespace-nowrap rounded-full px-3 py-2 hover:bg-muted"
+                      className="whitespace-nowrap rounded-full px-3 py-2 font-semibold text-muted-foreground hover:bg-muted hover:text-foreground"
                       href="/admin/knowledge"
                     >
                       Knowledge
                     </Link>
                   )}
                   <Link
-                    className="rounded-full px-3 py-2 hover:bg-muted"
+                    className="rounded-full px-3 py-2 font-semibold text-muted-foreground hover:bg-muted hover:text-foreground"
                     href="/admin/operations#tickets"
                   >
                     Tickets
                   </Link>
                   <Link
-                    className="rounded-full px-3 py-2 hover:bg-muted"
+                    className="rounded-full px-3 py-2 font-semibold text-muted-foreground hover:bg-muted hover:text-foreground"
                     href="/admin/notifications"
                   >
                     Notifications
                   </Link>
                   {session.role === "org_admin" && (
                     <Link
-                      className="rounded-full px-3 py-2 hover:bg-muted"
+                      className="rounded-full px-3 py-2 font-semibold text-muted-foreground hover:bg-muted hover:text-foreground"
                       href="/admin/connectors"
                     >
                       Connectors
@@ -80,7 +85,7 @@ function LegacyAdminLayout({
                   )}
                   {session.role === "org_admin" && isDeviceAgentEnabled() && (
                     <Link
-                      className="rounded-full px-3 py-2 hover:bg-muted"
+                      className="rounded-full px-3 py-2 font-semibold text-muted-foreground hover:bg-muted hover:text-foreground"
                       href="/admin/devices"
                     >
                       Devices
@@ -88,7 +93,7 @@ function LegacyAdminLayout({
                   )}
                   {session.role === "org_admin" && (
                     <Link
-                      className="rounded-full px-3 py-2 hover:bg-muted"
+                      className="rounded-full px-3 py-2 font-semibold text-muted-foreground hover:bg-muted hover:text-foreground"
                       href="/admin/organization"
                     >
                       Organization
@@ -96,7 +101,7 @@ function LegacyAdminLayout({
                   )}
                   {session.isPlatformAdmin && (
                     <Link
-                      className="rounded-full px-3 py-2 hover:bg-muted"
+                      className="rounded-full px-3 py-2 font-semibold text-muted-foreground hover:bg-muted hover:text-foreground"
                       href="/admin/organizations"
                     >
                       Organizations
@@ -104,7 +109,7 @@ function LegacyAdminLayout({
                   )}
                   {isSecureAttachmentsEnabled() && (
                     <Link
-                      className="rounded-full px-3 py-2 hover:bg-muted"
+                      className="rounded-full px-3 py-2 font-semibold text-muted-foreground hover:bg-muted hover:text-foreground"
                       href="/admin/attachments"
                     >
                       Attachments

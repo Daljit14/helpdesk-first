@@ -21,8 +21,8 @@ export default async function SignupPage({
 }) {
   const { next } = await searchParams;
   return (
-    <section className="flex flex-1 flex-col items-center justify-center px-6 py-12">
-      <div className="w-full max-w-md space-y-6 rounded-xl border border-border bg-card p-8 shadow-sm">
+    <section className="hero-wash flex flex-1 flex-col items-center justify-center px-4 py-12 sm:px-6">
+      <div className="w-full max-w-md space-y-6 rounded-[32px] border border-border bg-card p-7 shadow-md sm:p-9">
         <PageHeader title="Create an account" />
         <SignupForm
           next={safeNextPath(next)}

@@ -2,27 +2,18 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { RefreshCw, Search, ListChecks, Ticket } from "lucide-react";
+import { Lightbulb, RefreshCw, Search, ListChecks, Ticket } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type StatusResponse = {
   ok: boolean;
-  degraded?: boolean;
-  checks: Record<
-    string,
-    { ok: boolean; ms: number | null; degraded?: boolean }
-  >;
+  checks: Record<string, { ok: boolean; ms: number | null }>;
   timestamp: string;
 };
 
 const CHECK_LABELS: Record<string, string> = {
   app: "Help desk",
   database: "Database",
-  auth: "Authentication",
-  storage: "File storage",
-  ai: "AI assistant",
-  notifications: "Notifications",
-  rateLimiter: "Rate limiting",
 };
 
 /** Live mini status card fed by /api/status; refreshes every 30 seconds. */
@@ -57,17 +48,14 @@ export function SystemStatusCard({ className }: { className?: string }) {
     };
   }, []);
 
-  const healthy = Boolean(status?.ok) && !failed && !status?.degraded;
-  const degraded = Boolean(status?.degraded) && !failed;
+  const healthy = Boolean(status?.ok) && !failed;
   const label = !checkedAt
     ? "Checking…"
     : failed
       ? "Unavailable"
-      : degraded
-        ? "Degraded"
-        : healthy
-          ? "All good"
-          : "Degraded";
+      : healthy
+        ? "All good"
+        : "Degraded";
   const dbMs = status?.checks.database?.ms ?? null;
   const seconds = checkedAt
     ? Math.max(0, Math.round((now - checkedAt) / 1000))
@@ -77,7 +65,7 @@ export function SystemStatusCard({ className }: { className?: string }) {
     <section
       aria-labelledby="home-status-heading"
       className={cn(
-        "min-w-0 flex flex-col gap-4 rounded-[28px] border border-border bg-card p-6 shadow-sm",
+        "flex flex-col gap-4 rounded-[28px] border border-border bg-card p-6 shadow-sm",
         className
       )}
     >
@@ -101,11 +89,7 @@ export function SystemStatusCard({ className }: { className?: string }) {
             <span
               className={cn(
                 "absolute inset-0 rounded-full",
-                healthy
-                  ? "bg-status-success"
-                  : degraded
-                    ? "bg-status-warning"
-                    : "bg-muted-foreground"
+                healthy ? "bg-status-success" : "bg-muted-foreground"
               )}
             />
           </span>
@@ -145,7 +129,7 @@ export function SystemStatusCard({ className }: { className?: string }) {
         {Object.entries(
           (status?.checks ?? { app: null, database: null }) as Record<
             string,
-            { ok: boolean; ms: number | null; degraded?: boolean } | null
+            { ok: boolean; ms: number | null } | null
           >
         ).map(([key, check]) => (
           <li
@@ -156,30 +140,20 @@ export function SystemStatusCard({ className }: { className?: string }) {
             <span
               className={cn(
                 "inline-flex items-center gap-1.5 text-xs font-extrabold",
-                check?.degraded
-                  ? "text-status-warning"
-                  : check?.ok
-                    ? "text-[color-mix(in_srgb,var(--status-success)_80%,var(--foreground))]"
-                    : "text-muted-foreground"
+                check?.ok
+                  ? "text-[color-mix(in_srgb,var(--status-success)_80%,var(--foreground))]"
+                  : "text-muted-foreground"
               )}
             >
               <span
                 className={cn(
                   "h-1.5 w-1.5 rounded-full",
-                  check?.degraded
-                    ? "bg-status-warning"
-                    : check?.ok
-                      ? "hf-pulse bg-status-success"
-                      : "bg-muted-foreground"
+                  check?.ok
+                    ? "hf-pulse bg-status-success"
+                    : "bg-muted-foreground"
                 )}
               />
-              {check === null
-                ? "Checking…"
-                : check.degraded
-                  ? "Degraded"
-                  : check.ok
-                    ? "Operational"
-                    : "Down"}
+              {check === null ? "Checking…" : check.ok ? "Operational" : "Down"}
             </span>
           </li>
         ))}
@@ -309,74 +283,30 @@ export function QuickTips({ className }: { className?: string }) {
       onFocus={() => setPaused(true)}
       onBlur={() => setPaused(false)}
       className={cn(
-        "relative min-w-0 flex h-auto flex-col justify-between gap-3 overflow-hidden rounded-[28px] border border-[#f3d9bd] bg-[linear-gradient(150deg,#fff7e6,#fff0f6)] p-6 text-[#3b2a1a] dark:border-[#4a3520] dark:bg-[linear-gradient(150deg,#2e2214,#2e1a28)] dark:text-[#ffe9c9]",
+        "flex flex-col gap-3 rounded-[28px] border border-[#f7e3d2] bg-[linear-gradient(150deg,#fff7e6,#fff0f6)] p-6 text-[#3b2a1a] dark:border-[#4a3520] dark:bg-[linear-gradient(150deg,#2e2214,#2e1a28)] dark:text-[#ffe9c9]",
         className
       )}
     >
-      <span
-        aria-hidden
-        className="hf-blob-a pointer-events-none absolute -right-10 -top-12 h-32 w-32 rounded-full bg-[#ffc24b]/20"
-      />
-      <span
-        aria-hidden
-        className="hf-blob-b pointer-events-none absolute -bottom-14 -left-8 h-28 w-28 rounded-full bg-[#f472b6]/15"
-      />
-      <div className="relative z-10 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <svg
-            aria-hidden
-            viewBox="0 0 56 56"
-            className="h-14 w-14 overflow-visible"
-          >
-            <path
-              d="M19 35h18M21 40h14M24 45h8"
-              stroke="#8a5200"
-              strokeLinecap="round"
-              strokeWidth="2"
-            />
-            <path
-              d="M18 25c0-7 4-12 10-12s10 5 10 12c0 4-2 7-5 9H23c-3-2-5-5-5-9Z"
-              fill="#ffc24b"
-              className="hf-bob"
-            />
-            <path
-              d="M22 9 20 4M34 9l2-5M28 7V2"
-              stroke="#f59e0b"
-              strokeLinecap="round"
-              strokeWidth="2"
-              className="hf-glow"
-            />
-            <g className="hf-blink-eyes" fill="#3b2a1a">
-              <circle cx="24" cy="24" r="1.5" />
-              <circle cx="32" cy="24" r="1.5" />
-            </g>
-            <path
-              d="M25 28c2 2 4 2 6 0"
-              fill="none"
-              stroke="#3b2a1a"
-              strokeLinecap="round"
-              strokeWidth="1.5"
-            />
-          </svg>
-          <h2
-            id="quick-tip-heading"
-            className="text-sm font-extrabold text-[#8a5200] dark:text-[#ffd68a]"
-          >
-            Quick tip
-          </h2>
-        </div>
-        <span className="rounded-full bg-white/50 px-2.5 py-1 text-xs font-bold opacity-80 dark:bg-black/20">
+      <div className="flex items-center justify-between">
+        <h2
+          id="quick-tip-heading"
+          className="inline-flex items-center gap-2 text-sm font-extrabold text-[#8a5200] dark:text-[#ffd68a]"
+        >
+          <Lightbulb className="hf-glow h-[18px] w-[18px]" aria-hidden />
+          Quick tip
+        </h2>
+        <span className="text-xs font-bold opacity-80">
           {index + 1} / {TIPS.length}
         </span>
       </div>
       <p
         key={index}
         aria-live="polite"
-        className="relative z-10 hf-swap min-h-[4.5rem] text-base font-semibold leading-relaxed"
+        className="hf-swap min-h-24 text-base font-semibold leading-relaxed"
       >
         {TIPS[index]}
       </p>
-      <div className="relative z-10 flex items-center gap-1.5">
+      <div className="flex items-center gap-1.5">
         {TIPS.map((tip, i) => (
           <button
             key={tip}
@@ -386,7 +316,7 @@ export function QuickTips({ className }: { className?: string }) {
             onClick={() => setIndex(i)}
             className="flex h-6 flex-1 items-center"
           >
-            <span className="relative block h-1.5 w-full overflow-hidden rounded-full bg-[#f3dcc3] dark:bg-[#4a3520]">
+            <span className="relative block h-1 w-full overflow-hidden rounded-full bg-[#f3dcc3] dark:bg-[#4a3520]">
               {i === index && (
                 <span
                   key={`${index}-${paused}`}

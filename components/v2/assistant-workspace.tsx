@@ -5,8 +5,12 @@ import Link from "next/link";
 import { Bot, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Composer } from "@/components/assistant/composer";
-import { ConversationBubble } from "@/components/assistant/conversation-column";
-import { AssistantBot } from "@/components/shell/brand-mark";
+import { ProgressStepper } from "@/components/assistant/progress-stepper";
+import { AnimatedAvatar } from "@/components/avatar/animated-avatar";
+import {
+  TypewriterText,
+  TypingIndicator,
+} from "@/components/assistant/typewriter-text";
 import { buttonVariants } from "@/lib/button-variants";
 import { cn } from "@/lib/utils";
 import { platformSlug } from "@/lib/platform";
@@ -29,14 +33,6 @@ const OUTCOME_LABELS: Record<StepOutcome, string> = {
   failed: "Did not work",
   could_not_perform: "Cannot complete",
 };
-
-const progress = [
-  "Understanding",
-  "Clarifying",
-  "Likely causes",
-  "Steps",
-  "Verify",
-];
 
 export function AssistantWorkspace({
   initialProblem = "",
@@ -77,9 +73,13 @@ export function AssistantWorkspace({
   const [ticketId, setTicketId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionPending, setActionPending] = useState(false);
-  const [userTurns, setUserTurns] = useState<string[]>(
-    initialProblem ? [initialProblem] : []
+  // Ordered chat transcript so questions and answers interleave correctly.
+  const [transcript, setTranscript] = useState<ChatTurn[]>(
+    initialProblem ? [{ id: "u-0", role: "user", text: initialProblem }] : []
   );
+  const userTurns = transcript
+    .filter((turn) => turn.role === "user")
+    .map((turn) => turn.text);
   const autoStarted = useRef(false);
   const ticketIntent = intent === "ticket" || intent === "human";
 
@@ -132,7 +132,10 @@ export function AssistantWorkspace({
     const text =
       output?.decision === "clarify" ? intake.diagnosticAnswer : intake.problem;
     if (!text.trim()) return;
-    setUserTurns((current) => [...current, text.trim()]);
+    setTranscript((current) => [
+      ...current,
+      { id: `u-${current.length}`, role: "user", text: text.trim() },
+    ]);
     if (output?.decision === "clarify") {
       const questionId = output.diagnosticQuestionIds?.[0];
       if (questionId) intake.handleSubmitAnswer(questionId, text);
@@ -142,6 +145,23 @@ export function AssistantWorkspace({
   };
 
   const output = intake.currentOutput;
+  const questionKey =
+    output?.decision === "clarify"
+      ? `q-${output.diagnosticQuestionIds?.[0] ?? "more"}-${intake.previousAnswers.length}`
+      : null;
+
+  // Add each new clarifying question to the transcript exactly once.
+  useEffect(() => {
+    if (!questionKey || output?.decision !== "clarify") return;
+    const text = clarificationText(output);
+    queueMicrotask(() =>
+      setTranscript((current) =>
+        current.some((turn) => turn.id === questionKey)
+          ? current
+          : [...current, { id: questionKey, role: "assistant", text }]
+      )
+    );
+  }, [questionKey, output]);
   const matchedIssue = output?.matchedIssueSlug
     ? getIssueBySlug(output.matchedIssueSlug)
     : null;
@@ -243,50 +263,67 @@ export function AssistantWorkspace({
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col">
-      <div className="mb-6 flex items-center gap-3">
-        <Bot className="hf-bob h-7 w-7" aria-hidden />
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight">
-            Support Assistant
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Grounded in approved HelpDesk First guides.
-          </p>
+      <div className="hf-rise relative mb-5 overflow-hidden rounded-[28px] bg-[linear-gradient(135deg,#5b3cc4,#8b6cf6_60%,#c084fc)] p-6 text-white shadow-[var(--shadow-md)] sm:p-7">
+        <span
+          aria-hidden
+          className="hf-blob-a absolute -top-16 right-10 h-48 w-48 rounded-full bg-white/10"
+        />
+        <span
+          aria-hidden
+          className="hf-blob-b absolute -bottom-20 left-1/3 h-44 w-44 rounded-full bg-pink-400/20"
+        />
+        <div className="relative flex items-center gap-4">
+          <AnimatedAvatar id="bot" size={64} className="ring-4 ring-white/25" />
+          <div className="min-w-0">
+            <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">
+              Support Assistant
+            </h1>
+            <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-white/90">
+              <span className="inline-flex items-center gap-1.5 font-semibold">
+                <span className="relative flex h-2 w-2">
+                  <span className="hf-ping absolute inset-0 rounded-full bg-[#5ee0a8]" />
+                  <span className="relative h-2 w-2 rounded-full bg-[#5ee0a8]" />
+                </span>
+                Online
+              </span>
+              <span>Grounded in approved HelpDesk First guides.</span>
+            </p>
+          </div>
         </div>
       </div>
 
-      <ol
-        aria-label="Investigation progress"
-        className="mb-6 grid grid-cols-5 gap-1 text-center text-[11px] text-muted-foreground"
-      >
-        {progress.map((label, index) => {
-          const current =
-            output?.decision === "match"
-              ? index >= 2 && index <= 3
-              : index === 0;
-          return (
-            <li
-              key={label}
-              aria-current={current ? "step" : undefined}
-              className={cn(
-                "border-b-2 pb-2 transition-[width,transform] duration-300",
-                current ? "border-foreground text-foreground" : "border-border"
-              )}
-            >
-              {label}
-            </li>
-          );
-        })}
-      </ol>
+      <ProgressStepper
+        current={
+          output?.decision === "match"
+            ? 3
+            : output?.decision === "escalate"
+              ? 2
+              : userTurns.length > 0 || intake.loading
+                ? 1
+                : 0
+        }
+      />
 
       <div role="log" aria-live="polite" className="space-y-5">
-        {userTurns.map((text, index) => (
-          <div className="hf-rise" key={`${index}-${text}`}>
-            <ConversationBubble role="user">
-              <p className="whitespace-pre-wrap">{text}</p>
-            </ConversationBubble>
-          </div>
-        ))}
+        {transcript
+          .filter(
+            (turn) =>
+              !(
+                intake.loading &&
+                turn.role === "assistant" &&
+                turn.id.startsWith("q-")
+              )
+          )
+          .map((turn, index) => (
+            <Message
+              key={turn.id}
+              side={turn.role}
+              text={turn.text}
+              animate={
+                turn.role === "assistant" && index === transcript.length - 1
+              }
+            />
+          ))}
         {ticketIntent ? (
           <div className="space-y-4">
             <Message
@@ -325,10 +362,7 @@ export function AssistantWorkspace({
           </div>
         ) : (
           <>
-            {intake.loading && <ThinkingBubble />}
-            {output?.decision === "clarify" && !intake.loading && (
-              <Message side="assistant" text={clarificationText(output)} />
-            )}
+            {intake.loading && <TypingIndicator />}
             {output?.decision === "escalate" && (
               <Escalation
                 output={output}
@@ -464,45 +498,48 @@ export function AssistantWorkspace({
   );
 }
 
-function ThinkingBubble() {
-  return (
-    <div aria-live="polite" className="hf-rise flex justify-start">
-      <div className="max-w-[85%] rounded-2xl border border-border bg-muted p-4">
-        <p className="sr-only">Assistant is thinking…</p>
-        <div className="flex items-center gap-2" aria-hidden>
-          <AssistantBot className="h-6 w-6" />
-          <span className="hf-dots flex items-center gap-1">
-            <span className="h-1.5 w-1.5 rounded-full bg-current" />
-            <span className="h-1.5 w-1.5 rounded-full bg-current" />
-            <span className="h-1.5 w-1.5 rounded-full bg-current" />
-          </span>
+type ChatTurn = { id: string; role: "user" | "assistant"; text: string };
+
+function Message({
+  side,
+  text,
+  animate = true,
+}: {
+  side: "user" | "assistant";
+  text: string;
+  /** Type the text out; older messages render instantly. */
+  animate?: boolean;
+}) {
+  if (side === "user") {
+    return (
+      <div className="hf-rise flex justify-end">
+        <div className="max-w-[85%] rounded-2xl rounded-br-md bg-primary px-4 py-3 text-primary-foreground shadow-sm">
+          <span className="sr-only">You: </span>
+          <p className="whitespace-pre-wrap">{text}</p>
         </div>
       </div>
-    </div>
-  );
-}
-
-function Message({ side, text }: { side: "user" | "assistant"; text: string }) {
+    );
+  }
   return (
-    <div
-      className={cn(
-        "hf-rise flex",
-        side === "user" ? "justify-end" : "justify-start"
-      )}
-    >
-      <div
-        className={cn(
-          "max-w-[85%] rounded-2xl border border-border p-4",
-          side === "user" ? "bg-card" : "bg-muted"
-        )}
+    <div className="hf-rise flex items-end gap-2.5">
+      <span
+        aria-hidden
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm"
       >
-        <p className="mb-1 flex items-center gap-2 text-xs font-medium text-muted-foreground">
-          {side === "assistant" ? (
-            <Bot className="h-4 w-4" aria-hidden />
-          ) : null}
-          {side === "user" ? "You" : "Assistant"}
+        <Bot className={animate ? "hf-float-sm h-5 w-5" : "h-5 w-5"} />
+      </span>
+      <div className="max-w-[85%] rounded-2xl rounded-bl-md border border-border bg-card px-4 py-3 shadow-sm">
+        <p className="mb-1 text-xs font-bold text-muted-foreground">
+          Assistant
         </p>
-        <p className="whitespace-pre-wrap">{text}</p>
+        <p>
+          <span className="sr-only">Assistant: </span>
+          {animate ? (
+            <TypewriterText text={text} />
+          ) : (
+            <span className="whitespace-pre-wrap">{text}</span>
+          )}
+        </p>
       </div>
     </div>
   );

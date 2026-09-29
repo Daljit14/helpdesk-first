@@ -87,5 +87,7 @@ test("404 page is shown for an invalid issue route", async ({ page }) => {
   await expect(
     page.getByRole("heading", { name: /Page not found/ })
   ).toBeVisible();
-  await expect(page.getByText("404")).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: /^404 — Page not found$/ }).first()
+  ).toBeVisible();
 });

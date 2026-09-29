@@ -127,19 +127,9 @@ export function TroubleshootingGuide({
   const [completedSteps, setCompletedSteps] = useState<number[]>(() => [
     ...new Set(initialCompletedSteps),
   ]);
+  const [sessionLoaded, setSessionLoaded] = useState(false);
   const [, startTransition] = useTransition();
   const [state, setState] = useState<GuideState>(() => {
-    const saved = getSession(issue.id, platform);
-    if (saved) {
-      return {
-        currentStepIndex: saved.currentStepIndex,
-        attemptedSteps: saved.attemptedSteps,
-        status: saved.status,
-        solvingStep: saved.solvingStep,
-        escalationReason: saved.escalationReason,
-        rating: saved.rating,
-      };
-    }
     const firstIncomplete = visibleStepIndexes.find(
       (index) => !initialCompletedSteps.includes(index)
     );
@@ -159,6 +149,23 @@ export function TroubleshootingGuide({
 
   const statusRef = useRef<HTMLDivElement>(null);
   const completedEventSent = useRef(false);
+
+  useEffect(() => {
+    queueMicrotask(() => {
+      const saved = getSession(issue.id, platform);
+      if (saved) {
+        setState({
+          currentStepIndex: saved.currentStepIndex,
+          attemptedSteps: saved.attemptedSteps,
+          status: saved.status,
+          solvingStep: saved.solvingStep,
+          escalationReason: saved.escalationReason,
+          rating: saved.rating,
+        });
+      }
+      setSessionLoaded(true);
+    });
+  }, [issue.id, platform]);
 
   const totalSteps = visibleStepIndexes.length;
   const currentStep = steps[state.currentStepIndex];
@@ -186,6 +193,7 @@ export function TroubleshootingGuide({
   }
 
   useEffect(() => {
+    if (!sessionLoaded) return;
     const session: TroubleshootingSession = {
       issueSlug: issue.id,
       issueTitle: issue.title,
@@ -199,7 +207,7 @@ export function TroubleshootingGuide({
       updatedAt: Date.now(),
     };
     saveSession(session);
-  }, [issue, platform, state]);
+  }, [issue, platform, sessionLoaded, state]);
 
   function recordAttempt(outcome: StepOutcome) {
     const step = currentStep;
@@ -366,6 +374,18 @@ export function TroubleshootingGuide({
     statusRef.current?.focus();
   }
 
+  function handleClearHistory() {
+    clearSession(issue.id, platform);
+    setCompletedSteps([]);
+    setState(initialState());
+    if (canPersist) {
+      startTransition(() => {
+        void saveProgress(issue.id, []);
+      });
+    }
+    statusRef.current?.focus();
+  }
+
   const progress =
     state.status === "in-progress" ? state.currentStepIndex + 1 : totalSteps;
 
@@ -458,7 +478,6 @@ export function TroubleshootingGuide({
               <StepView
                 key={state.currentStepIndex}
                 issue={issue}
-                platform={platform}
                 state={state}
                 onCompleted={handleCompleted}
                 onDidNotWork={handleDidNotWork}
@@ -467,6 +486,7 @@ export function TroubleshootingGuide({
                 onSkip={advanceStep}
                 onApprovalRequest={handleApprovalRequest}
                 stepPolicies={stepPolicies}
+                onClearHistory={handleClearHistory}
               />
             )}
           </div>
@@ -527,7 +547,6 @@ export function TroubleshootingGuide({
 
 function StepView({
   issue,
-  platform,
   state,
   onCompleted,
   onDidNotWork,
@@ -536,9 +555,9 @@ function StepView({
   onSkip,
   onApprovalRequest,
   stepPolicies,
+  onClearHistory,
 }: {
   issue: Issue;
-  platform: string;
   state: GuideState;
   onCompleted: () => void;
   onDidNotWork: () => void;
@@ -547,6 +566,7 @@ function StepView({
   onSkip: () => void;
   onApprovalRequest: () => void;
   stepPolicies?: StepPolicy[];
+  onClearHistory: () => void;
 }) {
   const index = state.currentStepIndex;
   const steps = getIssueSteps(issue);
@@ -659,7 +679,7 @@ function StepView({
 
       <button
         type="button"
-        onClick={() => clearSession(issue.id, platform)}
+        onClick={onClearHistory}
         className="text-sm text-muted-foreground underline hover:text-foreground"
       >
         Clear my troubleshooting history for this issue

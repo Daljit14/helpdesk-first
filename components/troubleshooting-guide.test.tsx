@@ -188,6 +188,30 @@ describe("TroubleshootingGuide", () => {
     });
   });
 
+  test("clearing troubleshooting history resets the active guide immediately", async () => {
+    render(<TroubleshootingGuide issue={issue} />);
+    await waitFor(() =>
+      expect(screen.getByTestId("step-count")).toHaveTextContent(/Step 1 of 5/)
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Completed, still testing" })
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("step-count")).toHaveTextContent(/Step 2 of 5/)
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Clear my troubleshooting history for this issue",
+      })
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("step-count")).toHaveTextContent(/Step 1 of 5/)
+    );
+    expect(screen.getByTestId("step-title")).toHaveTextContent(steps[0]);
+  });
+
   test("caution steps require local confirmation before outcomes", async () => {
     const cautionIssue = ISSUES.find((item) => item.id === "low-storage")!;
     render(

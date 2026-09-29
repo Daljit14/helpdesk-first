@@ -103,7 +103,7 @@ describe("AdminDashboard", () => {
     expect(screen.getByText("No resolution activity.")).toBeInTheDocument();
   });
 
-  test("uses neutral v2 freshness and resolution chart colors", () => {
+  test("renders v2 freshness and the interactive resolution chart", () => {
     const data = snapshot(true);
     data.resolution!.daily = [
       {
@@ -112,6 +112,13 @@ describe("AdminDashboard", () => {
         aiSolved: 1,
         agentSolved: 2,
         escalated: 1,
+      },
+      {
+        day: "2025-01-02",
+        created: 3,
+        aiSolved: 2,
+        agentSolved: 1,
+        escalated: 0,
       },
     ];
     render(
@@ -122,10 +129,71 @@ describe("AdminDashboard", () => {
     const chart = screen.getByRole("img", {
       name: "Fourteen day resolution tracking chart",
     });
-    expect(chart.querySelector(".bg-foreground")).not.toBeNull();
-    expect(chart.querySelector(".bg-emerald-500")).toBeNull();
-    expect(chart.querySelector(".bg-blue-500")).toBeNull();
-    expect(chart.querySelector(".bg-orange-500")).toBeNull();
+    expect(chart.querySelectorAll("path").length).toBeGreaterThan(0);
+
+    const aiToggle = screen.getByRole("button", { name: /AI solved/ });
+    expect(aiToggle).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(aiToggle);
+    expect(aiToggle).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.keyDown(chart, { key: "ArrowLeft" });
+    expect(screen.getByText("Total")).toBeInTheDocument();
+  });
+
+  test("switches between dashboard tabs", () => {
+    render(<AdminDashboard initialSnapshot={snapshot()} />);
+    const ticketsTab = screen.getByRole("tab", { name: /tickets/i });
+    expect(ticketsTab).toHaveAttribute("aria-selected", "false");
+    fireEvent.click(ticketsTab);
+    expect(ticketsTab).toHaveAttribute("aria-selected", "true");
+    expect(
+      screen.getByRole("combobox", { name: "Status" })
+    ).toBeInTheDocument();
+  });
+
+  test("mirrors queue chips in the filter summary and removes them", async () => {
+    vi.spyOn(global, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(snapshot()), { status: 200 })
+    );
+    render(
+      <AdminDashboard initialSnapshot={snapshot()} workflowEnabled uiV2 />
+    );
+
+    fireEvent.click(screen.getByRole("tab", { name: /tickets/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Needs Human" }));
+    expect(screen.getByText("Queue: Needs Human")).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Queue" })).toHaveValue(
+      "needs_human"
+    );
+
+    vi.mocked(global.fetch).mockClear();
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Remove Queue: Needs Human filter",
+      })
+    );
+    await waitFor(() =>
+      expect(vi.mocked(global.fetch).mock.lastCall?.[0]).not.toContain("queue=")
+    );
+    expect(screen.getByRole("button", { name: "All" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+  });
+
+  test("does not press All when a platform filter is active", () => {
+    render(<AdminDashboard initialSnapshot={snapshot()} uiV2 />);
+
+    fireEvent.click(screen.getByRole("tab", { name: /tickets/i }));
+    fireEvent.click(screen.getByRole("button", { name: /more filters/i }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Platform" }), {
+      target: { value: "macOS" },
+    });
+
+    expect(screen.getByRole("button", { name: "All" })).toHaveAttribute(
+      "aria-pressed",
+      "false"
+    );
   });
 
   test("renders the breached SLA state for an overdue ticket", () => {
@@ -200,6 +268,7 @@ describe("AdminDashboard", () => {
     expect(screen.getAllByText("Needs human").length).toBeGreaterThan(0);
     expect(screen.getByText("Resolved by employees")).toBeInTheDocument();
 
+    fireEvent.click(screen.getByRole("tab", { name: /tickets/i }));
     fireEvent.change(screen.getByRole("combobox", { name: "Queue" }), {
       target: { value: "sla_breached" },
     });
@@ -209,107 +278,6 @@ describe("AdminDashboard", () => {
     expect(vi.mocked(global.fetch)).toHaveBeenCalledWith(
       expect.stringContaining("queue=sla_breached"),
       expect.objectContaining({ cache: "no-store" })
-    );
-  });
-
-  test("renders an accessible sticky queue bar with exclusive chips", async () => {
-    vi.spyOn(global, "fetch").mockResolvedValue(
-      new Response(JSON.stringify(snapshot()), { status: 200 })
-    );
-    render(<AdminDashboard initialSnapshot={snapshot()} uiV2 />);
-
-    expect(screen.getByRole("button", { name: "All" })).toHaveAttribute(
-      "aria-pressed",
-      "true"
-    );
-    expect(screen.getByRole("button", { name: "AI working" })).toHaveAttribute(
-      "aria-pressed",
-      "false"
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: "AI working" }));
-    await act(async () => {
-      await Promise.resolve();
-    });
-    expect(vi.mocked(global.fetch)).toHaveBeenCalledWith(
-      expect.stringContaining("queue=ai_working"),
-      expect.objectContaining({ cache: "no-store" })
-    );
-  });
-
-  test("opens operation filters by default", () => {
-    render(<AdminDashboard initialSnapshot={snapshot()} uiV2 />);
-
-    const filters = screen.getByText("Filters", { exact: true });
-    const details = filters.closest("details");
-    expect(details).toHaveAttribute("open");
-
-    fireEvent.click(filters);
-
-    expect(details).not.toHaveAttribute("open");
-    expect(
-      screen.getByRole("combobox", { name: "Status" }).parentElement
-    ).toHaveClass("xl:grid-cols-4");
-  });
-
-  test("defaults filters open and respects a stored closed state", async () => {
-    const first = render(<AdminDashboard initialSnapshot={snapshot()} uiV2 />);
-    expect(
-      screen.getByText("Filters", { exact: true }).closest("details")
-    ).toHaveAttribute("open");
-    first.unmount();
-    localStorage.setItem("hf-admin-section:filters", "closed");
-
-    render(<AdminDashboard initialSnapshot={snapshot()} uiV2 />);
-
-    await waitFor(() =>
-      expect(
-        screen.getByText("Filters", { exact: true }).closest("details")
-      ).not.toHaveAttribute("open")
-    );
-  });
-
-  test("mirrors queue chips in the filter summary and removes them", async () => {
-    vi.spyOn(global, "fetch").mockResolvedValue(
-      new Response(JSON.stringify(snapshot()), { status: 200 })
-    );
-    render(
-      <AdminDashboard initialSnapshot={snapshot()} workflowEnabled uiV2 />
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: "Needs Human" }));
-    expect(screen.getByText("Queue: Needs Human")).toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: "Queue" })).toHaveValue(
-      "needs_human"
-    );
-
-    vi.mocked(global.fetch).mockClear();
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "Remove Queue: Needs Human filter",
-      })
-    );
-    await act(async () => {
-      await Promise.resolve();
-    });
-
-    expect(vi.mocked(global.fetch).mock.lastCall?.[0]).not.toContain("queue=");
-    expect(screen.getByRole("button", { name: "All" })).toHaveAttribute(
-      "aria-pressed",
-      "true"
-    );
-  });
-
-  test("does not press All when a platform filter is active", () => {
-    render(<AdminDashboard initialSnapshot={snapshot()} uiV2 />);
-
-    fireEvent.change(screen.getByRole("combobox", { name: "Platform" }), {
-      target: { value: "macOS" },
-    });
-
-    expect(screen.getByRole("button", { name: "All" })).toHaveAttribute(
-      "aria-pressed",
-      "false"
     );
   });
 

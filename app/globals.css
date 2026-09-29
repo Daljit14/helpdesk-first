@@ -88,6 +88,100 @@ body {
     border-color: color-mix(in srgb, var(--primary) 30%, var(--border));
   }
 
+  /* ---- Admin "Aurora" (A1+) ---- */
+  .hf-adm-hero {
+    background: linear-gradient(
+      120deg,
+      var(--adm-hero-1) 0%,
+      var(--adm-hero-2) 45%,
+      var(--adm-hero-3) 100%
+    );
+    color: #ffffff;
+  }
+  .hf-adm-blob {
+    animation: hf-blob-a 10s ease-in-out infinite;
+  }
+  .hf-adm-blob-b {
+    animation: hf-blob-b 13s ease-in-out infinite;
+  }
+  .hf-adm-spark {
+    position: absolute;
+    bottom: 10px;
+    border-radius: 9999px;
+    background: rgb(255 255 255 / 0.7);
+    animation: hf-adm-float 5s linear infinite;
+    pointer-events: none;
+  }
+  .hf-adm-card {
+    position: relative;
+    overflow: hidden;
+    transition:
+      transform 0.25s,
+      box-shadow 0.25s,
+      border-color 0.25s;
+  }
+  .hf-adm-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 24px 44px -24px
+      color-mix(in srgb, var(--primary) 60%, transparent);
+    border-color: color-mix(in srgb, var(--primary) 30%, var(--border));
+  }
+  .hf-adm-card::after {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 40%;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgb(255 255 255 / 0.3),
+      transparent
+    );
+    transform: translateX(-120%) skewX(-20deg);
+    pointer-events: none;
+  }
+  .hf-adm-card:hover::after {
+    animation: hf-sheen 0.8s ease;
+  }
+  .hf-adm-grow {
+    transform-origin: left;
+    animation: hf-fill 1s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+  .hf-adm-bar {
+    background: linear-gradient(90deg, var(--primary), var(--adm-accent-2));
+  }
+  .hf-adm-hot {
+    background: linear-gradient(90deg, var(--adm-esc), var(--status-danger));
+  }
+  .hf-adm-reveal {
+    animation: hf-adm-reveal 1.6s cubic-bezier(0.4, 0, 0.2, 1) both;
+  }
+  .hf-adm-draw {
+    stroke-dasharray: 100;
+    animation: hf-adm-draw 2s ease both;
+  }
+  .hf-adm-travel {
+    animation: hf-adm-travel 1.3s linear infinite;
+  }
+  .hf-adm-tip {
+    animation: hf-adm-tip 0.18s ease both;
+  }
+  .hf-adm-spin-in {
+    animation: hf-adm-spin-in 1.2s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+  .hf-adm-alarm {
+    animation: hf-adm-alarm 1.8s ease-in-out infinite;
+  }
+  .hf-adm-ring:hover svg {
+    animation: hf-wiggle 0.6s ease;
+  }
+  .hf-adm-row {
+    animation: hf-rise 0.45s ease both;
+  }
+  .hf-adm-nav-in {
+    animation: hf-adm-slide 0.45s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+
   /* ---- HelpDesk First motion kit (D+ design) ---- */
   .hf-rise {
     animation: hf-rise 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both;
@@ -385,6 +479,13 @@ body {
   --shadow-sm:
     0 1px 2px rgb(59 42 143 / 0.04), 0 8px 24px -16px rgb(59 42 143 / 0.18);
   --shadow-md: 0 18px 36px -18px rgb(59 42 143 / 0.35);
+  --adm-ai: #6d4aff;
+  --adm-agent: #22b8cf;
+  --adm-esc: #ffa928;
+  --adm-accent-2: #d946ef;
+  --adm-hero-1: #4b2fb8;
+  --adm-hero-2: #7c5cff;
+  --adm-hero-3: #d946ef;
 }
 
 .dark {
@@ -441,6 +542,13 @@ body {
   --risk-denied: var(--status-danger);
   --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 24px -16px rgb(0 0 0 / 0.5);
   --shadow-md: 0 18px 36px -18px rgb(0 0 0 / 0.6);
+  --adm-ai: #8b6cff;
+  --adm-agent: #22d3ee;
+  --adm-esc: #ffb547;
+  --adm-accent-2: #f0abfc;
+  --adm-hero-1: #3a23a0;
+  --adm-hero-2: #6d4aff;
+  --adm-hero-3: #c026d3;
 }
 
 @keyframes hf-rise {
@@ -781,6 +889,83 @@ body {
   }
   to {
     transform: scaleX(1);
+  }
+}
+@keyframes hf-adm-slide {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes hf-adm-float {
+  0% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.9;
+  }
+  100% {
+    transform: translateY(-120px);
+    opacity: 0;
+  }
+}
+@keyframes hf-adm-reveal {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+@keyframes hf-adm-draw {
+  from {
+    stroke-dashoffset: 100;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes hf-adm-travel {
+  from {
+    left: 0;
+  }
+  to {
+    left: calc(100% - 6px);
+  }
+}
+@keyframes hf-adm-tip {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes hf-adm-spin-in {
+  from {
+    transform: rotate(-200deg);
+    opacity: 0;
+  }
+  to {
+    transform: rotate(-90deg);
+    opacity: 1;
+  }
+}
+@keyframes hf-adm-alarm {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0
+      color-mix(in srgb, var(--status-danger) 45%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 8px transparent;
   }
 }
 

@@ -2,8 +2,8 @@ import { LifeBuoy } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
- * HelpDesk First logo: a soft violet tile with a lifebuoy and a small
- * marigold "all good" dot. Decorative only; pair it with the visible name.
+ * HelpDesk First logo: a soft violet tile with a lifebuoy.
+ * Decorative only; pair it with the visible name.
  */
 export function BrandMark({ className }: { className?: string }) {
   return (
@@ -15,7 +15,6 @@ export function BrandMark({ className }: { className?: string }) {
       )}
     >
       <LifeBuoy className="h-5 w-5" strokeWidth={2.25} />
-      <span className="absolute -right-1 -top-1 h-3 w-3 rounded-full border-2 border-card bg-highlight" />
     </span>
   );
 }

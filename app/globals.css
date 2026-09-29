@@ -89,6 +89,7 @@ body {
   .hero-wash {
     position: relative;
     isolation: isolate;
+    overflow: clip;
   }
 
   .hero-wash::before {

@@ -100,13 +100,18 @@ function ThemeToggle({ compact = false }: { compact?: boolean }) {
     <Button
       type="button"
       variant="ghost"
-      size="icon-sm"
-      className={cn(compact ? "" : "hidden sm:inline-flex")}
+      size={compact ? "icon-sm" : "sm"}
+      className={cn(compact ? "" : "inline-flex")}
       onClick={toggleTheme}
       aria-label={label}
       title={label}
     >
       {theme === "dark" ? <Sun aria-hidden /> : <Moon aria-hidden />}
+      {!compact && (
+        <span className="hidden sm:inline">
+          {theme === "dark" ? "Light" : "Dark"}
+        </span>
+      )}
     </Button>
   );
 }
@@ -158,6 +163,7 @@ export function AppShell({
 
           <Link
             href="/"
+            aria-label="HelpDesk First"
             className="flex shrink-0 items-center gap-2.5 rounded-full pr-2"
           >
             <BrandMark />

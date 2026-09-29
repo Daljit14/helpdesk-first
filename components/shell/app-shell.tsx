@@ -89,7 +89,7 @@ function Navigation({
 
 function AssistantHelper({ onNavigate }: { onNavigate?: () => void }) {
   return (
-    <div className="hf-hue relative overflow-hidden rounded-[20px] bg-[linear-gradient(120deg,var(--muted),#fdf2f8,#eef6ff,var(--muted))] p-4 text-foreground dark:bg-[linear-gradient(120deg,#2c2350,#3a1f3d,#1f2a4d,#2c2350)]">
+    <div className="hf-hue relative shrink-0 overflow-hidden rounded-[20px] bg-[linear-gradient(120deg,var(--muted),#fdf2f8,#eef6ff,var(--muted))] p-4 text-foreground dark:bg-[linear-gradient(120deg,#2c2350,#3a1f3d,#1f2a4d,#2c2350)]">
       <div className="flex items-end gap-2.5">
         <AssistantBot className="pointer-events-none" />
         <span className="hf-bubble pointer-events-none mb-1.5 rounded-xl rounded-bl-sm bg-card px-2.5 py-1.5 text-xs font-bold leading-none shadow-sm">

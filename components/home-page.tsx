@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Bot, ChevronRight, History, RotateCcw, Wifi, X } from "lucide-react";
+import { Bot, ChevronRight, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { Sheet } from "@/components/ui/sheet";
@@ -13,6 +13,8 @@ import { PlatformButtons } from "@/components/platform-buttons";
 import { RecentlyViewed } from "@/components/recently-viewed";
 import { IssueList } from "@/components/issue-list";
 import { IssueCard } from "@/components/issue-card";
+import { ContinueCard } from "@/components/home/continue-card";
+import { QUICK_SEARCHES, SEARCH_PROMPTS } from "@/components/home/home-copy";
 import {
   HowItWorks,
   QuickTips,
@@ -36,16 +38,6 @@ type HomePageProps = {
   initialPlatformInvalid?: boolean;
   basePath?: string;
 };
-
-const SEARCH_PROMPTS = [
-  "My Wi-Fi keeps dropping…",
-  "Printer says offline…",
-  "I forgot my password…",
-  "Camera not working in meetings…",
-  "Laptop is really slow…",
-];
-
-const QUICK_SEARCHES = ["Wi-Fi", "Printer", "Password", "Camera", "VPN"];
 
 function paramToString(value: string | string[] | undefined): string {
   if (Array.isArray(value)) return value[0] ?? "";
@@ -307,86 +299,10 @@ export function HomePage({
         )}
 
         {activeSessions.length > 0 && (
-          <section
-            aria-live="polite"
-            aria-labelledby="continue-heading"
-            className="hf-rise relative mt-8 overflow-hidden rounded-[28px] bg-[linear-gradient(135deg,#5b3cc4,#8b6cf6_60%,#c084fc)] p-6 text-white shadow-[var(--shadow-md)] sm:p-8"
-            style={{ animationDelay: "0.1s" }}
-          >
-            <span
-              aria-hidden
-              className="hf-blob-a absolute -top-20 right-24 h-64 w-64 rounded-full bg-white/10"
-            />
-            <span
-              aria-hidden
-              className="hf-blob-b absolute -bottom-28 left-1/3 h-60 w-60 rounded-full bg-pink-400/20"
-            />
-            <div className="relative flex flex-col gap-6 sm:flex-row sm:items-center">
-              <div className="flex max-w-xl flex-col gap-3">
-                <span className="self-start rounded-full bg-white/15 px-3 py-1 text-xs font-extrabold">
-                  Pick up where you left off
-                </span>
-                <h2
-                  id="continue-heading"
-                  className="text-2xl font-extrabold leading-tight sm:text-3xl"
-                >
-                  {activeSessions[0].issueTitle}
-                </h2>
-                <p className="text-[15px] text-white/90">
-                  On {activeSessions[0].platform} · you were on step{" "}
-                  {activeSessions[0].currentStepIndex + 1}.
-                </p>
-                <div className="mt-1 flex flex-wrap gap-2.5">
-                  <Link
-                    href={`/issues/${activeSessions[0].issueSlug}/guide?platform=${platformSlug(normalizePlatform(activeSessions[0].platform) ?? "Other")}`}
-                    className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-white px-5 text-[15px] font-extrabold text-[#3b2a8f] shadow-sm hover:bg-white/90"
-                  >
-                    <History className="h-4 w-4" aria-hidden />
-                    Resume
-                  </Link>
-                  <button
-                    type="button"
-                    onClick={handleClearHistory}
-                    className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-white/40 px-4 text-[15px] font-bold text-white hover:bg-white/10"
-                  >
-                    <RotateCcw className="h-4 w-4" aria-hidden />
-                    Clear history
-                  </button>
-                </div>
-              </div>
-              <div
-                aria-hidden
-                className="relative mx-auto h-40 w-40 shrink-0 sm:ml-auto sm:mr-0"
-              >
-                <svg viewBox="0 0 200 200" className="h-full w-full">
-                  <circle
-                    cx="100"
-                    cy="100"
-                    r="68"
-                    fill="none"
-                    stroke="rgb(255 255 255 / 0.2)"
-                    strokeWidth="14"
-                  />
-                  <circle
-                    cx="100"
-                    cy="100"
-                    r="68"
-                    fill="none"
-                    stroke="#fff"
-                    strokeWidth="14"
-                    strokeLinecap="round"
-                    strokeDasharray="120 428"
-                    className="hf-spin-slow origin-center"
-                    style={{
-                      animationDuration: "6s",
-                      transformBox: "fill-box",
-                    }}
-                  />
-                </svg>
-                <Wifi className="hf-bob absolute inset-0 m-auto h-10 w-10" />
-              </div>
-            </div>
-          </section>
+          <ContinueCard
+            session={activeSessions[0]}
+            onClear={handleClearHistory}
+          />
         )}
 
         <div className="mt-8 lg:grid lg:grid-cols-[280px_1fr] lg:gap-8">

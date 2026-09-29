@@ -108,7 +108,7 @@ export function AiAssistant({
         or take remote control of your device.
       </p>
 
-      <div className="mt-4 rounded-3xl border border-accent-foreground/20 bg-accent p-5 text-accent-foreground">
+      <div className="mt-4 rounded-[24px] border border-accent-foreground/20 bg-accent p-5 text-accent-foreground">
         <div className="flex items-start gap-2">
           <Shield className="mt-0.5 h-5 w-5 flex-shrink-0" aria-hidden="true" />
           <p className="text-sm">{SAFE_USE_WARNING}</p>
@@ -131,7 +131,7 @@ export function AiAssistant({
               value={problem}
               onChange={(event) => setProblem(event.target.value)}
               rows={4}
-              className="w-full rounded-3xl border border-input bg-card p-4 text-base text-foreground outline-none transition-[border-color,box-shadow] focus:border-primary focus:ring-4 focus:ring-primary/15"
+              className="w-full rounded-2xl border border-border/70 bg-background/60 p-3 text-foreground backdrop-blur outline-none focus:ring-2 focus:ring-ring"
               placeholder="e.g. My computer is very slow after I open email."
               disabled={loading}
             />
@@ -309,7 +309,7 @@ function ClarifyView({
         value={answer}
         onChange={(event) => onAnswerChange(event.target.value)}
         rows={3}
-        className="w-full rounded-3xl border border-input bg-card p-4 text-base text-foreground outline-none transition-[border-color,box-shadow] focus:border-primary focus:ring-4 focus:ring-primary/15"
+        className="w-full rounded-2xl border border-border/70 bg-background/60 p-3 text-foreground backdrop-blur outline-none focus:ring-2 focus:ring-ring"
         placeholder="Your answer..."
         disabled={loading}
       />
@@ -667,7 +667,7 @@ function UnavailableView({
       <h1 className="text-3xl font-bold tracking-tight">
         Ask the Support Assistant
       </h1>
-      <div className="mt-8 rounded-3xl border border-accent-foreground/20 bg-accent p-6 text-accent-foreground">
+      <div className="mt-8 rounded-[24px] border border-accent-foreground/20 bg-accent p-6 text-accent-foreground">
         <p className="font-medium">{error}</p>
         {suggestions.length > 0 && (
           <div className="mt-4 space-y-3">

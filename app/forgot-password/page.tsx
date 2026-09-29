@@ -17,8 +17,8 @@ export default async function ForgotPasswordPage({
   const showExpired = error === "expired";
 
   return (
-    <section className="hero-wash flex flex-1 flex-col items-center justify-center px-4 py-12 sm:px-6">
-      <div className="w-full max-w-md space-y-6 rounded-[32px] border border-border bg-card p-7 shadow-md sm:p-9">
+    <section className="flex flex-1 flex-col items-center justify-center px-6 py-12">
+      <div className="w-full hf-rise max-w-md space-y-6 rounded-[28px] border border-border bg-card p-7 shadow-[var(--shadow-md)] sm:p-9">
         <PageHeader title="Reset your password" />
         <p className="text-muted-foreground">
           Enter your account email and we&apos;ll send you a link to choose a

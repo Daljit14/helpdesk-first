@@ -74,7 +74,7 @@ export function Sheet({
   return createPortal(
     <>
       <div
-        className="fixed inset-0 z-50 bg-[#2a1b3d]/40 backdrop-blur-[2px]"
+        className="fixed inset-0 z-50 bg-[#1c1633]/40 backdrop-blur-[2px]"
         aria-hidden="true"
         onClick={() => onOpenChange(false)}
       />
@@ -83,7 +83,7 @@ export function Sheet({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="fixed inset-y-2 left-2 z-50 flex w-[min(340px,88vw)] flex-col rounded-[28px] border border-border bg-card p-5 text-card-foreground shadow-md"
+        className="fixed inset-y-2 left-2 z-50 flex w-[min(320px,88vw)] flex-col rounded-[28px] border border-border bg-nav p-5 text-nav-foreground shadow-[var(--shadow-md)]"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-border pb-4">

@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Activity,
   Bookmark,
   Bot,
   ChevronRight,
@@ -23,8 +22,7 @@ import { useTheme } from "@/components/theme-provider";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { breadcrumbsForPath } from "@/components/shell/breadcrumbs-for-path";
 import { AppFooter } from "@/components/shell/app-footer";
-import { BrandMark, BrandName } from "@/components/shell/brand-mark";
-import { buttonVariants } from "@/lib/button-variants";
+import { AssistantBot, BrandMark } from "@/components/shell/brand-mark";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -45,21 +43,15 @@ function Navigation({
   aiEnabled,
   onNavigate,
   label = "Primary navigation",
-  layout = "column",
 }: {
   pathname: string;
   aiEnabled: boolean;
   onNavigate?: () => void;
   label?: string;
-  layout?: "row" | "column";
 }) {
   return (
     <nav aria-label={label}>
-      <ul
-        className={cn(
-          layout === "row" ? "flex items-center gap-1" : "grid gap-1.5"
-        )}
-      >
+      <ul className="grid gap-1.5">
         {navItems
           .filter((item) => !item.ai || aiEnabled)
           .map(({ href, label, icon: Icon }) => {
@@ -71,13 +63,19 @@ function Navigation({
                   aria-current={active ? "page" : undefined}
                   onClick={onNavigate}
                   className={cn(
-                    "flex min-h-11 items-center gap-3 whitespace-nowrap rounded-xl px-4 py-3 text-sm font-semibold transition-colors",
+                    "relative flex min-h-12 items-center gap-3.5 rounded-2xl px-4 text-[15px] font-semibold",
                     active
-                      ? "bg-primary/10 text-primary"
-                      : "text-nav-muted hover:bg-nav-foreground/8 hover:text-nav-foreground"
+                      ? "hf-pill-in bg-secondary text-secondary-foreground"
+                      : "hf-navlink text-nav-muted hover:bg-muted hover:text-foreground"
                   )}
                 >
-                  <Icon className="h-4 w-4" aria-hidden />
+                  {active && (
+                    <span
+                      aria-hidden
+                      className="absolute -left-4 top-3 bottom-3 w-1 rounded-r bg-primary"
+                    />
+                  )}
+                  <Icon className="h-[18px] w-[18px]" aria-hidden />
                   {label}
                 </Link>
               </li>
@@ -88,26 +86,113 @@ function Navigation({
   );
 }
 
-function ThemeToggle({ compact = false }: { compact?: boolean }) {
-  const { theme, toggleTheme } = useTheme();
-  const label = `Switch to ${theme === "dark" ? "light" : "dark"} mode`;
+function AssistantHelper({ onNavigate }: { onNavigate?: () => void }) {
   return (
-    <Button
-      type="button"
-      variant="ghost"
-      size={compact ? "icon-sm" : "sm"}
-      className={cn(compact ? "" : "inline-flex")}
-      onClick={toggleTheme}
-      aria-label={label}
-      title={label}
-    >
-      {theme === "dark" ? <Sun aria-hidden /> : <Moon aria-hidden />}
-      {!compact && (
-        <span className="hidden sm:inline lg:hidden xl:inline">
-          {theme === "dark" ? "Light" : "Dark"}
+    <div className="hf-hue relative overflow-hidden rounded-[20px] bg-[linear-gradient(120deg,var(--muted),#fdf2f8,#eef6ff,var(--muted))] p-4 text-foreground dark:bg-[linear-gradient(120deg,#2c2350,#3a1f3d,#1f2a4d,#2c2350)]">
+      <div className="flex items-start gap-2.5">
+        <AssistantBot />
+        <span className="hf-bubble mt-1 rounded-xl rounded-bl-sm bg-card px-2.5 py-1.5 text-xs font-bold shadow-sm">
+          Hi! Need a hand?
         </span>
+      </div>
+      <p className="mt-2.5 text-[15px] font-extrabold">Stuck on something?</p>
+      <p className="mt-1 text-[13px] leading-snug text-muted-foreground">
+        Chat with the assistant — it can hand you to a person.
+      </p>
+      <Link
+        href="/assistant"
+        onClick={onNavigate}
+        className="hf-lift mt-3 inline-flex min-h-10 items-center rounded-xl bg-foreground px-3.5 text-[13px] font-bold text-background"
+      >
+        Start a chat
+      </Link>
+    </div>
+  );
+}
+
+function SidebarFooter({
+  email,
+  staff,
+  onNavigate,
+}: {
+  email?: string | null;
+  staff: boolean;
+  onNavigate?: () => void;
+}) {
+  const linkClass =
+    "hf-navlink flex min-h-11 items-center gap-3 rounded-xl px-4 text-sm font-semibold text-nav-muted hover:bg-muted hover:text-foreground";
+  return (
+    <div className="grid gap-1.5 border-t border-border pt-4">
+      <Link href="/status" onClick={onNavigate} className={linkClass}>
+        <span className="relative flex h-[18px] w-[18px] items-center justify-center">
+          <span className="hf-ping absolute h-2 w-2 rounded-full bg-status-success" />
+          <span className="h-2 w-2 rounded-full bg-status-success" />
+        </span>
+        System status
+      </Link>
+      {email ? (
+        <>
+          <div className="flex items-center gap-2.5 px-3 py-1.5">
+            <span
+              aria-hidden
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,#ffc24b,#f472b6)] text-xs font-extrabold text-[#1c1633]"
+            >
+              {email.slice(0, 1).toUpperCase()}
+            </span>
+            <span
+              className="min-w-0 truncate text-[13px] font-medium text-nav-muted"
+              title={email}
+            >
+              {email}
+            </span>
+          </div>
+          <form action={logoutAction} className="px-2">
+            <Button
+              type="submit"
+              variant="outline"
+              className="w-full justify-start"
+            >
+              <LogOut aria-hidden />
+              Log out
+            </Button>
+          </form>
+        </>
+      ) : (
+        <div className="grid gap-2 px-2 pt-1">
+          <Link
+            href="/login"
+            onClick={onNavigate}
+            className="inline-flex min-h-11 items-center justify-center rounded-xl border border-border bg-card px-4 text-sm font-semibold hover:bg-muted"
+          >
+            Log in
+          </Link>
+          <Link
+            href="/signup"
+            onClick={onNavigate}
+            className="inline-flex min-h-11 items-center justify-center rounded-xl bg-primary px-4 text-sm font-bold text-primary-foreground hover:bg-[var(--hover)]"
+          >
+            Sign up
+          </Link>
+        </div>
       )}
-    </Button>
+      {staff && (
+        <Link href="/admin/login" onClick={onNavigate} className={linkClass}>
+          Staff console
+          <ChevronRight className="ml-auto h-4 w-4" aria-hidden />
+        </Link>
+      )}
+    </div>
+  );
+}
+
+function Brand() {
+  return (
+    <Link href="/" className="hf-logo flex items-center gap-2.5 px-2">
+      <BrandMark />
+      <span className="text-xl font-extrabold tracking-tight">
+        HelpDesk First
+      </span>
+    </Link>
   );
 }
 
@@ -123,6 +208,7 @@ export function AppShell({
   aiEnabled?: boolean;
 }) {
   const pathname = usePathname() ?? "/";
+  const { theme, toggleTheme } = useTheme();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const drawerTriggerRef = useRef<HTMLButtonElement>(null);
   const previousPathname = useRef(pathname);
@@ -137,80 +223,27 @@ export function AppShell({
   if (pathname.startsWith("/admin")) return <>{children}</>;
 
   const breadcrumbs = breadcrumbsForPath(pathname);
+  const themeLabel = `Switch to ${theme === "dark" ? "light" : "dark"} mode`;
+  const closeDrawer = () => setDrawerOpen(false);
+
   return (
-    <div className="min-h-full bg-background text-foreground lg:grid lg:grid-cols-[240px_1fr]">
-      <aside className="sticky top-0 hidden h-screen w-[240px] flex-col overflow-y-auto border-r border-border bg-nav px-4 py-5 text-nav-foreground lg:flex">
-        <Link
-          href="/"
-          aria-label="HelpDesk First"
-          className="flex items-center gap-2 px-3"
-        >
-          <BrandMark className="h-8 w-8 rounded-xl" />
-          <BrandName className="text-nav-foreground" />
-        </Link>
-        <div className="mt-8">
-          <Navigation pathname={pathname} aiEnabled={aiEnabled} />
-        </div>
-        <div className="mt-auto grid gap-1.5 border-t border-border pt-4">
-          <Link
-            href="/status"
-            className="flex min-h-11 items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-nav-muted hover:bg-nav-foreground/8 hover:text-nav-foreground"
-          >
-            <Activity className="h-4 w-4" aria-hidden />
-            System status
-          </Link>
-          {email ? (
-            <p
-              className="truncate px-4 py-3 text-sm text-nav-muted"
-              title={email}
-            >
-              {email}
-            </p>
-          ) : (
-            <Link
-              href="/login"
-              className="flex min-h-11 items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-nav-muted hover:bg-nav-foreground/8 hover:text-nav-foreground"
-            >
-              Log in
-            </Link>
-          )}
-          {email ? (
-            <form action={logoutAction} className="px-2">
-              <Button
-                type="submit"
-                variant="ghost"
-                className="w-full justify-start rounded-xl px-2 text-nav-muted hover:bg-nav-foreground/8 hover:text-nav-foreground"
-              >
-                <LogOut aria-hidden />
-                Log out
-              </Button>
-            </form>
-          ) : (
-            <Link
-              href="/signup"
-              className="flex min-h-11 items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-nav-muted hover:bg-nav-foreground/8 hover:text-nav-foreground"
-            >
-              Sign up
-            </Link>
-          )}
-          {staff && (
-            <Link
-              href="/admin/login"
-              className="flex min-h-11 items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-nav-muted hover:bg-nav-foreground/8 hover:text-nav-foreground"
-            >
-              Staff console
-            </Link>
-          )}
+    <div className="min-h-full bg-background text-foreground lg:grid lg:grid-cols-[264px_1fr]">
+      <aside className="sticky top-0 hidden h-screen flex-col gap-7 overflow-y-auto border-r border-border bg-nav px-4 py-6 text-nav-foreground lg:flex">
+        <Brand />
+        <Navigation pathname={pathname} aiEnabled={aiEnabled} />
+        {aiEnabled && <AssistantHelper />}
+        <div className="mt-auto">
+          <SidebarFooter email={email} staff={staff} />
         </div>
       </aside>
 
       <div className="flex min-h-screen min-w-0 flex-col">
-        <header className="flex h-14 items-center justify-between border-b border-border bg-background/80 px-4 backdrop-blur sm:px-8">
+        <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-3 border-b border-border bg-background/85 px-4 backdrop-blur sm:px-8">
           <div className="flex min-w-0 items-center gap-3">
             <Button
               ref={drawerTriggerRef}
               type="button"
-              variant="ghost"
+              variant="outline"
               size="icon-sm"
               className="lg:hidden"
               aria-label="Open navigation"
@@ -224,21 +257,20 @@ export function AppShell({
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <ThemeToggle />
-            {email ? (
-              <form action={logoutAction} className="hidden sm:block">
-                <Button type="submit" variant="outline" size="sm">
-                  <LogOut aria-hidden />
-                  Log out
-                </Button>
-              </form>
-            ) : (
+            <Button
+              type="button"
+              variant="outline"
+              size="icon-sm"
+              onClick={toggleTheme}
+              aria-label={themeLabel}
+              title={themeLabel}
+            >
+              {theme === "dark" ? <Sun aria-hidden /> : <Moon aria-hidden />}
+            </Button>
+            {!email && (
               <Link
                 href="/login"
-                className={cn(
-                  buttonVariants({ variant: "ghost", size: "sm" }),
-                  "hidden sm:inline-flex"
-                )}
+                className="hidden min-h-10 items-center rounded-xl bg-primary px-4 text-sm font-bold text-primary-foreground hover:bg-[var(--hover)] sm:inline-flex lg:hidden"
               >
                 Log in
               </Link>
@@ -261,73 +293,22 @@ export function AppShell({
         title="Navigation"
         triggerRef={drawerTriggerRef}
       >
-        <div className="mb-5 flex items-center gap-2.5 px-2">
-          <BrandMark className="h-8 w-8 rounded-xl" />
-          <BrandName />
-        </div>
-        <Navigation
-          pathname={pathname}
-          aiEnabled={aiEnabled}
-          onNavigate={() => setDrawerOpen(false)}
-          label="Mobile"
-        />
-        <div className="mt-6 grid gap-1.5 border-t border-border pt-5">
-          <Link
-            href="/status"
-            onClick={() => setDrawerOpen(false)}
-            className="flex min-h-11 items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-muted-foreground hover:bg-muted hover:text-foreground"
-          >
-            <Activity className="h-4 w-4" aria-hidden />
-            System status
-            <ChevronRight className="ml-auto h-4 w-4" aria-hidden />
-          </Link>
-          {staff && (
-            <Link
-              href="/admin/login"
-              onClick={() => setDrawerOpen(false)}
-              className="flex min-h-11 items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-muted-foreground hover:bg-muted hover:text-foreground"
-            >
-              Staff console
-              <ChevronRight className="ml-auto h-4 w-4" aria-hidden />
-            </Link>
-          )}
-          <div className="flex items-center justify-between rounded-xl px-4 py-1 text-sm text-muted-foreground">
-            <span>Appearance</span>
-            <ThemeToggle compact />
+        <div className="flex min-h-full flex-col gap-6">
+          <Brand />
+          <Navigation
+            pathname={pathname}
+            aiEnabled={aiEnabled}
+            onNavigate={closeDrawer}
+            label="Mobile"
+          />
+          {aiEnabled && <AssistantHelper onNavigate={closeDrawer} />}
+          <div className="mt-auto">
+            <SidebarFooter
+              email={email}
+              staff={staff}
+              onNavigate={closeDrawer}
+            />
           </div>
-          {email ? (
-            <>
-              <p
-                className="truncate px-4 py-3 text-sm text-muted-foreground"
-                title={email}
-              >
-                {email}
-              </p>
-              <form action={logoutAction} className="px-2">
-                <Button type="submit" variant="outline" className="w-full">
-                  <LogOut aria-hidden />
-                  Log out
-                </Button>
-              </form>
-            </>
-          ) : (
-            <div className="grid gap-2 px-2 pt-2">
-              <Link
-                href="/login"
-                onClick={() => setDrawerOpen(false)}
-                className={cn(buttonVariants({ variant: "outline" }), "w-full")}
-              >
-                Log in
-              </Link>
-              <Link
-                href="/signup"
-                onClick={() => setDrawerOpen(false)}
-                className={cn(buttonVariants({ variant: "default" }), "w-full")}
-              >
-                Sign up
-              </Link>
-            </div>
-          )}
         </div>
       </Sheet>
     </div>

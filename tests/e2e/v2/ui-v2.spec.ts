@@ -265,7 +265,7 @@ test.describe("UI v2 numbered coverage", () => {
     await expect(page.locator("html")).toHaveClass(/dark/);
     expect(
       await page.evaluate(() => getComputedStyle(document.body).backgroundColor)
-    ).toBe("rgb(26, 19, 38)");
+    ).toBe("rgb(22, 17, 42)");
     await page.getByRole("button", { name: "Switch to light mode" }).click();
     await expect(page.locator("html")).toHaveClass(/light/);
   });

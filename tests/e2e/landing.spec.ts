@@ -1,4 +1,4 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Locator, type Page } from "@playwright/test";
 
 function searchInput(page: Page) {
   return page
@@ -24,6 +24,16 @@ async function openMobileFilters(page: Page) {
     await filters.click();
     await expect(page.getByRole("dialog", { name: "Filters" })).toBeVisible();
   }
+}
+
+function mobileFilters(page: Page) {
+  return page.getByRole("dialog", { name: "Filters" });
+}
+
+async function filterControls(page: Page): Promise<Locator> {
+  return (await page.evaluate(() => window.innerWidth)) < 1024
+    ? mobileFilters(page)
+    : page.locator('aside[aria-label="Filters"]');
 }
 
 test("homepage renders with search, categories and platform filters", async ({
@@ -120,15 +130,11 @@ test("category and platform filters can be combined", async ({ page }) => {
   await page.goto("/");
 
   await openMobileFilters(page);
-  await page
-    .getByRole("button", { name: new RegExp("^Computer$", "i") })
-    .first()
-    .click();
+  const categoryFilters = await filterControls(page);
+  await categoryFilters.getByRole("button", { name: /^Computer$/i }).click();
   await openMobileFilters(page);
-  await page
-    .getByRole("button", { name: /^Windows$/i })
-    .first()
-    .click();
+  const platformFilters = await filterControls(page);
+  await platformFilters.getByRole("button", { name: /^Windows$/i }).click();
 
   await expect(
     page
@@ -145,10 +151,8 @@ test("browser back restores the previous search filter state", async ({
   await searchInput(page).fill("printer");
   await searchButton(page).click();
   await openMobileFilters(page);
-  await page
-    .getByRole("button", { name: /^Computer$/i })
-    .first()
-    .click();
+  const filters = await filterControls(page);
+  await filters.getByRole("button", { name: /^Computer$/i }).click();
 
   await expect(page).toHaveURL(/\?q=printer&category=computer/);
   await page.goBack();

@@ -3,10 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Bot, ChevronRight, History, X } from "lucide-react";
+import { Bot, ChevronRight, History, RotateCcw, Wifi, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { buttonVariants } from "@/lib/button-variants";
-import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/ui/page-header";
 import { Sheet } from "@/components/ui/sheet";
 import { SearchBox } from "@/components/search-box";
@@ -15,6 +13,11 @@ import { PlatformButtons } from "@/components/platform-buttons";
 import { RecentlyViewed } from "@/components/recently-viewed";
 import { IssueList } from "@/components/issue-list";
 import { IssueCard } from "@/components/issue-card";
+import {
+  HowItWorks,
+  QuickTips,
+  SystemStatusCard,
+} from "@/components/home/dashboard-extras";
 import { ResultsNav } from "@/components/results-nav";
 import { filterIssues } from "@/lib/search";
 import { categories, type Platform } from "@/lib/helpdesk-data";
@@ -33,6 +36,16 @@ type HomePageProps = {
   initialPlatformInvalid?: boolean;
   basePath?: string;
 };
+
+const SEARCH_PROMPTS = [
+  "My Wi-Fi keeps dropping…",
+  "Printer says offline…",
+  "I forgot my password…",
+  "Camera not working in meetings…",
+  "Laptop is really slow…",
+];
+
+const QUICK_SEARCHES = ["Wi-Fi", "Printer", "Password", "Camera", "VPN"];
 
 function paramToString(value: string | string[] | undefined): string {
   if (Array.isArray(value)) return value[0] ?? "";
@@ -67,6 +80,16 @@ export function HomePage({
   >([]);
   const [sessionCount, setSessionCount] = useState(0);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [promptIndex, setPromptIndex] = useState(0);
+  const isHome = basePath !== "/browse";
+
+  useEffect(() => {
+    const id = window.setInterval(
+      () => setPromptIndex((value) => (value + 1) % SEARCH_PROMPTS.length),
+      2200
+    );
+    return () => window.clearInterval(id);
+  }, []);
 
   const urlFilters = useMemo(() => {
     const rawPlatform = searchParams.get("platform");
@@ -219,6 +242,13 @@ export function HomePage({
     router.replace(basePath, { scroll: false });
   }
 
+  function applyQuickSearch(nextQuery: string) {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    setQuery(nextQuery);
+    pushUrl(nextQuery, categoryId, platform);
+    scrollToResults();
+  }
+
   function selectCategory(nextCategory: string | null) {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     setCategoryId(nextCategory);
@@ -246,67 +276,117 @@ export function HomePage({
 
   return (
     <section className="flex flex-1 flex-col px-4 py-10 sm:px-6 lg:px-8">
-      <div className="hero-wash mx-auto w-full max-w-6xl">
-        {basePath === "/browse" ? (
+      <div className="mx-auto w-full max-w-6xl">
+        {isHome ? (
+          <header className="hf-rise max-w-3xl">
+            <p className="text-[15px] font-semibold text-muted-foreground">
+              Welcome to HelpDesk First
+            </p>
+            <h1 className="mt-1.5 text-4xl font-extrabold leading-[1.05] tracking-tight sm:text-[2.9rem]">
+              What can we fix today?
+            </h1>
+            <p className="mt-3 max-w-2xl text-[15px] text-muted-foreground">
+              Search a problem, pick a category or your device, and follow safe,
+              step-by-step Level-1 guidance.
+            </p>
+            <p className="mt-2 text-sm font-semibold text-muted-foreground">
+              For example:{" "}
+              <span
+                key={promptIndex}
+                className="hf-swap inline-block font-bold text-primary"
+              >
+                “{SEARCH_PROMPTS[promptIndex]}”
+              </span>
+            </p>
+          </header>
+        ) : (
           <PageHeader
             title="Browse solutions"
             description="Search issues, filter by category, or choose a platform to find Level-1 support guidance."
           />
-        ) : (
-          <header className="max-w-3xl pt-2">
-            <p className="inline-flex items-center gap-2 rounded-full bg-accent px-3 py-1.5 text-sm font-semibold text-accent-foreground">
-              <span
-                className="h-2 w-2 rounded-full bg-status-success"
-                aria-hidden
-              />
-              Safe, step-by-step Level-1 help
-            </p>
-            <h1 className="mt-5 text-[2.5rem] font-bold leading-[1.05] tracking-tight sm:text-6xl">
-              Tech acting up? Let&apos;s sort it out together.
-            </h1>
-            <p className="mt-4 max-w-2xl text-lg text-muted-foreground">
-              Search what&apos;s going wrong, or pick your device and a
-              category. You&apos;ll get calm, safe steps — and a real person if
-              you need one.
-            </p>
-          </header>
         )}
 
         {activeSessions.length > 0 && (
-          <div
-            className="mt-6 rounded-3xl border border-accent-foreground/20 bg-accent p-4 text-accent-foreground sm:p-5"
+          <section
             aria-live="polite"
+            aria-labelledby="continue-heading"
+            className="hf-rise relative mt-8 overflow-hidden rounded-[28px] bg-[linear-gradient(135deg,#5b3cc4,#8b6cf6_60%,#c084fc)] p-6 text-white shadow-[var(--shadow-md)] sm:p-8"
+            style={{ animationDelay: "0.1s" }}
           >
-            <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
-              <div>
-                <p className="font-medium">
-                  You have an unfinished troubleshooting session
+            <span
+              aria-hidden
+              className="hf-blob-a absolute -top-20 right-24 h-64 w-64 rounded-full bg-white/10"
+            />
+            <span
+              aria-hidden
+              className="hf-blob-b absolute -bottom-28 left-1/3 h-60 w-60 rounded-full bg-pink-400/20"
+            />
+            <div className="relative flex flex-col gap-6 sm:flex-row sm:items-center">
+              <div className="flex max-w-xl flex-col gap-3">
+                <span className="self-start rounded-full bg-white/15 px-3 py-1 text-xs font-extrabold">
+                  Pick up where you left off
+                </span>
+                <h2
+                  id="continue-heading"
+                  className="text-2xl font-extrabold leading-tight sm:text-3xl"
+                >
+                  {activeSessions[0].issueTitle}
+                </h2>
+                <p className="text-[15px] text-white/90">
+                  On {activeSessions[0].platform} · you were on step{" "}
+                  {activeSessions[0].currentStepIndex + 1}.
                 </p>
-                <p className="text-sm text-muted-foreground">
-                  {activeSessions[0].issueTitle} on {activeSessions[0].platform}
-                </p>
+                <div className="mt-1 flex flex-wrap gap-2.5">
+                  <Link
+                    href={`/issues/${activeSessions[0].issueSlug}/guide?platform=${platformSlug(normalizePlatform(activeSessions[0].platform) ?? "Other")}`}
+                    className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-white px-5 text-[15px] font-extrabold text-[#3b2a8f] shadow-sm hover:bg-white/90"
+                  >
+                    <History className="h-4 w-4" aria-hidden />
+                    Resume
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={handleClearHistory}
+                    className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-white/40 px-4 text-[15px] font-bold text-white hover:bg-white/10"
+                  >
+                    <RotateCcw className="h-4 w-4" aria-hidden />
+                    Clear history
+                  </button>
+                </div>
               </div>
-              <div className="flex items-center gap-3">
-                <Link
-                  href={`/issues/${activeSessions[0].issueSlug}/guide?platform=${platformSlug(normalizePlatform(activeSessions[0].platform) ?? "Other")}`}
-                  className={cn(
-                    buttonVariants({ variant: "outline", size: "sm" })
-                  )}
-                >
-                  <History className="mr-2 h-4 w-4" />
-                  Resume
-                </Link>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleClearHistory}
-                >
-                  Clear history
-                </Button>
+              <div
+                aria-hidden
+                className="relative mx-auto h-40 w-40 shrink-0 sm:ml-auto sm:mr-0"
+              >
+                <svg viewBox="0 0 200 200" className="h-full w-full">
+                  <circle
+                    cx="100"
+                    cy="100"
+                    r="68"
+                    fill="none"
+                    stroke="rgb(255 255 255 / 0.2)"
+                    strokeWidth="14"
+                  />
+                  <circle
+                    cx="100"
+                    cy="100"
+                    r="68"
+                    fill="none"
+                    stroke="#fff"
+                    strokeWidth="14"
+                    strokeLinecap="round"
+                    strokeDasharray="120 428"
+                    className="hf-spin-slow origin-center"
+                    style={{
+                      animationDuration: "6s",
+                      transformBox: "fill-box",
+                    }}
+                  />
+                </svg>
+                <Wifi className="hf-bob absolute inset-0 m-auto h-10 w-10" />
               </div>
             </div>
-          </div>
+          </section>
         )}
 
         <div className="mt-8 lg:grid lg:grid-cols-[280px_1fr] lg:gap-8">
@@ -320,12 +400,10 @@ export function HomePage({
             </Button>
           </div>
           <aside aria-label="Filters" className="mb-6 hidden lg:mb-0 lg:block">
-            <div className="sticky top-24 rounded-3xl border border-border bg-card p-5 shadow-sm">
-              <h2 className="text-lg font-semibold">Filters</h2>
+            <div className="sticky top-24 rounded-[24px] border border-border bg-card p-4 shadow-sm">
+              <h2 className="px-1 text-base font-extrabold">Filters</h2>
               <div className="mt-4">
-                <p className="mb-2 text-xs font-semibold text-muted-foreground">
-                  Platform
-                </p>
+                <p className="mb-2 text-sm font-medium">Platform</p>
                 <PlatformButtons
                   selected={platform}
                   variant="list"
@@ -333,9 +411,7 @@ export function HomePage({
                 />
               </div>
               <div className="mt-5">
-                <p className="mb-2 text-xs font-semibold text-muted-foreground">
-                  Category
-                </p>
+                <p className="mb-2 text-sm font-medium">Category</p>
                 <CategoryGrid
                   selected={categoryId}
                   variant="list"
@@ -352,6 +428,19 @@ export function HomePage({
               placeholder="Describe your problem…"
               onClear={clearFilters}
             />
+            <div className="mt-3 flex flex-wrap items-center gap-2 text-[13px] font-bold text-muted-foreground">
+              <span>Try:</span>
+              {QUICK_SEARCHES.map((term) => (
+                <button
+                  key={term}
+                  type="button"
+                  onClick={() => applyQuickSearch(term)}
+                  className="min-h-9 rounded-full border border-border bg-card px-3.5 transition-colors hover:border-primary/30 hover:bg-secondary hover:text-secondary-foreground"
+                >
+                  {term}
+                </button>
+              ))}
+            </div>
             {activeSessions.length === 0 && sessionCount > 0 && (
               <div className="mt-2 flex justify-end">
                 <Button
@@ -368,22 +457,22 @@ export function HomePage({
             {process.env.NEXT_PUBLIC_AI_ENABLED === "true" && (
               <Link
                 href="/assistant"
-                className="glass glass-interactive group mt-4 flex items-center gap-4 p-4 text-left"
+                className="hf-lift group relative mt-5 flex items-center gap-4 overflow-hidden rounded-[24px] bg-[#1c1633] p-5 text-left text-white dark:bg-[#2c2350]"
               >
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-secondary text-primary">
-                  <Bot className="h-5 w-5" aria-hidden />
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/10">
+                  <Bot className="hf-bob h-6 w-6 text-[#c9b8ff]" aria-hidden />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block font-semibold">
+                  <span className="block text-base font-extrabold">
                     Not sure where to start? Ask the Support Assistant
                   </span>
-                  <span className="mt-1 block text-sm text-muted-foreground">
+                  <span className="mt-1 block text-sm text-[#cfc6ea]">
                     Describe the problem in plain words and get routed to the
                     right guide.
                   </span>
                 </span>
                 <ChevronRight
-                  className="h-5 w-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
+                  className="h-5 w-5 shrink-0 text-white/80 transition-transform group-hover:translate-x-1"
                   aria-hidden
                 />
               </Link>
@@ -401,7 +490,7 @@ export function HomePage({
                 {query && (
                   <button
                     type="button"
-                    className="inline-flex min-h-11 items-center gap-2 rounded-full border border-primary/30 bg-secondary px-4 py-2 text-sm font-semibold text-primary hover:bg-secondary/70"
+                    className="inline-flex min-h-11 items-center gap-2 rounded-full border border-border bg-card px-3 py-2 text-sm hover:bg-muted"
                     aria-label={`Remove filter: Search ${query}`}
                     onClick={() => removeFilter("query")}
                   >
@@ -412,7 +501,7 @@ export function HomePage({
                 {platform && (
                   <button
                     type="button"
-                    className="inline-flex min-h-11 items-center gap-2 rounded-full border border-primary/30 bg-secondary px-4 py-2 text-sm font-semibold text-primary hover:bg-secondary/70"
+                    className="inline-flex min-h-11 items-center gap-2 rounded-full border border-border bg-card px-3 py-2 text-sm hover:bg-muted"
                     aria-label={`Remove filter: Platform ${platform}`}
                     onClick={() => removeFilter("platform")}
                   >
@@ -423,7 +512,7 @@ export function HomePage({
                 {categoryId && (
                   <button
                     type="button"
-                    className="inline-flex min-h-11 items-center gap-2 rounded-full border border-primary/30 bg-secondary px-4 py-2 text-sm font-semibold text-primary hover:bg-secondary/70"
+                    className="inline-flex min-h-11 items-center gap-2 rounded-full border border-border bg-card px-3 py-2 text-sm hover:bg-muted"
                     aria-label={`Remove filter: Category ${categoryId}`}
                     onClick={() => removeFilter("category")}
                   >
@@ -442,7 +531,7 @@ export function HomePage({
                 >
                   <h2
                     id="browse-by-category-heading"
-                    className="text-xl font-semibold"
+                    className="text-xl font-extrabold"
                   >
                     Browse by category
                   </h2>
@@ -460,7 +549,7 @@ export function HomePage({
                 >
                   <h2
                     id="popular-guides-heading"
-                    className="text-xl font-semibold"
+                    className="text-xl font-extrabold"
                   >
                     Popular guides
                   </h2>
@@ -474,6 +563,13 @@ export function HomePage({
                     ))}
                   </ul>
                 </section>
+                {isHome && (
+                  <div className="mt-10 grid gap-5 md:grid-cols-2">
+                    <HowItWorks className="hf-rise md:col-span-2" />
+                    <QuickTips className="hf-rise" />
+                    <SystemStatusCard className="hf-rise" />
+                  </div>
+                )}
               </>
             ) : (
               <>

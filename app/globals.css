@@ -650,6 +650,26 @@ body {
     scroll-behavior: auto !important;
     transition-duration: 0.01ms !important;
   }
+
+  .hf-rise,
+  .hf-pop,
+  .hf-bob,
+  .hf-bounce,
+  .hf-ping,
+  .hf-pulse,
+  .hf-glow,
+  .hf-blink-eyes,
+  .hf-bubble,
+  .hf-shimmer,
+  .hf-hue,
+  .hf-blob-a,
+  .hf-blob-b,
+  .hf-draw,
+  .hf-dash,
+  .hf-swap,
+  .hf-spin-slow {
+    animation: none !important;
+  }
 }
 
 @layer base {

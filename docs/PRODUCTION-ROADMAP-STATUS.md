@@ -1,3 +1,7 @@
+## Admin Database page
+
+The admin Database page provides a tenant-scoped view of important stored data and a live activity tracker. Users are loaded through the service-role-only `public.admin_auth_users` projection; apply `supabase/admin-database.sql` before the Users section can show data.
+
 ## D0 — requester-agent outcome metrics
 
 Phase D0 adds an organization-scoped, server-rendered outcome-metrics card to

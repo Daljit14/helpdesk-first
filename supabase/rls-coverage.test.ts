@@ -10,6 +10,22 @@ function uncomment(source: string): string {
 }
 
 describe("Supabase RLS coverage", () => {
+  test("keeps the admin auth projection service-role-only", async () => {
+    const source = await readFile(
+      join(process.cwd(), "supabase/admin-database.sql"),
+      "utf8"
+    );
+    expect(source).toMatch(
+      /create or replace view public\.admin_auth_users\s+with \(security_invoker = false\)/i
+    );
+    expect(source).toMatch(
+      /revoke all on public\.admin_auth_users from public, anon, authenticated;/i
+    );
+    expect(source).toMatch(
+      /grant select on public\.admin_auth_users to service_role;/i
+    );
+  });
+
   test("protects connector secrets and invokes RLS on the public view", async () => {
     const source = await readFile(
       join(process.cwd(), "supabase/autonomy-l1.sql"),

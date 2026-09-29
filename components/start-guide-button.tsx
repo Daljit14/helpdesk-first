@@ -24,7 +24,7 @@ export function StartGuideButton({ slug }: StartGuideButtonProps) {
   return (
     <Link href={href} className={cn(buttonVariants({ variant: "default" }))}>
       <Wrench className="mr-2 h-4 w-4" />
-      Start troubleshooting guide
+      Start troubleshooting
     </Link>
   );
 }

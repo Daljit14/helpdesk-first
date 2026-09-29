@@ -3,6 +3,7 @@ import { LoginForm } from "@/components/auth/login-form";
 import type { Metadata } from "next";
 import { isGoogleSsoEnabled, isMicrosoftSsoEnabled } from "@/lib/admin/flags";
 import { getTurnstileSiteKey } from "@/lib/auth/captcha";
+import { PageHeader } from "@/components/ui/page-header";
 
 export const metadata: Metadata = {
   title: "Log in",
@@ -23,8 +24,8 @@ export default async function LoginPage({
 
   return (
     <section className="flex flex-1 flex-col items-center justify-center px-6 py-12">
-      <div className="glass-strong w-full max-w-md space-y-6 p-8">
-        <h1 className="text-2xl font-semibold tracking-tight">Log in</h1>
+      <div className="w-full max-w-md space-y-6 rounded-xl border border-border bg-card p-8 shadow-sm">
+        <PageHeader title="Log in" />
         <LoginForm
           next={safeNext}
           googleSsoEnabled={isGoogleSsoEnabled()}

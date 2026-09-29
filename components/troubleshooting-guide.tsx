@@ -90,7 +90,10 @@ export function TroubleshootingGuide({
   const platform: string = useMemo(() => {
     const raw = searchParams.get("platform");
     const fromQuery = normalizePlatform(raw);
-    return fromQuery ?? issue.devices[0];
+    return (
+      fromQuery ??
+      (issue.devices.includes("Windows") ? "Windows" : issue.devices[0])
+    );
   }, [searchParams, issue.devices]);
   const browseReturnHref = useMemo(
     () => buildBrowseReturnHref(searchParams),
@@ -124,19 +127,9 @@ export function TroubleshootingGuide({
   const [completedSteps, setCompletedSteps] = useState<number[]>(() => [
     ...new Set(initialCompletedSteps),
   ]);
+  const [sessionLoaded, setSessionLoaded] = useState(false);
   const [, startTransition] = useTransition();
   const [state, setState] = useState<GuideState>(() => {
-    const saved = getSession(issue.id, platform);
-    if (saved) {
-      return {
-        currentStepIndex: saved.currentStepIndex,
-        attemptedSteps: saved.attemptedSteps,
-        status: saved.status,
-        solvingStep: saved.solvingStep,
-        escalationReason: saved.escalationReason,
-        rating: saved.rating,
-      };
-    }
     const firstIncomplete = visibleStepIndexes.find(
       (index) => !initialCompletedSteps.includes(index)
     );
@@ -157,8 +150,29 @@ export function TroubleshootingGuide({
   const statusRef = useRef<HTMLDivElement>(null);
   const completedEventSent = useRef(false);
 
+  useEffect(() => {
+    queueMicrotask(() => {
+      const saved = getSession(issue.id, platform);
+      if (saved) {
+        setState({
+          currentStepIndex: saved.currentStepIndex,
+          attemptedSteps: saved.attemptedSteps,
+          status: saved.status,
+          solvingStep: saved.solvingStep,
+          escalationReason: saved.escalationReason,
+          rating: saved.rating,
+        });
+      }
+      setSessionLoaded(true);
+    });
+  }, [issue.id, platform]);
+
   const totalSteps = visibleStepIndexes.length;
   const currentStep = steps[state.currentStepIndex];
+  const outlineSteps = visibleStepIndexes.map((index) => ({
+    index,
+    text: steps[index],
+  }));
   const currentVisiblePosition = Math.max(
     0,
     visibleStepIndexes.indexOf(state.currentStepIndex)
@@ -179,6 +193,7 @@ export function TroubleshootingGuide({
   }
 
   useEffect(() => {
+    if (!sessionLoaded) return;
     const session: TroubleshootingSession = {
       issueSlug: issue.id,
       issueTitle: issue.title,
@@ -192,7 +207,7 @@ export function TroubleshootingGuide({
       updatedAt: Date.now(),
     };
     saveSession(session);
-  }, [issue, platform, state]);
+  }, [issue, platform, sessionLoaded, state]);
 
   function recordAttempt(outcome: StepOutcome) {
     const step = currentStep;
@@ -359,130 +374,179 @@ export function TroubleshootingGuide({
     statusRef.current?.focus();
   }
 
+  function handleClearHistory() {
+    clearSession(issue.id, platform);
+    setCompletedSteps([]);
+    setState(initialState());
+    if (canPersist) {
+      startTransition(() => {
+        void saveProgress(issue.id, []);
+      });
+    }
+    statusRef.current?.focus();
+  }
+
   const progress =
     state.status === "in-progress" ? state.currentStepIndex + 1 : totalSteps;
 
   return (
-    <div className="mx-auto w-full max-w-3xl">
-      <div className="mb-6">
-        <BackToResults />
-      </div>
-
-      <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-        {issue.title}
-      </h1>
-
-      <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-        {issue.devices.length > 1 ? (
-          <div className="flex items-center gap-2">
-            <label htmlFor="guide-platform" className="font-medium">
-              Platform
-            </label>
-            <select
-              id="guide-platform"
-              value={platform}
-              onChange={(event) =>
-                handlePlatformChange(event.target.value as Platform)
-              }
-              className="rounded-md border border-input bg-background px-2 py-1 text-foreground"
-            >
-              {issue.devices.map((device) => (
-                <option key={device} value={device}>
-                  {device}
-                </option>
-              ))}
-            </select>
+    <div className="mx-auto w-full max-w-6xl">
+      <div className="lg:grid lg:grid-cols-[minmax(0,760px)_280px] lg:items-start lg:gap-10">
+        <div className="min-w-0">
+          <div className="mb-6">
+            <BackToResults />
           </div>
-        ) : (
-          <span>Platform: {platform}</span>
-        )}
-        <span>{totalSteps} steps</span>
-      </div>
 
-      <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-muted">
-        <div
-          className="h-full bg-primary transition-all duration-300"
-          style={{ width: `${(progress / totalSteps) * 100}%` }}
-          aria-hidden="true"
-        />
-      </div>
+          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
+            {issue.title}
+          </h1>
 
-      <div
-        ref={statusRef}
-        tabIndex={-1}
-        aria-live="polite"
-        className="mt-4 outline-none"
-      >
-        {state.status === "resolved" ? (
-          <SuccessView
-            state={state}
-            onChange={setState}
-            onRestart={handleRestart}
-            resolutionNotice={resolutionNotice}
-            browseReturnHref={browseReturnHref}
-          />
-        ) : state.status === "escalated" ? (
-          <EscalationView
-            issue={issue}
-            platform={platform}
-            state={state}
-            onChange={setState}
-            onRestart={handleRestart}
-            linkedTicket={linkedTicket}
-            resolutionTrackingEnabled={resolutionTrackingEnabled}
-            browseReturnHref={browseReturnHref}
-          />
-        ) : (
-          <StepView
-            key={state.currentStepIndex}
-            issue={issue}
-            platform={platform}
-            state={state}
-            onCompleted={handleCompleted}
-            onDidNotWork={handleDidNotWork}
-            onCannotComplete={handleCannotComplete}
-            onSolved={handleSolved}
-            onSkip={advanceStep}
-            onApprovalRequest={handleApprovalRequest}
-            stepPolicies={stepPolicies}
-          />
-        )}
-      </div>
-      {stepSource === "category" && (
-        <p className="mt-4 text-sm text-muted-foreground">
-          These are general steps for {categoryLabel}. If they don&apos;t match
-          your situation, use Contact support / escalate.
-        </p>
-      )}
-      {stepMeta?.sources && stepMeta.sources.length > 0 && (
-        <div className="mt-6 text-sm">
-          <h2 className="font-semibold">Sources</h2>
-          <ul className="mt-2 list-disc space-y-1 pl-5">
-            {stepMeta.sources.map((source) => (
-              <li key={source.url}>
-                <a
-                  href={source.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline underline-offset-4"
+          <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+            {issue.devices.length > 1 ? (
+              <div className="flex items-center gap-2">
+                <label htmlFor="guide-platform" className="font-medium">
+                  Platform
+                </label>
+                <select
+                  id="guide-platform"
+                  value={platform}
+                  onChange={(event) =>
+                    handlePlatformChange(event.target.value as Platform)
+                  }
+                  className="rounded-md border border-input bg-background px-2 py-1 text-foreground"
                 >
-                  {source.title}
-                </a>
+                  {issue.devices.map((device) => (
+                    <option key={device} value={device}>
+                      {device}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <span>Platform: {platform}</span>
+            )}
+            <span>
+              Step {Math.min(progress, totalSteps)} of {totalSteps}
+            </span>
+          </div>
+
+          <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-muted">
+            <div
+              className="h-full bg-primary transition-all duration-300"
+              style={{ width: `${(progress / totalSteps) * 100}%` }}
+              aria-hidden="true"
+            />
+          </div>
+
+          <details className="mt-6 rounded-xl border border-border bg-card p-4 lg:hidden">
+            <summary className="cursor-pointer font-medium">
+              Guide outline
+            </summary>
+            <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm text-muted-foreground">
+              {outlineSteps.map(({ index, text }) => (
+                <li key={`${index}-${text}`}>{text}</li>
+              ))}
+            </ol>
+          </details>
+
+          <div
+            ref={statusRef}
+            tabIndex={-1}
+            aria-live="polite"
+            className="mt-4 outline-none"
+          >
+            {state.status === "resolved" ? (
+              <SuccessView
+                state={state}
+                onChange={setState}
+                onRestart={handleRestart}
+                resolutionNotice={resolutionNotice}
+                browseReturnHref={browseReturnHref}
+              />
+            ) : state.status === "escalated" ? (
+              <EscalationView
+                issue={issue}
+                platform={platform}
+                state={state}
+                onChange={setState}
+                onRestart={handleRestart}
+                linkedTicket={linkedTicket}
+                resolutionTrackingEnabled={resolutionTrackingEnabled}
+                browseReturnHref={browseReturnHref}
+              />
+            ) : (
+              <StepView
+                key={state.currentStepIndex}
+                issue={issue}
+                state={state}
+                onCompleted={handleCompleted}
+                onDidNotWork={handleDidNotWork}
+                onCannotComplete={handleCannotComplete}
+                onSolved={handleSolved}
+                onSkip={advanceStep}
+                onApprovalRequest={handleApprovalRequest}
+                stepPolicies={stepPolicies}
+                onClearHistory={handleClearHistory}
+              />
+            )}
+          </div>
+          {stepSource === "category" && (
+            <p className="mt-4 text-sm text-muted-foreground">
+              These are general steps for {categoryLabel}. If they don&apos;t
+              match your situation, use Contact support / escalate.
+            </p>
+          )}
+          {stepMeta?.sources && stepMeta.sources.length > 0 && (
+            <div className="mt-6 text-sm">
+              <h2 className="font-semibold">Sources</h2>
+              <ul className="mt-2 list-disc space-y-1 pl-5">
+                {stepMeta.sources.map((source) => (
+                  <li key={source.url}>
+                    <a
+                      href={source.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline underline-offset-4"
+                    >
+                      {source.title}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2 text-muted-foreground">
+                Reviewed {stepMeta.reviewedAt}
+              </p>
+            </div>
+          )}
+        </div>
+        <nav
+          aria-label="Guide outline"
+          className="sticky top-6 mt-8 hidden rounded-xl border border-border bg-card p-4 lg:block"
+        >
+          <p className="font-medium">Guide outline</p>
+          <ol className="mt-3 space-y-3 text-sm">
+            {outlineSteps.map(({ index, text }, outlineIndex) => (
+              <li
+                key={`${index}-${text}`}
+                className={
+                  index === state.currentStepIndex
+                    ? "font-semibold text-foreground"
+                    : "text-muted-foreground"
+                }
+              >
+                <span className="mr-2">{outlineIndex + 1}.</span>
+                {text}
               </li>
             ))}
-          </ul>
-          <p className="mt-2 text-muted-foreground">
-            Reviewed {stepMeta.reviewedAt}
-          </p>
-        </div>
-      )}
+          </ol>
+        </nav>
+      </div>
     </div>
   );
 }
 
 function StepView({
   issue,
-  platform,
   state,
   onCompleted,
   onDidNotWork,
@@ -491,9 +555,9 @@ function StepView({
   onSkip,
   onApprovalRequest,
   stepPolicies,
+  onClearHistory,
 }: {
   issue: Issue;
-  platform: string;
   state: GuideState;
   onCompleted: () => void;
   onDidNotWork: () => void;
@@ -502,6 +566,7 @@ function StepView({
   onSkip: () => void;
   onApprovalRequest: () => void;
   stepPolicies?: StepPolicy[];
+  onClearHistory: () => void;
 }) {
   const index = state.currentStepIndex;
   const steps = getIssueSteps(issue);
@@ -537,30 +602,6 @@ function StepView({
         Step {visiblePosition + 1} of {total}
       </p>
 
-      <ol aria-label="Troubleshooting steps" className="space-y-2">
-        {visibleSteps.map((visibleStep, visibleIndex) => (
-          <li
-            key={visibleStep.stepIndex}
-            className={`flex items-center gap-3 text-sm ${
-              visibleStep.stepIndex === index
-                ? "font-semibold text-foreground"
-                : "text-muted-foreground"
-            }`}
-          >
-            <span
-              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border ${
-                visibleIndex <= visiblePosition
-                  ? "border-primary bg-primary/10 text-primary"
-                  : "border-border bg-background/40"
-              }`}
-            >
-              {visibleIndex + 1}
-            </span>
-            <span>{visibleStep.text}</span>
-          </li>
-        ))}
-      </ol>
-
       <div className="glass-strong p-6">
         <h2
           data-testid="step-title"
@@ -585,15 +626,8 @@ function StepView({
         )}
       </div>
 
-      {safetyWarning && index === 0 && (
-        <div className="glass border-l-4 border-amber-500 bg-amber-50/60 p-4 text-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
-          <p className="font-semibold">Safety note</p>
-          <p className="mt-1">{safetyWarning}</p>
-        </div>
-      )}
-
       {policy?.risk === "approval" ? (
-        <div className="glass sticky bottom-3 z-10 flex flex-wrap gap-3 p-3 sm:static sm:bg-transparent sm:p-0 sm:shadow-none">
+        <div className="flex flex-wrap gap-3 rounded-xl border border-border bg-card p-3">
           <Button type="button" onClick={onApprovalRequest}>
             Ask IT to approve
           </Button>
@@ -602,29 +636,37 @@ function StepView({
           </Button>
         </div>
       ) : policy?.risk === "caution" && !confirmed ? (
-        <div className="glass sticky bottom-3 z-10 p-3 sm:static sm:bg-transparent sm:p-0 sm:shadow-none">
+        <div className="rounded-xl border border-border bg-card p-3">
           <Button type="button" onClick={() => setConfirmed(true)}>
             I understand, continue
           </Button>
         </div>
       ) : (
-        <div className="glass sticky bottom-3 z-10 grid gap-3 p-3 sm:static sm:grid-cols-2 sm:bg-transparent sm:p-0 sm:shadow-none">
+        <div className="grid gap-3 rounded-xl border border-border bg-card p-3 sm:grid-cols-2">
           <Button type="button" variant="default" onClick={onSolved}>
             <CheckCircle className="mr-2 h-4 w-4" />
             Problem solved
           </Button>
 
           <Button type="button" variant="outline" onClick={onCompleted}>
-            I completed this step
+            Completed, still testing
           </Button>
 
           <Button type="button" variant="outline" onClick={onDidNotWork}>
-            This did not work
+            Didn&apos;t work
           </Button>
 
           <Button type="button" variant="ghost" onClick={onCannotComplete}>
-            <XCircle className="mr-2 h-4 w-4" />I cannot complete this step
+            <XCircle className="mr-2 h-4 w-4" />
+            Can&apos;t do this
           </Button>
+        </div>
+      )}
+
+      {safetyWarning && index === 0 && (
+        <div className="glass border-l-4 border-amber-500 bg-amber-50/60 p-4 text-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
+          <p className="font-semibold">Safety note</p>
+          <p className="mt-1">{safetyWarning}</p>
         </div>
       )}
 
@@ -637,7 +679,7 @@ function StepView({
 
       <button
         type="button"
-        onClick={() => clearSession(issue.id, platform)}
+        onClick={onClearHistory}
         className="text-sm text-muted-foreground underline hover:text-foreground"
       >
         Clear my troubleshooting history for this issue
@@ -709,7 +751,7 @@ function SuccessView({
       <div className="mt-8 flex flex-wrap justify-center gap-3">
         <Button type="button" variant="outline" onClick={onRestart}>
           <RotateCcw className="mr-2 h-4 w-4" />
-          Restart the guide
+          Restart this guide
         </Button>
         <Link
           href={browseReturnHref}

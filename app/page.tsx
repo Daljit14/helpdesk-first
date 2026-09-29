@@ -3,6 +3,12 @@ import { normalizePlatform } from "@/lib/platform";
 import { HomeStart } from "@/components/v2/home-start";
 import { isUiV2Enabled } from "@/lib/ui-v2";
 import { getCurrentUser } from "@/lib/supabase/user";
+import { getTickets } from "@/lib/guides-data";
+import {
+  isTicketWorkflowEnabled,
+  isUserPortalEnabled,
+} from "@/lib/admin/flags";
+import { ticketState } from "@/lib/tickets/user-status";
 
 type PageSearchParams = {
   [key: string]: string | string[] | undefined;
@@ -22,7 +28,25 @@ export default async function Home({
 
   if (isUiV2Enabled()) {
     const user = await getCurrentUser();
-    return <HomeStart signedIn={Boolean(user)} />;
+    const portalEnabled = isTicketWorkflowEnabled() && isUserPortalEnabled();
+    const tickets =
+      user && portalEnabled ? await getTickets(user.id, true) : [];
+    return (
+      <HomeStart
+        signedIn={Boolean(user)}
+        openTickets={tickets
+          .filter(
+            (ticket) => ticketState({ status: ticket.status }).group === "open"
+          )
+          .slice(0, 3)
+          .map((ticket) => ({
+            id: ticket.id,
+            subject: ticket.issue_title,
+            status: ticket.status,
+            updatedAt: ticket.created_at,
+          }))}
+      />
+    );
   }
 
   return (

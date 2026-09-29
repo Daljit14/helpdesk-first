@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { logoutAction } from "@/app/actions/auth";
 import { getCurrentUser } from "@/lib/supabase/user";
@@ -69,6 +70,15 @@ type TicketDetail = {
 };
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ ticketId: string }>;
+}): Promise<Metadata> {
+  const { ticketId } = await params;
+  return { title: `Ticket ${ticketReference(ticketId)}` };
+}
 
 function handoffReasonLabel(
   reason: string | null,

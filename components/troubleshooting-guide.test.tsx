@@ -6,6 +6,7 @@ import {
   waitFor,
   cleanup,
 } from "@testing-library/react";
+import { within } from "@testing-library/react";
 import { TroubleshootingGuide } from "./troubleshooting-guide";
 import { ISSUES } from "@/lib/issues";
 import { getIssueSteps } from "@/lib/steps";
@@ -59,7 +60,7 @@ describe("TroubleshootingGuide", () => {
         `Step ${i + 1} of ${steps.length}`
       );
       fireEvent.click(
-        screen.getByRole("button", { name: "I completed this step" })
+        screen.getByRole("button", { name: "Completed, still testing" })
       );
       if (i < steps.length - 1) {
         await waitFor(() =>
@@ -87,7 +88,7 @@ describe("TroubleshootingGuide", () => {
 
     for (let i = 0; i < steps.length - 1; i++) {
       fireEvent.click(
-        screen.getByRole("button", { name: "I completed this step" })
+        screen.getByRole("button", { name: "Completed, still testing" })
       );
       await waitFor(() =>
         expect(screen.getByTestId("step-count")).toHaveTextContent(
@@ -96,7 +97,7 @@ describe("TroubleshootingGuide", () => {
       );
     }
 
-    fireEvent.click(screen.getByRole("button", { name: "This did not work" }));
+    fireEvent.click(screen.getByRole("button", { name: "Didn't work" }));
     await waitFor(() => {
       expect(screen.getByTestId("guide-status")).toHaveTextContent(
         "This problem is unresolved"
@@ -116,7 +117,7 @@ describe("TroubleshootingGuide", () => {
       expect(screen.getByTestId("step-count")).toHaveTextContent(/Step 1 of 5/)
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "This did not work" }));
+    fireEvent.click(screen.getByRole("button", { name: "Didn't work" }));
 
     await waitFor(() => {
       expect(mocks.recordStepOutcome).toHaveBeenCalledWith(
@@ -139,7 +140,7 @@ describe("TroubleshootingGuide", () => {
       expect(screen.getByTestId("step-count")).toHaveTextContent(/Step 1 of 5/)
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "This did not work" }));
+    fireEvent.click(screen.getByRole("button", { name: "Didn't work" }));
 
     expect(mocks.recordStepOutcome).not.toHaveBeenCalled();
   });
@@ -150,9 +151,7 @@ describe("TroubleshootingGuide", () => {
       expect(screen.getByTestId("step-count")).toHaveTextContent(/Step 1 of 5/)
     );
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "I cannot complete this step" })
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Can't do this" }));
     await waitFor(() =>
       expect(screen.getByTestId("guide-status")).toHaveTextContent(
         "This problem is unresolved"
@@ -183,10 +182,34 @@ describe("TroubleshootingGuide", () => {
       )
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Restart the guide/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Restart this guide/ }));
     await waitFor(() => {
       expect(screen.getByTestId("step-count")).toHaveTextContent(/Step 1 of 5/);
     });
+  });
+
+  test("clearing troubleshooting history resets the active guide immediately", async () => {
+    render(<TroubleshootingGuide issue={issue} />);
+    await waitFor(() =>
+      expect(screen.getByTestId("step-count")).toHaveTextContent(/Step 1 of 5/)
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Completed, still testing" })
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("step-count")).toHaveTextContent(/Step 2 of 5/)
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Clear my troubleshooting history for this issue",
+      })
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("step-count")).toHaveTextContent(/Step 1 of 5/)
+    );
+    expect(screen.getByTestId("step-title")).toHaveTextContent(steps[0]);
   });
 
   test("caution steps require local confirmation before outcomes", async () => {
@@ -201,19 +224,19 @@ describe("TroubleshootingGuide", () => {
       expect(screen.getByTestId("step-count")).toHaveTextContent(/Step 1 of/)
     );
     fireEvent.click(
-      screen.getByRole("button", { name: "I completed this step" })
+      screen.getByRole("button", { name: "Completed, still testing" })
     );
     await waitFor(() =>
       expect(screen.getByText("Confirm first")).toBeInTheDocument()
     );
     expect(
-      screen.queryByRole("button", { name: "This did not work" })
+      screen.queryByRole("button", { name: "Didn't work" })
     ).not.toBeInTheDocument();
     fireEvent.click(
       screen.getByRole("button", { name: "I understand, continue" })
     );
     expect(
-      screen.getByRole("button", { name: "This did not work" })
+      screen.getByRole("button", { name: "Didn't work" })
     ).toBeInTheDocument();
   });
 
@@ -232,7 +255,7 @@ describe("TroubleshootingGuide", () => {
       screen.getByRole("button", { name: "Ask IT to approve" })
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "I completed this step" })
+      screen.queryByRole("button", { name: "Completed, still testing" })
     ).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Skip" })).toBeInTheDocument();
   });
@@ -248,6 +271,10 @@ describe("TroubleshootingGuide", () => {
     await waitFor(() =>
       expect(screen.getByTestId("step-title")).toHaveTextContent(steps[1]!)
     );
-    expect(screen.queryByText(steps[0]!)).not.toBeInTheDocument();
+    expect(
+      within(
+        screen.getByRole("navigation", { name: "Guide outline" })
+      ).queryByText(steps[0]!)
+    ).not.toBeInTheDocument();
   });
 });

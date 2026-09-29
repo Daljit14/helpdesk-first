@@ -14,15 +14,24 @@ export function StatusWidget() {
   const [status, setStatus] = useState<StatusResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [lastChecked, setLastChecked] = useState<string | null>(null);
+  const [requestFailed, setRequestFailed] = useState(false);
 
   async function check() {
     setLoading(true);
     try {
       const res = await fetch("/api/status", { cache: "no-store" });
-      setStatus(await res.json());
+      if (!res.ok) {
+        setRequestFailed(true);
+        setStatus(null);
+      } else {
+        setRequestFailed(false);
+        setStatus(await res.json());
+      }
       setLastChecked(new Date().toISOString());
     } catch {
       setStatus(null);
+      setRequestFailed(true);
+      setLastChecked(new Date().toISOString());
     } finally {
       setLoading(false);
     }
@@ -36,7 +45,7 @@ export function StatusWidget() {
   }, []);
 
   return (
-    <div className="glass mt-8 p-6">
+    <div className="mt-8 rounded-xl border border-border bg-card p-6 shadow-sm">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 font-semibold">
           {loading ? (
@@ -48,9 +57,11 @@ export function StatusWidget() {
           )}
           {loading
             ? "Checking…"
-            : status?.ok
-              ? "All systems operational"
-              : "Degraded"}
+            : requestFailed
+              ? "Unavailable"
+              : status?.ok
+                ? "Healthy"
+                : "Degraded"}
         </div>
         <Button
           size="sm"
@@ -70,6 +81,11 @@ export function StatusWidget() {
             ? `Status updated ${new Date(lastChecked).toLocaleTimeString()}`
             : ""}
       </span>
+      {lastChecked && (
+        <p className="mt-3 text-xs text-muted-foreground">
+          Last checked {new Date(lastChecked).toLocaleTimeString()}
+        </p>
+      )}
 
       {status && (
         <dl className="mt-4 grid grid-cols-2 gap-4 text-sm">

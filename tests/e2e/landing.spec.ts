@@ -13,6 +13,19 @@ function matchingCount(page: Page) {
     .first();
 }
 
+function searchButton(page: Page) {
+  return page.getByRole("button", { name: "Search", exact: true });
+}
+
+async function openMobileFilters(page: Page) {
+  if ((await page.evaluate(() => window.innerWidth)) >= 1024) return;
+  const filters = page.getByRole("button", { name: "Filters" }).first();
+  if (await filters.isVisible().catch(() => false)) {
+    await filters.click();
+    await expect(page.getByRole("dialog", { name: "Filters" })).toBeVisible();
+  }
+}
+
 test("homepage renders with search, categories and platform filters", async ({
   page,
 }) => {
@@ -25,7 +38,14 @@ test("homepage renders with search, categories and platform filters", async ({
   await expect(
     page.getByRole("link", { name: /Ask the Support Assistant/i })
   ).toHaveAttribute("href", "/assistant");
+  await expect(
+    page.getByRole("heading", { name: "Browse by category" })
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Popular guides" })
+  ).toBeVisible();
 
+  await openMobileFilters(page);
   for (const label of [
     "Computer",
     "Internet & Wi-Fi",
@@ -35,17 +55,17 @@ test("homepage renders with search, categories and platform filters", async ({
     "Audio & camera",
   ]) {
     await expect(
-      page.getByRole("button", { name: new RegExp(label, "i") })
+      page.getByRole("button", { name: new RegExp(label, "i") }).first()
     ).toBeVisible();
   }
 
   for (const platform of ["Windows", "Mac", "iOS", "Android", "Other"]) {
     await expect(
-      page.getByRole("button", { name: new RegExp(`^${platform}$`, "i") })
+      page
+        .getByRole("button", { name: new RegExp(`^${platform}$`, "i") })
+        .first()
     ).toBeVisible();
   }
-
-  await expect(matchingCount(page)).toBeVisible();
 });
 
 test("search updates results as the user types", async ({ page }) => {
@@ -67,7 +87,7 @@ test("search submission updates the URL and moves focus to results", async ({
   await page.goto("/");
 
   await searchInput(page).fill("no sound");
-  await page.getByRole("button", { name: /^Search$/i }).click();
+  await searchButton(page).click();
 
   await expect(page).toHaveURL(/\?q=no\+sound/);
   await expect(page.getByLabel("Search results")).toBeFocused();
@@ -99,10 +119,16 @@ test("URL filter parameters initialize filters and results", async ({
 test("category and platform filters can be combined", async ({ page }) => {
   await page.goto("/");
 
+  await openMobileFilters(page);
   await page
     .getByRole("button", { name: new RegExp("^Computer$", "i") })
+    .first()
     .click();
-  await page.getByRole("button", { name: /^Windows$/i }).click();
+  await openMobileFilters(page);
+  await page
+    .getByRole("button", { name: /^Windows$/i })
+    .first()
+    .click();
 
   await expect(
     page
@@ -112,6 +138,47 @@ test("category and platform filters can be combined", async ({ page }) => {
   await expect(matchingCount(page)).toBeVisible();
 });
 
+test("browser back restores the previous search filter state", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await searchInput(page).fill("printer");
+  await searchButton(page).click();
+  await openMobileFilters(page);
+  await page
+    .getByRole("button", { name: /^Computer$/i })
+    .first()
+    .click();
+
+  await expect(page).toHaveURL(/\?q=printer&category=computer/);
+  await page.goBack();
+
+  await expect(page).toHaveURL(/\?q=printer$/);
+  await expect(searchInput(page)).toHaveValue("printer");
+  await expect(
+    page.getByRole("button", { name: "Remove filter: Search printer" })
+  ).toBeVisible();
+});
+
+test("removing an active filter clears only that filter", async ({ page }) => {
+  await page.goto("/?q=printer&category=printer&platform=Windows");
+
+  await page
+    .getByRole("button", {
+      name: "Remove filter: Platform Windows",
+    })
+    .click();
+
+  await expect(page).toHaveURL(/\?q=printer&category=printer$/);
+  await expect(searchInput(page)).toHaveValue("printer");
+  await expect(
+    page.getByRole("button", { name: "Remove filter: Search printer" })
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Remove filter: Category printer" })
+  ).toBeVisible();
+});
+
 test("clearing filters resets results", async ({ page }) => {
   await page.goto("/");
 
@@ -119,7 +186,9 @@ test("clearing filters resets results", async ({ page }) => {
   await page.getByRole("button", { name: /Clear all filters/i }).click();
 
   await expect(searchInput(page)).toHaveValue("");
-  await expect(page.getByText(/100 matching problems/)).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Browse by category" })
+  ).toBeVisible();
 });
 
 test("user can open an issue and return to previous filtered results", async ({
@@ -128,7 +197,7 @@ test("user can open an issue and return to previous filtered results", async ({
   await page.goto("/");
 
   await searchInput(page).fill("printer");
-  await page.getByRole("button", { name: /Search/i }).click();
+  await searchButton(page).click();
   await page
     .getByLabel("Search results")
     .getByRole("link", { name: /Print job stuck/i })

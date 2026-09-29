@@ -14,9 +14,10 @@ import {
 } from "@/lib/admin/flags";
 import { createClient } from "@/lib/supabase/server";
 import { isUiV2Enabled } from "@/lib/ui-v2";
+import { PageHeader } from "@/components/ui/page-header";
 
 export const metadata: Metadata = {
-  title: "Tickets",
+  title: "My tickets",
 };
 
 export default async function TicketsPage() {
@@ -53,16 +54,15 @@ export default async function TicketsPage() {
   return (
     <section className="flex flex-1 flex-col px-4 py-12 sm:px-6 lg:px-8">
       <div className="mx-auto w-full max-w-4xl">
-        <div className="glass mb-6 flex flex-wrap items-center justify-between gap-4 p-5">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Tickets</h1>
-            {portalEnabled && (
-              <p className="mt-2 text-sm text-muted-foreground">
-                Describe a problem once — track replies and confirm the fix
-                here.
-              </p>
-            )}
-          </div>
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+          <PageHeader
+            title="My tickets"
+            description={
+              portalEnabled
+                ? "Describe a problem once — track replies and confirm the fix here."
+                : undefined
+            }
+          />
           <PushSubscribeButton />
         </div>
         {portalEnabled && (

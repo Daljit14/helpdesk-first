@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
 import Link from "next/link";
 import { Bot, Loader2, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Composer } from "@/components/assistant/composer";
+import { ConversationBubble } from "@/components/assistant/conversation-column";
 import { buttonVariants } from "@/lib/button-variants";
 import { cn } from "@/lib/utils";
 import { platformSlug } from "@/lib/platform";
@@ -74,9 +76,10 @@ export function AssistantWorkspace({
   const [ticketId, setTicketId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionPending, setActionPending] = useState(false);
-  const [composerHeight, setComposerHeight] = useState(0);
+  const [userTurns, setUserTurns] = useState<string[]>(
+    initialProblem ? [initialProblem] : []
+  );
   const autoStarted = useRef(false);
-  const composerRef = useRef<HTMLDivElement>(null);
   const ticketIntent = intent === "ticket" || intent === "human";
 
   useEffect(() => {
@@ -84,23 +87,6 @@ export function AssistantWorkspace({
       sessionStorage.setItem("hf-v2-outcomes", JSON.stringify(outcomes));
     } catch {}
   }, [outcomes]);
-
-  useEffect(() => {
-    const composer = composerRef.current;
-    if (!composer) return;
-    const updateHeight = () =>
-      setComposerHeight(composer.getBoundingClientRect().height);
-    updateHeight();
-    if (typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(updateHeight);
-    observer.observe(composer);
-    return () => observer.disconnect();
-  }, [
-    ticketIntent,
-    attachmentName,
-    intake.platform,
-    intake.previousAnswers.length,
-  ]);
 
   useEffect(() => {
     if (!attach) return;
@@ -140,38 +126,41 @@ export function AssistantWorkspace({
     }
   };
 
+  const submitCurrentInput = () => {
+    if (intake.loading) return;
+    const text =
+      output?.decision === "clarify" ? intake.diagnosticAnswer : intake.problem;
+    if (!text.trim()) return;
+    setUserTurns((current) => [...current, text.trim()]);
+    if (output?.decision === "clarify") {
+      const questionId = output.diagnosticQuestionIds?.[0];
+      if (questionId) intake.handleSubmitAnswer(questionId, text);
+    } else {
+      intake.handleStart(text);
+    }
+  };
+
   const output = intake.currentOutput;
   const matchedIssue = output?.matchedIssueSlug
     ? getIssueBySlug(output.matchedIssueSlug)
     : null;
-  const policySteps = useMemo(() => {
-    if (!matchedIssue) return [];
-    const policies = getIssueStepPolicies(matchedIssue);
-    return stepPolicyEnabled
-      ? policies.filter((step) => isOfferable(step.risk, "requester"))
-      : policies;
-  }, [matchedIssue, stepPolicyEnabled]);
-  const triedSteps = useMemo(
-    () =>
-      policySteps.filter((step) =>
-        ["failed", "could_not_perform"].includes(
+  const allPolicySteps = matchedIssue ? getIssueStepPolicies(matchedIssue) : [];
+  const policySteps = stepPolicyEnabled
+    ? allPolicySteps.filter((step) => isOfferable(step.risk, "requester"))
+    : allPolicySteps;
+  const triedSteps = policySteps.filter((step) =>
+    ["failed", "could_not_perform"].includes(
+      outcomes[`${matchedIssue?.id}:${step.stepIndex}`]
+    )
+  );
+  const offeredSteps = policySteps
+    .filter(
+      (step) =>
+        !["failed", "could_not_perform"].includes(
           outcomes[`${matchedIssue?.id}:${step.stepIndex}`]
         )
-      ),
-    [matchedIssue?.id, outcomes, policySteps]
-  );
-  const offeredSteps = useMemo(
-    () =>
-      policySteps
-        .filter(
-          (step) =>
-            !["failed", "could_not_perform"].includes(
-              outcomes[`${matchedIssue?.id}:${step.stepIndex}`]
-            )
-        )
-        .slice(0, 5),
-    [matchedIssue?.id, outcomes, policySteps]
-  );
+    )
+    .slice(0, 5);
   const allStepsFailed =
     policySteps.length > 0 &&
     policySteps.every((step) =>
@@ -252,7 +241,7 @@ export function AssistantWorkspace({
   };
 
   return (
-    <div className="mx-auto flex min-h-[calc(100dvh-10rem)] w-full max-w-3xl flex-col">
+    <div className="mx-auto flex w-full max-w-3xl flex-col">
       <div className="mb-6 flex items-center gap-3">
         <Bot className="h-7 w-7" aria-hidden />
         <div>
@@ -289,13 +278,12 @@ export function AssistantWorkspace({
         })}
       </ol>
 
-      <div
-        className="flex-1 space-y-5"
-        style={{
-          paddingBottom: composerHeight ? `${composerHeight + 24}px` : "12rem",
-        }}
-      >
-        {initialProblem && <Message side="user" text={initialProblem} />}
+      <div role="log" aria-live="polite" className="space-y-5">
+        {userTurns.map((text, index) => (
+          <ConversationBubble key={`${index}-${text}`} role="user">
+            <p className="whitespace-pre-wrap">{text}</p>
+          </ConversationBubble>
+        ))}
         {ticketIntent ? (
           <div className="space-y-4">
             <Message
@@ -393,7 +381,8 @@ export function AssistantWorkspace({
                 <Button
                   variant="outline"
                   className="mt-3"
-                  onClick={() => void intake.submitIntake()}
+                  onClick={() => void intake.retry()}
+                  disabled={intake.loading}
                 >
                   Retry
                 </Button>
@@ -410,10 +399,7 @@ export function AssistantWorkspace({
       </div>
 
       {!ticketIntent && (
-        <div
-          ref={composerRef}
-          className="sticky bottom-0 mt-8 border-t border-border bg-background/95 pt-4 [padding-bottom:env(safe-area-inset-bottom)]"
-        >
+        <div className="mt-8 border-t border-border bg-background pt-4 [padding-bottom:env(safe-area-inset-bottom)]">
           <div className="mb-3 flex flex-wrap gap-2">
             {intake.platform && (
               <button
@@ -435,58 +421,25 @@ export function AssistantWorkspace({
               </span>
             )}
           </div>
-          <div className="flex gap-2">
-            <textarea
-              aria-label="Describe your IT problem"
-              value={
-                intake.diagnosticAnswer ||
-                (!intake.started ? intake.problem : "")
-              }
-              onChange={(event) =>
-                output?.decision === "clarify"
-                  ? intake.setDiagnosticAnswer(event.target.value)
-                  : intake.setProblem(event.target.value)
-              }
-              onKeyDown={(event) => {
-                if (event.key !== "Enter" || event.shiftKey) return;
-                event.preventDefault();
-                if (output?.decision === "clarify") {
-                  const questionId = output.diagnosticQuestionIds?.[0];
-                  if (questionId)
-                    intake.handleSubmitAnswer(
-                      questionId,
-                      intake.diagnosticAnswer
-                    );
-                } else if (intake.problem.trim()) {
-                  intake.handleStart(intake.problem);
-                }
-              }}
-              rows={2}
-              placeholder={
-                output?.decision === "clarify"
-                  ? "Answer the question…"
-                  : "Describe your IT problem…"
-              }
-              className="min-h-11 flex-1 resize-none rounded-xl border border-input bg-card p-3 outline-none focus:ring-2 focus:ring-ring"
-            />
-            <Button
-              className="v2-touch self-end"
-              onClick={() => {
-                if (output?.decision === "clarify") {
-                  const questionId = output.diagnosticQuestionIds?.[0];
-                  if (questionId)
-                    intake.handleSubmitAnswer(
-                      questionId,
-                      intake.diagnosticAnswer
-                    );
-                } else {
-                  intake.handleStart(intake.problem);
-                }
-              }}
-            >
-              Send
-            </Button>
-          </div>
+          <Composer
+            value={
+              output?.decision === "clarify"
+                ? intake.diagnosticAnswer
+                : intake.problem
+            }
+            onChange={(value) =>
+              output?.decision === "clarify"
+                ? intake.setDiagnosticAnswer(value)
+                : intake.setProblem(value)
+            }
+            onSend={submitCurrentInput}
+            disabled={intake.loading}
+            placeholder={
+              output?.decision === "clarify"
+                ? "Answer the question…"
+                : "Describe your IT problem…"
+            }
+          />
           <div className="mt-3 flex items-center justify-between gap-3">
             <p className="text-xs text-muted-foreground">{SAFE_USE_WARNING}</p>
             {workflowEnabled && signedIn ? (
@@ -604,9 +557,7 @@ function Match({
               <div key={hypothesis.cause}>
                 <div className="flex justify-between text-sm">
                   <span>{hypothesis.cause}</span>
-                  <span>
-                    {Math.round(hypothesis.confidence * 100)}% confidence
-                  </span>
+                  <span>Likely match</span>
                 </div>
                 <div className="mt-1 h-2 rounded-full bg-muted">
                   <div

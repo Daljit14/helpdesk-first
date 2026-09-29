@@ -206,7 +206,7 @@ export function AgentChat({
             </p>
           </div>
         </div>
-        <div className="mt-5 space-y-3" aria-live="polite">
+        <div className="mt-5 space-y-3" role="log" aria-live="polite">
           {items.some(
             (event) =>
               event.type === "session_consent" && event.state === "granted"
@@ -469,7 +469,11 @@ export function AgentChat({
             ) : null;
           })}
         </div>
+        <label htmlFor="agent-chat-composer" className="sr-only">
+          Describe your IT problem
+        </label>
         <textarea
+          id="agent-chat-composer"
           value={message}
           onChange={(event) => setMessage(event.target.value)}
           disabled={pending || terminal}

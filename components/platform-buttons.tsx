@@ -6,12 +6,17 @@ import { platforms, type Platform } from "@/lib/helpdesk-data";
 type PlatformButtonsProps = {
   selected: Platform | null;
   onSelect: (platform: Platform | null) => void;
+  variant?: "buttons" | "list";
 };
 
-export function PlatformButtons({ selected, onSelect }: PlatformButtonsProps) {
+export function PlatformButtons({
+  selected,
+  onSelect,
+  variant = "buttons",
+}: PlatformButtonsProps) {
   return (
     <div
-      className="flex flex-wrap items-center justify-center gap-3"
+      className={variant === "list" ? "grid gap-1" : "flex flex-wrap gap-3"}
       role="group"
       aria-label="Filter by platform"
     >
@@ -24,6 +29,9 @@ export function PlatformButtons({ selected, onSelect }: PlatformButtonsProps) {
             variant={isSelected ? "default" : "outline"}
             onClick={() => onSelect(isSelected ? null : platform)}
             aria-pressed={isSelected}
+            className={
+              variant === "list" ? "min-h-11 w-full justify-start" : ""
+            }
           >
             {platform}
           </Button>

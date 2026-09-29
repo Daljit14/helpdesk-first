@@ -258,8 +258,10 @@ body {
   --tone-sky-ink: #2553b0;
   --tone-leaf: #6cc04a;
   --tone-leaf-ink: #3b701d;
-  --shadow-sm: 0 1px 2px rgb(74 42 20 / 0.05), 0 4px 14px -6px rgb(74 42 20 / 0.12);
-  --shadow-md: 0 2px 4px rgb(74 42 20 / 0.05), 0 18px 40px -16px rgb(91 60 196 / 0.28);
+  --shadow-sm:
+    0 1px 2px rgb(74 42 20 / 0.05), 0 4px 14px -6px rgb(74 42 20 / 0.12);
+  --shadow-md:
+    0 2px 4px rgb(74 42 20 / 0.05), 0 18px 40px -16px rgb(91 60 196 / 0.28);
 }
 
 .dark {

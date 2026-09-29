@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { ArrowRight, Headset } from "lucide-react";
+import { ArrowRight, CheckCircle2, Headset, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { SAFE_USE_WARNING } from "@/lib/ui-copy";
 import { normalizePlatform, platformSlug } from "@/lib/platform";
 import { getIssueBySlug } from "@/lib/search";
+import { ISSUES } from "@/lib/issues";
 import { clearAllSessions, getActiveSessions } from "@/lib/session";
 import type { TroubleshootingSession } from "@/lib/session";
 import { ticketState } from "@/lib/tickets/user-status";
@@ -382,83 +383,76 @@ function StartGuideCard() {
   return (
     <Link
       href="/browse"
-      className="hf-rise hf-lift flex min-w-0 items-center justify-between gap-5 rounded-[28px] bg-[#ece8fd] p-6 text-[#2d205b] dark:bg-[#2c2350] dark:text-white"
+      className="hf-rise hf-lift group relative flex min-w-0 items-center justify-between gap-6 overflow-hidden rounded-[28px] bg-gradient-to-br from-[#5b3fd6] via-[#6f4ff2] to-[#9b7bff] p-6 text-white shadow-[0_24px_60px_-24px_rgba(91,63,214,0.7)] sm:p-7 dark:from-[#3a2a8f] dark:via-[#4b37b8] dark:to-[#6f56e0]"
     >
-      <span className="min-w-0">
-        <span className="block text-xs font-extrabold uppercase tracking-[0.14em] text-primary">
+      <span
+        aria-hidden
+        className="pointer-events-none absolute -left-16 -top-20 h-56 w-56 rounded-full bg-white/15 blur-3xl"
+      />
+      <span
+        aria-hidden
+        className="pointer-events-none absolute -bottom-24 right-24 h-64 w-64 rounded-full bg-[#ffd6f5]/25 blur-3xl"
+      />
+      <span
+        aria-hidden
+        className="hf-shimmer pointer-events-none absolute inset-0 bg-[linear-gradient(110deg,transparent_35%,rgba(255,255,255,0.35)_50%,transparent_65%)] opacity-60"
+      />
+
+      <span className="relative min-w-0">
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-white/15 px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-[0.14em] backdrop-blur">
+          <Sparkles className="h-3 w-3" aria-hidden />
           Start here
         </span>
-        <span className="mt-1 block text-2xl font-extrabold">
+        <span className="mt-3 block text-2xl font-extrabold leading-tight tracking-tight sm:text-[28px]">
           Start with a guide
         </span>
-        <span className="mt-1 block text-sm opacity-75">
-          Browse approved fixes and find the right next step.
+        <span className="mt-1.5 block max-w-md text-sm text-white/80">
+          {ISSUES.length}+ approved, step-by-step fixes for Windows, Mac, iOS
+          and Android — pick one and follow along safely.
         </span>
-        <span className="hf-lift mt-4 inline-flex min-h-10 items-center gap-2 rounded-xl bg-foreground px-4 text-sm font-bold text-background">
-          Browse guides →
+        <span className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-full bg-white px-5 text-sm font-extrabold text-[#3d2a99] shadow-sm transition-transform group-hover:translate-x-0.5">
+          Browse guides
+          <ArrowRight
+            className="h-4 w-4 transition-transform group-hover:translate-x-1"
+            aria-hidden
+          />
         </span>
       </span>
-      <svg
+
+      <span
         aria-hidden
-        viewBox="0 0 120 96"
-        className="hidden h-[110px] w-[160px] shrink-0 overflow-visible sm:block"
+        className="relative hidden h-[124px] w-[190px] shrink-0 sm:block"
       >
-        <path
-          d="M20 17C47 17 43 45 68 45s21 30 44 30"
-          fill="none"
-          stroke="currentColor"
-          strokeDasharray="5 5"
-          strokeLinecap="round"
-          strokeWidth="2.5"
-          className="hf-dash"
-        />
-        <rect
-          x="8"
-          y="8"
-          width="34"
-          height="18"
-          rx="7"
-          fill="var(--card)"
-          stroke="var(--primary)"
-          strokeWidth="1.5"
-        />
-        <rect
-          x="51"
-          y="36"
-          width="34"
-          height="18"
-          rx="7"
-          fill="var(--card)"
-          stroke="var(--primary)"
-          strokeWidth="1.5"
-        />
-        <rect
-          x="86"
-          y="66"
-          width="26"
-          height="18"
-          rx="7"
-          fill="var(--card)"
-          stroke="var(--primary)"
-          strokeWidth="1.5"
-        />
-        <circle
-          cx="99"
-          cy="75"
-          r="7"
-          fill="var(--primary)"
-          className="hf-glow"
-        />
-        <path
-          d="m95 75 3 3 5-6"
-          fill="none"
-          stroke="var(--primary-foreground)"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth="2.5"
-          className="hf-draw"
-        />
-      </svg>
+        <svg viewBox="0 0 190 124" className="h-full w-full overflow-visible">
+          <path
+            d="M34 24C70 24 66 62 102 62s28 36 62 36"
+            fill="none"
+            stroke="rgba(255,255,255,0.7)"
+            strokeDasharray="6 6"
+            strokeLinecap="round"
+            strokeWidth="2.5"
+            className="hf-dash"
+          />
+        </svg>
+        <span className="hf-float-sm absolute left-0 top-2 flex h-10 w-[68px] items-center gap-2 rounded-2xl border border-white/40 bg-white/20 px-3 backdrop-blur-md">
+          <span className="h-2 w-2 rounded-full bg-white" />
+          <span className="h-1.5 flex-1 rounded-full bg-white/70" />
+        </span>
+        <span
+          className="hf-float-sm absolute left-[68px] top-[42px] flex h-10 w-[68px] items-center gap-2 rounded-2xl border border-white/40 bg-white/20 px-3 backdrop-blur-md"
+          style={{ animationDelay: "0.4s" }}
+        >
+          <span className="h-2 w-2 rounded-full bg-white" />
+          <span className="h-1.5 flex-1 rounded-full bg-white/70" />
+        </span>
+        <span
+          className="hf-float-sm absolute right-0 top-[80px] flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-[#5b3fd6] shadow-[0_12px_30px_-10px_rgba(0,0,0,0.45)]"
+          style={{ animationDelay: "0.8s" }}
+        >
+          <span className="hf-ping absolute inset-0 rounded-2xl bg-white/60" />
+          <CheckCircle2 className="relative h-6 w-6" strokeWidth={2.5} />
+        </span>
+      </span>
     </Link>
   );
 }

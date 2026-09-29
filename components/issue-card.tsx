@@ -1,10 +1,10 @@
 import Link from "next/link";
-import { createElement } from "react";
 import type { ReactNode } from "react";
 import { Clock, Monitor } from "lucide-react";
 import type { Issue } from "@/lib/issues";
 import { normalizePlatform, platformSlug } from "@/lib/platform";
-import { getCategoryIcon, getCategoryTone } from "@/components/category-icon";
+import { categoryLook } from "@/components/home/category-look";
+import { cn } from "@/lib/utils";
 import { RiskDot } from "@/components/risk-dot";
 import { DifficultyMeter } from "@/components/difficulty-meter";
 
@@ -19,7 +19,7 @@ export function IssueCard({
   backParams = "",
   children,
 }: IssueCardProps) {
-  const Icon = getCategoryIcon(issue.category);
+  const look = categoryLook(issue.category);
   const params = new URLSearchParams(backParams);
   const platform = normalizePlatform(params.get("platform"));
   if (platform) params.set("platform", platformSlug(platform));
@@ -30,20 +30,20 @@ export function IssueCard({
     <li className="relative">
       <Link
         href={href}
-        className="glass glass-interactive group flex h-full flex-col p-5 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/25"
+        className="hf-cat group flex h-full flex-col rounded-[24px] border border-border bg-card p-5 shadow-sm focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/25"
       >
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-start gap-3">
             <div
-              className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${getCategoryTone(issue.category)}`}
+              className={cn(
+                "hf-cat-icon flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl",
+                look.tile
+              )}
             >
-              {createElement(Icon, {
-                className: "h-5 w-5",
-                "aria-hidden": true,
-              })}
+              {look.icon}
             </div>
             <div>
-              <h2 className="text-lg font-semibold leading-snug decoration-primary/40 decoration-2 underline-offset-4 group-hover:underline">
+              <h2 className="text-[17px] font-extrabold leading-snug">
                 {issue.title}
               </h2>
               <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
@@ -56,7 +56,7 @@ export function IssueCard({
           </div>
         </div>
 
-        <div className="mt-auto flex flex-wrap items-center gap-2 pt-4 text-xs font-medium text-muted-foreground">
+        <div className="mt-auto flex flex-wrap items-center gap-2 pt-4 text-xs font-bold text-muted-foreground">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1.5">
             <DifficultyMeter level={issue.difficulty} />
             <span className="sr-only">Difficulty:</span> {issue.difficulty}/3

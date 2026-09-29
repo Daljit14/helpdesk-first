@@ -1,8 +1,9 @@
 "use client";
 
+import { ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { categories } from "@/lib/helpdesk-data";
-import { getCategoryTone } from "@/components/category-icon";
+import { categoryLook } from "@/components/home/category-look";
 
 type CategoryGridProps = {
   selected: string | null;
@@ -17,69 +18,91 @@ export function CategoryGrid({
   variant = "cards",
   counts,
 }: CategoryGridProps) {
-  const isList = variant === "list";
+  if (variant === "list") {
+    return (
+      <ul className="grid gap-1">
+        {categories.map((category) => {
+          const Icon = category.icon;
+          const isSelected = selected === category.id;
+          const look = categoryLook(category.id);
+          return (
+            <li key={category.id}>
+              <button
+                type="button"
+                aria-pressed={isSelected}
+                onClick={() => onSelect(isSelected ? null : category.id)}
+                className={cn(
+                  "hf-navlink flex min-h-11 w-full items-center gap-3 rounded-xl px-2.5 py-1.5 text-left text-sm font-semibold outline-none focus-visible:ring-4 focus-visible:ring-primary/20",
+                  isSelected
+                    ? "bg-secondary text-secondary-foreground"
+                    : "hover:bg-muted"
+                )}
+              >
+                <span
+                  className={cn(
+                    "flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px]",
+                    look.tile
+                  )}
+                >
+                  <Icon className="h-4 w-4" aria-hidden="true" />
+                </span>
+                <span className="min-w-0 flex-1 leading-tight">
+                  {category.label}
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    );
+  }
+
   return (
-    <ul
-      className={
-        isList
-          ? "grid gap-1"
-          : "grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
-      }
-    >
-      {categories.map((category) => {
-        const Icon = category.icon;
+    <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      {categories.map((category, index) => {
         const isSelected = selected === category.id;
+        const look = categoryLook(category.id);
         return (
-          <li key={category.id}>
+          <li
+            key={category.id}
+            className="hf-pop"
+            style={{ animationDelay: `${0.1 + index * 0.05}s` }}
+          >
             <button
               type="button"
               aria-pressed={isSelected}
               onClick={() => onSelect(isSelected ? null : category.id)}
               className={cn(
-                isList
-                  ? "flex min-h-11 w-full items-center gap-3 rounded-full px-3 py-2 text-left text-sm font-semibold outline-none focus-visible:ring-4 focus-visible:ring-primary/25 hover:bg-muted"
-                  : "glass glass-interactive flex min-h-32 w-full items-center gap-3 px-4 py-4 text-left text-sm font-semibold outline-none focus-visible:ring-4 focus-visible:ring-primary/25 sm:flex-col sm:items-start sm:justify-between sm:gap-3 sm:p-5",
-                isSelected &&
-                  "border-primary bg-primary text-primary-foreground hover:bg-primary"
+                "hf-cat flex h-full w-full flex-col gap-3 rounded-[18px] border bg-card p-4 text-left outline-none focus-visible:ring-4 focus-visible:ring-primary/25",
+                isSelected ? "border-primary" : "border-border"
               )}
             >
-              <span
-                className={cn(
-                  isList
-                    ? cn(
-                        "flex h-8 w-8 shrink-0 items-center justify-center rounded-xl",
-                        isSelected
-                          ? "bg-primary text-primary-foreground"
-                          : getCategoryTone(category.id)
-                      )
-                    : cn(
-                        "flex h-11 w-11 items-center justify-center rounded-2xl",
-                        isSelected
-                          ? "bg-primary-foreground/20 text-primary-foreground"
-                          : getCategoryTone(category.id)
-                      )
-                )}
-              >
-                <Icon
-                  className={cn(isList ? "h-4 w-4" : "h-5 w-5 sm:h-6 sm:w-6")}
-                  aria-hidden="true"
-                />
-              </span>
-              <span className="min-w-0 flex-1 leading-tight">
-                {category.label}
-              </span>
-              {!isList && counts && (
+              <span className="flex items-center justify-between">
                 <span
                   className={cn(
-                    "text-sm font-normal",
-                    isSelected
-                      ? "text-primary-foreground/80"
-                      : "text-muted-foreground"
+                    "hf-cat-icon flex h-[42px] w-[42px] items-center justify-center rounded-[13px]",
+                    look.tile
                   )}
                 >
-                  {counts[category.id] ?? 0}
+                  {look.icon}
                 </span>
-              )}
+                <ArrowRight
+                  className="hf-cat-arrow h-4 w-4 text-primary"
+                  aria-hidden
+                />
+              </span>
+              <span className="flex flex-col gap-0.5">
+                <span className="text-[15px] font-extrabold">
+                  {category.label}
+                </span>
+                <span
+                  aria-hidden="true"
+                  className="text-xs font-semibold text-muted-foreground"
+                >
+                  {look.hint}
+                  {counts ? ` · ${counts[category.id] ?? 0} guides` : ""}
+                </span>
+              </span>
             </button>
           </li>
         );

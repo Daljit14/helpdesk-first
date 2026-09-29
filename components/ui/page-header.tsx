@@ -15,16 +15,16 @@ export function PageHeader({
   return (
     <header
       className={cn(
-        "flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between",
+        "hf-rise flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between",
         className
       )}
     >
       <div>
-        <h1 className="text-4xl font-bold tracking-tight sm:text-[2.75rem] sm:leading-[1.1]">
+        <h1 className="text-4xl font-extrabold tracking-tight sm:text-[2.6rem] sm:leading-[1.08]">
           {title}
         </h1>
         {description && (
-          <p className="mt-3 max-w-2xl text-base text-muted-foreground">
+          <p className="mt-2.5 max-w-2xl text-[15px] text-muted-foreground">
             {description}
           </p>
         )}

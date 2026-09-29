@@ -9,7 +9,7 @@ const Card = React.forwardRef<
   <div
     ref={ref}
     className={cn(
-      "rounded-3xl border border-border bg-card p-6 shadow-sm",
+      "rounded-[28px] border border-border bg-card p-6 shadow-sm",
       className
     )}
     {...props}
@@ -23,10 +23,7 @@ function CardTitle({
 }: React.HTMLAttributes<HTMLHeadingElement>) {
   return (
     <h2
-      className={cn(
-        "font-heading text-xl font-semibold tracking-tight",
-        className
-      )}
+      className={cn("text-lg font-extrabold tracking-tight", className)}
       {...props}
     />
   );

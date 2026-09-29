@@ -22,8 +22,7 @@ import { getCurrentUser } from "@/lib/supabase/user";
 import { buildBrowseReturnHref } from "@/lib/browse-return";
 import { platformSlug } from "@/lib/platform";
 import { Badge } from "@/components/ui/badge";
-import { getCategoryIcon, getCategoryTone } from "@/components/category-icon";
-import { createElement } from "react";
+import { categoryLook } from "@/components/home/category-look";
 import {
   getBookmarkedIssueIds,
   getRatingTotals,
@@ -97,40 +96,37 @@ export default async function IssuePage({
   ]);
 
   return (
-    <section className="flex flex-1 flex-col px-4 py-10 sm:px-6 lg:px-8">
-      <div className="hero-wash mx-auto w-full max-w-3xl">
+    <section className="flex flex-1 flex-col px-4 py-12 sm:px-6 lg:px-8">
+      <div className="mx-auto w-full max-w-3xl">
         <RecentTracker issueId={issue.id} />
         <Link
           href={backHref}
-          className="inline-flex min-h-11 items-center gap-2 rounded-full bg-card px-4 text-sm font-semibold text-muted-foreground shadow-sm hover:text-foreground"
+          className="hf-navlink inline-flex min-h-10 items-center gap-2 rounded-xl border border-border bg-card px-3.5 text-sm font-semibold text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="h-4 w-4" aria-hidden />
           {hasBrowseParams ? "Back to results" : "Browse all solutions"}
         </Link>
 
-        <div className="mt-6 rounded-[32px] border border-border bg-card p-6 shadow-md sm:p-8">
+        <div className="hf-rise mt-6 rounded-[28px] border border-border bg-card p-6 shadow-sm sm:p-8">
           <span
-            className={`mb-5 flex h-14 w-14 items-center justify-center rounded-2xl ${getCategoryTone(issue.category)}`}
+            className={`hf-cat-icon mb-5 flex h-14 w-14 items-center justify-center rounded-2xl ${categoryLook(issue.category).tile}`}
           >
-            {createElement(getCategoryIcon(issue.category), {
-              className: "h-7 w-7",
-              "aria-hidden": true,
-            })}
+            {categoryLook(issue.category).icon}
           </span>
-          <h1 className="text-4xl font-bold leading-[1.1] tracking-tight sm:text-5xl">
+          <h1 className="text-4xl font-extrabold leading-[1.08] tracking-tight sm:text-[2.75rem]">
             {issue.title}
           </h1>
-          <p className="mt-3 text-lg text-muted-foreground">
+          <p className="mt-3 text-[17px] text-muted-foreground">
             {issue.symptoms[0] ?? issue.title}
           </p>
 
-          <div className="mt-5 flex flex-wrap items-center gap-2 text-sm font-medium text-muted-foreground">
+          <div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
             <Badge variant="neutral">{category?.label ?? issue.category}</Badge>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1 font-semibold">
               <Gauge className="h-4 w-4" aria-hidden />
               Difficulty {issue.difficulty}/3
             </span>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1 font-semibold">
               <Clock className="h-4 w-4" aria-hidden />
               {issue.time}
             </span>
@@ -152,10 +148,8 @@ export default async function IssuePage({
             </Badge>
           </div>
 
-          <div className="mt-6 flex flex-wrap items-center gap-2 border-t border-border pt-5 text-sm">
-            <span className="mr-1 font-semibold text-foreground">
-              Applies to:
-            </span>
+          <div className="mt-4 flex flex-wrap gap-2 text-sm">
+            <span className="font-medium text-foreground">Applies to:</span>
             {issue.devices.map((device) => {
               const selected =
                 query.platform?.toString().toLowerCase() ===
@@ -171,7 +165,7 @@ export default async function IssuePage({
                   key={device}
                   href={`/issues/${issue.id}?${params.toString()}`}
                   aria-current={selected ? "page" : undefined}
-                  className="chip min-h-9 px-3 py-1"
+                  className="rounded-full border border-border px-3 py-1 font-semibold transition-colors hover:border-primary/40 hover:bg-secondary hover:text-secondary-foreground aria-[current=page]:border-primary aria-[current=page]:bg-primary aria-[current=page]:text-primary-foreground"
                 >
                   {device}
                 </Link>
@@ -186,7 +180,7 @@ export default async function IssuePage({
           <StartGuideButton slug={issue.id} />
           <Link
             href={`/assistant?q=${encodeURIComponent(issue.title)}&intent=human`}
-            className="inline-flex min-h-11 items-center rounded-full border border-border bg-card px-5 font-semibold hover:bg-secondary"
+            className="inline-flex min-h-11 items-center rounded-xl border border-border bg-card px-5 font-semibold hover:bg-muted"
           >
             Contact support
           </Link>
@@ -203,29 +197,30 @@ export default async function IssuePage({
         />
 
         {safetyWarning && (
-          <div className="mt-6 rounded-3xl border border-accent-foreground/20 bg-accent p-5 text-accent-foreground">
+          <div className="mt-6 rounded-[24px] border border-accent-foreground/20 bg-accent p-5 text-accent-foreground">
             <p className="font-semibold">Safety note</p>
             <p className="mt-1">{safetyWarning}</p>
           </div>
         )}
 
         <div className="mt-8">
-          <h2 className="text-2xl font-semibold">
+          <h2 className="text-xl font-extrabold">
             Initial troubleshooting steps
           </h2>
-          <ol className="mt-5 grid gap-3">
+          <ol className="mt-4 grid gap-3">
             {steps.map((step, index) => (
               <li
                 key={index}
-                className="flex items-start gap-4 rounded-3xl border border-border bg-card p-4 shadow-sm"
+                className="hf-pop flex items-start gap-4 rounded-[20px] border border-border bg-card p-4 shadow-sm"
+                style={{ animationDelay: `${0.1 + index * 0.06}s` }}
               >
                 <span
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary font-heading text-sm font-bold text-primary"
                   aria-hidden
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-extrabold text-secondary-foreground"
                 >
                   {index + 1}
                 </span>
-                <span className="pt-1 text-foreground">{step}</span>
+                <span className="pt-1">{step}</span>
               </li>
             ))}
           </ol>

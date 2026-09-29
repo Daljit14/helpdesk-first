@@ -26,10 +26,10 @@ export default async function AdminLoginPage({
       ? params.next
       : "/admin/operations";
   return (
-    <section className="hero-wash flex flex-1 items-center justify-center px-4 py-16">
-      <div className="glass-strong w-full max-w-md p-8 shadow-md sm:p-9">
+    <section className="flex flex-1 items-center justify-center px-4 py-16">
+      <div className="glass-strong hf-rise w-full max-w-md p-8 shadow-[var(--shadow-md)] sm:p-9">
         <BrandMark className="mb-5 h-11 w-11" />
-        <h1 className="text-3xl font-bold">Admin sign in</h1>
+        <h1 className="text-3xl font-extrabold">Admin sign in</h1>
         <p className="mt-2 text-sm text-muted-foreground">
           Use your authorized HelpDesk First account.
         </p>

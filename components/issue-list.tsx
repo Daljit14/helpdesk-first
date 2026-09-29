@@ -34,7 +34,7 @@ export function IssueList({
     }
 
     return (
-      <div className="rounded-[28px] border-2 border-dashed border-border bg-card/60 p-10 text-center">
+      <div className="rounded-[28px] border-2 border-dashed border-border bg-card p-10 text-center">
         <p className="text-lg font-medium">No matching problems found.</p>
         <p className="mt-2 text-muted-foreground">
           Try a different search term, category, or platform filter.

@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Bricolage_Grotesque, Figtree, IBM_Plex_Mono } from "next/font/google";
+import { Plus_Jakarta_Sans, IBM_Plex_Mono } from "next/font/google";
 import Script from "next/script";
 import { ReactNode } from "react";
 import "./globals.css";
@@ -13,13 +13,8 @@ import { membershipFor } from "@/lib/admin/auth";
 import { AnalyticsTracker } from "@/components/analytics-tracker";
 import { isUiV2Enabled } from "@/lib/ui-v2";
 
-const bricolage = Bricolage_Grotesque({
-  variable: "--font-bricolage",
-  subsets: ["latin"],
-});
-
-const figtree = Figtree({
-  variable: "--font-figtree",
+const jakarta = Plus_Jakarta_Sans({
+  variable: "--font-jakarta",
   subsets: ["latin"],
 });
 
@@ -38,8 +33,8 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#FFF6EE" },
-    { media: "(prefers-color-scheme: dark)", color: "#1A1326" },
+    { media: "(prefers-color-scheme: light)", color: "#F6F5FB" },
+    { media: "(prefers-color-scheme: dark)", color: "#16112A" },
   ],
 };
 
@@ -62,7 +57,7 @@ export default async function RootLayout({
   return (
     <html
       lang="en"
-      className={`${bricolage.variable} ${figtree.variable} ${ibmPlexMono.variable} h-full antialiased light`}
+      className={`${jakarta.variable} ${ibmPlexMono.variable} h-full antialiased light`}
       data-ui={isUiV2Enabled() ? "v2" : undefined}
       suppressHydrationWarning
     >
@@ -72,7 +67,7 @@ export default async function RootLayout({
         </Script>
         <a
           href="#main-content"
-          className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-full focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground"
+          className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded focus:bg-foreground focus:px-4 focus:py-2 focus:text-background"
         >
           Skip to main content
         </a>

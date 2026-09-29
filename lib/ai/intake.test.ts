@@ -233,7 +233,7 @@ describe("processAiIntake", () => {
     }
   });
 
-  test("falls back when a provider clarifies after three answers", async () => {
+  test("escalates when a provider clarifies after three answers", async () => {
     vi.stubEnv("HELP_DESK_AI_PROVIDER", "anthropic");
     const provider: AiProvider = {
       async classify(): Promise<AiIntakeOutput> {
@@ -259,7 +259,10 @@ describe("processAiIntake", () => {
     );
     expect(result.status).toBe("success");
     if (result.status === "success") {
-      expect(result.output.decision).not.toBe("clarify");
+      expect(result.output.decision).toBe("escalate");
+      expect(
+        result.output.suggestedIssueSlugs?.length ?? 0
+      ).toBeLessThanOrEqual(3);
     }
   });
 
@@ -292,7 +295,7 @@ describe("processAiIntake", () => {
     }
   });
 
-  test("does not fall back recursively for the mock provider", async () => {
+  test("escalates at the answer cap for the mock provider", async () => {
     vi.stubEnv("HELP_DESK_AI_PROVIDER", "mock");
     const provider: AiProvider = {
       async classify(): Promise<AiIntakeOutput> {
@@ -316,7 +319,10 @@ describe("processAiIntake", () => {
       },
       { provider }
     );
-    expect(result.status).toBe("unavailable");
+    expect(result.status).toBe("success");
+    if (result.status === "success") {
+      expect(result.output.decision).toBe("escalate");
+    }
   });
 
   test("does not expose raw user content in log messages", async () => {

@@ -220,13 +220,41 @@ export function useAssistantIntake({
 
   const handleSubmitAnswer = useCallback(
     (questionId: string, answer: string) => {
-      if (!answer.trim()) return;
+      const trimmedAnswer = answer.trim();
+      if (!trimmedAnswer) return;
+      const detected = detectPlatform(trimmedAnswer);
+      let nextPlatform = platform;
+      if (questionId === "which-platform") {
+        nextPlatform = detected ?? "Other";
+      } else if (!platform && detected) {
+        nextPlatform = detected;
+      }
+      setPlatform(nextPlatform);
+      if (previousAnswers.length >= MAX_QUESTIONS) {
+        setCurrentOutput({
+          decision: "escalate",
+          detectedPlatform: nextPlatform,
+          escalationReason:
+            "I couldn't narrow this down with a few questions. Here are the closest approved guides — or send it to a person.",
+          suggestedIssueSlugs: filterIssues({
+            query: [
+              problem,
+              ...previousAnswers.map((item) => item.answer),
+              trimmedAnswer,
+            ].join(" "),
+            platform: nextPlatform,
+          })
+            .map((issue) => issue.id)
+            .slice(0, 3),
+        });
+        return;
+      }
       const answers: DiagnosticAnswer[] = [
         ...previousAnswers,
-        { questionId, answer: answer.trim() },
+        { questionId, answer: trimmedAnswer },
       ];
       setPreviousAnswers(answers);
-      void submitIntake(problem, platform, answers).then((succeeded) => {
+      void submitIntake(problem, nextPlatform, answers).then((succeeded) => {
         if (succeeded) setDiagnosticAnswer("");
       });
     },

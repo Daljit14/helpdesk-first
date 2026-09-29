@@ -419,7 +419,7 @@ export function AssistantWorkspace({
             )}
             {output?.decision === "clarify" && (
               <span className="v2-badge">
-                Question {intake.previousAnswers.length + 1} of 3
+                Question {Math.min(intake.previousAnswers.length + 1, 3)} of 3
               </span>
             )}
           </div>

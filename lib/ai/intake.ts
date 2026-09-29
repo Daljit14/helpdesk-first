@@ -1,4 +1,4 @@
-import { getAllIssueSlugs } from "@/lib/search";
+import { filterIssues, getAllIssueSlugs } from "@/lib/search";
 import { platforms } from "@/lib/helpdesk-data";
 import { getAiModel, getAiProviderKind } from "./config";
 import { createAiProvider } from "./mock-provider";
@@ -90,7 +90,22 @@ export async function processAiIntake(
     coerced?.decision === "clarify" &&
     (input.previousAnswers?.length ?? 0) >= MAX_DIAGNOSTIC_ANSWERS
   ) {
-    coerced = null;
+    const query = [
+      input.message,
+      ...(input.previousAnswers ?? []).map((answer) => answer.answer),
+    ].join(" ");
+    coerced = {
+      decision: "escalate",
+      detectedPlatform: coerced.detectedPlatform ?? input.platform ?? null,
+      suggestedIssueSlugs: filterIssues({
+        query,
+        platform: coerced.detectedPlatform ?? input.platform ?? null,
+      })
+        .map((issue) => issue.id)
+        .slice(0, 3),
+      escalationReason:
+        "I couldn't narrow this down with a few questions. Here are the closest approved guides.",
+    };
   }
   if (!coerced) {
     if (getAiProviderKind() !== "mock") {

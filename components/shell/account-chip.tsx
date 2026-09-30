@@ -85,7 +85,7 @@ export function AccountChip({
         title={`${displayName} · ${email}`}
         onClick={() => setOpen((value) => !value)}
         className={cn(
-          "hf-ava-hover group flex min-h-12 w-full min-w-0 items-center gap-3 rounded-2xl px-2.5 py-1.5 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/25",
+          "hf-ava3-hover group flex min-h-12 w-full min-w-0 items-center gap-3 rounded-2xl px-2.5 py-1.5 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/25",
           open && "bg-muted"
         )}
       >

@@ -144,9 +144,9 @@ export function AvatarPicker({
                   aria-label={characterLabel(id)}
                   onClick={() => void select(value)}
                   className={cn(
-                    "hf-ava-hover grid aspect-square min-w-0 place-items-center rounded-xl p-0.5 hover:bg-muted",
+                    "hf-ava3-hover hf-ava3-tile grid aspect-square min-w-0 place-items-center rounded-xl p-0.5 hover:bg-muted",
                     current === value
-                      ? "hf-ava-on ring-2 ring-primary"
+                      ? "hf-ava3-on ring-2 ring-primary"
                       : undefined
                   )}
                 >

@@ -99,8 +99,7 @@ describe("TroubleshootingGuide", () => {
       );
       expect(
         consoleError.mock.calls
-          .flat()
-          .map((args) => args.join(" "))
+          .map((args) => args.map(String).join(" "))
           .filter((message) => /hydration|did not match/i.test(message))
       ).toEqual([]);
     } finally {

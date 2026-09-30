@@ -290,6 +290,7 @@ export async function addUserComment(
   };
   await notifyAssignedStaff("reply.public", ticketRow, {
     publicReplyExcerpt: body.data,
+    actorRole: "requester",
   });
   revalidatePath(`/tickets/${ticketId}`);
   return { success: true };
@@ -318,8 +319,12 @@ export async function verifyTicket(
       .eq("user_id", user.id)
       .maybeSingle();
     if (ticket) {
-      await notifyRequester("ticket.resolved", ticket);
-      await notifyAssignedStaff("ticket.resolved", ticket);
+      await notifyRequester("ticket.resolved", ticket, {
+        actorRole: "requester",
+      });
+      await notifyAssignedStaff("ticket.resolved", ticket, {
+        actorRole: "requester",
+      });
       if (ticket.organization_id) {
         await createKnowledgeDraftForTicket(
           createAdminClient(),

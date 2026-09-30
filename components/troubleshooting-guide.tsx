@@ -1,13 +1,25 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import {
+  createElement,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft,
+  Bot,
+  Check,
   CheckCircle,
+  ChevronRight,
+  Clock,
   Copy,
   Download,
+  Headset,
   RotateCcw,
   XCircle,
 } from "lucide-react";
@@ -36,6 +48,16 @@ import {
 } from "@/app/actions/resolution";
 import { recordStepOutcome } from "@/app/actions/tickets";
 import type { StepPolicy } from "@/lib/investigation/policy";
+import {
+  ConfettiBurst,
+  JourneyBadge,
+  JourneyCheck,
+  ProgressRing,
+  deriveStepStates,
+  stateChipLabel,
+  stepIconFor,
+  stepMinutes,
+} from "./step-journey";
 
 type TroubleshootingGuideProps = {
   issue: Issue;
@@ -146,6 +168,9 @@ export function TroubleshootingGuide({
       ? "Recorded: your ticket is marked as resolved."
       : null
   );
+
+  // Bumped when the guide ends in success, to replay the confetti burst.
+  const [celebration, setCelebration] = useState(0);
 
   const statusRef = useRef<HTMLDivElement>(null);
   const completedEventSent = useRef(false);
@@ -260,6 +285,7 @@ export function TroubleshootingGuide({
         status: "resolved",
         solvingStep: step,
       }));
+      setCelebration((count) => count + 1);
       if (
         resolutionTrackingEnabled &&
         linkedTicket &&
@@ -344,6 +370,7 @@ export function TroubleshootingGuide({
         { step: currentStep, outcome: "completed" },
       ],
     }));
+    setCelebration((count) => count + 1);
     if (
       resolutionTrackingEnabled &&
       linkedTicket &&
@@ -386,8 +413,51 @@ export function TroubleshootingGuide({
     statusRef.current?.focus();
   }
 
-  const progress =
-    state.status === "in-progress" ? state.currentStepIndex + 1 : totalSteps;
+  const finished = state.status !== "in-progress";
+  const stepStates = deriveStepStates({
+    indexes: visibleStepIndexes,
+    steps,
+    currentIndex: state.currentStepIndex,
+    attempted: state.attemptedSteps,
+    completed: completedSteps,
+    finished,
+  });
+  const doneCount = visibleStepIndexes.filter(
+    (index) => stepStates.get(index) === "done"
+  ).length;
+  const reviewedCount = visibleStepIndexes.filter((index) => {
+    const stepState = stepStates.get(index);
+    return stepState !== "current" && stepState !== "upcoming";
+  }).length;
+  const barRatio = finished
+    ? 1
+    : totalSteps > 0
+      ? reviewedCount / totalSteps
+      : 0;
+  const perStepMinutes = stepMinutes(issue.time, totalSteps);
+  const safetyWarning = getIssueSafetyWarning(issue);
+  const escalationWarning = getIssueEscalationWarning(issue);
+  // Legacy edge case: a restart can point at a step hidden by policy.
+  const currentHidden =
+    !finished && !visibleStepIndexes.includes(state.currentStepIndex);
+  const stepViewProps = {
+    issue,
+    state,
+    onCompleted: handleCompleted,
+    onDidNotWork: handleDidNotWork,
+    onCannotComplete: handleCannotComplete,
+    onSolved: handleSolved,
+    onSkip: advanceStep,
+    onApprovalRequest: handleApprovalRequest,
+    stepPolicies,
+    minutes: perStepMinutes,
+  };
+  const progressCaption =
+    state.status === "resolved"
+      ? "Resolved — nice work"
+      : state.status === "escalated"
+        ? "Needs a hand from IT"
+        : `Up now: step ${currentVisiblePosition + 1}`;
 
   return (
     <div className="mx-auto w-full max-w-6xl">
@@ -401,7 +471,7 @@ export function TroubleshootingGuide({
             {issue.title}
           </h1>
 
-          <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+          <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
             {issue.devices.length > 1 ? (
               <div className="flex items-center gap-2">
                 <label htmlFor="guide-platform" className="font-medium">
@@ -425,29 +495,34 @@ export function TroubleshootingGuide({
             ) : (
               <span>Platform: {platform}</span>
             )}
-            <span>
-              Step {Math.min(progress, totalSteps)} of {totalSteps}
-            </span>
+            {issue.time && (
+              <span className="hf-step-chip">
+                <Clock className="h-3 w-3" aria-hidden />
+                About {issue.time} in total
+              </span>
+            )}
           </div>
 
-          <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-muted">
-            <div
-              className="h-full bg-primary transition-all duration-300"
-              style={{ width: `${(progress / totalSteps) * 100}%` }}
-              aria-hidden="true"
-            />
+          <div className="hf-step-progress sticky top-24 z-20 mt-5 flex items-center gap-4 rounded-2xl border border-border p-3 shadow-sm">
+            <ProgressRing value={doneCount} total={totalSteps} size={52}>
+              {totalSteps > 0 ? Math.round((doneCount / totalSteps) * 100) : 0}%
+            </ProgressRing>
+            <div className="min-w-0 flex-1">
+              <p aria-live="polite" className="text-sm font-extrabold">
+                {doneCount} of {totalSteps} done
+              </p>
+              <p className="text-xs font-semibold text-muted-foreground">
+                {progressCaption}
+              </p>
+              <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                <div
+                  className="hf-step-bar h-full rounded-full"
+                  style={{ width: `${barRatio * 100}%` }}
+                  aria-hidden="true"
+                />
+              </div>
+            </div>
           </div>
-
-          <details className="mt-6 rounded-xl border border-border bg-card p-4 lg:hidden">
-            <summary className="cursor-pointer font-medium">
-              Guide outline
-            </summary>
-            <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm text-muted-foreground">
-              {outlineSteps.map(({ index, text }) => (
-                <li key={`${index}-${text}`}>{text}</li>
-              ))}
-            </ol>
-          </details>
 
           <div
             ref={statusRef}
@@ -462,6 +537,8 @@ export function TroubleshootingGuide({
                 onRestart={handleRestart}
                 resolutionNotice={resolutionNotice}
                 browseReturnHref={browseReturnHref}
+                issueTitle={issue.title}
+                celebration={celebration}
               />
             ) : state.status === "escalated" ? (
               <EscalationView
@@ -474,22 +551,105 @@ export function TroubleshootingGuide({
                 resolutionTrackingEnabled={resolutionTrackingEnabled}
                 browseReturnHref={browseReturnHref}
               />
-            ) : (
-              <StepView
-                key={state.currentStepIndex}
-                issue={issue}
-                state={state}
-                onCompleted={handleCompleted}
-                onDidNotWork={handleDidNotWork}
-                onCannotComplete={handleCannotComplete}
-                onSolved={handleSolved}
-                onSkip={advanceStep}
-                onApprovalRequest={handleApprovalRequest}
-                stepPolicies={stepPolicies}
-                onClearHistory={handleClearHistory}
-              />
+            ) : null}
+
+            {currentHidden && (
+              <div className="mt-6">
+                <StepView key={state.currentStepIndex} {...stepViewProps} />
+              </div>
             )}
+
+            <ol
+              aria-label="Troubleshooting steps"
+              className={cn("hf-step-journey", finished ? "mt-8" : "mt-6")}
+            >
+              {outlineSteps.map(({ index, text }, position) => {
+                const stepState = stepStates.get(index) ?? "upcoming";
+                const isCurrent = stepState === "current";
+                const Icon = stepIconFor(text);
+                const chip = stateChipLabel(stepState);
+                return (
+                  <li
+                    key={`${index}-${text}`}
+                    className="hf-step-item relative pb-4 pl-14 last:pb-0"
+                    data-state={stepState}
+                    style={{ animationDelay: `${0.06 + position * 0.07}s` }}
+                    aria-current={isCurrent ? "step" : undefined}
+                  >
+                    {position < outlineSteps.length - 1 && (
+                      <span
+                        className="hf-step-rail"
+                        data-filled={!isCurrent && stepState !== "upcoming"}
+                        aria-hidden="true"
+                      >
+                        <span />
+                      </span>
+                    )}
+                    <span className="absolute left-0 top-1">
+                      <JourneyBadge state={stepState} number={position + 1} />
+                    </span>
+                    {isCurrent ? (
+                      <StepView
+                        key={state.currentStepIndex}
+                        {...stepViewProps}
+                      />
+                    ) : (
+                      <div className="hf-step-card" data-state={stepState}>
+                        <div className="flex items-start gap-3">
+                          <span className="hf-step-icon" aria-hidden="true">
+                            <Icon className="h-4 w-4" />
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="leading-relaxed text-foreground/90">
+                              <span className="sr-only">
+                                Step {position + 1}:{" "}
+                              </span>
+                              {text}
+                            </p>
+                            {chip && (
+                              <span
+                                className="hf-step-chip mt-2"
+                                data-state={stepState}
+                              >
+                                {chip}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
+            </ol>
           </div>
+
+          {state.status === "in-progress" && (
+            <div className="mt-6 space-y-4">
+              {safetyWarning && state.currentStepIndex === 0 && (
+                <div className="rounded-[24px] border border-accent-foreground/20 bg-accent p-5 text-accent-foreground">
+                  <p className="font-semibold">Safety note</p>
+                  <p className="mt-1">{safetyWarning}</p>
+                </div>
+              )}
+
+              {escalationWarning && (
+                <div className="rounded-[24px] border border-destructive/30 bg-destructive/10 p-5 text-destructive">
+                  <p className="font-semibold">Escalate if needed</p>
+                  <p className="mt-1">{escalationWarning}</p>
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={handleClearHistory}
+                className="text-sm text-muted-foreground underline hover:text-foreground"
+              >
+                Clear my troubleshooting history for this issue
+              </button>
+            </div>
+          )}
+
           {stepSource === "category" && (
             <p className="mt-4 text-sm text-muted-foreground">
               These are general steps for {categoryLabel}. If they don&apos;t
@@ -521,23 +681,41 @@ export function TroubleshootingGuide({
         </div>
         <nav
           aria-label="Guide outline"
-          className="sticky top-6 mt-8 hidden rounded-xl border border-border bg-card p-4 lg:block"
+          className="sticky top-24 mt-8 hidden rounded-2xl border border-border bg-card p-4 shadow-sm lg:block"
         >
           <p className="font-medium">Guide outline</p>
-          <ol className="mt-3 space-y-3 text-sm">
-            {outlineSteps.map(({ index, text }, outlineIndex) => (
-              <li
-                key={`${index}-${text}`}
-                className={
-                  index === state.currentStepIndex
-                    ? "font-semibold text-foreground"
-                    : "text-muted-foreground"
-                }
-              >
-                <span className="mr-2">{outlineIndex + 1}.</span>
-                {text}
-              </li>
-            ))}
+          <ol className="mt-3 space-y-2.5 text-sm">
+            {outlineSteps.map(({ index, text }, outlineIndex) => {
+              const stepState = stepStates.get(index) ?? "upcoming";
+              return (
+                <li
+                  key={`${index}-${text}`}
+                  data-state={stepState}
+                  className={cn(
+                    "hf-step-outline flex gap-2.5",
+                    index === state.currentStepIndex && !finished
+                      ? "font-semibold text-foreground"
+                      : "text-muted-foreground"
+                  )}
+                >
+                  <span
+                    className="hf-step-dot"
+                    data-state={stepState}
+                    aria-hidden="true"
+                  >
+                    {stepState === "done" ? (
+                      <JourneyCheck className="h-3 w-3" />
+                    ) : (
+                      outlineIndex + 1
+                    )}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="sr-only">{outlineIndex + 1}. </span>
+                    {text}
+                  </span>
+                </li>
+              );
+            })}
           </ol>
         </nav>
       </div>
@@ -555,7 +733,7 @@ function StepView({
   onSkip,
   onApprovalRequest,
   stepPolicies,
-  onClearHistory,
+  minutes,
 }: {
   issue: Issue;
   state: GuideState;
@@ -566,7 +744,7 @@ function StepView({
   onSkip: () => void;
   onApprovalRequest: () => void;
   stepPolicies?: StepPolicy[];
-  onClearHistory: () => void;
+  minutes: number | null;
 }) {
   const index = state.currentStepIndex;
   const steps = getIssueSteps(issue);
@@ -589,125 +767,171 @@ function StepView({
   const step = steps[index];
   const policy = stepPolicies?.find((item) => item.stepIndex === index);
   const [confirmed, setConfirmed] = useState(false);
-  const safetyWarning = getIssueSafetyWarning(issue);
-  const escalationWarning = getIssueEscalationWarning(issue);
+  const isLast = visiblePosition >= total - 1;
 
   return (
-    <div className="mt-6 space-y-6">
-      <p
-        data-testid="step-count"
-        aria-live="polite"
-        className="text-sm font-medium text-muted-foreground"
-      >
-        Step {visiblePosition + 1} of {total}
-      </p>
-
-      <div className="glass-strong p-6">
-        <h2
-          data-testid="step-title"
-          className={`text-xl font-semibold ${
-            policy?.risk === "approval" ? "text-muted-foreground" : ""
-          }`}
+    <div className="hf-step-card hf-step-expand" data-state="current">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="hf-step-icon" data-state="current" aria-hidden="true">
+          {createElement(stepIconFor(step ?? ""), { className: "h-4 w-4" })}
+        </span>
+        <p
+          data-testid="step-count"
+          aria-live="polite"
+          className="text-sm font-extrabold text-primary"
         >
-          {step}
-        </h2>
-        {policy && policy.risk !== "safe" && (
+          Step {visiblePosition + 1} of {total}
+        </p>
+        {minutes !== null && (
           <span
-            className={`mt-3 inline-flex rounded-full border px-2 py-1 text-xs ${
-              policy.risk === "caution"
-                ? "border-amber-500/60 bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
-                : "border-border text-muted-foreground"
-            }`}
+            className="hf-step-chip"
+            title="Estimated from the guide's total time"
           >
-            {policy.risk === "caution"
-              ? "Confirm first"
-              : "Requires IT approval"}
+            <Clock className="h-3 w-3" aria-hidden />~{minutes} min
           </span>
         )}
       </div>
 
-      {policy?.risk === "approval" ? (
-        <div className="flex flex-wrap gap-3 rounded-xl border border-border bg-card p-3">
-          <Button type="button" onClick={onApprovalRequest}>
-            Ask IT to approve
-          </Button>
-          <Button type="button" variant="outline" onClick={onSkip}>
-            Skip
-          </Button>
-        </div>
-      ) : policy?.risk === "caution" && !confirmed ? (
-        <div className="rounded-xl border border-border bg-card p-3">
+      <h2
+        data-testid="step-title"
+        className={cn(
+          "mt-3 text-xl font-bold leading-snug",
+          policy?.risk === "approval" && "text-muted-foreground"
+        )}
+      >
+        {step}
+      </h2>
+      {policy && policy.risk !== "safe" && (
+        <span
+          className={`mt-3 inline-flex rounded-full border px-2 py-1 text-xs ${
+            policy.risk === "caution"
+              ? "border-amber-500/60 bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+              : "border-border text-muted-foreground"
+          }`}
+        >
+          {policy.risk === "caution" ? "Confirm first" : "Requires IT approval"}
+        </span>
+      )}
+
+      <div className="mt-5">
+        {policy?.risk === "approval" ? (
+          <div className="flex flex-wrap gap-3">
+            <Button type="button" onClick={onApprovalRequest}>
+              Ask IT to approve
+            </Button>
+            <Button type="button" variant="outline" onClick={onSkip}>
+              Skip
+            </Button>
+          </div>
+        ) : policy?.risk === "caution" && !confirmed ? (
           <Button type="button" onClick={() => setConfirmed(true)}>
             I understand, continue
           </Button>
-        </div>
-      ) : (
-        <div className="grid gap-3 rounded-xl border border-border bg-card p-3 sm:grid-cols-2">
-          <Button type="button" variant="default" onClick={onSolved}>
-            <CheckCircle className="mr-2 h-4 w-4" />
-            Problem solved
-          </Button>
+        ) : (
+          <div role="group" aria-labelledby={`hf-step-q-${index}`}>
+            <p
+              id={`hf-step-q-${index}`}
+              className="mb-2.5 text-sm font-bold text-muted-foreground"
+            >
+              {isLast ? "Last step — is it fixed now?" : "How did it go?"}
+            </p>
+            <div className="grid gap-2.5 sm:grid-cols-2">
+              <Button
+                type="button"
+                variant="default"
+                onClick={onSolved}
+                className="hf-step-solve"
+              >
+                <CheckCircle className="mr-2 h-4 w-4" />
+                Problem solved
+              </Button>
 
-          <Button type="button" variant="outline" onClick={onCompleted}>
-            Completed, still testing
-          </Button>
+              <Button type="button" variant="outline" onClick={onCompleted}>
+                <Check className="mr-2 h-4 w-4" aria-hidden />
+                Completed, still testing
+              </Button>
 
-          <Button type="button" variant="outline" onClick={onDidNotWork}>
-            Didn&apos;t work
-          </Button>
+              <Button type="button" variant="outline" onClick={onDidNotWork}>
+                Didn&apos;t work
+              </Button>
 
-          <Button type="button" variant="ghost" onClick={onCannotComplete}>
-            <XCircle className="mr-2 h-4 w-4" />
-            Can&apos;t do this
-          </Button>
-        </div>
-      )}
-
-      {safetyWarning && index === 0 && (
-        <div className="rounded-[24px] border border-accent-foreground/20 bg-accent p-5 text-accent-foreground">
-          <p className="font-semibold">Safety note</p>
-          <p className="mt-1">{safetyWarning}</p>
-        </div>
-      )}
-
-      {escalationWarning && (
-        <div className="rounded-[24px] border border-destructive/30 bg-destructive/10 p-5 text-destructive">
-          <p className="font-semibold">Escalate if needed</p>
-          <p className="mt-1">{escalationWarning}</p>
-        </div>
-      )}
-
-      <button
-        type="button"
-        onClick={onClearHistory}
-        className="text-sm text-muted-foreground underline hover:text-foreground"
-      >
-        Clear my troubleshooting history for this issue
-      </button>
+              <Button type="button" variant="ghost" onClick={onCannotComplete}>
+                <XCircle className="mr-2 h-4 w-4" />
+                Can&apos;t do this
+              </Button>
+            </div>
+            {!isLast && (
+              <button
+                type="button"
+                onClick={onSkip}
+                className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+              >
+                Skip this step for now
+                <ChevronRight className="h-3.5 w-3.5" aria-hidden />
+              </button>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
+function HelpLinks({ issueTitle }: { issueTitle: string }) {
+  const q = encodeURIComponent(issueTitle);
+  return (
+    <div className="flex flex-wrap justify-center gap-2">
+      <Link
+        href={`/assistant?q=${q}`}
+        className={cn(
+          buttonVariants({ variant: "outline", size: "sm" }),
+          "hf-step-help"
+        )}
+      >
+        <Bot className="mr-1.5 h-4 w-4" aria-hidden />
+        Ask the assistant
+      </Link>
+      <Link
+        href={`/assistant?q=${q}&intent=human`}
+        className={cn(
+          buttonVariants({ variant: "outline", size: "sm" }),
+          "hf-step-help"
+        )}
+      >
+        <Headset className="mr-1.5 h-4 w-4" aria-hidden />
+        Contact support
+      </Link>
+    </div>
+  );
+}
+
 function SuccessView({
   state,
   onChange,
   onRestart,
   resolutionNotice,
   browseReturnHref,
+  issueTitle,
+  celebration,
 }: {
   state: GuideState;
   onChange: (state: GuideState) => void;
   onRestart: () => void;
   resolutionNotice: string | null;
   browseReturnHref: string;
+  issueTitle: string;
+  celebration: number;
 }) {
   function handleRate(rating: "helpful" | "not-helpful") {
     onChange({ ...state, rating });
   }
 
   return (
-    <div className="glass-strong mt-6 p-6 text-center">
-      <CheckCircle className="mx-auto h-12 w-12 text-emerald-600" />
-      <h2 data-testid="guide-status" className="mt-4 text-2xl font-semibold">
+    <div className="hf-step-finale glass-strong relative mt-6 overflow-hidden p-6 text-center">
+      {celebration > 0 && <ConfettiBurst key={celebration} />}
+      <span className="hf-step-trophy mx-auto" aria-hidden="true">
+        <JourneyCheck className="h-9 w-9" />
+      </span>
+      <h2 data-testid="guide-status" className="mt-4 text-2xl font-extrabold">
         Problem solved
       </h2>
 
@@ -729,6 +953,7 @@ function SuccessView({
           <Button
             type="button"
             variant={state.rating === "helpful" ? "default" : "outline"}
+            aria-pressed={state.rating === "helpful"}
             onClick={() => handleRate("helpful")}
           >
             Yes
@@ -736,6 +961,7 @@ function SuccessView({
           <Button
             type="button"
             variant={state.rating === "not-helpful" ? "destructive" : "outline"}
+            aria-pressed={state.rating === "not-helpful"}
             onClick={() => handleRate("not-helpful")}
           >
             No
@@ -746,6 +972,22 @@ function SuccessView({
             Thank you for your feedback.
           </p>
         )}
+      </div>
+
+      <div className="mt-6 rounded-2xl border border-dashed border-border p-4">
+        <p className="text-sm font-semibold text-muted-foreground">
+          Came back, or only partly better?
+        </p>
+        <div className="mt-3 flex flex-col items-center gap-3">
+          <HelpLinks issueTitle={issueTitle} />
+          <button
+            type="button"
+            onClick={() => onChange({ ...state, status: "escalated" })}
+            className="text-sm font-semibold text-primary underline-offset-4 hover:underline"
+          >
+            It&apos;s still happening — prepare a report for IT
+          </button>
+        </div>
       </div>
 
       <div className="mt-8 flex flex-wrap justify-center gap-3">
@@ -838,8 +1080,8 @@ function EscalationView({
   }
 
   return (
-    <div className="glass-strong mt-6 p-6 shadow-sm">
-      <h2 data-testid="guide-status" className="text-2xl font-semibold">
+    <div className="glass-strong hf-step-expand mt-6 p-6 shadow-sm">
+      <h2 data-testid="guide-status" className="text-2xl font-extrabold">
         This problem is unresolved
       </h2>
       <p className="mt-2 text-muted-foreground">
@@ -914,6 +1156,13 @@ function EscalationView({
           </Link>
         </p>
       )}
+
+      <div className="mt-6 rounded-2xl border border-dashed border-border p-4">
+        <p className="mb-3 text-sm font-semibold text-muted-foreground">
+          Prefer to talk it through?
+        </p>
+        <HelpLinks issueTitle={issue.title} />
+      </div>
 
       <div className="mt-8 flex flex-wrap gap-3">
         <Button type="button" variant="outline" onClick={onRestart}>

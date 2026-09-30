@@ -53,6 +53,10 @@ export async function signUpAction(
     email: formData.get("email"),
     password: formData.get("password"),
     confirmPassword: formData.get("confirmPassword"),
+    fullName: formData.get("fullName"),
+    jobTitle: formData.get("jobTitle"),
+    primaryDevice: formData.get("primaryDevice"),
+    acceptTerms: formData.get("acceptTerms"),
   });
 
   if (!parsed.success) {
@@ -64,7 +68,15 @@ export async function signUpAction(
   const { data, error } = await supabase.auth.signUp({
     email: parsed.data.email,
     password: parsed.data.password,
-    ...(captchaToken ? { options: { captchaToken } } : {}),
+    options: {
+      data: {
+        full_name: parsed.data.fullName,
+        job_title: parsed.data.jobTitle || null,
+        primary_device: parsed.data.primaryDevice || null,
+        terms_accepted_at: new Date().toISOString(),
+      },
+      ...(captchaToken ? { captchaToken } : {}),
+    },
   });
 
   if (error) {

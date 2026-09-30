@@ -277,4 +277,24 @@ describe("TroubleshootingGuide", () => {
       ).queryByText(steps[0]!)
     ).not.toBeInTheDocument();
   });
+
+  test("journey progress counts completed steps", async () => {
+    render(<TroubleshootingGuide issue={issue} />);
+    await waitFor(() =>
+      expect(screen.getByTestId("step-count")).toHaveTextContent(/Step 1 of 5/)
+    );
+    expect(screen.getByText("0 of 5 done")).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Completed, still testing" })
+    );
+    await waitFor(() =>
+      expect(screen.getByText("1 of 5 done")).toBeInTheDocument()
+    );
+    const journey = screen.getByRole("list", { name: "Troubleshooting steps" });
+    expect(within(journey).getByText("Done")).toBeInTheDocument();
+    expect(
+      within(journey).getByRole("button", { name: "Skip this step for now" })
+    ).toBeInTheDocument();
+  });
 });

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { dispatchPending, replayDead } from "./dispatch";
+import { audienceForRow, dispatchPending, replayDead } from "./dispatch";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAdminSession } from "@/lib/admin/auth";
 import { sendEmail } from "./email";
@@ -64,6 +64,31 @@ describe("dispatchPending", () => {
     expect(result.sent).toBe(1);
     expect(sendEmail).toHaveBeenCalledWith(
       expect.objectContaining({ to: "to@example.com" })
+    );
+  });
+
+  test("sends branded html alongside plain text", async () => {
+    const row = {
+      id: "n1",
+      organization_id: "org-1",
+      ticket_id: "t1",
+      event_type: "reply.public",
+      channel: "email",
+      recipient_user_id: "u1",
+      subject: "💬 New reply on “VPN”",
+      body: "The requester replied on “VPN”:\n\n> <b>still down</b>",
+      url: "https://help.example.com/admin/tickets/t1",
+      attempts: 0,
+    };
+    const admin = makeAdminClient(row);
+    vi.mocked(sendEmail).mockResolvedValue({ ok: true });
+    vi.mocked(createAdminClient).mockReturnValue(admin as never);
+    await dispatchPending();
+    const input = vi.mocked(sendEmail).mock.calls[0][0];
+    expect(input.html).toContain("Open in admin");
+    expect(input.html).toContain("&lt;b&gt;still down&lt;/b&gt;");
+    expect(input.text).toContain(
+      "Open in admin: https://help.example.com/admin/tickets/t1"
     );
   });
 
@@ -157,6 +182,27 @@ describe("dispatchPending", () => {
     const result = await dispatchPending();
     expect(result.dead).toBe(1);
     expect(admin.from).toHaveBeenCalledWith("notification_outbox");
+  });
+});
+
+describe("audienceForRow", () => {
+  test("uses the admin url or staff-only events", () => {
+    expect(
+      audienceForRow({
+        url: "https://x.example/admin/tickets/1",
+        event_type: "reply.public",
+      })
+    ).toBe("staff");
+    expect(
+      audienceForRow({
+        url: "https://x.example/tickets/1",
+        event_type: "reply.public",
+      })
+    ).toBe("requester");
+    expect(
+      audienceForRow({ url: null, event_type: "security.autonomy_alert" })
+    ).toBe("staff");
+    expect(audienceForRow({ url: null, event_type: null })).toBe("requester");
   });
 });
 

@@ -12,7 +12,6 @@ import { categories } from "@/lib/helpdesk-data";
 import { StartGuideButton } from "@/components/start-guide-button";
 import type { Metadata } from "next";
 import {
-  getIssueSteps,
   getIssueSafetyWarning,
   getIssueEscalationWarning,
   getIssueStepMeta,
@@ -20,7 +19,8 @@ import {
 } from "@/lib/steps";
 import { getCurrentUser } from "@/lib/supabase/user";
 import { buildBrowseReturnHref } from "@/lib/browse-return";
-import { platformSlug } from "@/lib/platform";
+import { normalizePlatform, platformSlug } from "@/lib/platform";
+import { StepJourneyPreview } from "@/components/step-journey";
 import { Badge } from "@/components/ui/badge";
 import { categoryLook } from "@/components/home/category-look";
 import {
@@ -30,7 +30,7 @@ import {
 } from "@/lib/guides-data";
 import { GuideActions } from "@/components/guide-actions";
 import { RecentTracker } from "@/components/recent-tracker";
-import { NetworkCheckWidget } from "@/components/network-check-widget";
+import { CategoryTools } from "@/components/tools/category-tools";
 import {
   isSecureAttachmentsEnabled,
   isTicketWorkflowEnabled,
@@ -83,7 +83,6 @@ export default async function IssuePage({
   const hasBrowseParams = backHref !== "/browse";
 
   const category = categories.find((c) => c.id === issue.category);
-  const steps = getIssueSteps(issue);
   const safetyWarning = getIssueSafetyWarning(issue);
   const escalationWarning = getIssueEscalationWarning(issue);
   const stepSource = getIssueStepSource(issue);
@@ -174,7 +173,7 @@ export default async function IssuePage({
           </div>
         </div>
 
-        {issue.category === "network" && <NetworkCheckWidget />}
+        <CategoryTools category={issue.category} />
 
         <div className="mt-6 flex flex-wrap items-center gap-3">
           <StartGuideButton slug={issue.id} />
@@ -204,26 +203,10 @@ export default async function IssuePage({
         )}
 
         <div className="mt-8">
-          <h2 className="text-xl font-extrabold">
-            Initial troubleshooting steps
-          </h2>
-          <ol className="mt-4 grid gap-3">
-            {steps.map((step, index) => (
-              <li
-                key={index}
-                className="hf-pop flex items-start gap-4 rounded-[20px] border border-border bg-card p-4 shadow-sm"
-                style={{ animationDelay: `${0.1 + index * 0.06}s` }}
-              >
-                <span
-                  aria-hidden
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-extrabold text-secondary-foreground"
-                >
-                  {index + 1}
-                </span>
-                <span className="pt-1">{step}</span>
-              </li>
-            ))}
-          </ol>
+          <StepJourneyPreview
+            issue={issue}
+            platform={normalizePlatform(query.platform)}
+          />
         </div>
 
         {stepSource === "category" && (

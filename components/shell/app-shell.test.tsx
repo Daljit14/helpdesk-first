@@ -33,6 +33,19 @@ describe("AppShell", () => {
       screen.getAllByRole("link", { name: "Start" }).length
     ).toBeGreaterThan(0);
     expect(screen.getAllByText("person@example.com").length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("link", { name: "Toolkit" })[0]).toHaveAttribute(
+      "href",
+      "/tools"
+    );
+    expect(
+      screen.getAllByRole("link", { name: "System status" })[0]
+    ).toHaveAttribute("href", "/status");
+    expect(
+      screen.getAllByRole("link", { name: "Wi-Fi keeps dropping" })[0]
+    ).toHaveAttribute("href", "/issues/wifi-disconnecting/guide");
+    expect(
+      screen.getAllByRole("link", { name: /Start a chat/ }).length
+    ).toBeGreaterThan(0);
     expect(
       screen.queryByText(/user_metadata|supabase/i)
     ).not.toBeInTheDocument();

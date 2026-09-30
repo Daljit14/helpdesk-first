@@ -3,19 +3,29 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  Activity,
   ArrowRight,
   Bookmark,
   Bot,
   ChevronRight,
+  KeyRound,
   LayoutDashboard,
+  Lightbulb,
   LogOut,
+  Mail,
   Menu,
   Moon,
+  Printer,
   Search,
   Sun,
   Ticket,
+  Volume2,
+  Wifi,
+  Wrench,
+  Zap,
+  type LucideIcon,
 } from "lucide-react";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { logoutAction } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
@@ -29,12 +39,22 @@ import { AccountChip } from "@/components/shell/account-chip";
 import { TypewriterText } from "@/components/assistant/typewriter-text";
 import { cn } from "@/lib/utils";
 
-const navItems = [
+type NavItem = {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  ai?: boolean;
+  live?: boolean;
+};
+
+const navItems: NavItem[] = [
   { href: "/", label: "Start", icon: LayoutDashboard },
   { href: "/browse", label: "Browse solutions", icon: Search },
   { href: "/assistant", label: "Support Assistant", icon: Bot, ai: true },
   { href: "/tickets", label: "My tickets", icon: Ticket },
   { href: "/bookmarks", label: "Bookmarks", icon: Bookmark },
+  { href: "/tools", label: "Toolkit", icon: Wrench },
+  { href: "/status", label: "System status", icon: Activity, live: true },
 ];
 
 function isActive(pathname: string, href: string) {
@@ -54,11 +74,11 @@ function Navigation({
   label?: string;
 }) {
   return (
-    <nav aria-label={label}>
-      <ul className="grid gap-1.5">
+    <nav aria-label={label} className="min-w-0">
+      <ul className="grid min-w-0 gap-1.5 [@media(max-height:780px)]:gap-1">
         {navItems
           .filter((item) => !item.ai || aiEnabled)
-          .map(({ href, label, icon: Icon }) => {
+          .map(({ href, label, icon: Icon, live }) => {
             const active = isActive(pathname, href);
             return (
               <li key={href}>
@@ -67,7 +87,7 @@ function Navigation({
                   aria-current={active ? "page" : undefined}
                   onClick={onNavigate}
                   className={cn(
-                    "relative flex min-h-12 items-center gap-3.5 rounded-2xl px-4 text-[15px] font-semibold",
+                    "relative flex min-h-12 min-w-0 items-center gap-3.5 rounded-2xl px-4 text-[15px] font-semibold [@media(max-height:780px)]:min-h-10",
                     active
                       ? "hf-pill-in bg-secondary text-secondary-foreground"
                       : "hf-navlink text-nav-muted hover:bg-muted hover:text-foreground"
@@ -79,8 +99,17 @@ function Navigation({
                       className="absolute -left-4 top-3 bottom-3 w-1 rounded-r bg-primary"
                     />
                   )}
-                  <Icon className="h-[18px] w-[18px]" aria-hidden />
-                  {label}
+                  <Icon className="h-[18px] w-[18px] shrink-0" aria-hidden />
+                  <span className="min-w-0 truncate">{label}</span>
+                  {live && (
+                    <span
+                      aria-hidden
+                      className="relative ml-auto flex h-2 w-2 shrink-0"
+                    >
+                      <span className="hf-ping absolute inset-0 rounded-full bg-status-success" />
+                      <span className="relative h-2 w-2 rounded-full bg-status-success" />
+                    </span>
+                  )}
                 </Link>
               </li>
             );
@@ -98,7 +127,7 @@ const HELPER_LINES = [
   "I can find the right fix.",
 ];
 
-function RotatingBubble() {
+function RotatingTip() {
   const [index, setIndex] = useState(0);
   useEffect(() => {
     const id = window.setInterval(
@@ -108,7 +137,7 @@ function RotatingBubble() {
     return () => window.clearInterval(id);
   }, []);
   return (
-    <span className="relative min-w-0 flex-1 rounded-2xl rounded-bl-md bg-card px-3 py-2 text-xs font-bold shadow-sm">
+    <span className="min-w-0 flex-1 truncate">
       <TypewriterText key={index} text={HELPER_LINES[index]} speed={35} />
     </span>
   );
@@ -117,31 +146,57 @@ function RotatingBubble() {
 function AssistantHelper({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <>
-      <div className="hf-hue relative overflow-hidden rounded-[22px] bg-[linear-gradient(120deg,var(--muted),#fdf2f8,#eef6ff,var(--muted))] p-4 text-foreground [@media(max-height:780px)]:hidden dark:bg-[linear-gradient(120deg,#2c2350,#3a1f3d,#1f2a4d,#2c2350)]">
-        <div className="flex items-center gap-2.5">
-          <AnimatedAvatar id="bot" size={48} className="bg-card shadow-sm" />
-          <RotatingBubble />
+      <div className="hf-side-chat relative min-w-0 overflow-hidden rounded-[22px] border border-border bg-card p-3.5 text-foreground shadow-sm [@media(max-height:780px)]:hidden">
+        <span
+          aria-hidden
+          className="hf-side-orb pointer-events-none absolute -right-10 -top-12 h-32 w-32 rounded-full"
+        />
+        <div className="relative flex min-w-0 items-center gap-3">
+          <span className="relative shrink-0">
+            <AnimatedAvatar
+              id="bot"
+              size={44}
+              className="ring-2 ring-card shadow-sm"
+            />
+            <span
+              aria-hidden
+              className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-card bg-status-success"
+            />
+          </span>
+          <div className="min-w-0">
+            <p className="text-[15px] font-extrabold leading-tight">
+              Stuck on something?
+            </p>
+            <p className="truncate text-xs font-medium text-muted-foreground">
+              Chat with the assistant — it can hand you to a person.
+            </p>
+          </div>
         </div>
-        <p className="mt-3 text-[15px] font-extrabold">Stuck on something?</p>
-        <p className="mt-1 text-[13px] leading-snug text-muted-foreground">
-          Chat with the assistant — it can hand you to a person.
+        <p className="relative mt-3 flex min-w-0 items-center gap-2 rounded-xl bg-muted px-2.5 py-2 text-xs font-bold">
+          <Lightbulb
+            className="h-3.5 w-3.5 shrink-0 text-primary"
+            aria-hidden
+          />
+          <RotatingTip />
         </p>
         <Link
           href="/assistant"
           onClick={onNavigate}
-          className="group mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-foreground px-4 text-[13px] font-bold text-background transition-transform hover:-translate-y-0.5"
+          className="group relative mt-3 flex min-h-11 w-full items-center gap-2 rounded-xl bg-[linear-gradient(120deg,#4b2fb8,#7c5cff_45%,#d946ef)] px-4 text-[13px] font-bold text-white shadow-sm transition-transform hover:-translate-y-0.5"
         >
           Start a chat
-          <ArrowRight
-            className="h-4 w-4 transition-transform group-hover:translate-x-1"
-            aria-hidden
-          />
+          <span className="ml-auto flex h-7 w-7 items-center justify-center rounded-lg bg-white/20">
+            <ArrowRight
+              className="h-4 w-4 transition-transform group-hover:translate-x-0.5"
+              aria-hidden
+            />
+          </span>
         </Link>
       </div>
       <Link
         href="/assistant"
         onClick={onNavigate}
-        className="hidden min-h-12 items-center gap-3 rounded-2xl bg-muted px-3 text-sm font-bold [@media(max-height:780px)]:flex"
+        className="hidden min-h-12 min-w-0 items-center gap-3 rounded-2xl bg-muted px-3 text-sm font-bold [@media(max-height:780px)]:flex"
       >
         <AnimatedAvatar id="bot" size={32} className="bg-card" />
         Start a chat
@@ -151,31 +206,96 @@ function AssistantHelper({ onNavigate }: { onNavigate?: () => void }) {
   );
 }
 
+/** Popular guides, shown three at a time and rotated every few seconds. */
+const QUICK_FIXES: { id: string; label: string; icon: LucideIcon }[] = [
+  { id: "wifi-disconnecting", label: "Wi-Fi keeps dropping", icon: Wifi },
+  { id: "printer-offline", label: "Printer is offline", icon: Printer },
+  { id: "forgot-password", label: "Forgot my password", icon: KeyRound },
+  { id: "no-sound", label: "No sound", icon: Volume2 },
+  { id: "email-not-syncing", label: "Email not syncing", icon: Mail },
+  { id: "slow-computer", label: "Computer is slow", icon: Zap },
+];
+
+function QuickFixes({ onNavigate }: { onNavigate?: () => void }) {
+  const [page, setPage] = useState(0);
+  const pages = Math.ceil(QUICK_FIXES.length / 3);
+  useEffect(() => {
+    const id = window.setInterval(
+      () => setPage((value) => (value + 1) % pages),
+      9000
+    );
+    return () => window.clearInterval(id);
+  }, [pages]);
+  const titleId = useId();
+  const visible = QUICK_FIXES.slice(page * 3, page * 3 + 3);
+  return (
+    <section
+      aria-labelledby={titleId}
+      className="hf-side-quick min-w-0 rounded-[22px] border border-border bg-card/70 p-3 [@media(max-height:780px)]:hidden"
+    >
+      <div className="flex items-center justify-between gap-2 px-1">
+        <h2
+          id={titleId}
+          className="text-xs font-extrabold uppercase tracking-wide text-muted-foreground"
+        >
+          Quick fixes
+        </h2>
+        <span aria-hidden className="flex gap-1">
+          {Array.from({ length: pages }, (_, i) => (
+            <span
+              key={i}
+              className={cn(
+                "h-1.5 rounded-full transition-all",
+                i === page ? "w-4 bg-primary" : "w-1.5 bg-border"
+              )}
+            />
+          ))}
+        </span>
+      </div>
+      <ul key={page} className="hf-swap mt-2 grid min-w-0 gap-1">
+        {visible.map(({ id, label, icon: Icon }) => (
+          <li key={id} className="min-w-0">
+            <Link
+              href={`/issues/${id}/guide`}
+              onClick={onNavigate}
+              className="group flex min-h-10 min-w-0 items-center gap-2.5 rounded-xl px-2 text-[13px] font-semibold text-nav-muted hover:bg-muted hover:text-foreground"
+            >
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-secondary text-secondary-foreground">
+                <Icon className="h-3.5 w-3.5" aria-hidden />
+              </span>
+              <span className="min-w-0 flex-1 truncate">{label}</span>
+              <ChevronRight
+                className="h-3.5 w-3.5 shrink-0 opacity-50 transition-transform group-hover:translate-x-0.5 group-hover:opacity-100"
+                aria-hidden
+              />
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 function SidebarFooter({
   email,
   staff,
   avatar,
+  displayName,
   onNavigate,
 }: {
   email?: string | null;
   staff: boolean;
   avatar?: string | null;
+  displayName?: string | null;
   onNavigate?: () => void;
 }) {
   const linkClass =
     "hf-navlink flex min-h-11 items-center gap-3 rounded-xl px-4 text-sm font-semibold text-nav-muted hover:bg-muted hover:text-foreground";
   return (
-    <div className="grid gap-1.5 border-t border-border pt-4">
-      <Link href="/status" onClick={onNavigate} className={linkClass}>
-        <span className="relative flex h-[18px] w-[18px] items-center justify-center">
-          <span className="hf-ping absolute h-2 w-2 rounded-full bg-status-success" />
-          <span className="h-2 w-2 rounded-full bg-status-success" />
-        </span>
-        System status
-      </Link>
+    <div className="grid min-w-0 gap-1.5 border-t border-border pt-4 [@media(max-height:780px)]:pt-3">
       {email ? (
         <>
-          <AccountChip email={email} avatar={avatar} />
+          <AccountChip email={email} avatar={avatar} name={displayName} />
           <form action={logoutAction} className="px-2">
             <Button
               type="submit"
@@ -232,12 +352,15 @@ export function AppShell({
   staff = false,
   aiEnabled = false,
   avatar,
+  displayName,
 }: {
   children: ReactNode;
   email?: string | null;
   staff?: boolean;
   aiEnabled?: boolean;
   avatar?: string | null;
+  /** Optional full name (user_metadata.full_name) shown on the account chip. */
+  displayName?: string | null;
 }) {
   const pathname = usePathname() ?? "/";
   const { theme, toggleTheme } = useTheme();
@@ -260,12 +383,18 @@ export function AppShell({
 
   return (
     <div className="min-h-full bg-background text-foreground lg:grid lg:grid-cols-[264px_1fr]">
-      <aside className="sticky top-0 hidden h-screen flex-col gap-6 overflow-y-auto [@media(max-height:780px)]:gap-4 border-r border-border bg-nav px-4 py-6 text-nav-foreground lg:flex">
+      <aside className="hf-side sticky top-0 hidden h-screen min-w-0 flex-col gap-5 overflow-y-auto overflow-x-hidden border-r border-border bg-nav px-4 py-6 text-nav-foreground [@media(max-height:780px)]:gap-3 [@media(max-height:780px)]:py-4 lg:flex">
         <Brand />
         <Navigation pathname={pathname} aiEnabled={aiEnabled} />
         {aiEnabled && <AssistantHelper />}
-        <div className="mt-auto">
-          <SidebarFooter email={email} staff={staff} avatar={avatar} />
+        <QuickFixes />
+        <div className="mt-auto min-w-0">
+          <SidebarFooter
+            email={email}
+            staff={staff}
+            avatar={avatar}
+            displayName={displayName}
+          />
         </div>
       </aside>
 
@@ -325,7 +454,7 @@ export function AppShell({
         title="Navigation"
         triggerRef={drawerTriggerRef}
       >
-        <div className="flex min-h-full flex-col gap-6">
+        <div className="hf-side flex min-h-full w-full min-w-0 max-w-full flex-col gap-5">
           <Brand />
           <Navigation
             pathname={pathname}
@@ -334,11 +463,13 @@ export function AppShell({
             label="Mobile"
           />
           {aiEnabled && <AssistantHelper onNavigate={closeDrawer} />}
-          <div className="mt-auto">
+          <QuickFixes onNavigate={closeDrawer} />
+          <div className="mt-auto min-w-0">
             <SidebarFooter
               email={email}
               staff={staff}
               avatar={avatar}
+              displayName={displayName}
               onNavigate={closeDrawer}
             />
           </div>

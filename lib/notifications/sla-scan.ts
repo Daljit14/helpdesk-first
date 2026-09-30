@@ -79,6 +79,7 @@ export async function scanSla(): Promise<{
         ticketTitle: ticket.issue_title,
         ticketId: ticket.id,
         status: ticket.status,
+        audience: "staff",
       });
       await enqueueNotification({
         organizationId: ticket.organization_id,
@@ -106,6 +107,7 @@ export async function scanSla(): Promise<{
         ticketTitle: ticket.issue_title,
         ticketId: ticket.id,
         status: ticket.status,
+        audience: "staff",
       });
       await enqueueNotification({
         organizationId: ticket.organization_id,
@@ -132,6 +134,7 @@ export async function scanSla(): Promise<{
         ticketTitle: ticket.issue_title,
         ticketId: ticket.id,
         status: ticket.status,
+        audience: "staff",
       });
       await enqueueNotification({
         organizationId: ticket.organization_id,

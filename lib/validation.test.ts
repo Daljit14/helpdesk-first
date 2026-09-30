@@ -121,6 +121,8 @@ describe("signUpSchema", () => {
         email: "person@example.com",
         password: "ValidPass1",
         confirmPassword: "OtherPass1",
+        fullName: "Pat Person",
+        acceptTerms: "on",
       }).error?.issues
     ).toContainEqual(
       expect.objectContaining({
@@ -128,5 +130,55 @@ describe("signUpSchema", () => {
         message: "Passwords do not match.",
       })
     );
+  });
+
+  test("requires a full name and the terms checkbox", () => {
+    const issues = signUpSchema.safeParse({
+      email: "person@example.com",
+      password: "ValidPass1",
+      confirmPassword: "ValidPass1",
+    }).error?.issues;
+    expect(issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: ["fullName"],
+          message: "Enter your full name.",
+        }),
+        expect.objectContaining({ path: ["acceptTerms"] }),
+      ])
+    );
+  });
+
+  test("accepts optional profile fields and normalizes them", () => {
+    const result = signUpSchema.safeParse({
+      email: "Person@Example.com",
+      password: "ValidPass1",
+      confirmPassword: "ValidPass1",
+      fullName: "  Pat   Person ",
+      jobTitle: " Finance ",
+      primaryDevice: "Mac",
+      acceptTerms: "on",
+    });
+    expect(result.success).toBe(true);
+    expect(result.data).toMatchObject({
+      email: "person@example.com",
+      fullName: "Pat Person",
+      jobTitle: "Finance",
+      primaryDevice: "Mac",
+      acceptTerms: true,
+    });
+  });
+
+  test("rejects an unknown primary device", () => {
+    expect(
+      signUpSchema.safeParse({
+        email: "person@example.com",
+        password: "ValidPass1",
+        confirmPassword: "ValidPass1",
+        fullName: "Pat Person",
+        primaryDevice: "Toaster",
+        acceptTerms: "on",
+      }).error?.issues
+    ).toContainEqual(expect.objectContaining({ path: ["primaryDevice"] }));
   });
 });

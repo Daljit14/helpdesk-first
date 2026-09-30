@@ -1,5 +1,16 @@
 import { z } from "zod";
 import { getIssueBySlug } from "./search";
+import {
+  acceptedTerms,
+  fullNameError,
+  jobTitleError,
+  primaryDeviceError,
+  TERMS_ERROR,
+} from "./auth/signup-fields";
+
+function optionalText(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
 
 export const signUpSchema = z
   .object({
@@ -43,6 +54,33 @@ export const signUpSchema = z
       if (!value)
         ctx.addIssue({ code: "custom", message: "Confirm your password." });
     }),
+    fullName: z
+      .unknown()
+      .transform((value) => optionalText(value).replace(/\s+/g, " ").trim())
+      .superRefine((value, ctx) => {
+        const message = fullNameError(value);
+        if (message) ctx.addIssue({ code: "custom", message });
+      }),
+    jobTitle: z
+      .unknown()
+      .optional()
+      .transform((value) => optionalText(value).replace(/\s+/g, " ").trim())
+      .superRefine((value, ctx) => {
+        const message = jobTitleError(value);
+        if (message) ctx.addIssue({ code: "custom", message });
+      }),
+    primaryDevice: z
+      .unknown()
+      .optional()
+      .transform((value) => optionalText(value).trim())
+      .superRefine((value, ctx) => {
+        const message = primaryDeviceError(value);
+        if (message) ctx.addIssue({ code: "custom", message });
+      }),
+    acceptTerms: z
+      .unknown()
+      .transform((value) => acceptedTerms(value))
+      .refine((value) => value, { message: TERMS_ERROR }),
   })
   .refine(
     (data) =>

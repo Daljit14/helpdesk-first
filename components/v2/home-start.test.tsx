@@ -100,6 +100,21 @@ describe("HomeStart", () => {
     );
   });
 
+  it("links quick self-checks into the toolkit", () => {
+    render(<HomeStart />);
+    expect(
+      screen.getByRole("heading", { name: "Quick self-checks" })
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Camera" })).toHaveAttribute(
+      "href",
+      "/tools#camera"
+    );
+    expect(screen.getByRole("link", { name: /Open Toolkit/ })).toHaveAttribute(
+      "href",
+      "/tools"
+    );
+  });
+
   it("renders the problem form and device links", () => {
     render(<HomeStart />);
     expect(

@@ -109,7 +109,7 @@ export function DeviceInfoTool() {
             />
             <StatTile
               icon={Moon}
-              label="Theme"
+              label="System colour preference"
               value={info.colorScheme === "dark" ? "Dark" : "Light"}
               delay={0.35}
             />

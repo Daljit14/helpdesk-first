@@ -104,6 +104,44 @@ describe("StatusWidget", () => {
     expect(screen.getByText("Service disruption")).toBeInTheDocument();
   });
 
+  it("describes degraded services and counts only fully working ones", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          ok: true,
+          degraded: true,
+          checks: {
+            app: { ok: true, ms: null },
+            database: { ok: true, ms: 120 },
+            auth: { ok: true, ms: 80 },
+            storage: { ok: true, ms: 90 },
+            ai: { ok: true, degraded: true, ms: null },
+            notifications: { ok: true, ms: 70 },
+            rateLimiter: { ok: true, ms: null },
+          },
+          timestamp: new Date().toISOString(),
+        }),
+      })
+    );
+
+    render(<StatusWidget />);
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("heading", { name: "Some services degraded" })
+      ).toBeInTheDocument()
+    );
+    expect(
+      screen.getByText(
+        "Most things are working. Some services are slower or more limited than usual — details below."
+      )
+    ).toBeInTheDocument();
+    expect(screen.getByText("Fully working")).toBeInTheDocument();
+    expect(screen.getByText("4/5")).toBeInTheDocument();
+  });
+
   it("summarises session uptime and keeps a per-service check history", async () => {
     window.sessionStorage.clear();
     vi.stubGlobal(

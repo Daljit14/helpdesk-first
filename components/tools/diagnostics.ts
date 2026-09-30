@@ -192,7 +192,10 @@ export function deviceReport(info: DeviceInfo): ToolReport {
     ["Time zone", info.timezone],
     ["Online", info.online ? "Yes" : "No"],
     ["Cookies", info.cookies ? "Enabled" : "Disabled"],
-    ["Colour scheme", info.colorScheme === "dark" ? "Dark" : "Light"],
+    [
+      "System colour preference",
+      info.colorScheme === "dark" ? "Dark" : "Light",
+    ],
     ["Touch screen", info.touch ? "Yes" : "No"],
     ["CPU cores", info.cores ? String(info.cores) : "Not reported"],
     [

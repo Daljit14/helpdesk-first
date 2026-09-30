@@ -173,6 +173,8 @@ export function TroubleshootingGuide({
   const [celebration, setCelebration] = useState(0);
 
   const statusRef = useRef<HTMLDivElement>(null);
+  const progressRef = useRef<HTMLDivElement>(null);
+  const skipInitialStepScroll = useRef(true);
   const completedEventSent = useRef(false);
 
   useEffect(() => {
@@ -191,6 +193,30 @@ export function TroubleshootingGuide({
       setSessionLoaded(true);
     });
   }, [issue.id, platform]);
+
+  useEffect(() => {
+    if (!sessionLoaded) return;
+    if (skipInitialStepScroll.current) {
+      skipInitialStepScroll.current = false;
+      return;
+    }
+    const bar = progressRef.current;
+    const step = document.querySelector<HTMLElement>(
+      '[data-step-current="true"]'
+    );
+    if (!bar || !step) return;
+    const offset =
+      parseFloat(getComputedStyle(bar).top) + bar.offsetHeight + 16;
+    const rect = step.getBoundingClientRect();
+    if (rect.top < offset || rect.bottom > window.innerHeight) {
+      window.scrollTo({
+        top: window.scrollY + rect.top - offset,
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+          ? "auto"
+          : "smooth",
+      });
+    }
+  }, [state.currentStepIndex, sessionLoaded]);
 
   const totalSteps = visibleStepIndexes.length;
   const currentStep = steps[state.currentStepIndex];
@@ -503,7 +529,10 @@ export function TroubleshootingGuide({
             )}
           </div>
 
-          <div className="hf-step-progress sticky top-24 z-20 mt-5 flex items-center gap-4 rounded-2xl border border-border p-3 shadow-sm">
+          <div
+            ref={progressRef}
+            className="hf-step-progress sticky top-24 z-20 mt-5 flex items-center gap-4 rounded-2xl border border-border p-3 shadow-sm"
+          >
             <ProgressRing value={doneCount} total={totalSteps} size={52}>
               {totalSteps > 0 ? Math.round((doneCount / totalSteps) * 100) : 0}%
             </ProgressRing>
@@ -573,6 +602,7 @@ export function TroubleshootingGuide({
                     key={`${index}-${text}`}
                     className="hf-step-item relative pb-4 pl-14 last:pb-0"
                     data-state={stepState}
+                    data-step-current={isCurrent ? "true" : undefined}
                     style={{ animationDelay: `${0.06 + position * 0.07}s` }}
                     aria-current={isCurrent ? "step" : undefined}
                   >

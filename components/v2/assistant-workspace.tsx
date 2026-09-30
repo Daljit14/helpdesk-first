@@ -141,11 +141,17 @@ export function AssistantWorkspace({
 
   const sendToSupport = async (messageOverride?: string) => {
     setActionError(null);
+    const message = messageOverride ?? ticketMessage ?? intake.problem;
+    const quality = classifyInput(message);
+    if (quality.kind === "sensitive") {
+      intake.setProblem("");
+      const notice = preflightNotice(message);
+      if (notice) pushNotice(notice);
+      return;
+    }
     setActionPending(true);
     try {
-      const result = await intake.handleSendToSupport(
-        messageOverride ?? ticketMessage
-      );
+      const result = await intake.handleSendToSupport(message);
       if ("error" in result)
         setActionError(result.error ?? "Unable to submit ticket.");
     } catch {
@@ -711,6 +717,10 @@ function closestGuides(
     .map(({ issue }) => ({ id: issue.id, title: issue.title }));
 }
 
+function shareableProblem(text: string) {
+  return classifyInput(text).kind === "sensitive" ? "" : text;
+}
+
 /** "Talk to a person" using the existing human-handoff paths. */
 function HandoffAction({
   problem,
@@ -740,7 +750,9 @@ function HandoffAction({
       </Button>
     );
   }
-  const params = new URLSearchParams({ q: problem, intent: "human" });
+  const params = new URLSearchParams({ intent: "human" });
+  const shareable = shareableProblem(problem);
+  if (shareable) params.set("q", shareable);
   if (platform) params.set("platform", platformSlug(platform));
   return (
     <Link
@@ -1118,7 +1130,9 @@ function loginLink(
   platform: Platform | null,
   intent: string | undefined
 ) {
-  const next = new URLSearchParams({ q: problem, intent: intent ?? "human" });
+  const next = new URLSearchParams({ intent: intent ?? "human" });
+  const shareable = shareableProblem(problem);
+  if (shareable) next.set("q", shareable);
   if (platform) next.set("platform", platformSlug(platform));
   return `/login?next=${encodeURIComponent(`/assistant?${next.toString()}`)}`;
 }

@@ -169,6 +169,7 @@ export function NetworkCheckWidget() {
   const R = 88;
   const C = 2 * Math.PI * R;
   const ARC = C * 0.75;
+  const r = (n: number) => Math.round(n * 1000) / 1000;
   const fraction = phase === "done" ? gaugeFraction(speed) : 0;
   const needleDeg = -135 + fraction * 270;
 
@@ -340,10 +341,10 @@ export function NetworkCheckWidget() {
               return (
                 <line
                   key={i}
-                  x1={110 + Math.cos(a) * inner}
-                  y1={110 + Math.sin(a) * inner}
-                  x2={110 + Math.cos(a) * 74}
-                  y2={110 + Math.sin(a) * 74}
+                  x1={r(110 + Math.cos(a) * inner)}
+                  y1={r(110 + Math.sin(a) * inner)}
+                  x2={r(110 + Math.cos(a) * 74)}
+                  y2={r(110 + Math.sin(a) * 74)}
                   stroke="rgb(255 255 255 / 0.25)"
                   strokeWidth={i % 9 === 0 ? 2 : 1}
                   strokeLinecap="round"

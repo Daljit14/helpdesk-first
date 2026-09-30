@@ -66,6 +66,7 @@ export function HomePage({
   const isFirstRender = useRef(true);
   const isFirstUrlSync = useRef(true);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stickyBarRef = useRef<HTMLDivElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
   const resultsEndRef = useRef<HTMLDivElement>(null);
 
@@ -139,6 +140,26 @@ export function HomePage({
   const hasActiveFilters = Boolean(
     query || categoryId || platform || urlFilters.platformInvalid
   );
+  useEffect(() => {
+    if (isHome || !hasActiveFilters) return;
+
+    const bar = stickyBarRef.current;
+    const results = resultsRef.current;
+    if (!bar || !results) return;
+
+    const updateScrollMargin = () => {
+      const stickyTop = parseFloat(getComputedStyle(bar).top) || 0;
+      results.style.scrollMarginTop = `${stickyTop + bar.offsetHeight + 16}px`;
+    };
+
+    updateScrollMargin();
+    if (typeof ResizeObserver === "undefined") return;
+
+    const observer = new ResizeObserver(updateScrollMargin);
+    observer.observe(bar);
+    return () => observer.disconnect();
+  }, [hasActiveFilters, isHome]);
+
   const browseNeedsFilter = basePath === "/browse" && !hasActiveFilters;
   const categoryCounts = useMemo(
     () =>
@@ -358,7 +379,10 @@ export function HomePage({
           )}
 
           {/* Sticky filter bar */}
-          <div className="sticky top-16 z-20 -mx-1 space-y-3 rounded-[22px] border border-border bg-background/90 p-3 shadow-sm backdrop-blur-md sm:p-4">
+          <div
+            ref={stickyBarRef}
+            className="sticky top-16 z-20 -mx-1 space-y-3 rounded-[22px] border border-border bg-background/90 p-3 shadow-sm backdrop-blur-md sm:p-4"
+          >
             <div className="flex items-center gap-3">
               <span className="hidden shrink-0 items-center gap-1.5 text-xs font-extrabold uppercase tracking-wide text-muted-foreground sm:inline-flex">
                 <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden />

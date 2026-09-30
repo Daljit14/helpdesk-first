@@ -27,7 +27,7 @@ export function BrowseHero({
         aria-hidden
         className="hf-blob-b pointer-events-none absolute -bottom-36 left-1/4 h-80 w-80 rounded-full bg-[radial-gradient(closest-side,rgb(255_214_248/0.35),transparent)]"
       />
-      <div className="relative grid items-center gap-8 lg:grid-cols-[minmax(0,1fr)_300px]">
+      <div className="relative grid items-center gap-8 xl:grid-cols-[minmax(0,1fr)_300px]">
         <div className="min-w-0">
           <p className="inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/15 px-3 py-1 text-xs font-extrabold backdrop-blur">
             <BookOpen className="h-3.5 w-3.5" aria-hidden />
@@ -60,7 +60,7 @@ export function BrowseHero({
         {/* Decorative orbit of category icons */}
         <div
           aria-hidden
-          className="relative mx-auto hidden h-[280px] w-[280px] lg:block"
+          className="relative mx-auto hidden h-[280px] w-[280px] xl:block"
         >
           <span className="absolute inset-6 rounded-full border border-dashed border-white/30" />
           <span className="absolute inset-[72px] rounded-full border border-white/20" />

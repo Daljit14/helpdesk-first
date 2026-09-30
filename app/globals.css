@@ -429,6 +429,86 @@ body {
   .hf-spin-slow {
     animation: hf-spin 2s linear infinite;
   }
+  /* ---- Browse page ---- */
+  .hf-browse-hero {
+    background: linear-gradient(
+      125deg,
+      #3b1fa8 0%,
+      #6d4aff 42%,
+      #b44bea 75%,
+      #ec4899 100%
+    );
+  }
+  .dark .hf-browse-hero {
+    background: linear-gradient(
+      125deg,
+      #271670 0%,
+      #4c2fc0 42%,
+      #8a2fb8 75%,
+      #b0296e 100%
+    );
+  }
+  .hf-browse-orbit {
+    animation: hf-spin 40s linear infinite;
+  }
+  .hf-browse-counter {
+    animation: hf-browse-counter 40s linear infinite;
+  }
+  .hf-browse-card {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+    transition:
+      transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1),
+      box-shadow 0.3s,
+      border-color 0.3s;
+  }
+  .hf-browse-card::before {
+    content: "";
+    position: absolute;
+    right: -40px;
+    top: -40px;
+    z-index: -1;
+    width: 140px;
+    height: 140px;
+    border-radius: 9999px;
+    background: radial-gradient(
+      closest-side,
+      color-mix(in srgb, var(--cat, var(--primary)) 28%, transparent),
+      transparent
+    );
+    transition: transform 0.4s ease;
+  }
+  .hf-browse-card:hover {
+    transform: translateY(-5px);
+    border-color: color-mix(
+      in srgb,
+      var(--cat, var(--primary)) 45%,
+      var(--border)
+    );
+    box-shadow: 0 22px 40px -24px
+      color-mix(in srgb, var(--cat, var(--primary)) 70%, transparent);
+  }
+  .hf-browse-card:hover::before {
+    transform: scale(1.6);
+  }
+  .hf-browse-card .hf-cat-icon {
+    transition: transform 0.35s cubic-bezier(0.3, 1.6, 0.5, 1);
+  }
+  .hf-browse-card:hover .hf-cat-icon {
+    transform: scale(1.12) rotate(-6deg);
+  }
+  .hf-browse-card .hf-browse-go {
+    transition:
+      transform 0.25s,
+      background-color 0.25s,
+      color 0.25s;
+  }
+  .hf-browse-card:hover .hf-browse-go {
+    transform: translateX(3px);
+    background: var(--cat, var(--primary));
+    color: #fff;
+  }
   .hf-cat {
     position: relative;
     overflow: hidden;
@@ -979,6 +1059,14 @@ body {
   }
   50% {
     opacity: 0.2;
+  }
+}
+@keyframes hf-browse-counter {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(-360deg);
   }
 }
 @keyframes hf-fill {

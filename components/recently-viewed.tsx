@@ -15,7 +15,11 @@ import type { Issue } from "@/lib/issues";
 
 const EMPTY_RECENT: string[] = [];
 
-export function RecentlyViewed() {
+export function RecentlyViewed({
+  variant = "default",
+}: {
+  variant?: "default" | "rich";
+} = {}) {
   const recentIds = useSyncExternalStore(
     subscribeToRecentlyViewed,
     getRecentlyViewed,
@@ -30,7 +34,14 @@ export function RecentlyViewed() {
   return (
     <section className="mt-8" aria-labelledby="recently-viewed-heading">
       <div className="flex items-center justify-between">
-        <h2 id="recently-viewed-heading" className="text-lg font-semibold">
+        <h2
+          id="recently-viewed-heading"
+          className={
+            variant === "rich"
+              ? "text-xl font-extrabold"
+              : "text-lg font-semibold"
+          }
+        >
           Recently viewed
         </h2>
         <Button
@@ -43,9 +54,15 @@ export function RecentlyViewed() {
           Clear
         </Button>
       </div>
-      <ul className="mt-3 grid gap-4 sm:grid-cols-2">
+      <ul
+        className={
+          variant === "rich"
+            ? "mt-3 grid gap-4 sm:grid-cols-2 xl:grid-cols-3"
+            : "mt-3 grid gap-4 sm:grid-cols-2"
+        }
+      >
         {issues.map((issue) => (
-          <IssueCard key={issue.id} issue={issue}>
+          <IssueCard key={issue.id} issue={issue} variant={variant}>
             <Button
               type="button"
               variant="ghost"

@@ -9,6 +9,7 @@ type IssueListProps = {
   platform?: Platform | null;
   backParams?: string;
   forceNoResults?: boolean;
+  variant?: "default" | "rich";
 };
 
 export function IssueList({
@@ -17,6 +18,7 @@ export function IssueList({
   platform = null,
   backParams = "",
   forceNoResults = false,
+  variant = "default",
 }: IssueListProps) {
   const issues = forceNoResults
     ? []
@@ -34,8 +36,14 @@ export function IssueList({
     }
 
     return (
-      <div className="rounded-[28px] border-2 border-dashed border-border bg-card p-10 text-center">
-        <p className="text-lg font-medium">No matching problems found.</p>
+      <div className="flex flex-col items-center rounded-[28px] border-2 border-dashed border-border bg-card p-10 text-center">
+        <span
+          aria-hidden
+          className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-secondary text-2xl"
+        >
+          <span className="hf-bob">🔍</span>
+        </span>
+        <p className="text-lg font-extrabold">No matching problems found.</p>
         <p className="mt-2 text-muted-foreground">
           Try a different search term, category, or platform filter.
         </p>
@@ -44,9 +52,20 @@ export function IssueList({
   }
 
   return (
-    <ul className="grid gap-4 md:grid-cols-2">
+    <ul
+      className={
+        variant === "rich"
+          ? "grid gap-4 md:grid-cols-2 xl:grid-cols-3"
+          : "grid gap-4 md:grid-cols-2"
+      }
+    >
       {issues.map((issue) => (
-        <IssueCard key={issue.id} issue={issue} backParams={backParams} />
+        <IssueCard
+          key={issue.id}
+          issue={issue}
+          backParams={backParams}
+          variant={variant}
+        />
       ))}
     </ul>
   );

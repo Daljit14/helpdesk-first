@@ -193,7 +193,7 @@ export function AppFooter({
         <div className="hf-foot-topline" aria-hidden />
 
         <section
-          aria-labelledby="footer-still-stuck"
+          aria-label="Footer support options"
           className="hf-foot-cta hf-foot-reveal relative overflow-hidden px-6 py-8 text-white sm:px-8"
           style={{ "--hf-foot-i": 0 } as CSSProperties}
         >

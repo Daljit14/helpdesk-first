@@ -612,7 +612,9 @@ export function StatusWidget() {
               Fully working
             </dt>
             <dd className="mt-1 text-xl font-extrabold sm:text-2xl">
-              {`${rows.filter((row) => row.state === "ok").length}/${rows.length}`}
+              {rows.some((row) => row.state !== "checking")
+                ? `${rows.filter((row) => row.state === "ok").length}/${rows.length}`
+                : "—"}
             </dd>
           </div>
           <div className="hf-stat-tile">

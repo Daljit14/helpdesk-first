@@ -5,9 +5,14 @@ describe("matchGuides", () => {
   test.each([
     ["my wifi keeps dropping", "wifi-disconnecting"],
     ["wifii keeps droping", "wifi-disconnecting"],
+    ["my wi-fi keeps dropping", "wifi-disconnecting"],
+    ["wifi keps droping", "wifi-disconnecting"],
     ["wireless keeps disconnecting", "wifi-disconnecting"],
     ["printer offline", "printer-offline"],
     ["prnter offline", "printer-offline"],
+    ["my monitor flickers", "external-monitor-not-detected"],
+    ["laptop is slow", "slow-computer"],
+    ["vpn keeps disconnecting", "vpn-problem"],
     ["outlook won't open", "app-wont-open"],
     ["vpn", "vpn-problem"],
     ["my laptop is really slow", "slow-computer"],
@@ -57,6 +62,11 @@ describe("matchGuides", () => {
   });
 
   test.each([
+    "my smart fridge display flickers",
+    "my dishwasher won't drain",
+    "washing machine won't spin",
+    "car radio is broken",
+    "coffee machine leaking",
     "my office chair is broken",
     "the coffee machine is broken",
     "my cat is sick",
@@ -65,6 +75,9 @@ describe("matchGuides", () => {
     const result = matchGuides(text);
     expect(result.status).toBe("none");
     expect(result.best).toBeNull();
+    expect(result.suggestions).toEqual(
+      result.candidates.map((candidate) => candidate.issue)
+    );
   });
 
   test("respects the platform filter and custom confidence floor", () => {

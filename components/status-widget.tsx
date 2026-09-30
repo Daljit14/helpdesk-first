@@ -524,16 +524,12 @@ export function StatusWidget() {
       : heroState === "down"
         ? "Something isn't working right now. The affected services are highlighted below, with what you can do instead."
         : heroState === "degraded"
-          ? "Everything is up, but some things may be slower or more limited than usual."
+          ? "Most things are working. Some services are slower or more limited than usual — details below."
           : "Sign-in, guides, the assistant, tickets and email are all working normally.";
   const HeroIcon =
     heroState === "down" ? X : heroState === "degraded" ? AlertTriangle : Check;
   const rows = capabilityRows(status?.checks);
   const uptime = uptimePercent(samples);
-  const operationalCount = rows.filter(
-    (row) => row.state === "ok" || row.state === "degraded"
-  ).length;
-  const knownCount = rows.filter((row) => row.state !== "checking").length;
   const secondsLeft =
     nextCheckAt && now
       ? Math.max(0, Math.ceil((nextCheckAt - now) / 1000))
@@ -613,10 +609,10 @@ export function StatusWidget() {
           </div>
           <div className="hf-stat-tile">
             <dt className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
-              Services up
+              Fully working
             </dt>
             <dd className="mt-1 text-xl font-extrabold sm:text-2xl">
-              {knownCount ? `${operationalCount}/${rows.length}` : "—"}
+              {`${rows.filter((row) => row.state === "ok").length}/${rows.length}`}
             </dd>
           </div>
           <div className="hf-stat-tile">

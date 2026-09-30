@@ -6,10 +6,12 @@
  * "outlok", "wifii keeps droping") through elongation collapsing, canonical
  * IT synonyms and Damerau-Levenshtein correction, and it refuses to pretend:
  * below the confidence floor it returns the closest guides as suggestions.
+ * Household appliances and vehicles override guide matches when terms overlap.
  */
 import { CATEGORIES, ISSUES, type Device, type Issue } from "@/lib/issues";
 import {
   GENERIC_WORDS,
+  NON_IT_DEVICES,
   canonicalize,
   normalizePhrases,
   tokenize,
@@ -151,6 +153,15 @@ export function extractTerms(text: string): {
   return { terms, corrections };
 }
 
+function mentionsNonITDevice(text: string, terms: string[]): boolean {
+  const tokens = new Set(tokenize(text));
+  const lower = text.toLowerCase();
+  return [...NON_IT_DEVICES].some((device) => {
+    if (device.includes(" ")) return new RegExp(`\\b${device}\\b`).test(lower);
+    return tokens.has(device) || terms.includes(device);
+  });
+}
+
 /**
  * Match a problem description to the approved guides with a confidence
  * score. Never throws; empty/unmatched input yields status "none".
@@ -211,6 +222,7 @@ export function matchGuides(
 
   if (scored.length === 0) return empty;
 
+  const nonITDevice = mentionsNonITDevice(text, terms);
   const topScore = scored[0].score;
   const runnerUp = scored[1]?.score ?? 0;
   const candidates: GuideCandidate[] = scored
@@ -233,8 +245,9 @@ export function matchGuides(
     });
 
   const top = candidates[0];
-  const status: GuideMatchStatus =
-    top.confidence >= minConfidence
+  const status: GuideMatchStatus = nonITDevice
+    ? "none"
+    : top.confidence >= minConfidence
       ? "confident"
       : top.confidence >= minSuggestion
         ? "weak"

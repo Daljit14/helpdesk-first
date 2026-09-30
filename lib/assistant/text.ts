@@ -27,6 +27,46 @@ export const NON_IT_WORDS = new Set(
     .filter(Boolean)
 );
 
+/** Household and vehicle devices that should not match workplace IT guides. */
+export const NON_IT_DEVICES = new Set([
+  "fridge",
+  "fridges",
+  "refrigerator",
+  "freezer",
+  "dishwasher",
+  "washer",
+  "dryer",
+  "oven",
+  "microwave",
+  "stove",
+  "cooker",
+  "hob",
+  "kettle",
+  "toaster",
+  "blender",
+  "dehumidifier",
+  "humidifier",
+  "boiler",
+  "furnace",
+  "aircon",
+  "vacuum",
+  "hoover",
+  "car",
+  "cars",
+  "vehicle",
+  "truck",
+  "motorbike",
+  "bike",
+  "bicycle",
+  "scooter",
+  "washing machine",
+  "coffee machine",
+  "coffee maker",
+  "air conditioner",
+  "air fryer",
+  "car radio",
+]);
+
 /** IT / support vocabulary that is not necessarily in the guides' text. */
 export const IT_WORDS = new Set(
   `wifi wireless wlan internet online offline network networking router modem hotspot ethernet lan cable vpn proxy dns ip dhcp firewall bandwidth ping latency connection connectivity connect connected connecting disconnect disconnected disconnecting disconnects dropping drops dropped

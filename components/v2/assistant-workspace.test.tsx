@@ -309,6 +309,48 @@ describe("AssistantWorkspace", () => {
     ).toHaveAttribute("href", expect.stringContaining("intent=human"));
   });
 
+  it("shows the no-match card for a household appliance", () => {
+    mocks.currentOutput = null;
+    mocks.problem = "my smart fridge display flickers";
+    render(<AssistantWorkspace />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(mocks.handleStart).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("heading", {
+        name: "I couldn’t find an approved guide for this yet",
+      })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /external monitor not detected/i })
+    ).toBeInTheDocument();
+  });
+
+  it("does not put a typed secret in the logged-out handoff link", () => {
+    mocks.currentOutput = null;
+    mocks.problem = "my password is Hunter2!23";
+    render(<AssistantWorkspace workflowEnabled />);
+
+    const href = screen
+      .getByRole("link", { name: "I want a person" })
+      .getAttribute("href");
+
+    expect(href).not.toContain("Hunter2");
+    expect(decodeURIComponent(href ?? "")).not.toContain("q=");
+  });
+
+  it("blocks a typed secret before creating a support ticket", () => {
+    mocks.problem = "my password is Hunter2!23";
+    render(<AssistantWorkspace workflowEnabled signedIn />);
+
+    fireEvent.click(screen.getByRole("button", { name: "I want a person" }));
+
+    expect(mocks.handleSendToSupport).not.toHaveBeenCalled();
+    expect(mocks.setProblem).toHaveBeenCalledWith("");
+    expect(screen.getByRole("alert")).toHaveTextContent("Don’t share secrets");
+  });
+
   it("sends a real IT problem and example chips through the pipeline", () => {
     mocks.currentOutput = null;
     mocks.problem = "prnter offline";

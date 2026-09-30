@@ -74,7 +74,7 @@ function Navigation({
   label?: string;
 }) {
   return (
-    <nav aria-label={label} className="min-w-0">
+    <nav aria-label={label} className="min-w-0 shrink-0">
       <ul className="grid min-w-0 gap-1.5 [@media(max-height:780px)]:gap-1">
         {navItems
           .filter((item) => !item.ai || aiEnabled)
@@ -146,7 +146,7 @@ function RotatingTip() {
 function AssistantHelper({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <>
-      <div className="hf-side-chat relative min-w-0 overflow-hidden rounded-[22px] border border-border bg-card p-3.5 text-foreground shadow-sm [@media(max-height:780px)]:hidden">
+      <div className="hf-side-chat relative min-w-0 shrink-0 overflow-hidden rounded-[22px] border border-border bg-card p-3.5 text-foreground shadow-sm [@media(max-height:780px)]:hidden">
         <span
           aria-hidden
           className="hf-side-orb pointer-events-none absolute -right-10 -top-12 h-32 w-32 rounded-full"
@@ -182,7 +182,7 @@ function AssistantHelper({ onNavigate }: { onNavigate?: () => void }) {
         <Link
           href="/assistant"
           onClick={onNavigate}
-          className="group relative mt-3 flex min-h-11 w-full items-center gap-2 rounded-xl bg-[linear-gradient(120deg,#4b2fb8,#7c5cff_45%,#d946ef)] px-4 text-[13px] font-bold text-white shadow-sm transition-transform hover:-translate-y-0.5"
+          className="group relative mt-3 flex min-h-11 w-full shrink-0 items-center gap-2 rounded-xl bg-[linear-gradient(120deg,#4b2fb8,#7c5cff_45%,#d946ef)] px-4 text-[13px] font-bold text-white shadow-sm transition-transform hover:-translate-y-0.5"
         >
           Start a chat
           <span className="ml-auto flex h-7 w-7 items-center justify-center rounded-lg bg-white/20">
@@ -196,7 +196,7 @@ function AssistantHelper({ onNavigate }: { onNavigate?: () => void }) {
       <Link
         href="/assistant"
         onClick={onNavigate}
-        className="hidden min-h-12 min-w-0 items-center gap-3 rounded-2xl bg-muted px-3 text-sm font-bold [@media(max-height:780px)]:flex"
+        className="hidden min-h-12 min-w-0 shrink-0 items-center gap-3 rounded-2xl bg-muted px-3 text-sm font-bold [@media(max-height:780px)]:flex"
       >
         <AnimatedAvatar id="bot" size={32} className="bg-card" />
         Start a chat
@@ -231,7 +231,7 @@ function QuickFixes({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <section
       aria-labelledby={titleId}
-      className="hf-side-quick min-w-0 rounded-[22px] border border-border bg-card/70 p-3 [@media(max-height:780px)]:hidden"
+      className="hf-side-quick min-w-0 shrink-0 rounded-[22px] border border-border bg-card/70 p-3 [@media(max-height:780px)]:hidden"
     >
       <div className="flex items-center justify-between gap-2 px-1">
         <h2
@@ -388,7 +388,7 @@ export function AppShell({
         <Navigation pathname={pathname} aiEnabled={aiEnabled} />
         {aiEnabled && <AssistantHelper />}
         <QuickFixes />
-        <div className="mt-auto min-w-0">
+        <div className="mt-auto min-w-0 shrink-0">
           <SidebarFooter
             email={email}
             staff={staff}
@@ -464,7 +464,7 @@ export function AppShell({
           />
           {aiEnabled && <AssistantHelper onNavigate={closeDrawer} />}
           <QuickFixes onNavigate={closeDrawer} />
-          <div className="mt-auto min-w-0">
+          <div className="mt-auto min-w-0 shrink-0">
             <SidebarFooter
               email={email}
               staff={staff}

@@ -494,6 +494,7 @@ export function StepJourneyPreview({
               key={`${index}-${text}`}
               className="hf-step-item relative pb-4 pl-14 last:pb-0"
               data-state={stepState}
+              data-step-current={isCurrent ? "true" : undefined}
               style={{ animationDelay: `${0.08 + index * 0.07}s` }}
               aria-current={isCurrent ? "step" : undefined}
             >

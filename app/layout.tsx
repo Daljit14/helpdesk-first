@@ -78,6 +78,11 @@ export default async function RootLayout({
           <AppShell
             email={user?.email ?? null}
             staff={staff}
+            displayName={
+              typeof user?.user_metadata?.full_name === "string"
+                ? user.user_metadata.full_name
+                : null
+            }
             aiEnabled={process.env.NEXT_PUBLIC_AI_ENABLED === "true"}
             avatar={
               typeof user?.user_metadata?.avatar === "string"

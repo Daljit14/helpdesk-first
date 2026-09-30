@@ -25,6 +25,7 @@ import {
   QuickTips,
   StillStuckCard,
 } from "@/components/home/dashboard-extras";
+import { QuickChecksCard } from "@/components/tools/quick-checks-card";
 import { cn } from "@/lib/utils";
 
 const popularIds = [
@@ -372,6 +373,7 @@ export function HomeStart({
           <div className="grid gap-5">
             <QuickTips className="hf-rise" />
             <StillStuckCard className="hf-rise" />
+            <QuickChecksCard className="hf-rise" />
           </div>
         </div>
       </div>

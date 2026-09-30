@@ -5,6 +5,8 @@ import { BrandMark } from "@/components/shell/brand-mark";
 import {
   CHARACTERS,
   Character,
+  characterLabel,
+  resolveCharacterId,
   type CharacterId,
 } from "@/components/shell/characters";
 import { createClient } from "@/lib/supabase/client";
@@ -17,10 +19,10 @@ export const AVATAR_EMOJIS = [
   "🧑‍💻",
   "👩‍💻",
   "🧑‍🔧",
-  "🐱",
-  "🐶",
-  "🦊",
-  "🐼",
+  "🧑‍🎨",
+  "🧑‍🚀",
+  "🧑‍🎓",
+  "🧑‍🍳",
   "🚀",
   "⭐",
 ] as const;
@@ -28,16 +30,16 @@ export const AVATAR_EMOJIS = [
 type AvatarValue =
   (typeof AVATAR_EMOJIS)[number] | "logo" | "initial" | `char:${CharacterId}`;
 
-function isAvatarValue(value: string | null | undefined): value is AvatarValue {
-  return (
-    value === "logo" ||
-    value === "initial" ||
-    AVATAR_EMOJIS.includes(value as never) ||
-    Boolean(
-      value?.startsWith("char:") &&
-      CHARACTERS.includes(value.slice(5) as CharacterId)
-    )
-  );
+/** Accepts current values and upgrades legacy "char:<animal>" ids. */
+function toAvatarValue(value: string | null | undefined): AvatarValue | null {
+  if (!value) return null;
+  if (value === "logo" || value === "initial") return value;
+  if (AVATAR_EMOJIS.includes(value as never)) return value as AvatarValue;
+  if (value.startsWith("char:")) {
+    const id = resolveCharacterId(value.slice(5));
+    if (id) return `char:${id}`;
+  }
+  return null;
 }
 
 export function AvatarPicker({
@@ -47,9 +49,7 @@ export function AvatarPicker({
   email: string;
   avatar?: string | null;
 }) {
-  const [current, setCurrent] = useState<string | null>(
-    isAvatarValue(avatar) ? avatar : null
-  );
+  const [current, setCurrent] = useState<string | null>(toAvatarValue(avatar));
   const [open, setOpen] = useState(false);
   const [error, setError] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -102,9 +102,9 @@ export function AvatarPicker({
         aria-label="Choose avatar"
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
-        className="flex items-center gap-2.5 rounded-xl px-2 py-1.5 text-left hover:bg-muted"
+        className="flex w-full min-w-0 items-center gap-2.5 rounded-xl px-2 py-1.5 text-left hover:bg-muted"
       >
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,#ffc24b,#f472b6)] text-[#1c1633]">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[linear-gradient(135deg,#ffc24b,#f472b6)] text-[#1c1633]">
           {display}
         </span>
         <span
@@ -118,22 +118,22 @@ export function AvatarPicker({
         <div
           role="dialog"
           aria-label="Choose avatar"
-          className="absolute bottom-full left-0 z-50 mb-2 w-64 rounded-2xl border border-border bg-card p-3 text-card-foreground shadow-[var(--shadow-md)]"
+          className="absolute inset-x-0 bottom-full z-50 mb-2 w-full min-w-0 max-w-full rounded-2xl border border-border bg-card p-3 text-card-foreground shadow-[var(--shadow-md)]"
         >
-          <p className="text-xs font-bold text-muted-foreground">Characters</p>
-          <div className="mt-2 grid grid-cols-7 gap-px">
+          <p className="text-xs font-bold text-muted-foreground">People</p>
+          <div className="mt-2 grid grid-cols-4 gap-1.5">
             <button
               type="button"
               aria-label="Logo"
               onClick={() => void select("logo")}
               className={cn(
-                "grid h-8 w-8 place-items-center rounded-xl hover:bg-muted",
+                "grid aspect-square min-w-0 place-items-center rounded-xl p-0.5 hover:bg-muted",
                 current === "logo" || !current
                   ? "ring-2 ring-primary"
                   : undefined
               )}
             >
-              <BrandMark className="h-7 w-7 rounded-full" />
+              <BrandMark className="h-full w-full rounded-full" />
             </button>
             {CHARACTERS.map((id) => {
               const value = `char:${id}` as const;
@@ -141,22 +141,22 @@ export function AvatarPicker({
                 <button
                   key={id}
                   type="button"
-                  aria-label={id[0].toUpperCase() + id.slice(1)}
+                  aria-label={characterLabel(id)}
                   onClick={() => void select(value)}
                   className={cn(
-                    "grid h-8 w-8 place-items-center rounded-xl hover:bg-muted",
+                    "hf-ava-hover grid aspect-square min-w-0 place-items-center rounded-xl p-0.5 hover:bg-muted",
                     current === value
-                      ? "ring-2 ring-primary hf-lift"
+                      ? "hf-ava-on ring-2 ring-primary"
                       : undefined
                   )}
                 >
-                  <Character id={id} className="h-8 w-8" />
+                  <Character id={id} className="h-full w-full" />
                 </button>
               );
             })}
           </div>
           <p className="mt-3 text-xs font-bold text-muted-foreground">Emoji</p>
-          <div className="mt-2 grid grid-cols-6 gap-1.5">
+          <div className="mt-2 grid grid-cols-6 gap-1">
             {AVATAR_EMOJIS.map((emoji) => (
               <button
                 key={emoji}
@@ -164,7 +164,7 @@ export function AvatarPicker({
                 aria-label={emoji}
                 onClick={() => void select(emoji)}
                 className={cn(
-                  "grid h-10 w-10 place-items-center rounded-xl text-base hover:bg-muted",
+                  "grid aspect-square min-w-0 place-items-center rounded-xl text-base hover:bg-muted",
                   current === emoji ? "ring-2 ring-primary" : undefined
                 )}
               >

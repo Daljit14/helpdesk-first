@@ -16,6 +16,12 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { AgentEvent } from "@/lib/agent/types";
 import { uploadSecureAttachment } from "@/lib/attachments/client";
+import {
+  AssistantNotice,
+  type AssistantNoticeData,
+} from "@/components/assistant/input-notice";
+import { classifyInput, inputHint } from "@/lib/assistant/input-quality";
+import { noticeText } from "@/lib/assistant/replies";
 
 type TimelineItem = AgentEvent & { id: number };
 type ScreenshotState = {
@@ -56,6 +62,8 @@ export function AgentChat({
   const answeredCardsRef = useRef<Record<number, boolean>>({});
   const [now, setNow] = useState(() => Date.now());
   const [screenshot, setScreenshot] = useState<ScreenshotState | null>(null);
+  // Local reply for input that should not be sent (greeting, mashing, secret…).
+  const [notice, setNotice] = useState<AssistantNoticeData | null>(null);
   const readerRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(
     null
   );
@@ -107,23 +115,42 @@ export function AgentChat({
       consent?: { approvalRequestId: string; decision: "approve" | "decline" };
       confirm?: "yes" | "no";
       sessionConsent?: "grant" | "revoke";
-    }
+    },
+    messageOverride?: string
   ) {
+    const typed = messageOverride ?? message;
     const attachmentIds =
       screenshot?.status === "ready" ? [screenshot.id] : undefined;
     if (
       pending ||
       (terminal && !humanRequested) ||
-      (!message.trim() && !humanRequested && !action && !attachmentIds?.length)
+      (!typed.trim() && !humanRequested && !action && !attachmentIds?.length)
     )
       return;
+    if (!action && !humanRequested && typed.trim()) {
+      // Mid-conversation replies ("yes", "Mac") are fine; only a fresh
+      // problem gets the full greeting / off-topic screening.
+      const quality = classifyInput(typed, {
+        mode: sessionId ? "answer" : "problem",
+      });
+      if (quality.kind !== "ok" && quality.kind !== "empty") {
+        if (quality.kind === "sensitive") setMessage("");
+        setNotice({
+          kind: quality.kind,
+          sensitiveType: quality.sensitiveType,
+          text: noticeText(quality.kind, quality.sensitiveType),
+        });
+        return;
+      }
+    }
+    setNotice(null);
     setPending(true);
     if (!action && !humanRequested) clearTranscript();
     if (attachmentIds) setScreenshot(null);
     const body: Record<string, unknown> = {
       sessionId,
       message:
-        message.trim() ||
+        typed.trim() ||
         (attachmentIds?.length
           ? "I shared a screenshot of the problem."
           : "I would like to speak with a human."),
@@ -193,6 +220,8 @@ export function AgentChat({
       setPending(false);
     }
   }
+
+  const hint = composerHint(message, sessionId ? "answer" : "problem");
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6">
@@ -472,6 +501,18 @@ export function AgentChat({
             ) : null;
           })}
         </div>
+        {notice && (
+          <div className="mt-4">
+            <AssistantNotice
+              notice={notice}
+              disabled={pending || terminal}
+              onExample={(example) => {
+                setMessage(example);
+                void send(false, undefined, example);
+              }}
+            />
+          </div>
+        )}
         <label htmlFor="agent-chat-composer" className="sr-only">
           Describe your IT problem
         </label>
@@ -481,9 +522,26 @@ export function AgentChat({
           onChange={(event) => setMessage(event.target.value)}
           disabled={pending || terminal}
           aria-label="Describe your IT problem"
+          aria-describedby="agent-chat-hint"
           placeholder="Describe the IT problem you need help with."
           className="mt-6 min-h-28 w-full rounded-3xl border border-input bg-card p-4 text-base outline-none transition-[border-color,box-shadow] focus:border-primary focus:ring-4 focus:ring-primary/15"
         />
+        <p
+          id="agent-chat-hint"
+          aria-live="polite"
+          className={cn(
+            "hf-asst-hint min-h-5 pt-1.5 text-xs",
+            hint.tone === "warning" && "hf-asst-hint-warn",
+            hint.tone === "danger" && "hf-asst-hint-danger",
+            hint.tone === "muted" && "text-muted-foreground"
+          )}
+        >
+          {hint.text && (
+            <span key={hint.text} className="hf-asst-hint-in">
+              {hint.text}
+            </span>
+          )}
+        </p>
         {visionEnabled && (
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <label className="glass-pill inline-flex cursor-pointer items-center gap-2 px-3 py-2 text-sm">
@@ -563,4 +621,22 @@ export function AgentChat({
       </div>
     </div>
   );
+}
+
+function composerHint(
+  text: string,
+  mode: "problem" | "answer"
+): { text: string | null; tone: "muted" | "warning" | "danger" } {
+  const value = inputHint(text, { mode });
+  if (!value) return { text: null, tone: "muted" };
+  const kind = classifyInput(text, { mode }).kind;
+  return {
+    text: value,
+    tone:
+      kind === "sensitive"
+        ? "danger"
+        : kind === "gibberish" || kind === "off_topic"
+          ? "warning"
+          : "muted",
+  };
 }

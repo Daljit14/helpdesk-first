@@ -30,11 +30,20 @@ describe("AvatarPicker", () => {
   it("saves a selected character and renders its svg", () => {
     render(<AvatarPicker email="person@example.com" />);
     fireEvent.click(screen.getByRole("button", { name: "Choose avatar" }));
-    fireEvent.click(screen.getByRole("button", { name: "Cat" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Top bun with earrings" })
+    );
 
-    expect(updateUser).toHaveBeenCalledWith({ data: { avatar: "char:cat" } });
+    expect(updateUser).toHaveBeenCalledWith({ data: { avatar: "char:mei" } });
     expect(
-      document.querySelector('[data-character="cat"]')
+      document.querySelector('[data-character="mei"]')
+    ).toBeInTheDocument();
+  });
+
+  it("upgrades a legacy animal character to a human avatar", () => {
+    render(<AvatarPicker email="person@example.com" avatar="char:cat" />);
+    expect(
+      document.querySelector('[data-character="mei"]')
     ).toBeInTheDocument();
   });
 });

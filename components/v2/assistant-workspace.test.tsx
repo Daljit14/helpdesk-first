@@ -15,6 +15,8 @@ const mocks = vi.hoisted(() => ({
   handleStart: vi.fn(),
   handleSubmitAnswer: vi.fn(),
   retry: vi.fn(),
+  setProblem: vi.fn(),
+  problem: "wifi keeps dropping",
   loading: false,
   error: null as string | null,
   currentOutput: {
@@ -22,7 +24,12 @@ const mocks = vi.hoisted(() => ({
     matchedIssueSlug: "wifi-keeps-dropping" as string | undefined,
     explanation: "Try this approved guide." as string | undefined,
     diagnosticQuestionIds: [] as string[],
-  },
+  } as {
+    decision: string;
+    matchedIssueSlug: string | undefined;
+    explanation: string | undefined;
+    diagnosticQuestionIds: string[];
+  } | null,
   diagnosticAnswer: "",
 }));
 
@@ -63,8 +70,8 @@ vi.mock("@/lib/investigation/policy", () => ({
 
 vi.mock("@/components/ai-assistant-logic", () => ({
   useAssistantIntake: () => ({
-    problem: "wifi keeps dropping",
-    setProblem: vi.fn(),
+    problem: mocks.problem,
+    setProblem: mocks.setProblem,
     platform: "Mac",
     previousAnswers: [],
     currentOutput: mocks.currentOutput,
@@ -95,6 +102,8 @@ afterEach(() => {
   mocks.handleStart.mockReset();
   mocks.handleSubmitAnswer.mockReset();
   mocks.retry.mockReset();
+  mocks.setProblem.mockReset();
+  mocks.problem = "wifi keeps dropping";
   mocks.loading = false;
   mocks.error = null;
   mocks.currentOutput = {
@@ -231,5 +240,84 @@ describe("AssistantWorkspace", () => {
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     expect(mocks.retry).toHaveBeenCalledTimes(1);
     expect(input).toHaveValue("wifi keeps dropping");
+  });
+
+  it("answers a greeting warmly with example problems instead of matching", () => {
+    mocks.currentOutput = null;
+    mocks.problem = "hyyyyyyyyy";
+    render(<AssistantWorkspace />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(mocks.handleStart).not.toHaveBeenCalled();
+    expect(
+      screen.getByText(/Hi there! I’m the HelpDesk First assistant/)
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("button", { name: "Printer is offline" }).length
+    ).toBeGreaterThan(0);
+  });
+
+  it("shows an alert for keyboard mashing and never sends it", () => {
+    mocks.currentOutput = null;
+    mocks.problem = "dikncjkdbcjb ajbdkajbd";
+    render(<AssistantWorkspace />);
+
+    expect(
+      screen.getByText("That doesn’t look like a problem description yet.")
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(mocks.handleStart).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Hmm, I couldn’t understand that."
+    );
+    expect(mocks.setProblem).toHaveBeenCalledWith("");
+  });
+
+  it("warns about secrets, clears the input, and does not echo them", () => {
+    mocks.currentOutput = null;
+    mocks.problem = "my password is hunter2";
+    render(<AssistantWorkspace />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(mocks.handleStart).not.toHaveBeenCalled();
+    expect(mocks.setProblem).toHaveBeenCalledWith("");
+    expect(screen.getByRole("alert")).toHaveTextContent("Don’t share secrets");
+    expect(screen.queryByText("You:")).not.toBeInTheDocument();
+  });
+
+  it("says when no approved guide fits and offers a person", () => {
+    mocks.currentOutput = null;
+    mocks.problem = "my office chair is broken";
+    render(<AssistantWorkspace />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(mocks.handleStart).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("heading", {
+        name: "I couldn’t find an approved guide for this yet",
+      })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Rephrase" })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Talk to a person" })
+    ).toHaveAttribute("href", expect.stringContaining("intent=human"));
+  });
+
+  it("sends a real IT problem and example chips through the pipeline", () => {
+    mocks.currentOutput = null;
+    mocks.problem = "prnter offline";
+    render(<AssistantWorkspace />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Printer is offline" }));
+    expect(mocks.handleStart).toHaveBeenCalledWith("Printer is offline");
+    mocks.handleStart.mockClear();
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    expect(mocks.handleStart).toHaveBeenCalledWith("prnter offline");
   });
 });

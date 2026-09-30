@@ -113,9 +113,11 @@ export async function claimTicket(ticketId: string): Promise<Result> {
     status: "In Progress",
     actorLabel: found.session.displayName ?? "Support",
   });
-  await notifyAssignedStaff("ticket.assigned", found.ticket, {
-    actorLabel: found.session.displayName ?? "Support",
-  });
+  await notifyAssignedStaff(
+    "ticket.assigned",
+    { ...found.ticket, assigned_agent_id: found.session.userId },
+    { actorLabel: found.session.displayName ?? "you" }
+  );
   revalidatePath(`/admin/tickets/${ticketId}`);
   return { success: true };
 }
@@ -157,9 +159,11 @@ export async function assignTicket(
     status: "In Progress",
     actorLabel: profile.data?.display_name ?? "Support",
   });
-  await notifyAssignedStaff("ticket.assigned", found.ticket, {
-    actorLabel: profile.data?.display_name ?? "Support",
-  });
+  await notifyAssignedStaff(
+    "ticket.assigned",
+    { ...found.ticket, assigned_agent_id: agentUserId },
+    { actorLabel: profile.data?.display_name ?? "you" }
+  );
   revalidatePath(`/admin/tickets/${ticketId}`);
   return { success: true };
 }
@@ -301,9 +305,13 @@ async function addComment(
     });
     await notifyRequester("reply.public", found.ticket, {
       publicReplyExcerpt: parsed.data,
+      actorLabel: found.session.displayName ?? undefined,
+      actorRole: "staff",
     });
     await notifyAssignedStaff("reply.public", found.ticket, {
       publicReplyExcerpt: parsed.data,
+      actorLabel: found.session.displayName ?? undefined,
+      actorRole: "staff",
     });
   }
   await writeEvent(
@@ -339,6 +347,7 @@ export const requestInformation = async (
   if (found) {
     await notifyRequester("info.requested", found.ticket, {
       publicReplyExcerpt: body,
+      actorLabel: found.session.displayName ?? undefined,
     });
   }
   return changeStatus(ticketId, "Waiting for User");

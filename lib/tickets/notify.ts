@@ -7,6 +7,21 @@ import { getSiteUrl } from "@/lib/site-url";
 import type { NotificationEventType } from "@/lib/notifications/types";
 import type { NotificationContext } from "@/lib/notifications/templates";
 
+/**
+ * Replies are keyed by their text plus a one-minute bucket so a retried
+ * action does not double-send, while two identical short replies ("thanks")
+ * sent minutes apart still both notify.
+ */
+function dedupeKeyFor(
+  eventType: NotificationEventType,
+  ticketId: string,
+  context?: Omit<NotificationContext, "ticketTitle" | "ticketId">
+): string {
+  const now = Date.now();
+  if (!context?.publicReplyExcerpt) return `${eventType}:${ticketId}:${now}`;
+  return `${eventType}:${ticketId}:${context.publicReplyExcerpt.slice(0, 200)}:${Math.floor(now / 60_000)}`;
+}
+
 export async function notifyEmployeesOfHandoff(
   organizationId: string,
   ticket: {
@@ -30,6 +45,7 @@ export async function notifyEmployeesOfHandoff(
       ticketTitle: ticket.issue_title,
       ticketId: ticket.id,
       status: "Needs Human",
+      audience: "staff",
     });
     const message = ticket.diagnosis
       ? {
@@ -120,6 +136,7 @@ export async function notifyRequester(
       ticketId: ticket.id,
       status: ticket.status ?? undefined,
       ...context,
+      audience: "requester",
     });
     await enqueueNotification({
       organizationId: null,
@@ -128,7 +145,7 @@ export async function notifyRequester(
       recipientUserIds: [ticket.user_id],
       ...message,
       url,
-      dedupeKey: `${eventType}:${ticket.id}:${context?.publicReplyExcerpt ?? Date.now()}`,
+      dedupeKey: dedupeKeyFor(eventType, ticket.id, context),
     });
     return;
   }
@@ -187,6 +204,7 @@ export async function notifyAssignedStaff(
       ticketTitle: ticket.issue_title,
       ticketId: ticket.id,
       ...context,
+      audience: "staff",
     });
     await enqueueNotification({
       organizationId: ticket.organization_id,
@@ -195,7 +213,7 @@ export async function notifyAssignedStaff(
       recipientUserIds: recipients,
       ...message,
       url: `${getSiteUrl()}/admin/tickets/${ticket.id}`,
-      dedupeKey: `${eventType}:${ticket.id}:${context?.publicReplyExcerpt ?? Date.now()}`,
+      dedupeKey: dedupeKeyFor(eventType, ticket.id, context),
     });
     return;
   }

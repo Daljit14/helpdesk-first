@@ -422,4 +422,49 @@ describe("AgentChat", () => {
       )
     ).toBeInTheDocument();
   });
+
+  test("answers greetings and mashing locally without calling the agent", () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    render(<AgentChat initialProblem="hello" />);
+    fireEvent.click(screen.getByRole("button", { name: "Ask the assistant" }));
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(
+      screen.getByText(/Hi there! I’m the HelpDesk First assistant/)
+    ).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Describe your IT problem"), {
+      target: { value: "dikncjkdbcjb ajbdkajbd" },
+    });
+    expect(
+      screen.getByText("That doesn’t look like a problem description yet.")
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Ask the assistant" }));
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Hmm, I couldn’t understand that."
+    );
+  });
+
+  test("clears pasted secrets instead of sending them", () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    render(<AgentChat initialProblem="password: Hunter2!" />);
+    fireEvent.click(screen.getByRole("button", { name: "Ask the assistant" }));
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Describe your IT problem")).toHaveValue("");
+    expect(screen.getByRole("alert")).toHaveTextContent("Don’t share secrets");
+  });
+
+  test("sends an example problem chip", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(streamResponse([]));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<AgentChat initialProblem="thanks" />);
+    fireEvent.click(screen.getByRole("button", { name: "Ask the assistant" }));
+    fireEvent.click(screen.getByRole("button", { name: "Printer is offline" }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({
+      message: "Printer is offline",
+    });
+  });
 });

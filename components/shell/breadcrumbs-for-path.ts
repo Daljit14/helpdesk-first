@@ -25,6 +25,13 @@ export function breadcrumbsForPath(pathname: string): BreadcrumbItem[] {
       { label: "Ticket" },
     ];
   }
+  if (pathname.startsWith("/tools/")) {
+    return [
+      { label: "Start", href: "/" },
+      { label: "Toolkit", href: "/tools" },
+      { label: "Check" },
+    ];
+  }
   if (pathname.startsWith("/forgot-password")) {
     return [{ label: "Start", href: "/" }, { label: "Forgot password" }];
   }
@@ -33,6 +40,7 @@ export function breadcrumbsForPath(pathname: string): BreadcrumbItem[] {
     "/tickets": "My tickets",
     "/bookmarks": "Bookmarks",
     "/status": "System status",
+    "/tools": "Toolkit",
     "/login": "Log in",
     "/signup": "Create an account",
     "/reset-password": "Choose a new password",

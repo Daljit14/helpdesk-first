@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import Link from "next/link";
-import { Bot, Paperclip } from "lucide-react";
+import { Bot, Headset, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Composer } from "@/components/assistant/composer";
 import { ProgressStepper } from "@/components/assistant/progress-stepper";
@@ -26,6 +26,14 @@ import { diagnosticQuestions } from "@/lib/ai/types";
 import { recordStepOutcome } from "@/app/actions/tickets";
 import { useAssistantIntake } from "@/components/ai-assistant-logic";
 import { SAFE_USE_WARNING } from "@/lib/ui-copy";
+import {
+  AssistantNotice,
+  ExampleChips,
+  type AssistantNoticeData,
+} from "@/components/assistant/input-notice";
+import { classifyInput, inputHint } from "@/lib/assistant/input-quality";
+import { matchGuides } from "@/lib/assistant/guide-match";
+import { noticeText } from "@/lib/assistant/replies";
 
 type StepOutcome = "worked" | "failed" | "could_not_perform";
 const OUTCOME_LABELS: Record<StepOutcome, string> = {
@@ -74,8 +82,8 @@ export function AssistantWorkspace({
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionPending, setActionPending] = useState(false);
   // Ordered chat transcript so questions and answers interleave correctly.
-  const [transcript, setTranscript] = useState<ChatTurn[]>(
-    initialProblem ? [{ id: "u-0", role: "user", text: initialProblem }] : []
+  const [transcript, setTranscript] = useState<ChatTurn[]>(() =>
+    initialTranscript(initialProblem)
   );
   const userTurns = transcript
     .filter((turn) => turn.role === "user")
@@ -109,15 +117,35 @@ export function AssistantWorkspace({
   useEffect(() => {
     if (autoStart && initialProblem && !ticketIntent && !autoStarted.current) {
       autoStarted.current = true;
+      // Screen the linked problem the same way as typed input: greetings,
+      // mashing, secrets and unsupported problems get a local reply.
+      const notice = preflightNotice(initialProblem);
+      if (notice) {
+        queueMicrotask(() => {
+          if (notice.kind === "sensitive") intake.setProblem("");
+          setTranscript((current) => [
+            ...current,
+            {
+              id: `n-${current.length}`,
+              role: "assistant",
+              text: notice.text,
+              notice,
+            },
+          ]);
+        });
+        return;
+      }
       void intake.submitIntake(initialProblem, initialPlatform, [], true);
     }
   }, [autoStart, initialPlatform, initialProblem, intake, ticketIntent]);
 
-  const sendToSupport = async () => {
+  const sendToSupport = async (messageOverride?: string) => {
     setActionError(null);
     setActionPending(true);
     try {
-      const result = await intake.handleSendToSupport(ticketMessage);
+      const result = await intake.handleSendToSupport(
+        messageOverride ?? ticketMessage
+      );
       if ("error" in result)
         setActionError(result.error ?? "Unable to submit ticket.");
     } catch {
@@ -127,24 +155,88 @@ export function AssistantWorkspace({
     }
   };
 
+  const pushNotice = (
+    notice: AssistantNoticeData,
+    userText?: string,
+    answerNotice = false
+  ) =>
+    setTranscript((current) => {
+      const next = [...current];
+      if (userText)
+        next.push({ id: `u-${next.length}`, role: "user", text: userText });
+      next.push({
+        id: `n-${next.length}`,
+        role: "assistant",
+        text: notice.text,
+        notice,
+        answerNotice,
+      });
+      return next;
+    });
+
+  /** Start a brand-new problem (typed, or an example chip). */
+  const startProblem = (raw: string) => {
+    if (intake.loading) return;
+    const text = raw.trim();
+    if (!text) return;
+    const notice = preflightNotice(text);
+    if (notice) {
+      intake.setProblem("");
+      // Never echo a secret into the transcript (and never send it).
+      pushNotice(notice, notice.kind === "sensitive" ? undefined : text);
+      return;
+    }
+    setTranscript((current) => [
+      ...current,
+      { id: `u-${current.length}`, role: "user", text },
+    ]);
+    intake.handleStart(text);
+  };
+
   const submitCurrentInput = () => {
     if (intake.loading) return;
-    const text =
-      output?.decision === "clarify" ? intake.diagnosticAnswer : intake.problem;
+    if (output?.decision !== "clarify" || lastTurnIsNotice) {
+      startProblem(intake.problem);
+      return;
+    }
+    const text = intake.diagnosticAnswer;
     if (!text.trim()) return;
+    const quality = classifyInput(text, { mode: "answer" });
+    if (quality.kind === "sensitive" || quality.kind === "gibberish") {
+      intake.setDiagnosticAnswer("");
+      const notice: AssistantNoticeData = {
+        kind: quality.kind,
+        sensitiveType: quality.sensitiveType,
+        text:
+          quality.kind === "gibberish"
+            ? "Hmm, I couldn’t understand that answer. Could you answer the question in a few words?"
+            : noticeText("sensitive", quality.sensitiveType),
+      };
+      pushNotice(
+        notice,
+        quality.kind === "gibberish" ? text.trim() : undefined,
+        true
+      );
+      return;
+    }
     setTranscript((current) => [
       ...current,
       { id: `u-${current.length}`, role: "user", text: text.trim() },
     ]);
-    if (output?.decision === "clarify") {
-      const questionId = output.diagnosticQuestionIds?.[0];
-      if (questionId) intake.handleSubmitAnswer(questionId, text);
-    } else {
-      intake.handleStart(text);
-    }
+    const questionId = output.diagnosticQuestionIds?.[0];
+    if (questionId) intake.handleSubmitAnswer(questionId, text);
   };
 
-  const output = intake.currentOutput;
+  const rephrase = (text: string) => {
+    intake.setProblem(text);
+    document.getElementById("assistant-input")?.focus();
+  };
+
+  const lastTurn = transcript[transcript.length - 1];
+  const lastTurnIsNotice = Boolean(lastTurn?.notice && !lastTurn.answerNotice);
+  // A local notice after an answer means the requester moved on: hide the
+  // previous result so the conversation reads top to bottom.
+  const output = lastTurnIsNotice ? null : intake.currentOutput;
   const questionKey =
     output?.decision === "clarify"
       ? `q-${output.diagnosticQuestionIds?.[0] ?? "more"}-${intake.previousAnswers.length}`
@@ -199,6 +291,14 @@ export function AssistantWorkspace({
           .join("\n")}`
       : undefined;
   const loginHref = loginLink(intake.problem, intake.platform, intent);
+  const composerHint = liveHint(
+    intake.loading
+      ? ""
+      : output?.decision === "clarify"
+        ? intake.diagnosticAnswer
+        : intake.problem,
+    output?.decision === "clarify" ? "answer" : "problem"
+  );
   const withheld =
     Boolean(output?.withheldSteps?.length) ||
     Boolean(
@@ -298,9 +398,11 @@ export function AssistantWorkspace({
             ? 3
             : output?.decision === "escalate"
               ? 2
-              : userTurns.length > 0 || intake.loading
-                ? 1
-                : 0
+              : lastTurnIsNotice && !intake.loading
+                ? 0
+                : userTurns.length > 0 || intake.loading
+                  ? 1
+                  : 0
         }
       />
 
@@ -314,16 +416,41 @@ export function AssistantWorkspace({
                 turn.id.startsWith("q-")
               )
           )
-          .map((turn, index) => (
-            <Message
-              key={turn.id}
-              side={turn.role}
-              text={turn.text}
-              animate={
-                turn.role === "assistant" && index === transcript.length - 1
-              }
-            />
-          ))}
+          .map((turn, index) =>
+            turn.notice ? (
+              <AssistantNotice
+                key={turn.id}
+                notice={turn.notice}
+                onExample={startProblem}
+                onRephrase={rephrase}
+                disabled={intake.loading}
+                guideHref={(id) =>
+                  `/issues/${id}/guide?platform=${platformSlug(intake.platform ?? "Other")}`
+                }
+                handoff={
+                  turn.notice.kind === "no_match" ? (
+                    <HandoffAction
+                      problem={turn.notice.source ?? ""}
+                      platform={intake.platform}
+                      signedIn={signedIn}
+                      workflowEnabled={workflowEnabled}
+                      pending={actionPending}
+                      onSend={sendToSupport}
+                    />
+                  ) : undefined
+                }
+              />
+            ) : (
+              <Message
+                key={turn.id}
+                side={turn.role}
+                text={turn.text}
+                animate={
+                  turn.role === "assistant" && index === transcript.length - 1
+                }
+              />
+            )
+          )}
         {ticketIntent ? (
           <div className="space-y-4">
             <Message
@@ -373,6 +500,8 @@ export function AssistantWorkspace({
                 loginHref={loginHref}
                 actionError={actionError}
                 actionPending={actionPending}
+                closest={closestGuides(output, intake.problem)}
+                platform={intake.platform}
               />
             )}
             {output?.decision === "match" && (
@@ -414,12 +543,20 @@ export function AssistantWorkspace({
                 </Button>
               </div>
             )}
-            {!output && !intake.loading && !initialProblem && (
-              <Message
-                side="assistant"
-                text="Describe your IT problem below and I’ll help find an approved guide."
-              />
-            )}
+            {!output &&
+              !intake.loading &&
+              !initialProblem &&
+              transcript.length === 0 && (
+                <div className="space-y-1">
+                  <Message
+                    side="assistant"
+                    text="Describe your IT problem below and I’ll help find an approved guide."
+                  />
+                  <div className="pl-11">
+                    <ExampleChips onPick={startProblem} />
+                  </div>
+                </div>
+              )}
           </>
         )}
       </div>
@@ -462,6 +599,8 @@ export function AssistantWorkspace({
             }
             onSend={submitCurrentInput}
             disabled={intake.loading}
+            hint={composerHint.text}
+            hintTone={composerHint.tone}
             placeholder={
               output?.decision === "clarify"
                 ? "Answer the question…"
@@ -498,7 +637,121 @@ export function AssistantWorkspace({
   );
 }
 
-type ChatTurn = { id: string; role: "user" | "assistant"; text: string };
+type ChatTurn = {
+  id: string;
+  role: "user" | "assistant";
+  text: string;
+  /** Local assistant reply (greeting, alert, no approved guide…). */
+  notice?: AssistantNoticeData;
+  /** Notice about a clarifying answer; keeps the current question active. */
+  answerNotice?: boolean;
+};
+
+function initialTranscript(initialProblem: string): ChatTurn[] {
+  if (!initialProblem) return [];
+  if (classifyInput(initialProblem).kind === "sensitive") return [];
+  return [{ id: "u-0", role: "user", text: initialProblem }];
+}
+
+/**
+ * Screens a new problem before the intake pipeline runs. Returns a local
+ * notice when the text is not a real, supported IT problem description.
+ */
+function preflightNotice(text: string): AssistantNoticeData | null {
+  const quality = classifyInput(text);
+  if (quality.kind === "ok") {
+    const match = matchGuides(text);
+    if (match.status !== "none") return null;
+    return {
+      kind: "no_match",
+      text: noticeText("no_match"),
+      source: text,
+      suggestions: match.suggestions.map(({ id, title }) => ({ id, title })),
+    };
+  }
+  if (quality.kind === "empty") return null;
+  return {
+    kind: quality.kind,
+    sensitiveType: quality.sensitiveType,
+    text: noticeText(quality.kind, quality.sensitiveType),
+  };
+}
+
+function liveHint(
+  text: string,
+  mode: "problem" | "answer"
+): { text: string | null; tone: "muted" | "warning" | "danger" } {
+  const hint = inputHint(text, { mode });
+  if (!hint) return { text: null, tone: "muted" };
+  const kind = classifyInput(text, { mode }).kind;
+  return {
+    text: hint,
+    tone:
+      kind === "sensitive"
+        ? "danger"
+        : kind === "gibberish" || kind === "off_topic"
+          ? "warning"
+          : "muted",
+  };
+}
+
+/** Closest approved guides for an escalation (server list, else local). */
+function closestGuides(
+  output: AiIntakeOutput,
+  problem: string
+): { id: string; title: string }[] {
+  const fromServer = (output.suggestedIssueSlugs ?? [])
+    .map((slug) => getIssueBySlug(slug))
+    .filter((issue): issue is NonNullable<typeof issue> => Boolean(issue));
+  if (fromServer.length > 0)
+    return fromServer.slice(0, 3).map(({ id, title }) => ({ id, title }));
+  if (!problem.trim() || classifyInput(problem).kind !== "ok") return [];
+  return matchGuides(problem)
+    .candidates.filter((item) => item.confidence >= 0.2)
+    .map(({ issue }) => ({ id: issue.id, title: issue.title }));
+}
+
+/** "Talk to a person" using the existing human-handoff paths. */
+function HandoffAction({
+  problem,
+  platform,
+  signedIn,
+  workflowEnabled,
+  pending,
+  onSend,
+}: {
+  problem: string;
+  platform: Platform | null;
+  signedIn: boolean;
+  workflowEnabled: boolean;
+  pending: boolean;
+  onSend: (message?: string) => Promise<void>;
+}) {
+  if (workflowEnabled && signedIn) {
+    return (
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={() => void onSend(problem)}
+        disabled={pending}
+      >
+        <Headset className="mr-1.5 h-4 w-4" aria-hidden />
+        Talk to a person
+      </Button>
+    );
+  }
+  const params = new URLSearchParams({ q: problem, intent: "human" });
+  if (platform) params.set("platform", platformSlug(platform));
+  return (
+    <Link
+      href={`/assistant?${params.toString()}`}
+      className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+    >
+      <Headset className="mr-1.5 h-4 w-4" aria-hidden />
+      Talk to a person
+    </Link>
+  );
+}
 
 function Message({
   side,
@@ -769,6 +1022,8 @@ function Escalation({
   actionError,
   actionPending,
   prominent = false,
+  closest = [],
+  platform = null,
 }: {
   output: AiIntakeOutput;
   signedIn: boolean;
@@ -779,6 +1034,8 @@ function Escalation({
   actionError: string | null;
   actionPending: boolean;
   prominent?: boolean;
+  closest?: { id: string; title: string }[];
+  platform?: Platform | null;
 }) {
   return (
     <section
@@ -799,6 +1056,28 @@ function Escalation({
           "Contact your IT team for help with this problem."
         }
       />
+      {closest.length > 0 && (
+        <div className="mt-4">
+          <h3 className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+            Closest guides
+          </h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Not an exact match — but these approved guides are the closest.
+          </p>
+          <ul className="mt-2 space-y-2">
+            {closest.map((issue) => (
+              <li key={issue.id}>
+                <Link
+                  href={`/issues/${issue.id}/guide?platform=${platformSlug(output.detectedPlatform ?? platform ?? "Other")}`}
+                  className="hf-asst-suggest block rounded-2xl border border-border bg-background px-4 py-3 text-sm font-semibold"
+                >
+                  {issue.title}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <div className="mt-4 flex flex-wrap gap-3">
         {workflowEnabled && signedIn ? (
           <Button onClick={() => void onSend()} disabled={actionPending}>

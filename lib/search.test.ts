@@ -1,5 +1,10 @@
 import { test, expect } from "vitest";
-import { filterIssues, getIssueBySlug, suggestIssues } from "./search";
+import {
+  filterIssues,
+  getIssueBySlug,
+  matchGuides,
+  suggestIssues,
+} from "./search";
 
 test("empty filters return all issues", () => {
   expect(filterIssues({})).toHaveLength(100);
@@ -110,4 +115,20 @@ test("suggestIssues tolerates transposed Wi-Fi slowdown text", () => {
 
 test("suggestIssues returns no results for nonsense", () => {
   expect(suggestIssues("qzxv jklm")).toEqual([]);
+});
+
+test("matchGuides is confident for clear descriptions, even with typos", () => {
+  expect(matchGuides("my wifi keeps dropping").best?.issue.id).toBe(
+    "wifi-disconnecting"
+  );
+  expect(matchGuides("wifii keeps droping").best?.issue.id).toBe(
+    "wifi-disconnecting"
+  );
+  expect(matchGuides("prnter offline").best?.issue.id).toBe("printer-offline");
+});
+
+test("matchGuides refuses to pretend for unrelated text", () => {
+  const result = matchGuides("my office chair is broken");
+  expect(result.status).toBe("none");
+  expect(result.best).toBeNull();
 });

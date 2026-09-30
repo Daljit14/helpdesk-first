@@ -53,6 +53,10 @@ describe("loginAction", () => {
     formData.set("email", "user@example.com");
     formData.set("password", "Password1");
     formData.set("confirmPassword", "Password1");
+    formData.set("fullName", "Pat Person");
+    formData.set("jobTitle", "Finance");
+    formData.set("primaryDevice", "Windows");
+    formData.set("acceptTerms", "on");
     formData.set("captchaToken", "captcha-token");
 
     await expect(signUpAction(null, formData)).rejects.toThrow(
@@ -61,8 +65,34 @@ describe("loginAction", () => {
     expect(signUp).toHaveBeenCalledWith({
       email: "user@example.com",
       password: "Password1",
-      options: { captchaToken: "captcha-token" },
+      options: {
+        captchaToken: "captcha-token",
+        data: expect.objectContaining({
+          full_name: "Pat Person",
+          job_title: "Finance",
+          primary_device: "Windows",
+        }),
+      },
     });
+  });
+
+  test("requires full name and terms before calling Supabase", async () => {
+    const signUp = vi.fn();
+    mocks.createClient.mockResolvedValue({ auth: { signUp } });
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://example.supabase.co");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "anon-key");
+    vi.stubEnv("NEXT_PUBLIC_TURNSTILE_SITE_KEY", "");
+    const formData = new FormData();
+    formData.set("email", "user@example.com");
+    formData.set("password", "Password1");
+    formData.set("confirmPassword", "Password1");
+
+    const result = await signUpAction(null, formData);
+    expect(result?.fieldErrors).toMatchObject({
+      fullName: "Enter your full name.",
+      acceptTerms: expect.any(String),
+    });
+    expect(signUp).not.toHaveBeenCalled();
   });
 
   test("redirects unconfirmed users to code verification", async () => {

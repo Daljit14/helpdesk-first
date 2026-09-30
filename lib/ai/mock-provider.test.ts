@@ -160,3 +160,24 @@ describe("MockAiProvider", () => {
     }
   });
 });
+
+describe("MockAiProvider input quality", () => {
+  test.each(["hello", "hyyyyyyyyy", "dikncjkdbcjb ajbdkajbd", "thanks"])(
+    "never matches a guide for %j",
+    async (message) => {
+      const result = await provider.classify({ message, platform: "Windows" });
+      expect(result.decision).toBe("escalate");
+      expect(result.matchedIssueSlug).toBeUndefined();
+      expect(result.escalationReason).toMatch(/couldn't understand/i);
+    }
+  );
+
+  test("corrects obvious typos before scoring", async () => {
+    const result = await provider.classify({
+      message: "prnter offline",
+      platform: "Windows",
+    });
+    expect(result.decision).toBe("match");
+    expect(result.matchedIssueSlug).toBe("printer-offline");
+  });
+});

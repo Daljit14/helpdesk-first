@@ -3,41 +3,39 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronUp } from "lucide-react";
 import {
-  AVATAR_IDS,
   AnimatedAvatar,
   AvatarPicker,
+  DEFAULT_AVATAR,
   type AvatarId,
+  normalizeAvatarId,
   useSavedAvatar,
 } from "@/components/avatar/animated-avatar";
+import { getDisplayName } from "@/lib/auth/display-name";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
-
-function avatarFromMetadata(value: string | null | undefined) {
-  if (value === "initial" || AVATAR_IDS.includes(value as AvatarId)) {
-    return value as AvatarId | "initial";
-  }
-  if (value?.startsWith("char:")) {
-    const id = value.slice(5);
-    if (AVATAR_IDS.includes(id as AvatarId)) return id as AvatarId;
-  }
-  return null;
-}
 
 export function AccountChip({
   email,
   avatar,
+  name,
 }: {
   email: string;
   avatar?: string | null;
+  /** Optional full name (user_metadata.full_name); falls back to the email. */
+  name?: string | null;
 }) {
-  const metadataAvatar = avatarFromMetadata(avatar);
+  const metadataAvatar = normalizeAvatarId(avatar);
+  const displayName = getDisplayName({
+    email,
+    user_metadata: name ? { full_name: name } : null,
+  });
   const [choice, setChoice] = useState<AvatarId | "initial" | null>(null);
-  const [saved, setSaved] = useSavedAvatar(metadataAvatar ?? "bot");
+  const [saved, setSaved] = useSavedAvatar(metadataAvatar ?? DEFAULT_AVATAR);
   const selected = choice ?? metadataAvatar ?? saved;
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
-  const initial = email.slice(0, 1).toUpperCase();
+  const initial = (displayName || email).slice(0, 1).toUpperCase();
 
   useEffect(() => {
     if (!open) return;
@@ -69,11 +67,11 @@ export function AccountChip({
   }
 
   return (
-    <div ref={rootRef} className="relative">
+    <div ref={rootRef} className="relative min-w-0">
       {open && (
         <div
           id="avatar-picker"
-          className="hf-pop absolute bottom-full left-0 z-50 mb-2"
+          className="hf-pop absolute inset-x-0 bottom-full z-50 mb-2 min-w-0 max-w-full"
         >
           <AvatarPicker value={selected} initial={initial} onChange={select} />
         </div>
@@ -84,9 +82,10 @@ export function AccountChip({
         aria-expanded={open}
         aria-controls="avatar-picker"
         aria-label={`Change avatar for ${email}`}
+        title={`${displayName} · ${email}`}
         onClick={() => setOpen((value) => !value)}
         className={cn(
-          "group flex min-h-12 w-full items-center gap-3 rounded-2xl px-2.5 py-1.5 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/25",
+          "hf-ava-hover group flex min-h-12 w-full min-w-0 items-center gap-3 rounded-2xl px-2.5 py-1.5 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/25",
           open && "bg-muted"
         )}
       >
@@ -105,14 +104,11 @@ export function AccountChip({
           />
         )}
         <span className="min-w-0 flex-1">
-          <span
-            className="block truncate text-[13px] font-semibold leading-tight text-foreground"
-            title={email}
-          >
-            {email}
+          <span className="block truncate text-[13px] font-bold leading-tight text-foreground">
+            {displayName}
           </span>
-          <span className="block text-[11px] font-semibold leading-tight text-muted-foreground">
-            Change avatar
+          <span className="block truncate text-[11px] font-medium leading-tight text-muted-foreground">
+            {email}
           </span>
         </span>
         <ChevronUp

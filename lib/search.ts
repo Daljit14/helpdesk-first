@@ -7,6 +7,19 @@ import {
 } from "./issues";
 import { resolveIssueId } from "./legacy-slugs";
 
+// Confidence-scored, typo-tolerant problem → guide matching for the Support
+// Assistant. `filterIssues` stays a browse/search filter; use `matchGuides`
+// when you need to know whether a guide can be *confidently* recommended.
+export {
+  matchGuides,
+  extractTerms,
+  DEFAULT_MIN_CONFIDENCE,
+  type GuideCandidate,
+  type GuideMatchOptions,
+  type GuideMatchResult,
+  type GuideMatchStatus,
+} from "./assistant/guide-match";
+
 export type IssueFilters = {
   query?: string;
   categoryId?: string | null;

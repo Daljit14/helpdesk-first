@@ -5,6 +5,8 @@ import { diagnosticQuestions } from "./types";
 import { getSafeResponseLimit, isPasswordRecovery } from "./safety-policy";
 import { detectPlatform } from "./detect-platform";
 import { filterIssues } from "@/lib/search";
+import { classifyInput } from "@/lib/assistant/input-quality";
+import { correctTypo, knownForm } from "@/lib/assistant/vocabulary";
 
 const MATCH_SCORE_THRESHOLD = 1.5;
 const MATCH_GAP_THRESHOLD = 0.3;
@@ -399,6 +401,25 @@ export class MockAiProvider implements AiProvider {
       };
     }
 
+    // Greetings, small talk and keyboard mashing are not problem
+    // descriptions; never dress them up as a guide match.
+    if (!input.previousAnswers?.length) {
+      const quality = classifyInput(input.message);
+      if (
+        quality.kind === "greeting" ||
+        quality.kind === "small_talk" ||
+        quality.kind === "gibberish"
+      ) {
+        return {
+          decision: "escalate",
+          detectedPlatform: input.platform ?? null,
+          suggestedIssueSlugs: [],
+          escalationReason:
+            "I couldn't understand that as an IT problem. Describe what's going wrong — for example “my Wi-Fi keeps dropping” — or contact your IT team.",
+        };
+      }
+    }
+
     const combined = buildCombinedText(input);
 
     // The evaluation case expects clarification instead of an incidental
@@ -676,7 +697,23 @@ function stem(token: string): string {
   return token;
 }
 
-function scoreIssues(text: string, platform: Platform | null): ScoredIssue[] {
+/**
+ * Fix probable typos ("prnter", "outlok") in words that are neither real
+ * words nor guide vocabulary. Known words are never changed.
+ */
+function correctTypos(text: string): string {
+  return text.replace(/[a-z]{4,}/g, (word) => {
+    if (STOP_WORDS.has(word) || knownForm(word)) return word;
+    if (DOCUMENT_FREQUENCIES.has(normalizeToken(word))) return word;
+    return correctTypo(word) ?? word;
+  });
+}
+
+function scoreIssues(
+  rawText: string,
+  platform: Platform | null
+): ScoredIssue[] {
+  const text = correctTypos(rawText);
   const messageTokens = [
     ...new Set(tokenize(text).filter((token) => !isPlatformToken(token))),
   ];

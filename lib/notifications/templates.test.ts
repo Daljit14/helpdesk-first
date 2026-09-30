@@ -37,7 +37,7 @@ describe("buildNotification", () => {
       ...base,
       status: "New",
     });
-    expect(result.subject).toBe("Ticket received");
+    expect(result.subject).toBe("🎫 We got your ticket: “No internet”");
     expect(result.body).toContain("No internet");
     expect(result.body).not.toMatch(/https?:\/\/|\/tickets\//);
   });
@@ -54,7 +54,59 @@ describe("buildNotification", () => {
 
   test("builds SLA risk notifications", () => {
     const result = buildNotification("sla.first_response_overdue", base);
-    expect(result.subject).toBe("Ticket response SLA overdue");
+    expect(result.subject).toBe("🚨 Response SLA overdue: “No internet”");
     expect(result.body).toContain("No internet");
+  });
+
+  test("requester reply copy names the support team", () => {
+    const result = buildNotification("reply.public", {
+      ...base,
+      publicReplyExcerpt: "Try restarting the router",
+    });
+    expect(result.subject).toBe("💬 New reply on “No internet”");
+    expect(result.body).toBe(
+      "Your support team replied on “No internet”:\n\n> Try restarting the router"
+    );
+  });
+
+  test("staff copy says the requester replied", () => {
+    const result = buildNotification("reply.public", {
+      ...base,
+      audience: "staff",
+      actorRole: "requester",
+      publicReplyExcerpt: "Still broken",
+    });
+    expect(result.body).toContain("The requester replied on “No internet”");
+    expect(result.body).not.toContain("Your support team");
+  });
+
+  test("staff copy for a teammate reply names the teammate", () => {
+    const result = buildNotification("reply.public", {
+      ...base,
+      audience: "staff",
+      actorRole: "staff",
+      actorLabel: "Alex",
+      publicReplyExcerpt: "On it",
+    });
+    expect(result.body).toContain("Alex replied to the requester");
+  });
+
+  test("shortens long titles in subjects only", () => {
+    const title = "x".repeat(100);
+    const result = buildNotification("ticket.resolved", {
+      ticketTitle: title,
+      ticketId: "t1",
+    });
+    expect(result.subject.length).toBeLessThan(80);
+    expect(result.subject.startsWith("✅ Resolved:")).toBe(true);
+    expect(result.body).toContain(title);
+  });
+
+  test("keeps the status on its own paragraph", () => {
+    const result = buildNotification("ticket.handoff", {
+      ...base,
+      status: "Needs Human",
+    });
+    expect(result.body).toMatch(/\n\nCurrent status: Needs Human\.$/);
   });
 });

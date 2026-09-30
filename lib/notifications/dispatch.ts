@@ -1,12 +1,17 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAdminSession, recordAudit } from "@/lib/admin/auth";
 import { sendPushToUser } from "@/lib/push/send";
+import { getSiteUrl } from "@/lib/site-url";
+import { getFirstName } from "@/lib/auth/display-name";
 import { sendEmail } from "./email";
+import { renderNotificationEmail, type EmailTicketSummary } from "./email-html";
+import { STAFF_ONLY_EVENTS, type NotificationAudience } from "./templates";
 
 type OutboxRow = {
   id: string;
   organization_id: string | null;
   ticket_id: string | null;
+  event_type?: string | null;
   channel: "email" | "push";
   recipient_user_id: string;
   subject: string;
@@ -14,6 +19,23 @@ type OutboxRow = {
   url: string | null;
   attempts: number;
 };
+
+/** Staff emails link into /admin; everything else goes to the requester. */
+export function audienceForRow(
+  row: Pick<OutboxRow, "url" | "event_type">
+): NotificationAudience {
+  if (row.url) {
+    let path = row.url;
+    try {
+      path = new URL(row.url, "http://localhost").pathname;
+    } catch {
+      // keep the raw string
+    }
+    if (/^\/admin(\/|$)/.test(path)) return "staff";
+  }
+  if (row.event_type && STAFF_ONLY_EVENTS.has(row.event_type)) return "staff";
+  return "requester";
+}
 
 function retryable(error: string): boolean {
   return error.startsWith("retryable:");
@@ -30,7 +52,7 @@ export async function dispatchPending({
   let query = admin
     .from("notification_outbox")
     .select(
-      "id,organization_id,ticket_id,channel,recipient_user_id,subject,body,url,attempts"
+      "id,organization_id,ticket_id,event_type,channel,recipient_user_id,subject,body,url,attempts"
     )
     .in("status", ["pending", "failed"])
     .lte("next_attempt_at", new Date().toISOString())
@@ -41,6 +63,34 @@ export async function dispatchPending({
   let sent = 0;
   let failed = 0;
   let dead = 0;
+  const tickets = new Map<string, EmailTicketSummary | null>();
+  async function ticketSummary(
+    id: string | null
+  ): Promise<EmailTicketSummary | null> {
+    if (!id) return null;
+    if (tickets.has(id)) return tickets.get(id) ?? null;
+    let summary: EmailTicketSummary | null = { id };
+    try {
+      const { data: ticket } = await admin
+        .from("tickets")
+        .select("id,issue_title,status")
+        .eq("id", id)
+        .maybeSingle();
+      const found = ticket as {
+        issue_title?: string | null;
+        status?: string | null;
+      } | null;
+      summary = {
+        id,
+        title: found?.issue_title ?? null,
+        status: found?.status ?? null,
+      };
+    } catch {
+      summary = { id };
+    }
+    tickets.set(id, summary);
+    return summary;
+  }
   for (const row of (data ?? []) as OutboxRow[]) {
     const claimed = await admin
       .from("notification_outbox")
@@ -56,10 +106,21 @@ export async function dispatchPending({
       const email = user.data.user?.email;
       if (!email) error = "permanent:recipient has no email";
       else {
+        const rendered = renderNotificationEmail({
+          eventType: row.event_type ?? null,
+          audience: audienceForRow(row),
+          subject: row.subject,
+          body: row.body,
+          url: row.url,
+          siteUrl: getSiteUrl(),
+          recipientFirstName: getFirstName(user.data.user),
+          ticket: await ticketSummary(row.ticket_id),
+        });
         const result = await sendEmail({
           to: email,
           subject: row.subject,
-          text: `${row.body}${row.url ? `\n\nOpen ticket: ${row.url}` : ""}`,
+          text: rendered.text,
+          html: rendered.html,
         });
         if (!result.ok) error = result.error ?? "retryable:email failed";
       }

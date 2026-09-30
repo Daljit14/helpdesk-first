@@ -103,4 +103,40 @@ describe("StatusWidget", () => {
     expect(screen.getByText("Emails may be delayed")).toBeInTheDocument();
     expect(screen.getByText("Service disruption")).toBeInTheDocument();
   });
+
+  it("summarises session uptime and keeps a per-service check history", async () => {
+    window.sessionStorage.clear();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          ok: true,
+          checks: {
+            app: { ok: true, ms: null },
+            database: { ok: true, ms: 120 },
+            auth: { ok: true, ms: 80 },
+            storage: { ok: true, ms: 90 },
+            ai: { ok: true, ms: null },
+            notifications: { ok: true, ms: 70 },
+          },
+          timestamp: new Date().toISOString(),
+        }),
+      })
+    );
+
+    render(<StatusWidget />);
+
+    await waitFor(() =>
+      expect(screen.getByText("All systems operational")).toBeInTheDocument()
+    );
+    expect(screen.getByText("Uptime this session")).toBeInTheDocument();
+    expect(screen.getByText("100%")).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("img", { name: /Last 1 checks: 1 operational/ })
+    ).toHaveLength(5);
+    expect(
+      screen.getByRole("heading", { name: "What to do if something is down" })
+    ).toBeInTheDocument();
+  });
 });

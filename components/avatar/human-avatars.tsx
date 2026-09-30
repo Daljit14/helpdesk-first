@@ -16,8 +16,8 @@ import { useId, type CSSProperties, type ReactNode } from "react";
  * - `.hf-ava3-bgA` / `.hf-ava3-bgB`  slow parallax float of background shapes
  * - `.hf-ava3-body` / `.hf-ava3-head` / `.hf-ava3-hair`  gentle sway
  * - `.hf-ava3-lid`   soft blink (one lid per eye)
- * - hover / focus / selected: the face turns toward the viewer, the smile
- *   softens and the accent shape spins.
+ * - hover / focus / selected: the face turns toward the viewer, winks, waves,
+ *   sparkles, softens its smile and spins the accent shape.
  * Reduced-motion users get a still avatar.
  */
 export const AVATAR_VIEWBOX = "0 0 100 100";
@@ -615,6 +615,32 @@ function Accent({ v, d }: { v: number; d: string }) {
   );
 }
 
+function Sparkles({ r }: { r: Recipe }) {
+  const sparkles: [number, number, number][] = [
+    [16, 16, 0.45],
+    [82, 12, 0.35],
+    [84, 35, 0.3],
+  ];
+  return (
+    <g>
+      {sparkles.map(([x, y, scale], i) => (
+        <g key={i} transform={`translate(${x} ${y})`}>
+          <g transform={`scale(${scale})`}>
+            <path
+              className="hf-ava3-spark"
+              d={STAR}
+              fill="#ffffff"
+              stroke={r.bg.rim}
+              strokeWidth="0.8"
+              style={{ "--hf-si": i } as CSSProperties}
+            />
+          </g>
+        </g>
+      ))}
+    </g>
+  );
+}
+
 function Backdrop({ r, u }: Ctx) {
   const { a, b, c, d, ink, v } = r.bg;
   const dots = `url(#${u}dots)`;
@@ -1156,7 +1182,7 @@ function HairFront({ r, u }: Ctx) {
             {Array.from({ length: 12 }).map((_, i) => (
               <path
                 key={i}
-                d={`M${34 + i * 3}21V34`}
+                d={`M${34 + i * 3} 21V34`}
                 stroke={acc[1]}
                 strokeWidth="0.7"
                 opacity="0.55"
@@ -1261,6 +1287,7 @@ function Eye({
   w,
   outer,
   r,
+  wink,
 }: {
   u: string;
   k: string;
@@ -1269,6 +1296,7 @@ function Eye({
   w: number;
   outer: -1 | 1;
   r: Recipe;
+  wink?: boolean;
 }) {
   const h = w * 0.36;
   const x0 = cx - w / 2;
@@ -1306,7 +1334,7 @@ function Eye({
           fill="none"
         />
       </g>
-      <g className="hf-ava3-lid">
+      <g className={wink ? "hf-ava3-lid hf-ava3-wink" : "hf-ava3-lid"}>
         <path d={shape} fill={r.skin[0]} stroke={r.skin[0]} strokeWidth="0.6" />
         <path
           d={bot}
@@ -1355,7 +1383,7 @@ function Face({ r, u }: Ctx) {
         fill="none"
       />
       <Eye u={u} k="eL" cx={43.2} cy={38.6} w={8.6} outer={-1} r={r} />
-      <Eye u={u} k="eR" cx={57.4} cy={38.4} w={7} outer={1} r={r} />
+      <Eye u={u} k="eR" cx={57.4} cy={38.4} w={7} outer={1} r={r} wink />
       {/* nose: hard shadow shape on the far side + tip line */}
       <path
         d="M51.6 40.4C52.6 43.8 54 46.2 55 47.8C54.4 49.6 51.6 50.2 49.2 49.6C50.6 49 51.6 48.6 51.6 47.4C51.8 45 51.6 42.6 51 40.6Z"
@@ -1688,6 +1716,39 @@ function HijabFront({ r, u }: Ctx) {
         <path d={HIJAB_HOLE} fill="none" stroke={s} strokeWidth="2.2" />
       </g>
     </g>
+  );
+}
+
+function Hand({ r, u }: Ctx) {
+  const hand =
+    "M7.2 19C5.8 18.7 5 17.5 5 16.2V12.1C4.2 12.1 3.7 11.7 3 11L1.5 9.4C.4 8.1 2.2 6.7 3.4 7.9L7.6 11V5.2C7.6 3.4 10.1 3.4 10.1 5.2V9.2V3.1C10.1 1.2 12.6 1.2 12.6 3.1V9.2V4.4C12.6 2.6 15.1 2.6 15.1 4.4V9.7V6.4C15.1 4.6 17.6 4.6 17.6 6.4V13C17.6 16.6 15.4 19 12 19Z";
+  return (
+    <>
+      <Cel
+        u={u}
+        k="hand"
+        d={hand}
+        c={r.skin[0]}
+        s={r.skin[1]}
+        dx={-1.8}
+        dy={-0.8}
+      />
+      <path
+        d={hand}
+        fill="none"
+        stroke={INK}
+        strokeWidth="0.9"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M7.3 16.7H12.9L12.5 19H7.5Z"
+        fill={r.top.c[0]}
+        stroke={INK}
+        strokeWidth="0.9"
+        strokeLinejoin="round"
+      />
+      <path d="M7.4 17.2H12.8" stroke={r.top.c[1]} strokeWidth="0.6" />
+    </>
   );
 }
 
@@ -2165,6 +2226,7 @@ export function HumanFigure({
           </pattern>
         </defs>
         <Backdrop {...ctx} />
+        <Sparkles r={r} />
 
         <g transform="translate(0 2) translate(50 80) scale(1.06) translate(-50 -80)">
           <g className="hf-ava3-hair">
@@ -2229,6 +2291,11 @@ export function HumanFigure({
                 <Earring r={r} />
               </g>
             </g>
+          </g>
+        </g>
+        <g transform="translate(71 77)">
+          <g className="hf-ava3-hand">
+            <Hand {...ctx} />
           </g>
         </g>
       </g>

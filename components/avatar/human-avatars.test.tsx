@@ -8,7 +8,7 @@ import {
   LEGACY_AVATAR_MAP,
   normalizeAvatarId,
 } from "./animated-avatar";
-import { HUMAN_AVATAR_IDS } from "./human-avatars";
+import { HUMAN_AVATAR_IDS, HumanSvg } from "./human-avatars";
 
 afterEach(cleanup);
 
@@ -47,6 +47,16 @@ describe("human avatars", () => {
     );
     const ids = [...container.querySelectorAll("defs [id]")].map((n) => n.id);
     expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("renders one wink, one waving hand and three sparkles for every person", () => {
+    for (const id of HUMAN_AVATAR_IDS) {
+      const { container, unmount } = render(<HumanSvg id={id} />);
+      expect(container.querySelectorAll(".hf-ava3-wink")).toHaveLength(1);
+      expect(container.querySelectorAll(".hf-ava3-hand")).toHaveLength(1);
+      expect(container.querySelectorAll(".hf-ava3-spark")).toHaveLength(3);
+      unmount();
+    }
   });
 
   it("keeps the assistant bot and fill size working", () => {

@@ -59,4 +59,17 @@ describe("AccountChip", () => {
     render(<AccountChip email="person@example.com" />);
     expect(screen.getByText("person")).toBeInTheDocument();
   });
+
+  it("lists all 16 people in the picker and can pick a new one", () => {
+    render(<AccountChip email="person@example.com" />);
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Change avatar for person@example.com",
+      })
+    );
+    const group = screen.getByRole("radiogroup", { name: "Avatar" });
+    expect(group.querySelectorAll('[role="radio"]')).toHaveLength(17);
+    fireEvent.click(screen.getByRole("radio", { name: "Locs with bandana" }));
+    expect(localStorage.getItem("hf-avatar")).toBe("luca");
+  });
 });

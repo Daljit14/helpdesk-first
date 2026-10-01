@@ -201,9 +201,7 @@ export function TroubleshootingGuide({
       return;
     }
     const bar = progressRef.current;
-    const step = document.querySelector<HTMLElement>(
-      '[data-step-current="true"]'
-    );
+    const step = document.querySelector<HTMLElement>('[aria-current="step"]');
     if (!bar || !step) return;
     const offset =
       parseFloat(getComputedStyle(bar).top) + bar.offsetHeight + 16;
@@ -602,7 +600,6 @@ export function TroubleshootingGuide({
                     key={`${index}-${text}`}
                     className="hf-step-item relative pb-4 pl-14 last:pb-0"
                     data-state={stepState}
-                    data-step-current={isCurrent ? "true" : undefined}
                     style={{ animationDelay: `${0.06 + position * 0.07}s` }}
                     aria-current={isCurrent ? "step" : undefined}
                   >

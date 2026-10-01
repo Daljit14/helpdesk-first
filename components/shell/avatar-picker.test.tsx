@@ -46,4 +46,19 @@ describe("AvatarPicker", () => {
       document.querySelector('[data-character="mei"]')
     ).toBeInTheDocument();
   });
+
+  it("offers the new people and saves one of them", () => {
+    render(<AvatarPicker email="person@example.com" />);
+    fireEvent.click(screen.getByRole("button", { name: "Choose avatar" }));
+    for (const label of [
+      "Bald with full beard",
+      "Patterned head wrap",
+      "Cap with freckles",
+      "Locs with bandana",
+    ]) {
+      expect(screen.getByRole("button", { name: label })).toBeInTheDocument();
+    }
+    fireEvent.click(screen.getByRole("button", { name: "Cap with freckles" }));
+    expect(updateUser).toHaveBeenCalledWith({ data: { avatar: "char:finn" } });
+  });
 });

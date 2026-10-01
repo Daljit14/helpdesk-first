@@ -1,4 +1,5 @@
 import {
+  AVATAR_VIEWBOX,
   HUMAN_AVATARS,
   HUMAN_AVATAR_IDS,
   HumanFigure,
@@ -52,12 +53,17 @@ export function Character({
       aria-hidden
       data-character={id}
       className={cn(
-        "hf-ava inline-flex h-11 w-11 shrink-0 overflow-hidden rounded-full",
+        "hf-ava hf-ava3 inline-flex h-11 w-11 shrink-0 overflow-hidden rounded-full",
         className
       )}
       style={{ background: humanAvatarBackground(id) }}
     >
-      <svg viewBox="0 0 44 44" width="100%" height="100%" className="block">
+      <svg
+        viewBox={AVATAR_VIEWBOX}
+        width="100%"
+        height="100%"
+        className="block"
+      >
         <HumanFigure id={id} index={CHARACTERS.indexOf(id)} />
       </svg>
     </span>

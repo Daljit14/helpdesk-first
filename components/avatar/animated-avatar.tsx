@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 import {
+  AVATAR_VIEWBOX,
   HUMAN_AVATARS,
   HUMAN_AVATAR_IDS,
   HumanFigure,
@@ -164,7 +166,7 @@ export function AnimatedAvatar({
   return (
     <span
       className={cn(
-        "hf-ava inline-flex shrink-0 overflow-hidden rounded-full",
+        "hf-ava hf-ava3 inline-flex shrink-0 overflow-hidden rounded-full",
         fill && "min-w-0",
         className
       )}
@@ -173,7 +175,12 @@ export function AnimatedAvatar({
       aria-label={title}
       aria-hidden={title ? undefined : true}
     >
-      <svg viewBox="0 0 44 44" width="100%" height="100%" className="block">
+      <svg
+        viewBox={AVATAR_VIEWBOX}
+        width="100%"
+        height="100%"
+        className="block"
+      >
         <HumanFigure id={human} index={index} />
       </svg>
     </span>
@@ -205,10 +212,10 @@ export function useSavedAvatar(fallback: AvatarId | "initial" = "initial") {
 }
 
 /**
- * Avatar picker: a responsive 4-column grid of illustrated people plus a
- * "Use my initial" option. It always takes the width of its container (never
- * wider), so it fits the 264px sidebar and the mobile drawer without any
- * sideways scrolling.
+ * Avatar picker: a soft gradient card with a 4x4 grid of stylised portraits plus
+ * a "Use my initial" option. It always takes the width of its container
+ * (never wider), so it fits the 264px sidebar and the mobile drawer without
+ * any sideways scrolling. Hovering / focusing a tile shows its name below.
  */
 export function AvatarPicker({
   value,
@@ -219,9 +226,18 @@ export function AvatarPicker({
   initial: string;
   onChange: (next: AvatarId | "initial") => void;
 }) {
+  const [peek, setPeek] = useState<AvatarId | null>(null);
+  const caption = peek
+    ? AVATAR_LABELS[peek]
+    : value === "initial"
+      ? "Your initial"
+      : AVATAR_LABELS[value];
   return (
-    <div className="w-full min-w-0 max-w-full rounded-3xl border border-border bg-card p-3 text-card-foreground shadow-[var(--shadow-md)]">
+    <div className="hf-ava3-card w-full min-w-0 max-w-full overflow-hidden rounded-3xl border border-border p-3 text-card-foreground shadow-[var(--shadow-md)]">
       <p className="px-1 text-sm font-extrabold">Choose your avatar</p>
+      <p className="px-1 text-[11px] font-medium text-muted-foreground">
+        Pick a look that feels like you
+      </p>
       <div role="radiogroup" aria-label="Avatar" className="min-w-0">
         <div className="mt-2.5 grid grid-cols-4 gap-1.5">
           {AVATAR_IDS.map((id, index) => {
@@ -235,34 +251,76 @@ export function AvatarPicker({
                 aria-label={AVATAR_LABELS[id]}
                 title={AVATAR_LABELS[id]}
                 onClick={() => onChange(id)}
+                onMouseEnter={() => setPeek(id)}
+                onMouseLeave={() => setPeek(null)}
+                onFocus={() => setPeek(id)}
+                onBlur={() => setPeek(null)}
                 className={cn(
-                  "hf-ava-hover flex aspect-square min-w-0 items-center justify-center rounded-2xl border-2 p-0.5 transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/25",
-                  selected
-                    ? "border-primary bg-secondary"
-                    : "border-transparent hover:bg-muted"
+                  "hf-ava3-hover hf-ava3-tile group relative flex aspect-square min-w-0 items-center justify-center rounded-[30%] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/30"
                 )}
               >
-                <AnimatedAvatar id={id} size="fill" index={index} />
+                <AnimatedAvatar
+                  id={id}
+                  size="fill"
+                  index={index}
+                  className="rounded-[30%]"
+                />
+                <svg
+                  aria-hidden
+                  viewBox="0 0 100 100"
+                  preserveAspectRatio="none"
+                  className="hf-ava3-ring"
+                >
+                  <rect
+                    x="1"
+                    y="1"
+                    width="98"
+                    height="98"
+                    rx="31"
+                    pathLength={1}
+                    strokeWidth="3"
+                    vectorEffect="non-scaling-stroke"
+                  />
+                </svg>
+                {selected && (
+                  <span
+                    aria-hidden
+                    className="hf-ava3-badge absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm ring-2 ring-card"
+                  >
+                    <Check className="h-2.5 w-2.5" strokeWidth={3.5} />
+                  </span>
+                )}
               </button>
             );
           })}
         </div>
+        <p
+          aria-hidden
+          className="mt-2 min-h-4 truncate px-1 text-center text-[11px] font-bold text-muted-foreground"
+        >
+          {caption}
+        </p>
         <button
           type="button"
           role="radio"
           aria-checked={value === "initial"}
           onClick={() => onChange("initial")}
           className={cn(
-            "mt-2.5 flex min-h-11 w-full min-w-0 items-center gap-3 rounded-2xl border-2 px-3 text-sm font-bold",
+            "mt-1.5 flex min-h-11 w-full min-w-0 items-center gap-3 rounded-2xl border px-3 text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/30",
             value === "initial"
-              ? "border-primary bg-secondary"
-              : "border-border hover:bg-muted"
+              ? "border-primary bg-primary/10"
+              : "border-border bg-card/60 hover:bg-muted"
           )}
         >
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,#ffc24b,#f472b6)] text-xs font-extrabold text-[#1c1633]">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,#ffc24b,#f472b6)] text-xs font-extrabold text-[#1c1633] shadow-[inset_0_-3px_6px_rgb(0_0_0/0.12),inset_0_2px_3px_rgb(255_255_255/0.5)]">
             {initial}
           </span>
-          <span className="min-w-0 truncate">Use my initial</span>
+          <span className="min-w-0 flex-1 truncate text-left">
+            Use my initial
+          </span>
+          {value === "initial" && (
+            <Check className="h-4 w-4 shrink-0 text-primary" aria-hidden />
+          )}
         </button>
       </div>
     </div>

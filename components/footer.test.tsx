@@ -51,4 +51,19 @@ describe("Footer", () => {
       "/admin/login"
     );
   });
+
+  test("shows the help call-to-action and toolkit links", () => {
+    render(<Footer />);
+
+    expect(
+      screen.getByRole("link", { name: "Chat with the assistant" })
+    ).toHaveAttribute("href", "/assistant");
+    expect(
+      screen.getByRole("link", { name: "Talk to a person" })
+    ).toHaveAttribute("href", "/assistant?intent=human");
+    expect(screen.getByRole("link", { name: "Toolkit" })).toHaveAttribute(
+      "href",
+      "/tools"
+    );
+  });
 });

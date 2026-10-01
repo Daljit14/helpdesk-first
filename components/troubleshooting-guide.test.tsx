@@ -1,11 +1,14 @@
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
 import {
+  act,
   render,
   screen,
   fireEvent,
   waitFor,
   cleanup,
 } from "@testing-library/react";
+import { hydrateRoot } from "react-dom/client";
+import { renderToString } from "react-dom/server";
 import { within } from "@testing-library/react";
 import { TroubleshootingGuide } from "./troubleshooting-guide";
 import { ISSUES } from "@/lib/issues";
@@ -47,6 +50,63 @@ describe("TroubleshootingGuide", () => {
       expect(screen.getByTestId("step-count")).toHaveTextContent(/Step 1 of 5/);
     });
     expect(screen.getByTestId("step-title")).toHaveTextContent(steps[0]);
+  });
+
+  test("hydrates the initial step before restoring a saved session", async () => {
+    const element = <TroubleshootingGuide issue={issue} />;
+    const serverHtml = renderToString(element);
+    const serverContainer = document.createElement("div");
+    serverContainer.innerHTML = serverHtml;
+    expect(
+      serverContainer.querySelector(
+        'ol[aria-label="Troubleshooting steps"] > li[aria-current="step"]'
+      )
+    ).toHaveAttribute("data-state", "current");
+
+    localStorage.setItem(
+      "helpdesk-sessions",
+      JSON.stringify({
+        [`${issue.id}:Windows`]: {
+          issueSlug: issue.id,
+          issueTitle: issue.title,
+          platform: "Windows",
+          currentStepIndex: 2,
+          attemptedSteps: [],
+          status: "in-progress",
+          updatedAt: 1,
+        },
+      })
+    );
+
+    const container = document.createElement("div");
+    container.innerHTML = serverHtml;
+    document.body.appendChild(container);
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    let root: ReturnType<typeof hydrateRoot> | null = null;
+
+    try {
+      await act(async () => {
+        root = hydrateRoot(container, element);
+      });
+      await waitFor(() =>
+        expect(
+          container.querySelector(
+            'ol[aria-label="Troubleshooting steps"] > li[aria-current="step"]'
+          )
+        ).toHaveTextContent(steps[2]!)
+      );
+      expect(
+        consoleError.mock.calls
+          .map((args) => args.map(String).join(" "))
+          .filter((message) => /hydration|did not match/i.test(message))
+      ).toEqual([]);
+    } finally {
+      if (root) await act(async () => root?.unmount());
+      consoleError.mockRestore();
+      container.remove();
+    }
   });
 
   test("completing steps advances and marks resolved at the final step", async () => {

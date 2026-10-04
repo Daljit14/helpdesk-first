@@ -94,6 +94,8 @@ export type AgentSession = {
   tool_call_count: number;
   model_turn_count: number;
   token_count: number;
+  cost_micros?: number;
+  planner_turn_count?: number;
   halt_reason: string | null;
   security_flag: boolean;
   verified_execution_id?: string | null;

@@ -90,6 +90,7 @@ export async function handleAgentRequest(input: {
     return;
   }
   let userMessage = message;
+  let screenshotAttached = false;
   if (attachmentIds.length > 0) {
     const intake = await (deps?.intakeScreenshots ?? intakeScreenshots)(
       admin,
@@ -147,6 +148,7 @@ export async function handleAgentRequest(input: {
         });
       }
       if (intake.items.length > 0) {
+        screenshotAttached = true;
         userMessage = [
           message || "I shared a screenshot of the problem.",
           ...intake.items.map((item) => item.modelText),
@@ -235,6 +237,12 @@ export async function handleAgentRequest(input: {
           result === "declined"
             ? `User declined \`${capabilityId}\``
             : `The fix \`${capabilityId}\` was rolled back after verification failed`,
+        routing: {
+          ...(screenshotAttached ? { screenshotAttached: true } : {}),
+          ...(result === "executed_verified_failed"
+            ? { failedVerification: true }
+            : {}),
+        },
         deps: loopDeps,
       });
     }
@@ -285,6 +293,10 @@ export async function handleAgentRequest(input: {
         emit,
         signal,
         userMessage: `Still broken after \`${capabilityId}\``,
+        routing: {
+          ...(screenshotAttached ? { screenshotAttached: true } : {}),
+          failedVerification: true,
+        },
         deps: loopDeps,
       });
     }
@@ -345,6 +357,7 @@ export async function handleAgentRequest(input: {
     emit,
     signal,
     userMessage,
+    ...(screenshotAttached ? { routing: { screenshotAttached: true } } : {}),
     deps: loopDeps,
   });
 }

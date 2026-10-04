@@ -1,8 +1,12 @@
 import { createHash } from "node:crypto";
 import { getAiModel, getAiProviderKind } from "@/lib/ai/config";
 import { getProviderTimeoutMs } from "@/lib/ai/safety-policy";
+import type { ModelUsage } from "@/lib/ai/pricing";
 import { sanitizeForUser } from "./untrusted";
-import { isRequesterAgentActionsEnabled } from "@/lib/admin/flags";
+import {
+  isAgentPromptCacheEnabled,
+  isRequesterAgentActionsEnabled,
+} from "@/lib/admin/flags";
 
 export type AgentMessage =
   | { role: "user"; content: string }
@@ -15,7 +19,9 @@ export type AgentToolSpec = {
   input_schema: Record<string, unknown>;
 };
 
-export type AgentModelOutput =
+export type AgentModelUsage = ModelUsage;
+
+type AgentModelOutputKind =
   | {
       kind: "tool_use";
       id: string;
@@ -25,6 +31,11 @@ export type AgentModelOutput =
     }
   | { kind: "final"; text: string; confidence: number; summary: string }
   | { kind: "invalid"; raw: string };
+
+export type AgentModelOutput = AgentModelOutputKind & {
+  usage?: AgentModelUsage;
+  model?: string;
+};
 
 export interface AgentModel {
   next(input: {
@@ -233,7 +244,8 @@ export class MockAgentModel implements AgentModel {
 export class AnthropicAgentModel implements AgentModel {
   constructor(
     private readonly apiKey: string,
-    private readonly model: string
+    private readonly model: string,
+    private readonly opts: { promptCache: boolean } = { promptCache: false }
   ) {}
 
   async next(input: {
@@ -261,6 +273,9 @@ export class AnthropicAgentModel implements AgentModel {
         tools: input.tools,
         tool_choice: { type: "auto" },
         messages: input.messages,
+        ...(this.opts.promptCache
+          ? { cache_control: { type: "ephemeral" } }
+          : {}),
       }),
     });
     if (!response.ok) throw new Error("Anthropic agent request failed");
@@ -272,8 +287,10 @@ export class AnthropicAgentModel implements AgentModel {
         input?: unknown;
         text?: string;
       }>;
+      usage?: Record<string, unknown>;
     };
     modelTelemetry(input.system, input.messages, body);
+    const usage = parseUsage(body.usage);
     const tool = body.content?.find((item) => item.type === "tool_use");
     if (tool?.name && tool.id) {
       return {
@@ -282,26 +299,59 @@ export class AnthropicAgentModel implements AgentModel {
         name: tool.name,
         input: tool.input ?? {},
         summary: "I’m checking a read-only support source.",
+        usage,
+        model: this.model,
       };
     }
     const text = sanitizeForUser(
       body.content?.find((item) => item.type === "text")?.text ?? ""
     ).slice(0, 1200);
     if (!text)
-      return { kind: "invalid", raw: JSON.stringify(body).slice(0, 500) };
+      return {
+        kind: "invalid",
+        raw: JSON.stringify(body).slice(0, 500),
+        usage,
+        model: this.model,
+      };
     return {
       kind: "final",
       text,
       confidence: 0.8,
       summary: "I’m summarizing the findings.",
+      usage,
+      model: this.model,
     };
   }
 }
 
-export function createAgentModel(firstMessage: string): AgentModel {
+function parseUsage(value: unknown): AgentModelUsage {
+  const usage =
+    value && typeof value === "object"
+      ? (value as Record<string, unknown>)
+      : {};
+  const tokens = (key: string) => {
+    const value = usage[key];
+    return typeof value === "number" && Number.isInteger(value) && value >= 0
+      ? value
+      : 0;
+  };
+  return {
+    inputTokens: tokens("input_tokens"),
+    outputTokens: tokens("output_tokens"),
+    cacheCreationInputTokens: tokens("cache_creation_input_tokens"),
+    cacheReadInputTokens: tokens("cache_read_input_tokens"),
+  };
+}
+
+export function createAgentModel(
+  firstMessage: string,
+  modelId: string = getAiModel()
+): AgentModel {
   const provider = getAiProviderKind();
   if (provider === "anthropic" && process.env.ANTHROPIC_API_KEY)
-    return new AnthropicAgentModel(process.env.ANTHROPIC_API_KEY, getAiModel());
+    return new AnthropicAgentModel(process.env.ANTHROPIC_API_KEY, modelId, {
+      promptCache: isAgentPromptCacheEnabled(),
+    });
   return new MockAgentModel(firstMessage);
 }
 

@@ -2,10 +2,16 @@ import { alertSecurityEvent } from "@/lib/autonomy/alerts";
 import { checkUserMessageSafety } from "@/lib/ai/safety-policy";
 import { guardModelInput } from "@/lib/autonomy/guardrails/input";
 import { readKillSwitches } from "@/lib/autonomy/kill-switches";
-import { checkAndConsumeDailyBudget } from "@/lib/ai/budget";
+import {
+  checkAndConsumeDailyBudget,
+  checkOrgDailyCostBudget,
+} from "@/lib/ai/budget";
+import { costMicros } from "@/lib/ai/pricing";
+import { recordAgentModelCall } from "@/lib/ai/telemetry";
 import { getAgentTools, runTool, toolParamsHash } from "./tools";
 import { budgetExceeded } from "./budgets";
 import { createAgentModel, type AgentMessage, type AgentModel } from "./model";
+import { countEvidenceSources, selectAgentRoute } from "./routing";
 import { requesterAgentActionPrompt } from "./prompt";
 import { detectTripwire } from "./tripwires";
 import { isDenylisted } from "./denylist";
@@ -21,6 +27,7 @@ import {
 } from "./session";
 import { proposeAction } from "./actions";
 import {
+  isAgentCostTrackingEnabled,
   isRequesterAgentActionsEnabled,
   isRequesterAgentEnabledForOrg,
   isServiceHealthEnabled,
@@ -56,6 +63,10 @@ export type AgentLoopDeps = {
   budgetExceeded: typeof budgetExceeded;
   readKillSwitches: typeof readKillSwitches;
   checkDailyBudget: typeof checkAndConsumeDailyBudget;
+  checkOrgCostBudget: typeof checkOrgDailyCostBudget;
+  recordModelCall: typeof recordAgentModelCall;
+  createModel: typeof createAgentModel;
+  costTrackingEnabled?: boolean;
   runTool: typeof runTool;
   writeStep: typeof writeStep;
   updateSession: typeof updateSession;
@@ -73,6 +84,9 @@ const defaultDeps: AgentLoopDeps = {
   budgetExceeded,
   readKillSwitches,
   checkDailyBudget: checkAndConsumeDailyBudget,
+  checkOrgCostBudget: checkOrgDailyCostBudget,
+  recordModelCall: recordAgentModelCall,
+  createModel: createAgentModel,
   runTool,
   writeStep,
   updateSession,
@@ -91,12 +105,15 @@ export async function runAgentTurn(input: {
   userMessage: string;
   model?: AgentModel;
   platform?: string;
+  routing?: { screenshotAttached?: boolean; failedVerification?: boolean };
   emit: (event: AgentEvent) => void;
   signal: AbortSignal;
   deps?: Partial<AgentLoopDeps>;
 }): Promise<void> {
   const { admin, session, userMessage, platform, emit, signal } = input;
   const deps = { ...defaultDeps, ...input.deps };
+  const costTrackingEnabled =
+    deps.costTrackingEnabled ?? isAgentCostTrackingEnabled();
   const guarded = guardModelInput([{ source: "event", text: userMessage }]);
   const safety = checkUserMessageSafety({ message: userMessage });
   const tripwire = detectTripwire(userMessage);
@@ -120,7 +137,7 @@ export async function runAgentTurn(input: {
   });
   await deps.updateSession(admin, session, { last_user_message: userMessage });
 
-  const model = input.model ?? createAgentModel(userMessage);
+  const modelsById = new Map<string, AgentModel>();
   const messages: AgentMessage[] = [
     ...(await deps.loadContext(admin, session)),
     { role: "user", content: userMessage },
@@ -182,6 +199,33 @@ export async function runAgentTurn(input: {
       emit({ type: "escalated", ticketId, reason: "budget:daily_ai" });
       return;
     }
+    if (
+      costTrackingEnabled &&
+      !(await deps.checkOrgCostBudget(admin, session.organization_id))
+    ) {
+      const ticketId = await deps.escalate(
+        admin,
+        session,
+        "budget:org_cost",
+        userMessage
+      );
+      emit({ type: "escalated", ticketId, reason: "budget:org_cost" });
+      return;
+    }
+    const route = selectAgentRoute({
+      evidenceSources: countEvidenceSources(evidence),
+      failedVerification:
+        Boolean(input.routing?.failedVerification) ||
+        (session.failed_hypotheses ?? 0) > 0,
+      screenshotAttached: Boolean(input.routing?.screenshotAttached),
+    });
+    let model = input.model;
+    if (!model) {
+      model =
+        modelsById.get(route.model) ??
+        deps.createModel(userMessage, route.model);
+      modelsById.set(route.model, model);
+    }
     modelTurns += 1;
     session.model_turn_count = modelTurns;
     await deps.updateSession(admin, session, { model_turn_count: modelTurns });
@@ -201,6 +245,34 @@ export async function runAgentTurn(input: {
       maxTokens: 1200,
       signal,
     });
+    if (costTrackingEnabled && result.usage) {
+      const modelId = result.model ?? route.model;
+      const usage = result.usage;
+      const tokens =
+        usage.inputTokens +
+        usage.outputTokens +
+        usage.cacheCreationInputTokens +
+        usage.cacheReadInputTokens;
+      const callCostMicros = costMicros(modelId, usage);
+      session.token_count += tokens;
+      session.cost_micros = (session.cost_micros ?? 0) + callCostMicros;
+      const costUpdates: Partial<AgentSession> = {
+        token_count: session.token_count,
+        cost_micros: session.cost_micros,
+      };
+      if (route.tier === "planner") {
+        session.planner_turn_count = (session.planner_turn_count ?? 0) + 1;
+        costUpdates.planner_turn_count = session.planner_turn_count;
+      }
+      await deps.updateSession(admin, session, costUpdates);
+      deps.recordModelCall({
+        organizationId: session.organization_id,
+        model: modelId,
+        route: route.tier === "planner" ? "agent_planner" : "agent_default",
+        usage,
+        costMicros: callCostMicros,
+      });
+    }
     if (result.kind === "invalid") {
       invalid += 1;
       await deps.writeStep(admin, session, {

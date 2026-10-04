@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { createAgentEvalHarness } from "./eval-harness";
+import { runAgentTurn, type AgentLoopDeps } from "./loop";
+import type { AgentModel, AgentModelOutput } from "./model";
+import type { AgentEvent, AgentSession } from "./types";
 
 const use = (id: string, name = "search_guides", input: unknown = {}) => ({
   kind: "tool_use" as const,
@@ -38,6 +41,126 @@ const serviceIncident = {
   startedAt: null,
   url: "https://admin.microsoft.com/Adminportal/Home#/servicehealth",
 };
+
+function loopSession(overrides: Partial<AgentSession> = {}): AgentSession {
+  return {
+    id: "session-1",
+    organization_id: "org-1",
+    requester_id: "requester-1",
+    status: "active",
+    started_at: new Date().toISOString(),
+    ended_at: null,
+    last_user_message: null,
+    resolution_summary: null,
+    escalation_ticket_id: null,
+    action_count: 0,
+    tool_call_count: 0,
+    model_turn_count: 0,
+    token_count: 0,
+    halt_reason: null,
+    security_flag: false,
+    updated_at: new Date().toISOString(),
+    ...overrides,
+  };
+}
+
+function directLoopDeps(overrides: Partial<AgentLoopDeps> = {}) {
+  const updates: Array<Record<string, unknown>> = [];
+  const recordedCalls: Parameters<AgentLoopDeps["recordModelCall"]>[0][] = [];
+  let orgBudgetChecks = 0;
+  let modelSelections = 0;
+  const deps: Partial<AgentLoopDeps> = {
+    budgetExceeded: () => null,
+    readKillSwitches: async () => ({
+      global: false,
+      organization: false,
+      capability: false,
+      provider: false,
+      anyActive: false,
+      envDisabled: false,
+      explicit: false,
+      reasons: [],
+    }),
+    checkDailyBudget: async () => true,
+    checkOrgCostBudget: async () => {
+      orgBudgetChecks += 1;
+      return true;
+    },
+    recordModelCall: (call) => recordedCalls.push(call),
+    createModel: () => {
+      modelSelections += 1;
+      return {
+        next: async () => ({
+          kind: "final",
+          text: "Here is a safe answer.",
+          confidence: 0.9,
+          summary: "Answer",
+        }),
+      };
+    },
+    updateSession: async (_admin, session, values) => {
+      updates.push(values);
+      Object.assign(session, values);
+    },
+    writeStep: async () => {},
+    loadContext: async () => [],
+    loadEvidence: async () => [],
+    runTool: async () => ({
+      ok: true,
+      value: {},
+      modelText: "Tool result.",
+      userSummary: "Tool result.",
+    }),
+    escalate: async (_admin, session, reason) => {
+      session.status = "escalated";
+      session.resolution_summary = reason;
+      return "ticket-1";
+    },
+    halt: async (_admin, session, reason) => {
+      session.status = "halted";
+      session.halt_reason = reason;
+      return "ticket-1";
+    },
+    alert: async () => {},
+    proposeAction: async () => ({
+      kind: "rejected",
+      code: "unknown_hypothesis",
+      message: "That evidence is unavailable.",
+    }),
+    hasServiceIncident: async () => false,
+    serviceHealthEnabled: false,
+    costTrackingEnabled: false,
+    ...overrides,
+  };
+  return {
+    deps,
+    updates,
+    recordedCalls,
+    get orgBudgetChecks() {
+      return orgBudgetChecks;
+    },
+    get modelSelections() {
+      return modelSelections;
+    },
+  };
+}
+
+async function runDirectLoop(input: {
+  session?: AgentSession;
+  routing?: { screenshotAttached?: boolean; failedVerification?: boolean };
+  deps: Partial<AgentLoopDeps>;
+  events?: AgentEvent[];
+}): Promise<void> {
+  await runAgentTurn({
+    admin: {} as never,
+    session: input.session ?? loopSession(),
+    userMessage: "Please help me troubleshoot this support issue.",
+    routing: input.routing,
+    emit: (event) => input.events?.push(event),
+    signal: new AbortController().signal,
+    deps: input.deps,
+  });
+}
 
 afterEach(() => vi.unstubAllEnvs());
 
@@ -328,6 +451,292 @@ describe("requester agent loop", () => {
     await harness.run();
     expect(harness.proposeActionCalls).toBe(0);
     expect(harness.steps).toContainEqual(
+      expect.objectContaining({
+        kind: "action_rejected",
+        resultSummary: expect.stringContaining("service_incident_active"),
+      })
+    );
+  });
+
+  test("routes screenshot turns to the planner without changing prompt tools", async () => {
+    vi.stubEnv("HELP_DESK_AGENT_MODEL_ROUTING_ENABLED", "true");
+    vi.stubEnv("HELP_DESK_AGENT_PLANNER_MODEL", "claude-sonnet-5");
+    vi.stubEnv("HELP_DESK_AI_MODEL", "claude-haiku-4-5-20251001");
+    const selections: string[] = [];
+    const calls: Record<
+      "default" | "planner",
+      Array<Parameters<AgentModel["next"]>[0]>
+    > = { default: [], planner: [] };
+    const finalOutput: AgentModelOutput = {
+      kind: "final",
+      text: "Here is a safe answer.",
+      confidence: 0.9,
+      summary: "Answer",
+    };
+    const deps = directLoopDeps({
+      createModel: (_message, modelId) => {
+        selections.push(modelId ?? "missing");
+        const tier = modelId === "claude-sonnet-5" ? "planner" : "default";
+        return {
+          next: async (input) => {
+            calls[tier].push(input);
+            return finalOutput;
+          },
+        };
+      },
+    });
+
+    await runDirectLoop({ deps: deps.deps });
+    await runDirectLoop({
+      deps: deps.deps,
+      routing: { screenshotAttached: true },
+    });
+
+    expect(selections).toEqual([
+      "claude-haiku-4-5-20251001",
+      "claude-sonnet-5",
+    ]);
+    expect(calls.default).toHaveLength(1);
+    expect(calls.planner).toHaveLength(1);
+    const parameters = (input: Parameters<AgentModel["next"]>[0]) => ({
+      system: input.system,
+      tools: input.tools,
+      maxTokens: input.maxTokens,
+    });
+    expect(parameters(calls.planner[0])).toEqual(parameters(calls.default[0]));
+  });
+
+  test("uses only the default model when routing is disabled", async () => {
+    vi.stubEnv("HELP_DESK_AGENT_MODEL_ROUTING_ENABLED", "false");
+    vi.stubEnv("HELP_DESK_AGENT_PLANNER_MODEL", "claude-sonnet-5");
+    vi.stubEnv("HELP_DESK_AI_MODEL", "claude-haiku-4-5-20251001");
+    const selections: string[] = [];
+    const deps = directLoopDeps({
+      createModel: (_message, modelId) => {
+        selections.push(modelId ?? "missing");
+        return {
+          next: async () => ({
+            kind: "final",
+            text: "Here is a safe answer.",
+            confidence: 0.9,
+            summary: "Answer",
+          }),
+        };
+      },
+    });
+
+    await runDirectLoop({
+      deps: deps.deps,
+      routing: { screenshotAttached: true },
+    });
+
+    expect(selections).toEqual(["claude-haiku-4-5-20251001"]);
+  });
+
+  test("leaves token and cost fields, org budget, and telemetry untouched when tracking is off", async () => {
+    const deps = directLoopDeps({
+      createModel: () => ({
+        next: async () => ({
+          kind: "final",
+          text: "Here is a safe answer.",
+          confidence: 0.9,
+          summary: "Answer",
+          usage: {
+            inputTokens: 100,
+            outputTokens: 50,
+            cacheCreationInputTokens: 0,
+            cacheReadInputTokens: 0,
+          },
+          model: "claude-haiku-4-5-20251001",
+        }),
+      }),
+    });
+
+    await runDirectLoop({ deps: deps.deps });
+
+    expect(
+      deps.updates.some(
+        (update) =>
+          "token_count" in update ||
+          "cost_micros" in update ||
+          "planner_turn_count" in update
+      )
+    ).toBe(false);
+    expect(deps.orgBudgetChecks).toBe(0);
+    expect(deps.recordedCalls).toEqual([]);
+  });
+
+  test("accumulates usage and cost on planner calls when tracking is enabled", async () => {
+    vi.stubEnv("HELP_DESK_AGENT_MODEL_ROUTING_ENABLED", "true");
+    vi.stubEnv("HELP_DESK_AGENT_PLANNER_MODEL", "claude-sonnet-5");
+    const session = loopSession({
+      token_count: 7,
+      cost_micros: 20,
+      planner_turn_count: 1,
+    });
+    const deps = directLoopDeps({
+      costTrackingEnabled: true,
+      createModel: () => ({
+        next: async () => ({
+          kind: "final",
+          text: "Here is a safe answer.",
+          confidence: 0.9,
+          summary: "Answer",
+          usage: {
+            inputTokens: 100,
+            outputTokens: 50,
+            cacheCreationInputTokens: 10,
+            cacheReadInputTokens: 20,
+          },
+          model: "claude-sonnet-5",
+        }),
+      }),
+    });
+
+    await runDirectLoop({
+      session,
+      deps: deps.deps,
+      routing: { screenshotAttached: true },
+    });
+
+    expect(deps.orgBudgetChecks).toBe(1);
+    expect(session).toMatchObject({
+      token_count: 187,
+      cost_micros: 749,
+      planner_turn_count: 2,
+    });
+    expect(deps.recordedCalls).toEqual([
+      {
+        organizationId: "org-1",
+        model: "claude-sonnet-5",
+        route: "agent_planner",
+        usage: {
+          inputTokens: 100,
+          outputTokens: 50,
+          cacheCreationInputTokens: 10,
+          cacheReadInputTokens: 20,
+        },
+        costMicros: 729,
+      },
+    ]);
+    expect(deps.updates).toContainEqual({
+      token_count: 187,
+      cost_micros: 749,
+      planner_turn_count: 2,
+    });
+  });
+
+  test("escalates before a model call when the organization cost cap is reached", async () => {
+    vi.stubEnv("HELP_DESK_AGENT_COST_TRACKING_ENABLED", "true");
+    const events: AgentEvent[] = [];
+    let created = false;
+    const deps = directLoopDeps({
+      costTrackingEnabled: true,
+      checkOrgCostBudget: async () => false,
+      createModel: () => {
+        created = true;
+        return {
+          next: async () => ({
+            kind: "final",
+            text: "Should not run.",
+            confidence: 0.9,
+            summary: "No call",
+          }),
+        };
+      },
+    });
+
+    await runDirectLoop({ deps: deps.deps, events });
+
+    expect(created).toBe(false);
+    expect(events).toContainEqual({
+      type: "escalated",
+      ticketId: "ticket-1",
+      reason: "budget:org_cost",
+    });
+  });
+
+  test("keeps denylist enforcement active on the planner tier", async () => {
+    vi.stubEnv("HELP_DESK_AGENT_MODEL_ROUTING_ENABLED", "true");
+    vi.stubEnv("HELP_DESK_AGENT_PLANNER_MODEL", "claude-sonnet-5");
+    const events: AgentEvent[] = [];
+    let modelCalls = 0;
+    const deps = directLoopDeps({
+      createModel: () => ({
+        next: async () => {
+          modelCalls += 1;
+          return {
+            kind: "tool_use",
+            id: "unsafe",
+            name: "grant_group_access",
+            input: {},
+            summary: "Attempting a restricted action.",
+          };
+        },
+      }),
+    });
+
+    await runDirectLoop({
+      deps: deps.deps,
+      events,
+      routing: { screenshotAttached: true },
+    });
+
+    expect(modelCalls).toBe(1);
+    expect(events).toContainEqual({
+      type: "halted",
+      ticketId: "ticket-1",
+      reason: "model_proposed_denylisted",
+    });
+  });
+
+  test("keeps service-incident action blocking active on the planner tier", async () => {
+    vi.stubEnv("HELP_DESK_AGENT_MODEL_ROUTING_ENABLED", "true");
+    vi.stubEnv("HELP_DESK_AGENT_PLANNER_MODEL", "claude-sonnet-5");
+    vi.stubEnv("HELP_DESK_REQUESTER_AGENT_ENABLED", "true");
+    vi.stubEnv("HELP_DESK_REQUESTER_AGENT_ORG_ALLOWLIST", "org-1");
+    vi.stubEnv("HELP_DESK_REQUESTER_AGENT_ACTIONS_ENABLED", "true");
+    const steps: Array<{ kind: string; resultSummary?: string }> = [];
+    let actionCalls = 0;
+    let modelCalls = 0;
+    const model: AgentModel = {
+      next: async () => {
+        modelCalls += 1;
+        return modelCalls === 1
+          ? propose("proposal")
+          : {
+              kind: "final",
+              text: "Here is safe guidance.",
+              confidence: 0.9,
+              summary: "Guidance",
+            };
+      },
+    };
+    const deps = directLoopDeps({
+      createModel: () => model,
+      writeStep: async (_admin, _session, step) => {
+        steps.push(step);
+      },
+      proposeAction: async () => {
+        actionCalls += 1;
+        return {
+          kind: "rejected",
+          code: "unknown_hypothesis",
+          message: "Should not execute.",
+        };
+      },
+      hasServiceIncident: async () => true,
+      serviceHealthEnabled: true,
+    });
+
+    await runDirectLoop({
+      deps: deps.deps,
+      routing: { screenshotAttached: true },
+    });
+
+    expect(modelCalls).toBe(2);
+    expect(actionCalls).toBe(0);
+    expect(steps).toContainEqual(
       expect.objectContaining({
         kind: "action_rejected",
         resultSummary: expect.stringContaining("service_incident_active"),

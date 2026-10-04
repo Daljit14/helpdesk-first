@@ -2,6 +2,14 @@
 
 The admin Database page provides a tenant-scoped view of important stored data and a live activity tracker. Users are loaded through the service-role-only `public.admin_auth_users` projection; apply `supabase/admin-database.sql` before the Users section can show data.
 
+## D4 — model routing, prompt caching, and cost controls
+
+D4 adds optional planner routing, Anthropic prompt caching, model-call cost
+telemetry, and a per-organization daily cost cap. All D4 flags remain off by
+default. `supabase/model-routing.sql` is authored but has not been applied, and
+the live model-comparison report is pending before routing promotion.
+See `SETUP-NOTES-D4.md` for flags, pricing, budget behavior, and rollout gates.
+
 ## D3 — live service health
 
 D3 adds bounded Microsoft 365, Google Workspace, and organization-configured

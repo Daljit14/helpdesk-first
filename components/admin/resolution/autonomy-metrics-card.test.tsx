@@ -29,6 +29,9 @@ const metrics: AutonomyMetrics = {
     },
   ],
   unhandledIntentCount: 1,
+  costTracking: false,
+  totalCostMicros: 0,
+  costPerAiResolutionMicros: null,
 };
 
 afterEach(() => cleanup());
@@ -44,6 +47,40 @@ describe("AutonomyMetricsCard", () => {
     expect(screen.getByText("budget")).toBeInTheDocument();
     expect(screen.getByText("Cannot connect")).toBeInTheDocument();
     expect(screen.getByText("Median AI resolution: 2m")).toBeInTheDocument();
+    expect(screen.queryByText("AI spend (window)")).not.toBeInTheDocument();
+  });
+
+  test("renders cost tiles only when cost tracking is enabled", () => {
+    render(
+      <AutonomyMetricsCard
+        metrics={{
+          ...metrics,
+          costTracking: true,
+          totalCostMicros: 1_230_000,
+          costPerAiResolutionMicros: 12_300,
+        }}
+      />
+    );
+
+    expect(screen.getByText("Cost per AI resolution")).toBeInTheDocument();
+    expect(screen.getByText("$0.0123")).toBeInTheDocument();
+    expect(screen.getByText("AI spend (window)")).toBeInTheDocument();
+    expect(screen.getByText("$1.23")).toBeInTheDocument();
+  });
+
+  test("shows a dash when cost tracking is enabled without AI resolutions", () => {
+    render(
+      <AutonomyMetricsCard
+        metrics={{
+          ...metrics,
+          costTracking: true,
+          costPerAiResolutionMicros: null,
+        }}
+      />
+    );
+
+    expect(screen.getByText("Cost per AI resolution")).toBeInTheDocument();
+    expect(screen.getByText("—")).toBeInTheDocument();
   });
 
   test("renders the empty state when there are no sessions", () => {

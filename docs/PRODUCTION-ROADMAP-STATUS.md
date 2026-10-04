@@ -13,6 +13,19 @@ notification. The feature is behind the default-off
 `supabase/service-health.sql` migration is authored but has not been applied.
 See `SETUP-NOTES-D3.md` for provider permissions, cron cadence, and rollback.
 
+## D2 — read-only catalog batch (PR 2)
+
+Implemented on this branch; merge and organization rollout remain pending.
+The catalog adds read-only camera privacy, microphone privacy, and stale
+credential diagnostics backed by the existing platform collectors. Results
+are limited to access enums, booleans, counts, and nulls; device names,
+credential targets, usernames, realms, and principals are excluded. The
+evidence layer adds privacy, missing-camera, and expired-ticket hypotheses,
+while the deterministic planner escalates relevant findings without proposing
+device actions. D2 adds no SQL migration, environment flag, or executor.
+Updated agents are required to collect the new kinds; registry synchronization
+does not enable capabilities until an organization explicitly enables them.
+
 ## D1 — requester outcome feedback
 
 D1 adds requester outcome feedback for recently resolved requester-agent

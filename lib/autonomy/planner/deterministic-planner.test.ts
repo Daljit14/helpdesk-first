@@ -136,6 +136,52 @@ describe("deterministic planner", () => {
     });
   });
 
+  test.each([
+    [
+      "blocked camera",
+      {
+        kind: "camera_privacy" as const,
+        ok: true,
+        summary: "Camera access is blocked by privacy settings",
+        data: { blocked: true, devicesPresent: 1 },
+      },
+    ],
+    [
+      "stale credentials",
+      {
+        kind: "credential_health" as const,
+        ok: true,
+        summary: "Expired sign-in tickets on the device — route to IT",
+        data: { kerberosExpired: 1, stale: true },
+      },
+    ],
+  ])("does not propose a device action for %s", async (_label, diagnostic) => {
+    const result = await planner.plan(
+      input({
+        evidence: {
+          ...evidence,
+          device: {
+            deviceId: "device-1",
+            platform: "linux",
+            deviceClass: "managed",
+            collectedAt: "2026-10-04T00:00:00.000Z",
+            diagnostics: [diagnostic],
+            stale: false,
+          },
+        },
+        allowedCapabilities: caps(
+          "device_camera_privacy_status",
+          "device_stale_credential_report",
+          "search_approved_knowledge"
+        ),
+      })
+    );
+    expect(
+      result.decision === "propose_action" &&
+        result.capability.id.startsWith("device_")
+    ).toBe(false);
+  });
+
   test("escalates when no capability is allowed", async () => {
     const result = await planner.plan(input({ allowedCapabilities: [] }));
     expect(result).toMatchObject({

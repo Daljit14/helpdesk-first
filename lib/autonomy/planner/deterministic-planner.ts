@@ -312,6 +312,24 @@ export class DeterministicPlanner implements Planner {
           );
           if (action) return action;
         }
+        const camera = diagnostic("camera_privacy");
+        if (
+          camera?.data?.blocked === true ||
+          camera?.data?.devicesPresent === 0
+        ) {
+          return escalate("camera_privacy_requires_review");
+        }
+        const microphone = diagnostic("mic_privacy");
+        if (
+          microphone?.data?.blocked === true ||
+          microphone?.data?.muted === true
+        ) {
+          return escalate("microphone_privacy_requires_review");
+        }
+        const credentials = diagnostic("credential_health");
+        if (credentials?.data?.stale === true) {
+          return escalate("stale_credentials_require_review");
+        }
       }
     }
 

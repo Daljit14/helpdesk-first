@@ -89,6 +89,33 @@ derived from structured fields and capped at 512 characters. These diagnostics
 can activate deterministic evidence hypotheses, while local-write execution
 remains blocked unless all B3 switches are enabled.
 
+## D2 read-only batch
+
+D2 adds three collector-backed, read-only catalog actions:
+
+- `device_camera_privacy_status` reports `camera_privacy`:
+  `{ userAccess, systemAccess, devicesPresent, blocked }`.
+- `device_mic_privacy_status` reports `mic_privacy`:
+  `{ userAccess, systemAccess, devicesPresent, muted, blocked }`.
+- `device_stale_credential_report` reports `credential_health`:
+  `{ storedCredentials, kerberosTickets, kerberosExpired, stale }`.
+
+Access values are `allow`, `deny`, or `unknown`; counts are numbers or `null`.
+Windows reads the camera/microphone consent values and counts present devices.
+macOS reports device counts while leaving privacy access unknown; Linux counts
+`/dev/video*` camera nodes, and uses PulseAudio/PipeWire-compatible `pactl`
+source probes for microphones. Stored-credential counts are Windows-only;
+macOS Keychain and Linux keyrings are not inspected. Kerberos output is reduced
+to ticket and expiry counts. No application, device, credential-target,
+username, realm, or principal names are persisted or returned.
+
+These actions use an empty snapshot specification and never invoke an executor
+or request consent. Diagnostic summaries are derived from the bounded
+structured fields only. They add evidence hypotheses for privacy blocks,
+missing cameras, muted microphones, and expired sign-in tickets; the planner
+does not propose device actions for these findings. Registry synchronization
+does not enable the capabilities: organization enablement remains explicit.
+
 ## Packaging and deployment (B4)
 
 `npm run agent:package` builds the outbound agent and creates a versioned

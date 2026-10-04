@@ -1,7 +1,9 @@
+import { readdir } from "node:fs/promises";
 import type { DiagnosticKind } from "../../../lib/device-agent/protocol";
 import { boundedError, record, type Collector } from "./index";
 import { LINUX_SERVICE_COMMANDS, SERVICE_NAMES } from "../service-maps";
 import { userSystemctl } from "../user-systemctl";
+import { kerberosCredentialCollector } from "./kerberos";
 
 function commandCollector(
   kind: DiagnosticKind,
@@ -80,6 +82,65 @@ function parseAudio(pipewire: string, pulse: string, pactl: string) {
         .slice(0, 80) ?? null,
     running: statuses.some((status) => /active|running/i.test(status)),
   });
+}
+
+export function cameraPrivacyCollector(
+  readDirectory: (path: string) => Promise<string[]> = readdir
+): Collector {
+  return {
+    kind: "camera_privacy",
+    run: async () => {
+      try {
+        const entries = await readDirectory("/dev");
+        const devicesPresent = entries.filter((entry) =>
+          /^video\d+$/.test(entry)
+        ).length;
+        return record("camera_privacy", {
+          userAccess: "unknown",
+          systemAccess: "unknown",
+          devicesPresent,
+          blocked: false,
+        });
+      } catch (error) {
+        return boundedError("camera_privacy", error);
+      }
+    },
+  };
+}
+
+function microphonePrivacyCollector(): Collector {
+  return {
+    kind: "mic_privacy",
+    run: async (exec) => {
+      let devicesPresent: number | null = null;
+      let muted: boolean | null = null;
+      try {
+        const output = await exec("pactl", ["list", "short", "sources"]);
+        devicesPresent = output
+          .split(/\r?\n/)
+          .filter((line) => line.trim() && !line.includes(".monitor")).length;
+      } catch {
+        devicesPresent = null;
+      }
+      try {
+        const output = await exec("pactl", [
+          "get-source-mute",
+          "@DEFAULT_SOURCE@",
+        ]);
+        if (/\byes\b/i.test(output)) muted = true;
+        else if (/\bno\b/i.test(output)) muted = false;
+      } catch {
+        muted = null;
+      }
+      return record("mic_privacy", {
+        userAccess: "unknown",
+        systemAccess: "unknown",
+        devicesPresent,
+        muted,
+        blocked: muted === true,
+      });
+    },
+  };
 }
 
 function serviceCollector(): Collector {
@@ -174,4 +235,7 @@ export const linuxCollectors: Collector[] = [
       return parseAudio(pipewire || "unknown", pulse || "unknown", pactl);
     },
   },
+  cameraPrivacyCollector(),
+  microphonePrivacyCollector(),
+  kerberosCredentialCollector(),
 ];

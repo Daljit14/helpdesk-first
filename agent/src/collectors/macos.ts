@@ -1,6 +1,7 @@
 import type { DiagnosticKind } from "../../../lib/device-agent/protocol";
 import { boundedError, record, type Collector } from "./index";
 import { MACOS_SERVICE_COMMANDS, SERVICE_NAMES } from "../service-maps";
+import { kerberosCredentialCollector } from "./kerberos";
 
 function commandCollector(
   kind: DiagnosticKind,
@@ -69,6 +70,87 @@ function parseAudio(processes: string, profile: string) {
     running: processes.trim().length > 0,
     defaultOutput: defaultOutput?.slice(0, 80) ?? null,
   });
+}
+
+function cameraPrivacyCollector(): Collector {
+  return {
+    kind: "camera_privacy",
+    run: async (exec) => {
+      try {
+        const output = await exec("system_profiler", [
+          "SPCameraDataType",
+          "-json",
+        ]);
+        const root = JSON.parse(output) as Record<string, unknown>;
+        const cameras = root.SPCameraDataType;
+        return record("camera_privacy", {
+          userAccess: "unknown",
+          systemAccess: "unknown",
+          devicesPresent: Array.isArray(cameras) ? cameras.length : null,
+          blocked: false,
+        });
+      } catch (error) {
+        return boundedError("camera_privacy", error);
+      }
+    },
+  };
+}
+
+function audioInputCount(output: string): number | null {
+  const root = JSON.parse(output) as Record<string, unknown>;
+  const audio = root.SPAudioDataType;
+  if (!Array.isArray(audio)) return null;
+  let count = 0;
+  const visit = (items: unknown[]) => {
+    for (const item of items) {
+      if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+      const value = item as Record<string, unknown>;
+      if (
+        Object.hasOwn(value, "coreaudio_input_source") ||
+        Object.hasOwn(value, "coreaudio_device_input")
+      ) {
+        count += 1;
+      }
+      if (Array.isArray(value._items)) visit(value._items);
+    }
+  };
+  visit(audio);
+  return count;
+}
+
+function microphonePrivacyCollector(): Collector {
+  return {
+    kind: "mic_privacy",
+    run: async (exec) => {
+      try {
+        const profiler = await exec("system_profiler", [
+          "SPAudioDataType",
+          "-json",
+        ]);
+        const devicesPresent = audioInputCount(profiler);
+        let muted: boolean | null = null;
+        try {
+          const output = await exec("osascript", [
+            "-e",
+            "input volume of (get volume settings)",
+          ]);
+          const value = output.trim() ? Number(output.trim()) : NaN;
+          muted = Number.isFinite(value) ? value === 0 : null;
+        } catch {
+          muted = null;
+        }
+        return record("mic_privacy", {
+          userAccess: "unknown",
+          systemAccess: "unknown",
+          devicesPresent,
+          muted,
+          blocked: muted === true,
+        });
+      } catch (error) {
+        return boundedError("mic_privacy", error);
+      }
+    },
+  };
 }
 
 function serviceCollector(): Collector {
@@ -159,4 +241,7 @@ export const macosCollectors: Collector[] = [
       }
     },
   },
+  cameraPrivacyCollector(),
+  microphonePrivacyCollector(),
+  kerberosCredentialCollector(),
 ];

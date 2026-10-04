@@ -23,6 +23,16 @@ describe("requester agent denylist", () => {
         (action) => action.id
       )
     ).toEqual([]);
+    for (const id of [
+      "device_camera_privacy_status",
+      "device_mic_privacy_status",
+      "device_stale_credential_report",
+    ]) {
+      expect(isDenylisted(id), id).toBe(false);
+      expect(
+        DEVICE_ACTIONS.find((action) => action.id === id)?.sideEffects
+      ).toBe("read_only");
+    }
   });
 
   test("denies required unsafe capability concepts", () => {

@@ -74,6 +74,9 @@ export const diagnosticKindSchema = z.enum([
   "security_tool_status",
   "printers",
   "audio",
+  "camera_privacy",
+  "mic_privacy",
+  "credential_health",
 ]);
 export type DiagnosticKind = z.infer<typeof diagnosticKindSchema>;
 

@@ -151,6 +151,24 @@ export const DEVICE_ACTIONS: readonly DeviceAction[] = [
   readOnly("device_audio_status", "peripheral", "Read audio service status.", [
     "audio",
   ]),
+  readOnly(
+    "device_camera_privacy_status",
+    "peripheral",
+    "Read camera privacy access and camera presence.",
+    ["camera_privacy"]
+  ),
+  readOnly(
+    "device_mic_privacy_status",
+    "peripheral",
+    "Read microphone privacy access, presence and mute state.",
+    ["mic_privacy"]
+  ),
+  readOnly(
+    "device_stale_credential_report",
+    "security",
+    "Report counts of stored and expired sign-in tickets without names.",
+    ["credential_health"]
+  ),
   {
     ...readOnly("device_flush_dns", "network", "Flush the local DNS cache.", [
       "dns_resolution",
@@ -309,7 +327,7 @@ export function validateDeviceCatalog(
 const catalogErrors = validateDeviceCatalog(DEVICE_ACTIONS);
 if (catalogErrors.length) throw new Error(catalogErrors.join(", "));
 
-export const DEVICE_CATALOG_VERSION = "2026-09-21.4";
+export const DEVICE_CATALOG_VERSION = "2026-10-04.1";
 
 export function deviceCatalogChecksum(): string {
   return createHash("sha256")

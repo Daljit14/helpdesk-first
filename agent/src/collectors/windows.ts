@@ -93,6 +93,96 @@ function parseAudio(output: string) {
   });
 }
 
+function privacyAccess(value: unknown): "allow" | "deny" | "unknown" {
+  if (typeof value !== "string") return "unknown";
+  if (/^allow$/i.test(value)) return "allow";
+  if (/^deny$/i.test(value)) return "deny";
+  return "unknown";
+}
+
+function windowsPrivacyCollector(
+  kind: "camera_privacy" | "mic_privacy",
+  store: "webcam" | "microphone",
+  devices: string
+): Collector {
+  const base =
+    "Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\";
+  const command =
+    `$user=(Get-ItemProperty 'HKCU:\\Software\\${base}${store}' -ErrorAction SilentlyContinue).Value; ` +
+    `$system=(Get-ItemProperty 'HKLM:\\SOFTWARE\\${base}${store}' -ErrorAction SilentlyContinue).Value; ` +
+    `$devices=@(${devices}).Count; ` +
+    "[pscustomobject]@{UserAccess=$user;SystemAccess=$system;DevicesPresent=$devices} | ConvertTo-Json -Compress";
+  return powershell(kind, command, (output) => {
+    const value = JSON.parse(output) as Record<string, unknown>;
+    const userAccess = privacyAccess(value.UserAccess);
+    const systemAccess = privacyAccess(value.SystemAccess);
+    const rawDevices = value.DevicesPresent;
+    const devicesPresent =
+      typeof rawDevices === "number" &&
+      Number.isFinite(rawDevices) &&
+      rawDevices >= 0
+        ? Math.trunc(rawDevices)
+        : null;
+    const blocked = userAccess === "deny" || systemAccess === "deny";
+    if (kind === "mic_privacy") {
+      return record(kind, {
+        userAccess,
+        systemAccess,
+        devicesPresent,
+        muted: null,
+        blocked,
+      });
+    }
+    return record(kind, {
+      userAccess,
+      systemAccess,
+      devicesPresent,
+      blocked,
+    });
+  });
+}
+
+function parseWindowsExpiredTickets(output: string): number {
+  let expired = 0;
+  for (const match of output.matchAll(/^\s*End Time:\s*(.+?)\s*$/gim)) {
+    const value = match[1]?.replace(/\s+\(local\)\s*$/i, "") ?? "";
+    const time = Date.parse(value);
+    if (Number.isFinite(time) && time < Date.now()) expired += 1;
+  }
+  return expired;
+}
+
+function windowsCredentialHealthCollector(): Collector {
+  return {
+    kind: "credential_health",
+    run: async (exec) => {
+      let storedCredentials: number | null = null;
+      let kerberosTickets: number | null = null;
+      let kerberosExpired: number | null = null;
+      try {
+        const output = await exec("cmdkey", ["/list"]);
+        storedCredentials = (output.match(/^\s*Target:/gim) ?? []).length;
+      } catch {
+        storedCredentials = null;
+      }
+      try {
+        const output = await exec("klist", []);
+        kerberosTickets = (output.match(/^\s*#\d+>/gm) ?? []).length;
+        kerberosExpired = parseWindowsExpiredTickets(output);
+      } catch {
+        kerberosTickets = null;
+        kerberosExpired = null;
+      }
+      return record("credential_health", {
+        storedCredentials,
+        kerberosTickets,
+        kerberosExpired,
+        stale: (kerberosExpired ?? 0) > 0,
+      });
+    },
+  };
+}
+
 export const windowsCollectors: Collector[] = [
   powershell(
     "network_status",
@@ -201,4 +291,15 @@ export const windowsCollectors: Collector[] = [
       }
     },
   },
+  windowsPrivacyCollector(
+    "camera_privacy",
+    "webcam",
+    "Get-PnpDevice -Class Camera,Image -PresentOnly -ErrorAction SilentlyContinue"
+  ),
+  windowsPrivacyCollector(
+    "mic_privacy",
+    "microphone",
+    "Get-PnpDevice -Class AudioEndpoint -PresentOnly -ErrorAction SilentlyContinue | Where-Object { $_.FriendlyName -match 'Microphone|Mic|Input' }"
+  ),
+  windowsCredentialHealthCollector(),
 ];

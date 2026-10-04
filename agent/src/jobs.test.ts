@@ -121,6 +121,32 @@ describe("agent job execution gates", () => {
     expect(executorCalls).toBe(0);
   });
 
+  it("runs the camera collector for a shadow read-only job", async () => {
+    const fake = fakeRuntime({});
+    const report = await fake.runner(
+      job({
+        actionId: "device_camera_privacy_status",
+        mode: "shadow",
+        snapshotSpec: [],
+      }),
+      { executionEnabled: false, now }
+    );
+    expect(report).toMatchObject({
+      status: "succeeded",
+      diagnostics: [
+        {
+          kind: "camera_privacy",
+          ok: true,
+          data: {
+            userAccess: "unknown",
+            systemAccess: "unknown",
+            blocked: false,
+          },
+        },
+      ],
+    });
+  });
+
   it("rejects invalid SSIDs before invoking any command", async () => {
     const fake = fakeRuntime({ executionEnabled: true, executionOptIn: true });
     const report = await fake.runner(

@@ -4,7 +4,7 @@ import type { DiagnosticKind } from "@/lib/device-agent/protocol";
 import type { DeviceEvidence } from "./types";
 
 const DEVICE_WORDS =
-  /\b(network|wi[\s-]?fi|vpn|dns|slow|disk|update|printer|audio|security)\b/i;
+  /\b(network|wi[\s-]?fi|vpn|dns|slow|disk|update|printer|audio|security|camera|webcam|microphone|mic|credentials?|kerberos)\b/i;
 
 export function isDeviceFamily(
   category: string | null,

@@ -183,7 +183,20 @@ export function buildEvidence(
                       : diagnostic.kind === "audio" &&
                           diagnostic.data?.running === false
                         ? "Audio service is stopped"
-                        : null;
+                        : diagnostic.kind === "camera_privacy" &&
+                            diagnostic.data?.blocked === true
+                          ? "Camera access is blocked by privacy settings"
+                          : diagnostic.kind === "camera_privacy" &&
+                              diagnostic.data?.devicesPresent === 0
+                            ? "No camera detected"
+                            : diagnostic.kind === "mic_privacy" &&
+                                (diagnostic.data?.blocked === true ||
+                                  diagnostic.data?.muted === true)
+                              ? "Microphone access is blocked or muted"
+                              : diagnostic.kind === "credential_health" &&
+                                  diagnostic.data?.stale === true
+                                ? "Expired sign-in tickets on the device — route to IT"
+                                : null;
       if (!cause) return [];
       return [
         {

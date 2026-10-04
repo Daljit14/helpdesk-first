@@ -15,7 +15,16 @@ describe("device-agent catalog", () => {
     expect(getDeviceAction("device_flush_dns", 1)?.sideEffects).toBe(
       "local_write"
     );
-    expect(DEVICE_CATALOG_VERSION).toBe("2026-09-21.4");
+    expect(DEVICE_CATALOG_VERSION).toBe("2026-10-04.1");
+    for (const id of [
+      "device_camera_privacy_status",
+      "device_mic_privacy_status",
+      "device_stale_credential_report",
+    ]) {
+      const action = getDeviceAction(id, 1);
+      expect(action?.sideEffects).toBe("read_only");
+      expect(action?.snapshotSpec).toEqual([]);
+    }
     expect(
       getDeviceAction("device_cleanup_temp_files", 1)?.snapshotSpec
     ).toEqual(["temp_inventory"]);

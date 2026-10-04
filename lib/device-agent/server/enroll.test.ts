@@ -94,7 +94,7 @@ describe("enrollDevice", () => {
     ).resolves.toMatchObject({
       organizationId: token.organization_id,
       pollIntervalSec: 300,
-      catalogVersion: "2026-09-21.4",
+      catalogVersion: "2026-10-04.1",
     });
   });
 });

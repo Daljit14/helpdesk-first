@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import type { Hypothesis } from "@/lib/ai/types";
 import { buildEvidence } from "./build";
 import { adjustConfidence } from "./confidence";
+import { isDeviceFamily } from "./device-family";
 import { deriveFacts } from "./facts";
 import { buildHypotheses } from "./hypotheses";
 import { filterUnaskedQuestions, mergeAskedQuestionIds } from "./questions";
@@ -187,6 +188,95 @@ describe("evidence primitives", () => {
       /Sensitive topic|Credential/
     );
     expect(record.generatedAt).toBe("2026-01-02T00:00:00.000Z");
+  });
+
+  test("adds privacy and credential hypotheses from device diagnostics", () => {
+    const base = {
+      ticket: {
+        message: "My camera and microphone are unavailable.",
+        platform: "Linux",
+        issue_id: "device-privacy",
+        diagnostic_answers: [],
+      },
+      investigation: null,
+      turns: [],
+      stepOutcomes: [],
+      attachments: [],
+      now: new Date("2026-10-04T00:00:00.000Z"),
+    };
+    const record = buildEvidence({
+      ...base,
+      device: {
+        deviceId: "device-1",
+        platform: "linux",
+        deviceClass: "managed",
+        collectedAt: "2026-10-04T00:00:00.000Z",
+        diagnostics: [
+          {
+            kind: "camera_privacy",
+            ok: true,
+            summary: "Camera privacy result",
+            data: { blocked: true, devicesPresent: 1 },
+          },
+          {
+            kind: "mic_privacy",
+            ok: true,
+            summary: "Microphone privacy result",
+            data: { blocked: true, muted: true },
+          },
+          {
+            kind: "credential_health",
+            ok: true,
+            summary: "Credential health result",
+            data: { stale: true, kerberosExpired: 2 },
+          },
+        ],
+        stale: false,
+      },
+    });
+    expect(record.hypotheses.map(({ cause }) => cause)).toEqual(
+      expect.arrayContaining([
+        "Camera access is blocked by privacy settings",
+        "Microphone access is blocked or muted",
+        "Expired sign-in tickets on the device — route to IT",
+      ])
+    );
+
+    const noCamera = buildEvidence({
+      ...base,
+      device: {
+        deviceId: "device-1",
+        platform: "linux",
+        deviceClass: "managed",
+        collectedAt: "2026-10-04T00:00:00.000Z",
+        diagnostics: [
+          {
+            kind: "camera_privacy",
+            ok: true,
+            summary: "No camera is present",
+            data: { blocked: false, devicesPresent: 0 },
+          },
+        ],
+        stale: false,
+      },
+    });
+    expect(noCamera.hypotheses.map(({ cause }) => cause)).toContain(
+      "No camera detected"
+    );
+  });
+
+  test("recognizes camera and credential requests as device-family topics", () => {
+    for (const message of [
+      "camera is unavailable",
+      "webcam access is blocked",
+      "microphone is muted",
+      "mic is not detected",
+      "stale credential ticket",
+      "expired credentials",
+      "Kerberos ticket expired",
+    ]) {
+      expect(isDeviceFamily(null, message), message).toBe(true);
+    }
   });
 
   test("redacts text through the learning redaction implementation", () => {

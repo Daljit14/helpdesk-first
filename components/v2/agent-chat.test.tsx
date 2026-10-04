@@ -9,9 +9,15 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 import type { AgentEvent } from "@/lib/agent/types";
 import { AgentChat } from "./agent-chat";
 
-const { uploadMock } = vi.hoisted(() => ({ uploadMock: vi.fn() }));
+const { uploadMock, subscribeMock } = vi.hoisted(() => ({
+  uploadMock: vi.fn(),
+  subscribeMock: vi.fn(),
+}));
 vi.mock("@/lib/attachments/client", () => ({
   uploadSecureAttachment: uploadMock,
+}));
+vi.mock("@/app/actions/outage-subscriptions", () => ({
+  subscribeToOutage: subscribeMock,
 }));
 
 vi.mock("next/link", () => ({
@@ -49,6 +55,8 @@ function streamResponse(events: AgentEvent[]) {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  uploadMock.mockReset();
+  subscribeMock.mockReset();
 });
 
 describe("AgentChat", () => {
@@ -117,6 +125,121 @@ describe("AgentChat", () => {
     expect(
       await screen.findByRole("button", { name: "That wasn't right" })
     ).toBeInTheDocument();
+  });
+
+  test("shows sanitized service incidents and a restoration subscription", async () => {
+    subscribeMock.mockResolvedValue({ ok: true });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        streamResponse([
+          { type: "session", sessionId: "session-123" },
+          {
+            type: "service_incident",
+            incidents: [
+              {
+                source: "microsoft365",
+                incidentId: "EX123",
+                service: "Exchange <b>Online</b>",
+                title: "Mail delivery is delayed https://private.example/",
+                impact: "outage",
+                url: "https://admin.microsoft.com/Adminportal/Home#/servicehealth",
+              },
+            ],
+          },
+        ])
+      )
+    );
+    render(
+      <AgentChat initialProblem="Email is delayed" serviceHealthEnabled />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Ask the assistant" }));
+
+    expect(await screen.findByText("Known outage")).toBeInTheDocument();
+    expect(screen.getByText("Exchange Online")).toBeInTheDocument();
+    expect(screen.getByText("Mail delivery is delayed")).toBeInTheDocument();
+    const statusLink = screen.getByRole("link", {
+      name: "View status page",
+    });
+    expect(statusLink).toHaveAttribute("target", "_blank");
+    expect(statusLink).toHaveAttribute("rel", "noopener noreferrer");
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Notify me when fixed" })
+    );
+
+    expect(
+      await screen.findByRole("button", { name: "Subscribed" })
+    ).toBeInTheDocument();
+    expect(subscribeMock).toHaveBeenCalledWith({
+      sessionId: "session-123",
+      source: "microsoft365",
+      incidentId: "EX123",
+    });
+  });
+
+  test("marks an unavailable outage subscription", async () => {
+    subscribeMock.mockResolvedValue({ ok: false, error: "failed" });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        streamResponse([
+          { type: "session", sessionId: "session-123" },
+          {
+            type: "service_incident",
+            incidents: [
+              {
+                source: "google_workspace",
+                incidentId: "G123",
+                service: "Gmail",
+                title: "Gmail is degraded",
+                impact: "degraded",
+                url: "https://www.google.com/appsstatus/dashboard/",
+              },
+            ],
+          },
+        ])
+      )
+    );
+    render(<AgentChat initialProblem="Gmail is slow" serviceHealthEnabled />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Ask the assistant" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Notify me when fixed" })
+    );
+
+    expect(
+      await screen.findByRole("button", { name: "Unavailable" })
+    ).toBeInTheDocument();
+  });
+
+  test("hides service incident cards when the feature is disabled", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        streamResponse([
+          {
+            type: "service_incident",
+            incidents: [
+              {
+                source: "microsoft365",
+                incidentId: "EX123",
+                service: "Exchange Online",
+                title: "Mail delivery is delayed",
+                impact: "outage",
+                url: "https://admin.microsoft.com/Adminportal/Home#/servicehealth",
+              },
+            ],
+          },
+        ])
+      )
+    );
+    render(<AgentChat initialProblem="Email is delayed" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Ask the assistant" }));
+
+    await waitFor(() => expect(screen.queryByText("Known outage")).toBeNull());
   });
 
   test("keeps the composer enabled after a final answer", async () => {

@@ -15,6 +15,7 @@ import {
   halt,
   loadSessionContext,
   loadSessionEvidence,
+  hasServiceIncident,
   updateSession,
   writeStep,
 } from "./session";
@@ -22,7 +23,13 @@ import { proposeAction } from "./actions";
 import {
   isRequesterAgentActionsEnabled,
   isRequesterAgentEnabledForOrg,
+  isServiceHealthEnabled,
 } from "@/lib/admin/flags";
+import {
+  getAllowedStatusHosts,
+  isAllowedIncidentUrl,
+} from "@/lib/service-health";
+import { sanitizeServiceText } from "@/lib/service-health/url";
 import type { AgentEvent, AgentSession } from "./types";
 import type { createAdminClient } from "@/lib/supabase/admin";
 
@@ -58,6 +65,8 @@ export type AgentLoopDeps = {
   loadContext: typeof loadSessionContext;
   loadEvidence: typeof loadSessionEvidence;
   proposeAction: typeof proposeAction;
+  hasServiceIncident: typeof hasServiceIncident;
+  serviceHealthEnabled?: boolean;
 };
 
 const defaultDeps: AgentLoopDeps = {
@@ -73,6 +82,7 @@ const defaultDeps: AgentLoopDeps = {
   loadContext: loadSessionContext,
   loadEvidence: loadSessionEvidence,
   proposeAction,
+  hasServiceIncident,
 };
 
 export async function runAgentTurn(input: {
@@ -119,6 +129,16 @@ export async function runAgentTurn(input: {
   const actionToolsEnabled =
     isRequesterAgentActionsEnabled() &&
     isRequesterAgentEnabledForOrg(session.organization_id);
+  const serviceHealthEnabled =
+    deps.serviceHealthEnabled ?? isServiceHealthEnabled();
+  let serviceIncidentActive = false;
+  if (serviceHealthEnabled) {
+    try {
+      serviceIncidentActive = await deps.hasServiceIncident(admin, session);
+    } catch {
+      serviceIncidentActive = true;
+    }
+  }
   const toolResults: string[] = [];
   const seen = new Map<string, number>();
   let invalid = 0;
@@ -166,13 +186,18 @@ export async function runAgentTurn(input: {
     session.model_turn_count = modelTurns;
     await deps.updateSession(admin, session, { model_turn_count: modelTurns });
     const result = await model.next({
-      system: requesterAgentActionPrompt(actionToolsEnabled),
+      system: requesterAgentActionPrompt(
+        actionToolsEnabled,
+        serviceHealthEnabled
+      ),
       messages,
-      tools: getAgentTools(actionToolsEnabled).map((tool) => ({
-        name: tool.name,
-        description: tool.description,
-        input_schema: tool.input_schema as Record<string, unknown>,
-      })),
+      tools: getAgentTools(actionToolsEnabled, serviceHealthEnabled).map(
+        (tool) => ({
+          name: tool.name,
+          description: tool.description,
+          input_schema: tool.input_schema as Record<string, unknown>,
+        })
+      ),
       maxTokens: 1200,
       signal,
     });
@@ -253,26 +278,33 @@ export async function runAgentTurn(input: {
     }
     if (result.name === "propose_action") {
       const actionInput = result.input as Record<string, unknown>;
-      const action = await deps.proposeAction(
-        admin,
-        session,
-        {
-          capabilityId: String(actionInput.capability_id ?? ""),
-          params:
-            actionInput.params && typeof actionInput.params === "object"
-              ? (actionInput.params as Record<string, unknown>)
-              : {},
-          hypothesisId: String(actionInput.hypothesis_id ?? ""),
-          rationale: String(actionInput.rationale ?? ""),
-        },
-        {
-          evidence,
-          actor: `requester_agent:${session.id}`,
-          platform,
-          emit,
-          signal,
-        }
-      );
+      const action = serviceIncidentActive
+        ? {
+            kind: "rejected" as const,
+            code: "service_incident_active" as const,
+            message:
+              "A matching service outage is active, so actions are paused for this session.",
+          }
+        : await deps.proposeAction(
+            admin,
+            session,
+            {
+              capabilityId: String(actionInput.capability_id ?? ""),
+              params:
+                actionInput.params && typeof actionInput.params === "object"
+                  ? (actionInput.params as Record<string, unknown>)
+                  : {},
+              hypothesisId: String(actionInput.hypothesis_id ?? ""),
+              rationale: String(actionInput.rationale ?? ""),
+            },
+            {
+              evidence,
+              actor: `requester_agent:${session.id}`,
+              platform,
+              emit,
+              signal,
+            }
+          );
       if (action.kind === "consent_required") {
         emit({
           type: "action_proposed",
@@ -468,6 +500,57 @@ export async function runAgentTurn(input: {
       }
     } else if (tool.ok) {
       identityFailures = 0;
+    }
+    if (
+      tool.ok &&
+      result.name === "get_service_health" &&
+      tool.value &&
+      typeof tool.value === "object" &&
+      "matched" in tool.value &&
+      Array.isArray(tool.value.matched) &&
+      tool.value.matched.length > 0
+    ) {
+      serviceIncidentActive = true;
+      const matched = tool.value.matched as Array<{
+        source: "microsoft365" | "google_workspace" | "statuspage";
+        incidentId: string;
+        service: string;
+        title: string;
+        impact: "outage" | "degraded" | "informational";
+        url: string;
+      }>;
+      await deps.writeStep(admin, session, {
+        kind: "service_incident",
+        toolName: result.name,
+        resultSummary: matched
+          .map(({ source, incidentId }) => `${source}:${incidentId}`)
+          .join(",")
+          .slice(0, 300),
+      });
+      const configuredHosts = await getAllowedStatusHosts(
+        admin,
+        session.organization_id
+      );
+      const allowedIncidents = matched
+        .filter(
+          (incident) =>
+            /^[A-Za-z0-9._:-]{1,128}$/.test(incident.incidentId) &&
+            ["microsoft365", "google_workspace", "statuspage"].includes(
+              incident.source
+            ) &&
+            ["outage", "degraded", "informational"].includes(incident.impact) &&
+            isAllowedIncidentUrl(incident.url, configuredHosts)
+        )
+        .map((incident) => ({
+          source: incident.source,
+          incidentId: incident.incidentId,
+          service: sanitizeServiceText(incident.service, 80),
+          title: sanitizeServiceText(incident.title, 200),
+          impact: incident.impact,
+          url: incident.url,
+        }));
+      if (allowedIncidents.length > 0)
+        emit({ type: "service_incident", incidents: allowedIncidents });
     }
     toolResults.push(toolSummary);
     messages.push(

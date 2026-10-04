@@ -23,6 +23,7 @@ import {
 import { classifyInput, inputHint } from "@/lib/assistant/input-quality";
 import { noticeText } from "@/lib/assistant/replies";
 import { OutcomeFeedback } from "@/components/v2/outcome-feedback";
+import { subscribeToOutage } from "@/app/actions/outage-subscriptions";
 
 type TimelineItem = AgentEvent & { id: number };
 type ScreenshotState = {
@@ -31,6 +32,18 @@ type ScreenshotState = {
   status: "scanning" | "ready" | "rejected";
   error?: string;
 };
+
+type OutageSubscriptionState = "pending" | "subscribed" | "unavailable";
+
+function safeIncidentText(value: string): string {
+  return value
+    .replace(/<[^>]*>/g, " ")
+    .replace(/https?:\/\/\S+|\bwww\.\S+/gi, "")
+    .replace(/[\u0000-\u001f\u007f-\u009f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 300);
+}
 
 function iconFor(event: AgentEvent) {
   if (event.type === "tool_started" || event.type === "tool_result_summary")
@@ -46,11 +59,13 @@ export function AgentChat({
   initialPlatform,
   visionEnabled = false,
   feedbackEnabled = false,
+  serviceHealthEnabled = false,
 }: {
   initialProblem?: string;
   initialPlatform?: string | null;
   visionEnabled?: boolean;
   feedbackEnabled?: boolean;
+  serviceHealthEnabled?: boolean;
 }) {
   const [message, setMessage] = useState(initialProblem);
   const [items, setItems] = useState<TimelineItem[]>([]);
@@ -65,6 +80,9 @@ export function AgentChat({
   const answeredCardsRef = useRef<Record<number, boolean>>({});
   const [now, setNow] = useState(() => Date.now());
   const [screenshot, setScreenshot] = useState<ScreenshotState | null>(null);
+  const [outageSubscriptionStates, setOutageSubscriptionStates] = useState<
+    Record<string, OutageSubscriptionState>
+  >({});
   // Local reply for input that should not be sent (greeting, mashing, secret…).
   const [notice, setNotice] = useState<AssistantNoticeData | null>(null);
   const readerRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(
@@ -80,6 +98,41 @@ export function AgentChat({
     answeredCardsRef.current = {};
     setItems([]);
     setAnsweredCards({});
+    setOutageSubscriptionStates({});
+  }
+
+  async function subscribeToIncident(incident: {
+    source: "microsoft365" | "google_workspace" | "statuspage";
+    incidentId: string;
+  }) {
+    const key = `${incident.source}:${incident.incidentId}`;
+    if (!sessionId) {
+      setOutageSubscriptionStates((current) => ({
+        ...current,
+        [key]: "unavailable",
+      }));
+      return;
+    }
+    setOutageSubscriptionStates((current) => ({
+      ...current,
+      [key]: "pending",
+    }));
+    try {
+      const result = await subscribeToOutage({
+        sessionId,
+        source: incident.source,
+        incidentId: incident.incidentId,
+      });
+      setOutageSubscriptionStates((current) => ({
+        ...current,
+        [key]: result.ok ? "subscribed" : "unavailable",
+      }));
+    } catch {
+      setOutageSubscriptionStates((current) => ({
+        ...current,
+        [key]: "unavailable",
+      }));
+    }
   }
 
   function appendEvent(event: AgentEvent) {
@@ -261,6 +314,71 @@ export function AgentChat({
             )}
           {items.map((event) => {
             const Icon = iconFor(event);
+            if (event.type === "service_incident") {
+              if (!serviceHealthEnabled) return null;
+              return (
+                <div key={event.id} className="space-y-3">
+                  {event.incidents.map((incident) => {
+                    const service = safeIncidentText(incident.service);
+                    const title = safeIncidentText(incident.title);
+                    const key = `${incident.source}:${incident.incidentId}`;
+                    const state = outageSubscriptionStates[key];
+                    const impactLabel = {
+                      outage: "Outage",
+                      degraded: "Degraded",
+                      informational: "Informational",
+                    }[incident.impact];
+                    return (
+                      <section
+                        key={key}
+                        aria-label="Known outage"
+                        className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="font-semibold">Known outage</p>
+                          <span className="rounded-full border border-amber-500/40 px-2.5 py-1 text-xs font-medium">
+                            {impactLabel}
+                          </span>
+                        </div>
+                        <p className="mt-2 font-medium">{service}</p>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {title}
+                        </p>
+                        <div className="mt-4 flex flex-wrap items-center gap-3">
+                          <a
+                            href={incident.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sm underline underline-offset-4"
+                          >
+                            View status page
+                          </a>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={
+                              state === "pending" ||
+                              state === "subscribed" ||
+                              state === "unavailable"
+                            }
+                            onClick={() => void subscribeToIncident(incident)}
+                          >
+                            {state === "pending"
+                              ? "Sending…"
+                              : state === "subscribed"
+                                ? "Subscribed"
+                                : state === "unavailable"
+                                  ? "Unavailable"
+                                  : "Notify me when fixed"}
+                          </Button>
+                        </div>
+                      </section>
+                    );
+                  })}
+                </div>
+              );
+            }
             if (event.type === "final_answer")
               return (
                 <div

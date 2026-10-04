@@ -2,6 +2,17 @@
 
 The admin Database page provides a tenant-scoped view of important stored data and a live activity tracker. Users are loaded through the service-role-only `public.admin_auth_users` projection; apply `supabase/admin-database.sql` before the Users section can show data.
 
+## D3 — live service health
+
+D3 adds bounded Microsoft 365, Google Workspace, and organization-configured
+Statuspage incident feeds to the requester agent. Matching active incidents
+are treated as untrusted evidence, persisted for the session, and block action
+proposals until the session ends. Requesters can opt in to a restoration
+notification. The feature is behind the default-off
+`HELP_DESK_SERVICE_HEALTH_ENABLED` flag. The additive
+`supabase/service-health.sql` migration is authored but has not been applied.
+See `SETUP-NOTES-D3.md` for provider permissions, cron cadence, and rollback.
+
 ## D2 — read-only catalog batch (PR 2)
 
 Implemented on this branch; merge and organization rollout remain pending.

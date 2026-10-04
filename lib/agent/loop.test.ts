@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import { createAgentEvalHarness } from "./eval-harness";
 
 const use = (id: string, name = "search_guides", input: unknown = {}) => ({
@@ -15,6 +15,31 @@ const result = {
   modelText: '<untrusted_data source="tool">full result</untrusted_data>',
   userSummary: "1 guide found: wifi-disconnecting",
 };
+
+const propose = (id = "proposal") => ({
+  kind: "tool_use" as const,
+  id,
+  name: "propose_action",
+  input: {
+    capability_id: "device_flush_dns",
+    params: {},
+    hypothesis_id: "ev-1",
+    rationale: "The connection may need a refresh.",
+  },
+  summary: "Considering a fix.",
+});
+
+const serviceIncident = {
+  source: "microsoft365" as const,
+  incidentId: "EX123",
+  service: "Exchange Online",
+  title: "Mail delivery is delayed",
+  impact: "outage" as const,
+  startedAt: null,
+  url: "https://admin.microsoft.com/Adminportal/Home#/servicehealth",
+};
+
+afterEach(() => vi.unstubAllEnvs());
 
 describe("requester agent loop", () => {
   test("keeps a successful final session active and sends full tool text", async () => {
@@ -223,5 +248,90 @@ describe("requester agent loop", () => {
       kind: "action_rejected",
       toolName: "propose_action",
     });
+  });
+
+  test("persists a matching incident and blocks a later proposal", async () => {
+    vi.stubEnv("HELP_DESK_SERVICE_HEALTH_ENABLED", "true");
+    const harness = createAgentEvalHarness({
+      outputs: [
+        use("health", "get_service_health", {
+          symptom: "Outlook email is unavailable",
+        }),
+        propose(),
+        {
+          kind: "final",
+          text: "A known service incident may explain this.",
+          confidence: 0.9,
+          summary: "Known incident",
+        },
+      ],
+      toolResults: [
+        {
+          ok: true,
+          value: {
+            checked: true,
+            matched: [serviceIncident],
+            otherActive: 0,
+            sources: [{ source: "microsoft365", ok: true }],
+            checkedAt: "2026-10-04T12:00:00.000Z",
+          },
+          modelText:
+            '<untrusted_data source="health">incident</untrusted_data>',
+          userSummary:
+            "1 active incident may explain this: Exchange Online (Microsoft 365).",
+        },
+      ],
+    });
+    await harness.run();
+    expect(harness.proposeActionCalls).toBe(0);
+    expect(harness.steps).toContainEqual(
+      expect.objectContaining({
+        kind: "service_incident",
+        resultSummary: "microsoft365:EX123",
+      })
+    );
+    expect(harness.steps).toContainEqual(
+      expect.objectContaining({
+        kind: "action_rejected",
+        resultSummary: expect.stringContaining("service_incident_active"),
+      })
+    );
+    expect(harness.events).toContainEqual({
+      type: "service_incident",
+      incidents: [
+        {
+          source: "microsoft365",
+          incidentId: "EX123",
+          service: "Exchange Online",
+          title: "Mail delivery is delayed",
+          impact: "outage",
+          url: "https://admin.microsoft.com/Adminportal/Home#/servicehealth",
+        },
+      ],
+    });
+  });
+
+  test("blocks proposals when a service incident already exists in the session", async () => {
+    vi.stubEnv("HELP_DESK_SERVICE_HEALTH_ENABLED", "true");
+    const harness = createAgentEvalHarness({
+      serviceIncidentActive: true,
+      outputs: [
+        propose(),
+        {
+          kind: "final",
+          text: "Actions remain paused.",
+          confidence: 0.9,
+          summary: "Incident active",
+        },
+      ],
+    });
+    await harness.run();
+    expect(harness.proposeActionCalls).toBe(0);
+    expect(harness.steps).toContainEqual(
+      expect.objectContaining({
+        kind: "action_rejected",
+        resultSummary: expect.stringContaining("service_incident_active"),
+      })
+    );
   });
 });

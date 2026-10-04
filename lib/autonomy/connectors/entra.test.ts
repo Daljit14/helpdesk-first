@@ -14,6 +14,18 @@ const config = {
   resetUrl: null,
 };
 
+function serviceHealthIssue(id: string) {
+  return {
+    id,
+    title: `Issue ${id}`,
+    service: "Exchange Online",
+    status: "serviceDegradation",
+    isResolved: false,
+    classification: "incident",
+    startDateTime: "2026-10-04T12:00:00Z",
+  };
+}
+
 describe("Entra directory connector", () => {
   test("acquires a token and escapes email filters", async () => {
     const fetchMock = vi
@@ -52,6 +64,126 @@ describe("Entra directory connector", () => {
     );
     expect(result).toMatchObject({ ok: false, error: { kind: "unavailable" } });
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    vi.unstubAllGlobals();
+  });
+
+  test("paginates Microsoft 365 service-health issues", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response({ access_token: "token", expires_in: 3600 })
+      )
+      .mockResolvedValueOnce(
+        response({
+          value: [serviceHealthIssue("issue-1")],
+          "@odata.nextLink":
+            "https://graph.microsoft.com/v1.0/admin/serviceAnnouncement/issues?$skiptoken=page-2",
+        })
+      )
+      .mockResolvedValueOnce(
+        response({ value: [serviceHealthIssue("issue-2")] })
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await new EntraDirectory(config).listServiceHealthIssues(
+      new AbortController().signal
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      value: [serviceHealthIssue("issue-1"), serviceHealthIssue("issue-2")],
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(String(fetchMock.mock.calls[1]?.[0])).toContain(
+      "/admin/serviceAnnouncement/issues?$select=id,title,service,status,isResolved,classification,startDateTime"
+    );
+    expect(String(fetchMock.mock.calls[2]?.[0])).toBe(
+      "https://graph.microsoft.com/v1.0/admin/serviceAnnouncement/issues?$skiptoken=page-2"
+    );
+    vi.unstubAllGlobals();
+  });
+
+  test("ignores a next link outside Microsoft Graph v1.0", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response({ access_token: "token", expires_in: 3600 })
+      )
+      .mockResolvedValueOnce(
+        response({
+          value: [serviceHealthIssue("issue-1")],
+          "@odata.nextLink":
+            "https://evil.example/v1.0/admin/serviceAnnouncement/issues",
+        })
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await new EntraDirectory(config).listServiceHealthIssues(
+      new AbortController().signal
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      value: [serviceHealthIssue("issue-1")],
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    vi.unstubAllGlobals();
+  });
+
+  test("caps service-health pagination at five pages", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response({ access_token: "token", expires_in: 3600 })
+      );
+    for (let page = 1; page <= 5; page += 1) {
+      fetchMock.mockResolvedValueOnce(
+        response({
+          value: [serviceHealthIssue(`issue-${page}`)],
+          "@odata.nextLink": `https://graph.microsoft.com/v1.0/admin/serviceAnnouncement/issues?$skiptoken=page-${page + 1}`,
+        })
+      );
+    }
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await new EntraDirectory(config).listServiceHealthIssues(
+      new AbortController().signal
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      value: Array.from({ length: 5 }, (_, index) =>
+        serviceHealthIssue(`issue-${index + 1}`)
+      ),
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(6);
+    vi.unstubAllGlobals();
+  });
+
+  test("returns a failure when a service-health page fails", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response({ access_token: "token", expires_in: 3600 })
+      )
+      .mockResolvedValueOnce(
+        response({
+          value: [serviceHealthIssue("issue-1")],
+          "@odata.nextLink":
+            "https://graph.microsoft.com/v1.0/admin/serviceAnnouncement/issues?$skiptoken=page-2",
+        })
+      )
+      .mockResolvedValue(response({}, 503));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await new EntraDirectory(config).listServiceHealthIssues(
+      new AbortController().signal
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: { kind: "unavailable" },
+    });
     vi.unstubAllGlobals();
   });
 });

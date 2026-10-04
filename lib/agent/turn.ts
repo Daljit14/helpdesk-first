@@ -1,4 +1,10 @@
-import { escalate, halt, updateSession, writeStep } from "./session";
+import {
+  escalate,
+  halt,
+  hasServiceIncident,
+  updateSession,
+  writeStep,
+} from "./session";
 import { runAgentTurn, type AgentLoopDeps } from "./loop";
 import {
   decideConsent as defaultDecideConsent,
@@ -12,7 +18,10 @@ import {
   revokeSessionConsent,
   sessionConsentTitles,
 } from "./session-consent";
-import { isRequesterAgentAutorunEnabledForOrg } from "@/lib/admin/flags";
+import {
+  isRequesterAgentAutorunEnabledForOrg,
+  isServiceHealthEnabled,
+} from "@/lib/admin/flags";
 import {
   createScreenshotTranscriber,
   type ScreenshotTranscriber,
@@ -164,6 +173,33 @@ export async function handleAgentRequest(input: {
     return;
   }
   if (input.consent) {
+    if (
+      input.consent.decision === "approve" &&
+      (deps?.serviceHealthEnabled ?? isServiceHealthEnabled())
+    ) {
+      let serviceIncidentActive = true;
+      try {
+        serviceIncidentActive = await (
+          deps?.hasServiceIncident ?? hasServiceIncident
+        )(admin, session);
+      } catch {
+        serviceIncidentActive = true;
+      }
+      if (serviceIncidentActive) {
+        await (deps?.writeStep ?? writeStep)(admin, session, {
+          kind: "action_rejected",
+          toolName: "propose_action",
+          resultSummary: "service_incident_active: consent approval blocked",
+        });
+        emit({
+          type: "error",
+          message:
+            "Actions are paused because a matching service outage is active.",
+          recoverable: true,
+        });
+        return;
+      }
+    }
     let capabilityId = "the requested action";
     const dispatchEmit = (event: AgentEvent) => {
       if (

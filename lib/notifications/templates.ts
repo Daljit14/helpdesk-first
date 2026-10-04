@@ -174,6 +174,11 @@ export function buildNotification(
       message = `${quoted} triggered the autonomy security event ${context.status ?? "unknown"}.`;
       appendStatus = false;
       break;
+    case "service.restored":
+      subject = `✅ ${title} is back`;
+      message = `${title} is back to normal. The service incident has cleared.`;
+      appendStatus = false;
+      break;
   }
 
   if (context.status && appendStatus)

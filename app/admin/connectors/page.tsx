@@ -9,7 +9,9 @@ import {
   UsersRound,
 } from "lucide-react";
 import { requireAdminPage } from "@/lib/admin/auth";
+import { isServiceHealthEnabled } from "@/lib/admin/flags";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { StatusSourcesPanel } from "@/components/admin/status-sources-panel";
 import {
   ConnectorForm,
   type ConnectorInitial,
@@ -60,6 +62,21 @@ export default async function ConnectorsPage() {
         status: row.data.status,
       }
     : null;
+  const serviceHealthEnabled = isServiceHealthEnabled();
+  const statusSourcesResult = serviceHealthEnabled
+    ? await createAdminClient()
+        .from("org_status_sources")
+        .select("id,name,base_url,enabled")
+        .eq("organization_id", session.organizationId)
+        .order("created_at", { ascending: true })
+        .limit(10)
+    : null;
+  const statusSources = (statusSourcesResult?.data ?? []) as Array<{
+    id: string;
+    name: string;
+    base_url: string;
+    enabled: boolean;
+  }>;
   const providerLabel = initial
     ? (PROVIDER_LABEL[initial.provider] ?? initial.provider)
     : "Not connected";
@@ -130,6 +147,20 @@ export default async function ConnectorsPage() {
       >
         <ConnectorForm initial={initial} />
       </Panel>
+
+      {serviceHealthEnabled && (
+        <Panel
+          title="Status pages"
+          description="Configure additional public service-health sources for this organization."
+          icon={Plug}
+          delay={0.15}
+        >
+          <StatusSourcesPanel
+            sources={statusSources}
+            loadError={Boolean(statusSourcesResult?.error)}
+          />
+        </Panel>
+      )}
     </AdminPage>
   );
 }

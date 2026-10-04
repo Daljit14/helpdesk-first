@@ -31,6 +31,17 @@ export type AgentEvent =
       attachmentId: string;
       summary: string;
     }
+  | {
+      type: "service_incident";
+      incidents: Array<{
+        source: "microsoft365" | "google_workspace" | "statuspage";
+        incidentId: string;
+        service: string;
+        title: string;
+        impact: "outage" | "degraded" | "informational";
+        url: string;
+      }>;
+    }
   | { type: "action_proposed"; capabilityId: string; text: string }
   | { type: "consent_required"; card: ConsentCard }
   | { type: "session_consent_offer"; card: SessionConsentCard }

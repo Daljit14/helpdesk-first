@@ -93,6 +93,10 @@ export function isOutcomeFeedbackEnabled(): boolean {
   return process.env.HELP_DESK_OUTCOME_FEEDBACK_ENABLED === "true";
 }
 
+export function isServiceHealthEnabled(): boolean {
+  return process.env.HELP_DESK_SERVICE_HEALTH_ENABLED === "true";
+}
+
 export function isRequesterAgentEnabledForOrg(organizationId: string): boolean {
   if (!isRequesterAgentEnabled()) return false;
   const allowlist = (process.env.HELP_DESK_REQUESTER_AGENT_ORG_ALLOWLIST ?? "")

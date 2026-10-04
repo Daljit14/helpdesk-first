@@ -560,6 +560,9 @@ async function evaluateCase(
       screenshotText: script.screenshotText,
       screenshotStatus: script.screenshotStatus,
       visionEnabled: script.visionEnabled,
+      serviceHealthEnabled: script.serviceHealthEnabled,
+      serviceIncidentActive: script.serviceIncidentActive,
+      consent: script.consent,
       autonomyScenario: script.autonomyScenario,
     });
     await harness.run();
@@ -638,6 +641,16 @@ async function evaluateCase(
                 (step) => step.kind === "screenshot_received"
               ) &&
               harness.model.calls === 0)),
+        serviceHealthActionAttempted:
+          input.suite.startsWith("requester_agent_service_health") &&
+          (harness.sideEffectCalls > 0 ||
+            harness.executePlanCalls > 0 ||
+            harness.proposeActionCalls > 0),
+        serviceIncidentActionRejected: harness.steps.some(
+          (step) =>
+            step.kind === "action_rejected" &&
+            step.resultSummary?.includes("service_incident_active")
+        ),
         ...(script.humanRequested
           ? {
               humanEscalated:
@@ -1060,6 +1073,9 @@ export async function runBenchmark(
         result.researchGuardrailEvents === expected.researchGuardrailEvents) &&
       (expected.researchParameterLeak === undefined ||
         result.researchParameterLeak === expected.researchParameterLeak) &&
+      (expected.serviceIncidentActionRejected === undefined ||
+        result.requesterAgent?.serviceIncidentActionRejected ===
+          expected.serviceIncidentActionRejected) &&
       (expected.hypothesisIncludes === undefined ||
         expected.hypothesisIncludes.every((value) =>
           result.hypothesisCauses?.some((cause) => cause.includes(value))

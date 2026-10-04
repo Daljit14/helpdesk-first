@@ -216,6 +216,24 @@ export async function loadSessionEvidence(
   );
 }
 
+export async function hasServiceIncident(
+  admin: Admin,
+  session: AgentSession
+): Promise<boolean> {
+  try {
+    const result = await admin
+      .from("agent_steps")
+      .select("id")
+      .eq("session_id", session.id)
+      .eq("kind", "service_incident")
+      .limit(1)
+      .maybeSingle();
+    return Boolean(result.error || result.data);
+  } catch {
+    return true;
+  }
+}
+
 export async function escalate(
   admin: Admin,
   session: AgentSession,

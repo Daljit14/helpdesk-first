@@ -14,6 +14,8 @@ const metrics: AutonomyMetrics = {
   aiResolutionRate: 0.6,
   falseResolved: 1,
   falseResolvedRate: 1 / 6,
+  outcomeFeedback: 0,
+  recentFeedback: [],
   escalated: 3,
   escalationRate: 0.3,
   escalationReasons: [{ reason: "budget", count: 2 }],

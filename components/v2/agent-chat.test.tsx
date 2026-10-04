@@ -102,6 +102,23 @@ describe("AgentChat", () => {
     ).toBeInTheDocument();
   });
 
+  test("shows feedback under a resolved event only when enabled", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        streamResponse([
+          { type: "session", sessionId: "session-123" },
+          { type: "resolved", text: "Your connection is fixed." },
+        ])
+      )
+    );
+    render(<AgentChat initialProblem="Wi-Fi is down" feedbackEnabled />);
+    fireEvent.click(screen.getByRole("button", { name: "Ask the assistant" }));
+    expect(
+      await screen.findByRole("button", { name: "That wasn't right" })
+    ).toBeInTheDocument();
+  });
+
   test("keeps the composer enabled after a final answer", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       streamResponse([

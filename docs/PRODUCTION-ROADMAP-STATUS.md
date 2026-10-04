@@ -2,6 +2,14 @@
 
 The admin Database page provides a tenant-scoped view of important stored data and a live activity tracker. Users are loaded through the service-role-only `public.admin_auth_users` projection; apply `supabase/admin-database.sql` before the Users section can show data.
 
+## D1 — requester outcome feedback
+
+D1 adds requester outcome feedback for recently resolved requester-agent
+sessions. The feature remains disabled by default with
+`HELP_DESK_OUTCOME_FEEDBACK_ENABLED=false`; the migration
+`supabase/agent-outcome-feedback.sql` has been authored but not applied to any
+database.
+
 ## D0 — requester-agent outcome metrics
 
 Phase D0 adds an organization-scoped, server-rendered outcome-metrics card to

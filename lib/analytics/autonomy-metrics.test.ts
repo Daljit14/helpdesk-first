@@ -128,6 +128,89 @@ describe("computeAutonomyMetrics", () => {
     expect(outsideWindow.falseResolved).toBe(0);
   });
 
+  test("counts requester feedback as a false-resolved signal", () => {
+    const metrics = computeAutonomyMetrics(
+      input({
+        feedback: [
+          {
+            sessionId: "session-1",
+            verdict: "still_broken",
+            createdAt: "2026-01-03T00:00:00.000Z",
+            text: "Still broken",
+          },
+        ],
+      }),
+      window
+    );
+    expect(metrics).toMatchObject({
+      aiResolved: 1,
+      falseResolved: 1,
+      outcomeFeedback: 1,
+      recentFeedback: [
+        {
+          sessionId: "session-1",
+          verdict: "still_broken",
+          text: "Still broken",
+        },
+      ],
+    });
+  });
+
+  test("ignores feedback for sessions outside the window and excludes escalations from false-resolved", () => {
+    const metrics = computeAutonomyMetrics(
+      input({
+        sessions: [
+          session({
+            id: "outside",
+            startedAt: "2025-12-31T23:59:59.999Z",
+          }),
+          session({
+            id: "escalated",
+            status: "escalated",
+            backingTicketId: null,
+          }),
+        ],
+        feedback: [
+          {
+            sessionId: "outside",
+            verdict: "came_back",
+            createdAt: "2026-01-03T00:00:00.000Z",
+            text: "Outside the session window",
+          },
+          {
+            sessionId: "escalated",
+            verdict: "other",
+            createdAt: "2026-01-04T00:00:00.000Z",
+            text: "Escalated session",
+          },
+        ],
+      }),
+      window
+    );
+    expect(metrics).toMatchObject({
+      sessions: 1,
+      aiResolved: 0,
+      falseResolved: 0,
+      outcomeFeedback: 1,
+      recentFeedback: [{ sessionId: "escalated" }],
+    });
+  });
+
+  test("returns newest recent feedback first, caps rows at twenty, and sanitizes text", () => {
+    const feedback = Array.from({ length: 22 }, (_, index) => ({
+      sessionId: "session-1",
+      verdict: "other",
+      createdAt: new Date(Date.UTC(2026, 0, index + 1)).toISOString(),
+      text: index === 21 ? `<img onerror="alert(1)">${"x".repeat(400)}` : null,
+    }));
+    const metrics = computeAutonomyMetrics(input({ feedback }), window);
+    expect(metrics.outcomeFeedback).toBe(1);
+    expect(metrics.recentFeedback).toHaveLength(20);
+    expect(metrics.recentFeedback[0].createdAt).toBe(feedback[21].createdAt);
+    expect(metrics.recentFeedback[0].text).toBe("x".repeat(300));
+    expect(metrics.recentFeedback[0].text).not.toContain("<img");
+  });
+
   test("marks a resolution false for overlapping follow-up guide results", () => {
     const metrics = computeAutonomyMetrics(
       input({

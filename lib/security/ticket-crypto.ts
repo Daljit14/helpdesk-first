@@ -30,7 +30,8 @@ async function decryptTextForRead(
     | "ticket_comments"
     | "ticket_attachments"
     | "agent_sessions"
-    | "agent_steps",
+    | "agent_steps"
+    | "agent_outcome_feedback",
   column: string,
   stored: string | null
 ): Promise<string | null> {
@@ -46,7 +47,7 @@ async function decryptTextForRead(
 export async function encryptAgentTextForWrite(
   admin: Admin,
   organizationId: string,
-  table: "agent_sessions" | "agent_steps",
+  table: "agent_sessions" | "agent_steps" | "agent_outcome_feedback",
   column: string,
   text: string
 ): Promise<string> {
@@ -56,7 +57,7 @@ export async function encryptAgentTextForWrite(
 export async function decryptAgentText(
   admin: Admin,
   organizationId: string,
-  table: "agent_sessions" | "agent_steps",
+  table: "agent_sessions" | "agent_steps" | "agent_outcome_feedback",
   column: string,
   stored: string | null
 ): Promise<string | null> {

@@ -7,6 +7,7 @@ import {
   isRequesterAgentEnabled,
   isRequesterAgentEnabledForOrg,
   isRequesterAgentVisionEnabledForOrg,
+  isOutcomeFeedbackEnabled,
   isResolutionTrackingEnabled,
   isStepPolicyEnabled,
   isTicketWorkflowEnabled,
@@ -83,6 +84,7 @@ export default async function AssistantPage({
             initialProblem={initialProblem}
             initialPlatform={initialPlatform}
             visionEnabled={visionEnabled}
+            feedbackEnabled={isOutcomeFeedbackEnabled()}
           />
         ) : isUiV2Enabled() ? (
           <AssistantWorkspace

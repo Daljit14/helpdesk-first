@@ -8,11 +8,15 @@ import {
   Sparkles,
 } from "lucide-react";
 import { AutonomyMetricsCard } from "@/components/admin/resolution/autonomy-metrics-card";
+import { OutcomeFeedbackPanel } from "@/components/admin/resolution/outcome-feedback-panel";
 import { ResolutionCenterTable } from "@/components/admin/resolution/resolution-center-table";
 import { ResolutionTabs } from "@/components/admin/resolution/resolution-tabs";
 import { getAutonomyMetrics } from "@/lib/analytics/autonomy-metrics";
 import { requireAdminPage } from "@/lib/admin/auth";
-import { isResolutionCenterEnabled } from "@/lib/admin/flags";
+import {
+  isOutcomeFeedbackEnabled,
+  isResolutionCenterEnabled,
+} from "@/lib/admin/flags";
 import { getResolutionCenterOverview } from "@/lib/admin/resolution-center";
 import {
   AdminHero,
@@ -136,6 +140,12 @@ export default async function ResolutionCenterPage({
       </StatGrid>
 
       <AutonomyMetricsCard metrics={autonomyMetrics} />
+      {isOutcomeFeedbackEnabled() && (
+        <OutcomeFeedbackPanel
+          items={autonomyMetrics.recentFeedback}
+          total={autonomyMetrics.outcomeFeedback}
+        />
+      )}
       <ResolutionCenterTable
         runs={runs}
         metrics={overview.metrics}

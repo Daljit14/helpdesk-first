@@ -28,6 +28,13 @@ export type AutonomyMetrics = {
   aiResolutionRate: number;
   falseResolved: number;
   falseResolvedRate: number;
+  outcomeFeedback: number;
+  recentFeedback: Array<{
+    sessionId: string;
+    verdict: string;
+    createdAt: string;
+    text: string;
+  }>;
   escalated: number;
   escalationRate: number;
   escalationReasons: EscalationReasonCount[];
@@ -71,6 +78,12 @@ export type AutonomyMetricsInput = {
     toolName: string | null;
     resultSummary: string | null;
     seq: number;
+  }>;
+  feedback?: Array<{
+    sessionId: string;
+    verdict: string;
+    createdAt: string;
+    text: string | null;
   }>;
 };
 
@@ -129,6 +142,8 @@ function zeroMetrics(window: AutonomyMetricsWindow): AutonomyMetrics {
     aiResolutionRate: 0,
     falseResolved: 0,
     falseResolvedRate: 0,
+    outcomeFeedback: 0,
+    recentFeedback: [],
     escalated: 0,
     escalationRate: 0,
     escalationReasons: [],
@@ -197,7 +212,15 @@ export function computeAutonomyMetrics(
   const aiResolvedSessions = sessions.filter(
     (session) => session.status === "resolved" && !hasStaffTouch(session)
   );
+  const inWindowSessionIds = new Set(sessions.map((session) => session.id));
+  const feedback = (input.feedback ?? [])
+    .filter((item) => inWindowSessionIds.has(item.sessionId))
+    .sort(
+      (left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt)
+    );
+  const feedbackSessionIds = new Set(feedback.map((item) => item.sessionId));
   const falseResolvedSessions = aiResolvedSessions.filter((session) => {
+    if (feedbackSessionIds.has(session.id)) return true;
     const endedAt = session.endedAt ? Date.parse(session.endedAt) : NaN;
     const backingTicket = session.backingTicketId
       ? ticketsById.get(session.backingTicketId)
@@ -300,6 +323,12 @@ export function computeAutonomyMetrics(
       return Date.parse(ticket.resolvedAt) - Date.parse(session.startedAt);
     })
     .filter((value): value is number => value !== null);
+  const recentFeedback = feedback.slice(0, 20).map((item) => ({
+    sessionId: item.sessionId,
+    verdict: item.verdict,
+    createdAt: item.createdAt,
+    text: sanitizeForUser(item.text ?? "").slice(0, 300),
+  }));
 
   return {
     window,
@@ -312,6 +341,8 @@ export function computeAutonomyMetrics(
     falseResolvedRate: aiResolvedSessions.length
       ? falseResolvedSessions.length / aiResolvedSessions.length
       : 0,
+    outcomeFeedback: feedbackSessionIds.size,
+    recentFeedback,
     escalated: escalatedSessions.length,
     escalationRate: sessions.length
       ? escalatedSessions.length / sessions.length
@@ -331,6 +362,18 @@ function isMissingAgentSessionsTable(error: {
   return (
     error.code === "42P01" ||
     (/agent_sessions/i.test(error.message ?? "") &&
+      /does not exist|schema cache/i.test(error.message ?? ""))
+  );
+}
+
+function isMissingOutcomeFeedbackTable(error: {
+  code?: string;
+  message?: string;
+}): boolean {
+  return (
+    error.code === "42P01" ||
+    error.code === "PGRST205" ||
+    (/agent_outcome_feedback/i.test(error.message ?? "") &&
       /does not exist|schema cache/i.test(error.message ?? ""))
   );
 }
@@ -397,7 +440,7 @@ export async function getAutonomyMetrics(
       )
     ),
   ];
-  const [ticketResult, eventResult, actionResult, stepResult] =
+  const [ticketResult, eventResult, actionResult, stepResult, feedbackResult] =
     await Promise.all([
       ticketIds.length
         ? admin
@@ -428,9 +471,22 @@ export async function getAutonomyMetrics(
             .in("session_id", sessionIds)
             .order("seq", { ascending: true })
         : Promise.resolve({ data: [], error: null }),
+      sessionIds.length
+        ? admin
+            .from("agent_outcome_feedback")
+            .select("session_id,verdict,created_at,free_text")
+            .eq("organization_id", session.organizationId)
+            .in("session_id", sessionIds)
+        : Promise.resolve({ data: [], error: null }),
     ]);
   for (const result of [ticketResult, eventResult, actionResult, stepResult]) {
     if (result.error) throw result.error;
+  }
+  if (
+    feedbackResult.error &&
+    !isMissingOutcomeFeedbackTable(feedbackResult.error)
+  ) {
+    throw feedbackResult.error;
   }
   const sessions = await Promise.all(
     selectedRows.map(async (row) => ({
@@ -480,6 +536,27 @@ export async function getAutonomyMetrics(
       seq: row.seq,
     }))
   );
+  const feedback = await Promise.all(
+    (
+      (feedbackResult.error ? [] : (feedbackResult.data ?? [])) as Array<{
+        session_id: string;
+        verdict: string;
+        created_at: string;
+        free_text: string | null;
+      }>
+    ).map(async (row) => ({
+      sessionId: row.session_id,
+      verdict: row.verdict,
+      createdAt: row.created_at,
+      text: await decryptAgentText(
+        admin,
+        session.organizationId,
+        "agent_outcome_feedback",
+        "free_text",
+        row.free_text
+      ),
+    }))
+  );
   return computeAutonomyMetrics(
     {
       excludedTicketIds: excluded,
@@ -518,6 +595,7 @@ export async function getAutonomyMetrics(
         agentId: row.agent_id,
       })),
       steps,
+      feedback,
     },
     window
   );

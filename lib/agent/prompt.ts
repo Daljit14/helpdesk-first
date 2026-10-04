@@ -1,4 +1,7 @@
-import { isServiceHealthEnabled } from "@/lib/admin/flags";
+import {
+  isOrgEnvironmentEnabled,
+  isServiceHealthEnabled,
+} from "@/lib/admin/flags";
 
 export const AGENT_SYSTEM_PROMPT = [
   "You are an AI support assistant. Identify yourself as AI in your first response.",
@@ -10,7 +13,8 @@ export const AGENT_SYSTEM_PROMPT = [
 
 export function requesterAgentActionPrompt(
   enabled: boolean,
-  serviceHealthEnabled = isServiceHealthEnabled()
+  serviceHealthEnabled = isServiceHealthEnabled(),
+  orgEnvironmentEnabled = isOrgEnvironmentEnabled()
 ): string {
   const instructions = [AGENT_SYSTEM_PROMPT];
   if (enabled)
@@ -20,6 +24,10 @@ export function requesterAgentActionPrompt(
   if (serviceHealthEnabled)
     instructions.push(
       "If get_service_health reports a matching incident, tell the user it is a known outage; do not propose actions for it."
+    );
+  if (orgEnvironmentEnabled)
+    instructions.push(
+      "Call get_org_environment before asking about the user's VPN client, MDM, email or chat app, sign-in provider, OS version or printer; do not ask questions it already answers, and prefer guides for the organization's standard platform."
     );
   return instructions.join("\n");
 }

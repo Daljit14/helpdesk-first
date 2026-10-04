@@ -10,6 +10,7 @@ import {
   isResolutionCenterEnabled,
   isSecureAttachmentsEnabled,
   isDeviceAgentEnabled,
+  isOrgEnvironmentEnabled,
 } from "@/lib/admin/flags";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { AdminShell } from "@/components/admin/v2/admin-shell";
@@ -91,6 +92,15 @@ function LegacyAdminLayout({
                       Devices
                     </Link>
                   )}
+                  {session.role === "org_admin" &&
+                    isOrgEnvironmentEnabled() && (
+                      <Link
+                        className="rounded-full px-3 py-2 hover:bg-muted"
+                        href="/admin/environment"
+                      >
+                        Environment profile
+                      </Link>
+                    )}
                   {session.role === "org_admin" && (
                     <Link
                       className="rounded-full px-3 py-2 hover:bg-muted"
@@ -159,6 +169,7 @@ export default async function AdminLayout({
     secureAttachmentsEnabled: isSecureAttachmentsEnabled(),
     resolutionCenterEnabled: isResolutionCenterEnabled(),
     deviceAgentEnabled: isDeviceAgentEnabled(),
+    orgEnvironmentEnabled: isOrgEnvironmentEnabled(),
   });
 
   return (

@@ -18,6 +18,7 @@ vi.mock("@/lib/admin/flags", () => ({
   isTicketWorkflowEnabled: mocks.isTicketWorkflowEnabled,
   isUserPortalEnabled: mocks.isUserPortalEnabled,
   isEvidenceEngineEnabled: mocks.isEvidenceEngineEnabled,
+  isOrgEnvironmentEnabled: vi.fn(() => false),
   isSecureAttachmentsEnabled: vi.fn(() => false),
 }));
 vi.mock("@/lib/supabase/user", () => ({

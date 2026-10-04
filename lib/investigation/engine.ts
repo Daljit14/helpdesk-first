@@ -1,9 +1,17 @@
 import { getAiModel, getAiProviderKind } from "@/lib/ai/config";
 import { processAiIntake, type IntakeResult } from "@/lib/ai/intake";
 import type { AiIntakeInput, AiProvider, Hypothesis } from "@/lib/ai/types";
-import { isEvidenceEngineEnabled } from "@/lib/admin/flags";
+import {
+  isEvidenceEngineEnabled,
+  isOrgEnvironmentEnabled,
+} from "@/lib/admin/flags";
 import { ISSUES, type Issue } from "@/lib/issues";
 import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  defaultPlatform,
+  loadConfirmedOrgEnvironment,
+  profileAnswers,
+} from "@/lib/org-environment/profile";
 import { isInvestigationEnabled } from "./config";
 import {
   containsFailedStep,
@@ -128,7 +136,35 @@ async function persistTurn(
 export async function runInvestigationTurn(
   params: InvestigationTurnInput
 ): Promise<InvestigationTurnResult> {
-  const result = await processAiIntake(params.input, {
+  let input = params.input;
+  if (isOrgEnvironmentEnabled() && params.organizationId) {
+    try {
+      const profile = await loadConfirmedOrgEnvironment(
+        params.admin ?? createAdminClient(),
+        params.organizationId
+      );
+      if (profile) {
+        const existingQuestionIds = new Set(
+          input.previousAnswers?.map(({ questionId }) => questionId) ?? []
+        );
+        const addedAnswers = profileAnswers(profile).filter(
+          ({ questionId }) => !existingQuestionIds.has(questionId)
+        );
+        input = {
+          ...input,
+          previousAnswers: [...addedAnswers, ...(input.previousAnswers ?? [])],
+        };
+        if (input.platform == null) {
+          const platform = defaultPlatform(profile);
+          if (platform) input = { ...input, platform };
+        }
+      }
+    } catch {
+      input = params.input;
+    }
+  }
+  const turnParams = input === params.input ? params : { ...params, input };
+  const result = await processAiIntake(input, {
     provider: params.provider,
     allowedSlugs: params.allowedSlugs,
   });
@@ -136,7 +172,7 @@ export async function runInvestigationTurn(
     return result;
   }
 
-  const failedSteps = params.input.failedSteps ?? [];
+  const failedSteps = input.failedSteps ?? [];
   const audience = params.audience ?? "requester";
   let output = result.output;
   let askedQuestionIds: string[] = [];
@@ -162,7 +198,7 @@ export async function runInvestigationTurn(
     }
     askedQuestionIds = mergeAskedQuestionIds(
       askedQuestionIds,
-      params.input.previousAnswers?.map(({ questionId }) => questionId) ?? []
+      input.previousAnswers?.map(({ questionId }) => questionId) ?? []
     );
     output = {
       ...output,
@@ -191,7 +227,7 @@ export async function runInvestigationTurn(
         output = {
           ...output,
           hypotheses: [
-            fallbackHypothesis(issue, params.input, result.output.confidence),
+            fallbackHypothesis(issue, input, result.output.confidence),
           ],
         };
       }
@@ -235,7 +271,7 @@ export async function runInvestigationTurn(
   if (!persist) return nextResult;
   try {
     const turnId = await persistTurn(
-      params,
+      turnParams,
       nextResult,
       failedSteps,
       askedQuestionIds

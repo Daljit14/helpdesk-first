@@ -6,6 +6,7 @@ export type Decision = "match" | "clarify" | "escalate";
 export type DiagnosticAnswer = {
   questionId: string;
   answer: string;
+  source?: "org_profile";
 };
 
 export type Hypothesis = {

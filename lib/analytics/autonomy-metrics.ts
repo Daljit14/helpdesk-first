@@ -1,5 +1,8 @@
 import { getExcludedRecordIds } from "@/lib/admin/record-exclusions";
-import { isAgentCostTrackingEnabled } from "@/lib/admin/flags";
+import {
+  isAgentCostTrackingEnabled,
+  isOrgEnvironmentEnabled,
+} from "@/lib/admin/flags";
 import { sanitizeForUser } from "@/lib/agent/untrusted";
 import type { AdminSession } from "@/lib/admin/auth";
 import { decryptAgentText } from "@/lib/security/ticket-crypto";
@@ -46,11 +49,16 @@ export type AutonomyMetrics = {
   costTracking: boolean;
   totalCostMicros: number;
   costPerAiResolutionMicros: number | null;
+  orgEnvironment: boolean;
+  clarifiedTickets: number;
+  avgClarifyingQuestions: number | null;
 };
 
 export type AutonomyMetricsInput = {
   excludedTicketIds?: ReadonlySet<string>;
   costTracking?: boolean;
+  orgEnvironment?: boolean;
+  investigationTurns?: Array<{ ticketId: string; questionIds: string[] }>;
   sessions: Array<{
     id: string;
     requesterId: string;
@@ -160,6 +168,9 @@ function zeroMetrics(window: AutonomyMetricsWindow): AutonomyMetrics {
     costTracking: false,
     totalCostMicros: 0,
     costPerAiResolutionMicros: null,
+    orgEnvironment: false,
+    clarifiedTickets: 0,
+    avgClarifyingQuestions: null,
   };
 }
 
@@ -342,6 +353,26 @@ export function computeAutonomyMetrics(
   const totalCostMicros = costTracking
     ? sessions.reduce((total, session) => total + (session.costMicros ?? 0), 0)
     : 0;
+  let clarifiedTickets = 0;
+  let avgClarifyingQuestions: number | null = null;
+  if (input.orgEnvironment) {
+    const questionsByTicket = new Map<string, Set<string>>();
+    for (const turn of input.investigationTurns ?? []) {
+      if (input.excludedTicketIds?.has(turn.ticketId)) continue;
+      const questions =
+        questionsByTicket.get(turn.ticketId) ?? new Set<string>();
+      for (const questionId of turn.questionIds) questions.add(questionId);
+      questionsByTicket.set(turn.ticketId, questions);
+    }
+    clarifiedTickets = questionsByTicket.size;
+    if (clarifiedTickets > 0) {
+      const totalQuestions = [...questionsByTicket.values()].reduce(
+        (total, questions) => total + questions.size,
+        0
+      );
+      avgClarifyingQuestions = totalQuestions / clarifiedTickets;
+    }
+  }
 
   return {
     window,
@@ -371,6 +402,9 @@ export function computeAutonomyMetrics(
       costTracking && aiResolvedSessions.length > 0
         ? totalCostMicros / aiResolvedSessions.length
         : null,
+    orgEnvironment: Boolean(input.orgEnvironment),
+    clarifiedTickets,
+    avgClarifyingQuestions,
   };
 }
 
@@ -397,6 +431,18 @@ function isMissingOutcomeFeedbackTable(error: {
   );
 }
 
+function isMissingInvestigationTurnsTable(error: {
+  code?: string;
+  message?: string;
+}): boolean {
+  return (
+    error.code === "42P01" ||
+    error.code === "PGRST205" ||
+    (/ticket_investigation_turns/i.test(error.message ?? "") &&
+      /does not exist|schema cache/i.test(error.message ?? ""))
+  );
+}
+
 function metricsWindow(windowDays: number): AutonomyMetricsWindow {
   const to = new Date();
   const from = new Date(to.getTime() - windowDays * DAY_MS);
@@ -414,6 +460,7 @@ export async function getAutonomyMetrics(
   const window = metricsWindow(opts.windowDays ?? 30);
   const admin = createAdminClient();
   const costTracking = isAgentCostTrackingEnabled();
+  const orgEnvironment = isOrgEnvironmentEnabled();
   const sessionSelect =
     "id,requester_id,status,started_at,ended_at,last_user_message,resolution_summary,backing_ticket_id,escalation_ticket_id";
   const sessionResult = await admin
@@ -461,45 +508,58 @@ export async function getAutonomyMetrics(
       )
     ),
   ];
-  const [ticketResult, eventResult, actionResult, stepResult, feedbackResult] =
-    await Promise.all([
-      ticketIds.length
-        ? admin
-            .from("tickets")
-            .select("id,status,resolved_at")
-            .eq("organization_id", session.organizationId)
-            .in("id", ticketIds)
-        : Promise.resolve({ data: [], error: null }),
-      ticketIds.length
-        ? admin
-            .from("ticket_system_events")
-            .select("ticket_id,event_type,actor_type,created_at")
-            .eq("organization_id", session.organizationId)
-            .in("ticket_id", ticketIds)
-        : Promise.resolve({ data: [], error: null }),
-      ticketIds.length
-        ? admin
-            .from("ticket_actions")
-            .select("ticket_id,agent_id")
-            .eq("organization_id", session.organizationId)
-            .in("ticket_id", ticketIds)
-        : Promise.resolve({ data: [], error: null }),
-      sessionIds.length
-        ? admin
-            .from("agent_steps")
-            .select("session_id,kind,tool_name,result_summary,seq")
-            .eq("organization_id", session.organizationId)
-            .in("session_id", sessionIds)
-            .order("seq", { ascending: true })
-        : Promise.resolve({ data: [], error: null }),
-      sessionIds.length
-        ? admin
-            .from("agent_outcome_feedback")
-            .select("session_id,verdict,created_at,free_text")
-            .eq("organization_id", session.organizationId)
-            .in("session_id", sessionIds)
-        : Promise.resolve({ data: [], error: null }),
-    ]);
+  const [
+    ticketResult,
+    eventResult,
+    actionResult,
+    stepResult,
+    feedbackResult,
+    investigationTurnsResult,
+  ] = await Promise.all([
+    ticketIds.length
+      ? admin
+          .from("tickets")
+          .select("id,status,resolved_at")
+          .eq("organization_id", session.organizationId)
+          .in("id", ticketIds)
+      : Promise.resolve({ data: [], error: null }),
+    ticketIds.length
+      ? admin
+          .from("ticket_system_events")
+          .select("ticket_id,event_type,actor_type,created_at")
+          .eq("organization_id", session.organizationId)
+          .in("ticket_id", ticketIds)
+      : Promise.resolve({ data: [], error: null }),
+    ticketIds.length
+      ? admin
+          .from("ticket_actions")
+          .select("ticket_id,agent_id")
+          .eq("organization_id", session.organizationId)
+          .in("ticket_id", ticketIds)
+      : Promise.resolve({ data: [], error: null }),
+    sessionIds.length
+      ? admin
+          .from("agent_steps")
+          .select("session_id,kind,tool_name,result_summary,seq")
+          .eq("organization_id", session.organizationId)
+          .in("session_id", sessionIds)
+          .order("seq", { ascending: true })
+      : Promise.resolve({ data: [], error: null }),
+    sessionIds.length
+      ? admin
+          .from("agent_outcome_feedback")
+          .select("session_id,verdict,created_at,free_text")
+          .eq("organization_id", session.organizationId)
+          .in("session_id", sessionIds)
+      : Promise.resolve({ data: [], error: null }),
+    orgEnvironment
+      ? admin
+          .from("ticket_investigation_turns")
+          .select("ticket_id,question_ids")
+          .eq("organization_id", session.organizationId)
+          .gte("created_at", window.from)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
   for (const result of [ticketResult, eventResult, actionResult, stepResult]) {
     if (result.error) throw result.error;
   }
@@ -508,6 +568,12 @@ export async function getAutonomyMetrics(
     !isMissingOutcomeFeedbackTable(feedbackResult.error)
   ) {
     throw feedbackResult.error;
+  }
+  if (
+    investigationTurnsResult.error &&
+    !isMissingInvestigationTurnsTable(investigationTurnsResult.error)
+  ) {
+    throw investigationTurnsResult.error;
   }
   const sessions = await Promise.all(
     selectedRows.map(async (row) => ({
@@ -619,6 +685,22 @@ export async function getAutonomyMetrics(
       steps,
       feedback,
       costTracking,
+      orgEnvironment,
+      investigationTurns:
+        investigationTurnsResult.error || !orgEnvironment
+          ? []
+          : (
+              (investigationTurnsResult.data ?? []) as Array<{
+                ticket_id: string;
+                question_ids: string[] | null;
+              }>
+            ).map((row) => ({
+              ticketId: row.ticket_id,
+              questionIds: (row.question_ids ?? []).filter(
+                (questionId): questionId is string =>
+                  typeof questionId === "string"
+              ),
+            })),
     },
     window
   );

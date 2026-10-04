@@ -32,6 +32,9 @@ const metrics: AutonomyMetrics = {
   costTracking: false,
   totalCostMicros: 0,
   costPerAiResolutionMicros: null,
+  orgEnvironment: false,
+  clarifiedTickets: 0,
+  avgClarifyingQuestions: null,
 };
 
 afterEach(() => cleanup());
@@ -66,6 +69,43 @@ describe("AutonomyMetricsCard", () => {
     expect(screen.getByText("$0.0123")).toBeInTheDocument();
     expect(screen.getByText("AI spend (window)")).toBeInTheDocument();
     expect(screen.getByText("$1.23")).toBeInTheDocument();
+  });
+
+  test("renders average clarifying questions only when organization profile is enabled", () => {
+    const { rerender } = render(<AutonomyMetricsCard metrics={metrics} />);
+    expect(
+      screen.queryByText("Avg clarifying questions")
+    ).not.toBeInTheDocument();
+
+    rerender(
+      <AutonomyMetricsCard
+        metrics={{
+          ...metrics,
+          orgEnvironment: true,
+          clarifiedTickets: 4,
+          avgClarifyingQuestions: 2.25,
+        }}
+      />
+    );
+    expect(screen.getByText("Avg clarifying questions")).toBeInTheDocument();
+    expect(screen.getByText("2.3")).toBeInTheDocument();
+    expect(screen.getByText("4 tickets")).toBeInTheDocument();
+  });
+
+  test("shows a dash and ticket count when no clarification turns exist", () => {
+    render(
+      <AutonomyMetricsCard
+        metrics={{
+          ...metrics,
+          orgEnvironment: true,
+          sessions: 0,
+          clarifiedTickets: 0,
+          avgClarifyingQuestions: null,
+        }}
+      />
+    );
+    expect(screen.getByText("Avg clarifying questions")).toBeInTheDocument();
+    expect(screen.getByText("0 tickets")).toBeInTheDocument();
   });
 
   test("shows a dash when cost tracking is enabled without AI resolutions", () => {

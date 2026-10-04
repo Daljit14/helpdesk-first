@@ -1,10 +1,21 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { ISSUES } from "@/lib/issues";
+import type { AiIntakeInput } from "@/lib/ai/types";
 import { fallbackHypothesis, runInvestigationTurn } from "./engine";
 
-const mocks = vi.hoisted(() => ({ snapshotEvidence: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  snapshotEvidence: vi.fn(),
+  loadConfirmedOrgEnvironment: vi.fn(),
+  profileAnswers: vi.fn(),
+  defaultPlatform: vi.fn(),
+}));
 vi.mock("@/lib/evidence/snapshot", () => ({
   snapshotEvidence: mocks.snapshotEvidence,
+}));
+vi.mock("@/lib/org-environment/profile", () => ({
+  loadConfirmedOrgEnvironment: mocks.loadConfirmedOrgEnvironment,
+  profileAnswers: mocks.profileAnswers,
+  defaultPlatform: mocks.defaultPlatform,
 }));
 
 function provider() {
@@ -82,6 +93,9 @@ describe("runInvestigationTurn", () => {
     vi.clearAllMocks();
     vi.stubEnv("HELP_DESK_AI_ENABLED", "true");
     vi.stubEnv("HELP_DESK_AI_PROVIDER", "mock");
+    mocks.loadConfirmedOrgEnvironment.mockResolvedValue(null);
+    mocks.profileAnswers.mockReturnValue([]);
+    mocks.defaultPlatform.mockReturnValue(null);
   });
 
   test("derives next steps without failed steps", async () => {
@@ -97,6 +111,114 @@ describe("runInvestigationTurn", () => {
         result.output.nextSteps?.every((step) => step.stepIndex >= 0)
       ).toBe(true);
     }
+  });
+
+  test("uses confirmed profile answers and default platform in ticket triage", async () => {
+    vi.stubEnv("HELP_DESK_ORG_ENVIRONMENT_ENABLED", "true");
+    mocks.loadConfirmedOrgEnvironment.mockResolvedValue({
+      status: "confirmed",
+    });
+    mocks.profileAnswers.mockReturnValue([
+      {
+        questionId: "which-platform",
+        answer: "Windows (organization standard)",
+        source: "org_profile",
+      },
+      {
+        questionId: "account-managed",
+        answer: "Yes — managed by the organization (Microsoft 365)",
+        source: "org_profile",
+      },
+    ]);
+    mocks.defaultPlatform.mockReturnValue("Windows");
+    const received: AiIntakeInput[] = [];
+    const input: AiIntakeInput = { message: "slow computer", platform: null };
+    const result = await runInvestigationTurn({
+      input,
+      provider: {
+        classify: vi.fn(async (value: AiIntakeInput) => {
+          received.push(value);
+          return {
+            decision: "match" as const,
+            matchedIssueSlug: "slow-computer",
+            confidence: 0.8,
+            detectedPlatform: "Windows" as const,
+            explanation: "A guide matches.",
+          };
+        }),
+      },
+      allowedSlugs: ["slow-computer"],
+      organizationId: "org-1",
+      admin: {} as never,
+      persist: false,
+    });
+
+    expect(result.status).toBe("success");
+    expect(received).toEqual([
+      {
+        message: "slow computer",
+        platform: "Windows",
+        previousAnswers: [
+          {
+            questionId: "which-platform",
+            answer: "Windows (organization standard)",
+            source: "org_profile",
+          },
+          {
+            questionId: "account-managed",
+            answer: "Yes — managed by the organization (Microsoft 365)",
+            source: "org_profile",
+          },
+        ],
+      },
+    ]);
+  });
+
+  test("leaves intake unchanged when disabled, without an organization, or on load failure", async () => {
+    const input: AiIntakeInput = { message: "slow computer", platform: null };
+    const received: AiIntakeInput[] = [];
+    const testProvider = {
+      classify: vi.fn(async (value: AiIntakeInput) => {
+        received.push(value);
+        return {
+          decision: "match" as const,
+          matchedIssueSlug: "slow-computer",
+          confidence: 0.8,
+          detectedPlatform: "Windows" as const,
+          explanation: "A guide matches.",
+        };
+      }),
+    };
+
+    vi.stubEnv("HELP_DESK_ORG_ENVIRONMENT_ENABLED", "false");
+    await runInvestigationTurn({
+      input,
+      provider: testProvider,
+      allowedSlugs: ["slow-computer"],
+      organizationId: "org-1",
+      persist: false,
+    });
+    expect(mocks.loadConfirmedOrgEnvironment).not.toHaveBeenCalled();
+
+    vi.stubEnv("HELP_DESK_ORG_ENVIRONMENT_ENABLED", "true");
+    await runInvestigationTurn({
+      input,
+      provider: testProvider,
+      allowedSlugs: ["slow-computer"],
+      persist: false,
+    });
+    expect(mocks.loadConfirmedOrgEnvironment).not.toHaveBeenCalled();
+
+    mocks.loadConfirmedOrgEnvironment.mockRejectedValue(new Error("offline"));
+    await runInvestigationTurn({
+      input,
+      provider: testProvider,
+      allowedSlugs: ["slow-computer"],
+      organizationId: "org-1",
+      persist: false,
+    });
+
+    expect(received).toEqual([input, input, input]);
   });
 
   test("does not persist when persistence is disabled", async () => {

@@ -12,9 +12,11 @@ import { wrapUntrusted, sanitizeForUser } from "./untrusted";
 import { parameterHash } from "@/lib/autonomy/guardrails/hash";
 import {
   isRequesterAgentActionsEnabled,
+  isOrgEnvironmentEnabled,
   isServiceHealthEnabled,
 } from "@/lib/admin/flags";
 import { getServiceHealth, matchIncidents } from "@/lib/service-health";
+import { loadConfirmedOrgEnvironment } from "@/lib/org-environment/profile";
 
 const querySchema = z
   .object({
@@ -75,22 +77,31 @@ const SERVICE_HEALTH_TOOL = {
     "Check vendor service status for active incidents matching the symptom.",
   input_schema: z.toJSONSchema(serviceHealthSchema, { io: "input" }),
 };
+const ORG_ENVIRONMENT_TOOL = {
+  name: "get_org_environment" as const,
+  description:
+    "Read the organization's confirmed IT environment profile (VPN, MDM, email/chat, SSO, standard OS, printers, approved software).",
+  input_schema: z.toJSONSchema(emptySchema, { io: "input" }),
+};
 
 export function getAgentTools(
   actionsEnabled = isRequesterAgentActionsEnabled(),
-  serviceHealthEnabled = isServiceHealthEnabled()
+  serviceHealthEnabled = isServiceHealthEnabled(),
+  orgEnvironmentEnabled = isOrgEnvironmentEnabled()
 ) {
   return [
     ...AGENT_TOOLS,
     ...(actionsEnabled ? [PROPOSE_ACTION_TOOL] : []),
     ...(serviceHealthEnabled ? [SERVICE_HEALTH_TOOL] : []),
+    ...(orgEnvironmentEnabled ? [ORG_ENVIRONMENT_TOOL] : []),
   ];
 }
 
 export type AgentToolName =
   | (typeof AGENT_TOOLS)[number]["name"]
   | "propose_action"
-  | "get_service_health";
+  | "get_service_health"
+  | "get_org_environment";
 
 export type AgentToolResult =
   | {
@@ -133,9 +144,12 @@ export async function runTool(
   input: unknown
 ): Promise<AgentToolResult> {
   const serviceHealthEnabled = isServiceHealthEnabled();
-  const definition = getAgentTools(false, serviceHealthEnabled).find(
-    (tool) => tool.name === name
-  );
+  const orgEnvironmentEnabled = isOrgEnvironmentEnabled();
+  const definition = getAgentTools(
+    false,
+    serviceHealthEnabled,
+    orgEnvironmentEnabled
+  ).find((tool) => tool.name === name);
   if (!definition || hasTargetKey(input)) {
     const userSummary = "That read-only tool request was rejected.";
     return {
@@ -274,6 +288,25 @@ export async function runTool(
         sources: snapshot.sources.map(({ source, ok }) => ({ source, ok })),
         checkedAt: snapshot.checkedAt,
       };
+    } else if (name === "get_org_environment") {
+      const profile = await loadConfirmedOrgEnvironment(
+        ctx.admin,
+        ctx.organizationId
+      );
+      value = profile
+        ? {
+            available: true,
+            vpnClient: profile.vpnClient,
+            mdmProvider: profile.mdmProvider,
+            emailStack: profile.emailStack,
+            chatStack: profile.chatStack,
+            ssoProvider: profile.ssoProvider,
+            standardPlatforms: profile.standardPlatforms,
+            standardOsVersions: profile.standardOsVersions,
+            printerFleet: profile.printerFleet,
+            approvedSoftware: profile.approvedSoftware,
+          }
+        : { available: false, reason: "not_confirmed" };
     } else {
       const args = parsed.data as z.infer<typeof historySchema>;
       const client = await createClient();
@@ -340,6 +373,14 @@ export async function runTool(
 }
 
 function toolUserSummary(name: string, value: unknown): string {
+  if (name === "get_org_environment") {
+    return value &&
+      typeof value === "object" &&
+      "available" in value &&
+      value.available === true
+      ? "Organization environment profile loaded."
+      : "No confirmed organization environment profile.";
+  }
   if (name === "get_service_health") {
     const matched =
       value &&

@@ -19,7 +19,10 @@ export type AgentRoute = {
 export function countEvidenceSources(
   evidence: Array<{ tool: string }>
 ): number {
-  return evidence.filter((item) => item.tool !== "search_guides").length;
+  return evidence.filter(
+    (item) =>
+      item.tool !== "search_guides" && item.tool !== "get_org_environment"
+  ).length;
 }
 
 export function selectAgentRoute(

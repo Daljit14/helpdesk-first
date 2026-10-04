@@ -11,7 +11,8 @@ export type FieldRef = {
     | "ticket_investigations"
     | "ticket_attachments"
     | "agent_sessions"
-    | "agent_steps";
+    | "agent_steps"
+    | "agent_outcome_feedback";
   column: string;
 };
 

@@ -15,6 +15,14 @@ device actions. D2 adds no SQL migration, environment flag, or executor.
 Updated agents are required to collect the new kinds; registry synchronization
 does not enable capabilities until an organization explicitly enables them.
 
+## D1 — requester outcome feedback
+
+D1 adds requester outcome feedback for recently resolved requester-agent
+sessions. The feature remains disabled by default with
+`HELP_DESK_OUTCOME_FEEDBACK_ENABLED=false`; the migration
+`supabase/agent-outcome-feedback.sql` has been authored but not applied to any
+database.
+
 ## D0 — requester-agent outcome metrics
 
 Phase D0 adds an organization-scoped, server-rendered outcome-metrics card to

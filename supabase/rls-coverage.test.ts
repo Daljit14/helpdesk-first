@@ -114,6 +114,19 @@ describe("Supabase RLS coverage", () => {
     );
   });
 
+  test("restricts requester outcome feedback inserts and revokes mutation", async () => {
+    const source = await readFile(
+      join(process.cwd(), "supabase/agent-outcome-feedback.sql"),
+      "utf8"
+    );
+    expect(source).toMatch(
+      /create policy agent_outcome_feedback_requester_insert[\s\S]*?with check \([\s\S]*?user_id\s*=\s*auth\.uid\(\)[\s\S]*?s\.requester_id\s*=\s*auth\.uid\(\)/i
+    );
+    expect(source).toMatch(
+      /revoke update,\s*delete on public\.agent_outcome_feedback from anon,\s*authenticated;/i
+    );
+  });
+
   test("restricts research and public device grants", async () => {
     const research = await readFile(
       join(process.cwd(), "supabase/research.sql"),

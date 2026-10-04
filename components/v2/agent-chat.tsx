@@ -22,6 +22,7 @@ import {
 } from "@/components/assistant/input-notice";
 import { classifyInput, inputHint } from "@/lib/assistant/input-quality";
 import { noticeText } from "@/lib/assistant/replies";
+import { OutcomeFeedback } from "@/components/v2/outcome-feedback";
 
 type TimelineItem = AgentEvent & { id: number };
 type ScreenshotState = {
@@ -44,10 +45,12 @@ export function AgentChat({
   initialProblem = "",
   initialPlatform,
   visionEnabled = false,
+  feedbackEnabled = false,
 }: {
   initialProblem?: string;
   initialPlatform?: string | null;
   visionEnabled?: boolean;
+  feedbackEnabled?: boolean;
 }) {
   const [message, setMessage] = useState(initialProblem);
   const [items, setItems] = useState<TimelineItem[]>([]);
@@ -453,6 +456,9 @@ export function AgentChat({
                   className="rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-4"
                 >
                   <p className="font-medium">{event.text}</p>
+                  {feedbackEnabled && sessionId && (
+                    <OutcomeFeedback sessionId={sessionId} />
+                  )}
                 </div>
               );
             if (event.type === "escalated" || event.type === "halted")

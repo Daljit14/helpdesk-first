@@ -22,6 +22,18 @@ const userSchema = z.object({
   lastPasswordChangeDateTime: z.string().nullable().optional(),
 });
 
+const serviceHealthIssueSchema = z.object({
+  id: graphId,
+  title: z.string(),
+  service: z.string(),
+  status: z.string().optional(),
+  isResolved: z.boolean(),
+  classification: z.string().nullable().optional(),
+  startDateTime: z.string().nullable().optional(),
+});
+
+export type EntraServiceHealthIssue = z.infer<typeof serviceHealthIssueSchema>;
+
 function escapeFilter(value: string): string {
   return value.replace(/'/g, "''");
 }
@@ -174,6 +186,19 @@ export class EntraDirectory implements IdentityDirectory {
         groups: groups.ok ? groups.value.value.map((item) => item.id) : [],
       },
     };
+  }
+
+  async listServiceHealthIssues(
+    signal: AbortSignal
+  ): Promise<ConnectorResult<EntraServiceHealthIssue[]>> {
+    return this.graph(
+      "/admin/serviceAnnouncement/issues",
+      signal,
+      (raw) =>
+        z.object({ value: z.array(serviceHealthIssueSchema) }).parse(raw).value,
+      {},
+      true
+    );
   }
 
   async getUserById(

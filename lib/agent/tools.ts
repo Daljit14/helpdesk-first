@@ -10,7 +10,11 @@ import { createClient } from "@/lib/supabase/server";
 import type { AgentContext } from "./types";
 import { wrapUntrusted, sanitizeForUser } from "./untrusted";
 import { parameterHash } from "@/lib/autonomy/guardrails/hash";
-import { isRequesterAgentActionsEnabled } from "@/lib/admin/flags";
+import {
+  isRequesterAgentActionsEnabled,
+  isServiceHealthEnabled,
+} from "@/lib/admin/flags";
+import { getServiceHealth, matchIncidents } from "@/lib/service-health";
 
 const querySchema = z
   .object({
@@ -19,6 +23,9 @@ const querySchema = z
   })
   .strict();
 const emptySchema = z.object({}).strict();
+export const serviceHealthSchema = z
+  .object({ symptom: z.string().trim().min(1).max(200) })
+  .strict();
 const historySchema = z
   .object({ limit: z.number().int().min(1).max(10).default(10) })
   .strict();
@@ -57,23 +64,33 @@ export const AGENT_TOOLS = [
   },
 ] as const;
 
+const PROPOSE_ACTION_TOOL = {
+  name: "propose_action" as const,
+  description: "Propose one consent-gated state-changing action.",
+  input_schema: z.toJSONSchema(proposeActionSchema, { io: "input" }),
+};
+const SERVICE_HEALTH_TOOL = {
+  name: "get_service_health" as const,
+  description:
+    "Check vendor service status for active incidents matching the symptom.",
+  input_schema: z.toJSONSchema(serviceHealthSchema, { io: "input" }),
+};
+
 export function getAgentTools(
-  actionsEnabled = isRequesterAgentActionsEnabled()
+  actionsEnabled = isRequesterAgentActionsEnabled(),
+  serviceHealthEnabled = isServiceHealthEnabled()
 ) {
-  return actionsEnabled
-    ? [
-        ...AGENT_TOOLS,
-        {
-          name: "propose_action" as const,
-          description: "Propose one consent-gated state-changing action.",
-          input_schema: z.toJSONSchema(proposeActionSchema, { io: "input" }),
-        },
-      ]
-    : AGENT_TOOLS;
+  return [
+    ...AGENT_TOOLS,
+    ...(actionsEnabled ? [PROPOSE_ACTION_TOOL] : []),
+    ...(serviceHealthEnabled ? [SERVICE_HEALTH_TOOL] : []),
+  ];
 }
 
 export type AgentToolName =
-  (typeof AGENT_TOOLS)[number]["name"] | "propose_action";
+  | (typeof AGENT_TOOLS)[number]["name"]
+  | "propose_action"
+  | "get_service_health";
 
 export type AgentToolResult =
   | {
@@ -115,7 +132,10 @@ export async function runTool(
   name: string,
   input: unknown
 ): Promise<AgentToolResult> {
-  const definition = AGENT_TOOLS.find((tool) => tool.name === name);
+  const serviceHealthEnabled = isServiceHealthEnabled();
+  const definition = getAgentTools(false, serviceHealthEnabled).find(
+    (tool) => tool.name === name
+  );
   if (!definition || hasTargetKey(input)) {
     const userSummary = "That read-only tool request was rejected.";
     return {
@@ -128,9 +148,11 @@ export async function runTool(
   const parsed =
     name === "search_guides"
       ? querySchema.safeParse(input)
-      : name === "get_ticket_history"
-        ? historySchema.safeParse(input)
-        : emptySchema.safeParse(input);
+      : name === "get_service_health"
+        ? serviceHealthSchema.safeParse(input)
+        : name === "get_ticket_history"
+          ? historySchema.safeParse(input)
+          : emptySchema.safeParse(input);
   if (!parsed.success) {
     const userSummary = "The tool parameters were invalid.";
     return {
@@ -237,6 +259,21 @@ export async function runTool(
         mfaRegistered: result.value.mfaRegistered,
         recentSignInErrorCount: result.value.recentSignInErrors.length,
       };
+    } else if (name === "get_service_health") {
+      const args = parsed.data as z.infer<typeof serviceHealthSchema>;
+      const snapshot = await getServiceHealth(
+        ctx.admin,
+        ctx.organizationId,
+        ctx.signal
+      );
+      const matched = matchIncidents(args.symptom, snapshot.incidents);
+      value = {
+        checked: true,
+        matched,
+        otherActive: Math.max(0, snapshot.incidents.length - matched.length),
+        sources: snapshot.sources.map(({ source, ok }) => ({ source, ok })),
+        checkedAt: snapshot.checkedAt,
+      };
     } else {
       const args = parsed.data as z.infer<typeof historySchema>;
       const client = await createClient();
@@ -303,6 +340,30 @@ export async function runTool(
 }
 
 function toolUserSummary(name: string, value: unknown): string {
+  if (name === "get_service_health") {
+    const matched =
+      value &&
+      typeof value === "object" &&
+      "matched" in value &&
+      Array.isArray(value.matched)
+        ? value.matched
+        : [];
+    if (matched.length === 0)
+      return sanitizeForUser("No matching service incidents found.");
+    const first = matched[0] as {
+      service?: unknown;
+      source?: unknown;
+    };
+    const sourceName =
+      first.source === "microsoft365"
+        ? "Microsoft 365"
+        : first.source === "google_workspace"
+          ? "Google Workspace"
+          : "Statuspage";
+    return sanitizeForUser(
+      `${matched.length} active incident${matched.length === 1 ? "" : "s"} may explain this: ${String(first.service ?? "Service")} (${sourceName}).`
+    ).slice(0, 300);
+  }
   if (name === "search_guides" && Array.isArray(value)) {
     const slugs = value
       .map((item) =>

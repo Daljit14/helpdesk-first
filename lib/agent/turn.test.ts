@@ -1,5 +1,7 @@
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import { createAgentEvalHarness } from "./eval-harness";
+
+afterEach(() => vi.unstubAllEnvs());
 
 describe("requester agent turn dispatch", () => {
   test("escalates a human request without calling the model", async () => {
@@ -42,7 +44,9 @@ describe("requester agent turn dispatch", () => {
   });
 
   test("continues with a synthetic turn after consent decline", async () => {
+    vi.stubEnv("HELP_DESK_SERVICE_HEALTH_ENABLED", "true");
     const harness = createAgentEvalHarness({
+      serviceIncidentActive: true,
       outputs: [
         {
           kind: "final",
@@ -60,6 +64,7 @@ describe("requester agent turn dispatch", () => {
       role: "user",
       content: "User declined `device_flush_dns`",
     });
+    expect(harness.gatewayCalls).toBe(0);
   });
 
   test("continues with a synthetic turn after a failed verification", async () => {
@@ -101,5 +106,29 @@ describe("requester agent turn dispatch", () => {
       role: "user",
       content: "Still broken after `the attempted fix`",
     });
+  });
+
+  test("rejects consent approval during an active service incident", async () => {
+    vi.stubEnv("HELP_DESK_SERVICE_HEALTH_ENABLED", "true");
+    const harness = createAgentEvalHarness({
+      serviceIncidentActive: true,
+      consent: { approvalRequestId: "approval-1", decision: "approve" },
+      decideConsentResult: "executed_verified_passed",
+      outputs: [],
+    });
+    await harness.run();
+    expect(harness.gatewayCalls).toBe(0);
+    expect(harness.steps).toContainEqual(
+      expect.objectContaining({
+        kind: "action_rejected",
+        resultSummary: expect.stringContaining("service_incident_active"),
+      })
+    );
+    expect(harness.events).toContainEqual(
+      expect.objectContaining({
+        type: "error",
+        recoverable: true,
+      })
+    );
   });
 });

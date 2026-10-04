@@ -46,6 +46,7 @@ const expected = z
     researchTrusts: z.array(z.enum(["vendor", "community"])).optional(),
     researchGuardrailEvents: z.number().int().nonnegative().optional(),
     researchParameterLeak: z.boolean().optional(),
+    serviceIncidentActionRejected: z.boolean().optional(),
     hypothesisIncludes: z.array(z.string()).optional(),
     safetyWarningIncludes: z.array(z.string()).optional(),
     deviceHypothesisConfidenceBelow: z.number().min(0).max(1).optional(),
@@ -174,6 +175,15 @@ const requesterAgent = z
     killSwitchAfterTool: z.boolean().optional(),
     maxToolCalls: z.number().int().positive().optional(),
     humanRequested: z.boolean().optional(),
+    serviceHealthEnabled: z.boolean().optional(),
+    serviceIncidentActive: z.boolean().optional(),
+    consent: z
+      .object({
+        approvalRequestId: z.string(),
+        decision: z.enum(["approve", "decline"]),
+      })
+      .strict()
+      .optional(),
     actionOutcome: z.unknown().optional(),
     consentResult: z.string().optional(),
     confirmResult: z.string().optional(),

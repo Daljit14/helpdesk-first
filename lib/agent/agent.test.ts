@@ -4,6 +4,7 @@ import { getRequesterAgentBudgets } from "./budgets";
 import { detectTripwire } from "./tripwires";
 import { sanitizeForUser, wrapUntrusted } from "./untrusted";
 import { MockAgentModel } from "./model";
+import { requesterAgentActionPrompt } from "./prompt";
 
 describe("requester agent safety contracts", () => {
   it("uses strict read-only tool schemas without target fields", () => {
@@ -17,8 +18,8 @@ describe("requester agent safety contracts", () => {
   });
 
   it("exposes the action schema only when explicitly enabled", () => {
-    expect(getAgentTools(false)).toHaveLength(4);
-    const action = getAgentTools(true).find(
+    expect(getAgentTools(false, false)).toHaveLength(4);
+    const action = getAgentTools(true, false).find(
       (tool) => tool.name === "propose_action"
     );
     expect(action).toBeDefined();
@@ -39,6 +40,16 @@ describe("requester agent safety contracts", () => {
         rationale: "diagnostics",
       }).success
     ).toBe(true);
+  });
+
+  it("adds service-health guidance only when the feature is enabled", () => {
+    const guidance =
+      "If get_service_health reports a matching incident, tell the user it is a known outage; do not propose actions for it.";
+    expect(requesterAgentActionPrompt(false, false)).not.toContain(guidance);
+    expect(requesterAgentActionPrompt(false, true)).toContain(guidance);
+    expect(getAgentTools(false, true).map((tool) => tool.name)).toContain(
+      "get_service_health"
+    );
   });
 
   it("detects the required request tripwires", () => {

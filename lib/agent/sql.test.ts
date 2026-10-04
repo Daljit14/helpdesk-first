@@ -15,10 +15,9 @@ describe("requester agent SQL contracts", () => {
         /writeStep\(\s*[\s\S]{0,100}?\{\s*\n\s*kind:\s*"([^"]+)"/g
       ),
     ].map((match) => match[1]);
-    const sql = readFileSync(
-      join(root, "supabase/requester-agent.sql"),
-      "utf8"
-    );
+    const sql = ["requester-agent.sql", "service-health.sql"]
+      .map((file) => readFileSync(join(root, "supabase", file), "utf8"))
+      .join("\n");
     const allowedKinds = [
       ...sql.matchAll(/agent_steps_kind_check[^;]*kind in \(([^)]*)\)/g),
     ].flatMap((match) =>

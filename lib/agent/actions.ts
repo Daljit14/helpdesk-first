@@ -60,7 +60,8 @@ export type ProposeOutcome =
         | "specialist_only"
         | "read_only_capability"
         | "tier_disabled"
-        | "tier_shadow";
+        | "tier_shadow"
+        | "service_incident_active";
       message: string;
     }
   | { kind: "escalate"; reason: string }

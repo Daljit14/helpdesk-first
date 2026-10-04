@@ -14,6 +14,7 @@ export type NotificationEventType =
   | "sla.first_response_at_risk"
   | "sla.first_response_overdue"
   | "sla.resolution_overdue"
-  | "security.autonomy_alert";
+  | "security.autonomy_alert"
+  | "service.restored";
 
 export type NotificationChannel = "email" | "push";

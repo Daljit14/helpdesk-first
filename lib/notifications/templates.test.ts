@@ -42,6 +42,18 @@ describe("buildNotification", () => {
     expect(result.body).not.toMatch(/https?:\/\/|\/tickets\//);
   });
 
+  test("builds a plain-text service restoration notification without links", () => {
+    const result = buildNotification("service.restored", {
+      ticketTitle: "Exchange Online",
+      ticketId: "",
+    });
+    expect(result.subject).toBe("✅ Exchange Online is back");
+    expect(result.body).toBe(
+      "Exchange Online is back to normal. The service incident has cleared."
+    );
+    expect(result.body).not.toMatch(/https?:\/\/|\/tickets\//);
+  });
+
   test("truncates reply excerpt at 240 characters", () => {
     const excerpt = "a".repeat(300);
     const result = buildNotification("reply.public", {

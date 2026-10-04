@@ -11,6 +11,7 @@ import {
   isResolutionTrackingEnabled,
   isStepPolicyEnabled,
   isTicketWorkflowEnabled,
+  isServiceHealthEnabled,
 } from "@/lib/admin/flags";
 import { isUiV2Enabled } from "@/lib/ui-v2";
 import { AgentChat } from "@/components/v2/agent-chat";
@@ -85,6 +86,7 @@ export default async function AssistantPage({
             initialPlatform={initialPlatform}
             visionEnabled={visionEnabled}
             feedbackEnabled={isOutcomeFeedbackEnabled()}
+            serviceHealthEnabled={isServiceHealthEnabled()}
           />
         ) : isUiV2Enabled() ? (
           <AssistantWorkspace

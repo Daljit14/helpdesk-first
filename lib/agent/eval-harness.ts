@@ -34,6 +34,7 @@ export type AgentEvalHarness = {
   events: AgentEvent[];
   steps: Array<{ kind: string; resultSummary?: string; toolName?: string }>;
   toolCalls: number;
+  proposeActionCalls: number;
   sideEffectCalls: number;
   executedInputs: unknown[];
   executedTools: string[];
@@ -72,6 +73,8 @@ function session(): AgentSession {
 export function createAgentEvalHarness(input: {
   outputs: AgentModelOutput[];
   toolResults?: ScriptedToolResult[];
+  serviceIncidentActive?: boolean;
+  serviceHealthEnabled?: boolean;
   killSwitchAfterTool?: boolean;
   maxToolCalls?: number;
   message?: string;
@@ -103,6 +106,7 @@ export function createAgentEvalHarness(input: {
   const model = new ScriptedAgentModel([...input.outputs]);
   const toolResults = [...(input.toolResults ?? [])];
   let toolCalls = 0;
+  let proposeActionCalls = 0;
   let sideEffectCalls = 0;
   const executedInputs: unknown[] = [];
   const executedTools: string[] = [];
@@ -215,6 +219,8 @@ export function createAgentEvalHarness(input: {
     }),
     checkDailyBudget: async () => true,
     loadContext: async () => input.context ?? [],
+    hasServiceIncident: async () => Boolean(input.serviceIncidentActive),
+    serviceHealthEnabled: input.serviceHealthEnabled,
     writeStep,
     updateSession,
     runTool: async (_context, name, input) => {
@@ -245,6 +251,7 @@ export function createAgentEvalHarness(input: {
       alerts += 1;
     },
     proposeAction: async () => {
+      proposeActionCalls += 1;
       if (input.proposeActionOutcome?.kind === "consent_required")
         executePlanCalls += 1;
       if (autonomyScenario?.rollbackFailed) {
@@ -398,6 +405,9 @@ export function createAgentEvalHarness(input: {
     steps,
     get toolCalls() {
       return toolCalls;
+    },
+    get proposeActionCalls() {
+      return proposeActionCalls;
     },
     get sideEffectCalls() {
       return sideEffectCalls;

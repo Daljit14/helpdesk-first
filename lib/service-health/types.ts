@@ -17,6 +17,7 @@ export type ServiceHealthSnapshot = {
     source: ServiceHealthSource;
     name: string;
     ok: boolean;
+    sourceId?: string;
   }>;
   checkedAt: string;
 };

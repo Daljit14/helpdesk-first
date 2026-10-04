@@ -172,6 +172,40 @@ describe("subscribeToOutage", () => {
     });
   });
 
+  test("subscribes to a prefixed Statuspage incident id", async () => {
+    const prefixedIncident = {
+      ...incident,
+      source: "statuspage" as const,
+      incidentId: "status-source:sp-789",
+      service: "Contoso Mail",
+    };
+    const admin = makeAdmin();
+    mocks.createAdminClient.mockReturnValue(admin);
+    mocks.getServiceHealth.mockResolvedValue({
+      incidents: [prefixedIncident],
+      sources: [
+        {
+          source: "statuspage",
+          sourceId: "status-source",
+          name: "Contoso Mail",
+          ok: true,
+        },
+      ],
+      checkedAt: "2026-09-01T00:00:00.000Z",
+    });
+
+    await expect(
+      subscribeToOutage({
+        sessionId,
+        source: "statuspage",
+        incidentId: "status-source:sp-789",
+      })
+    ).resolves.toEqual({ ok: true });
+    expect(admin.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ incident_id: "status-source:sp-789" })
+    );
+  });
+
   test("does not subscribe when the incident is no longer active", async () => {
     mocks.createAdminClient.mockReturnValue(makeAdmin());
     mocks.getServiceHealth.mockResolvedValue({

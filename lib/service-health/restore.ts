@@ -16,7 +16,7 @@ type Subscription = {
 
 export async function notifyRestoredOutages(
   admin: Admin
-): Promise<{ checked: number; notified: number }> {
+): Promise<{ checked: number; notified: number; failed: number }> {
   const result = await admin
     .from("outage_subscriptions")
     .select("id,organization_id,user_id,source,incident_id,service")
@@ -34,6 +34,7 @@ export async function notifyRestoredOutages(
   }
 
   let notified = 0;
+  let failed = 0;
   for (const [organizationId, organizationSubscriptions] of byOrganization) {
     const snapshot = await getServiceHealth(
       admin,
@@ -42,9 +43,28 @@ export async function notifyRestoredOutages(
       { fresh: true }
     );
     for (const subscription of organizationSubscriptions) {
-      const sourceSucceeded = snapshot.sources.some(
-        (source) => source.source === subscription.source && source.ok === true
-      );
+      const sourceSucceeded =
+        subscription.source === "statuspage"
+          ? (() => {
+              const separator = subscription.incident_id.indexOf(":");
+              const sourceId =
+                separator > 0
+                  ? subscription.incident_id.slice(0, separator)
+                  : null;
+              return Boolean(
+                sourceId &&
+                snapshot.sources.some(
+                  (source) =>
+                    source.source === "statuspage" &&
+                    source.sourceId === sourceId &&
+                    source.ok
+                )
+              );
+            })()
+          : snapshot.sources.some(
+              (source) =>
+                source.source === subscription.source && source.ok === true
+            );
       if (!sourceSucceeded) continue;
       const incidentStillActive = snapshot.incidents.some(
         (incident) =>
@@ -53,29 +73,33 @@ export async function notifyRestoredOutages(
       );
       if (incidentStillActive) continue;
 
-      const notification = buildNotification("service.restored", {
-        ticketTitle: subscription.service,
-        ticketId: "",
-      });
-      await enqueueNotification({
-        organizationId,
-        ticketId: null,
-        eventType: "service.restored",
-        recipientUserIds: [subscription.user_id],
-        subject: notification.subject,
-        body: notification.body,
-        url: "/assistant",
-        dedupeKey: `outage:${subscription.id}`,
-      });
-      const updated = await admin
-        .from("outage_subscriptions")
-        .update({ status: "notified", notified_at: new Date().toISOString() })
-        .eq("id", subscription.id)
-        .eq("status", "active");
-      if (updated.error) throw updated.error;
-      notified += 1;
+      try {
+        const notification = buildNotification("service.restored", {
+          ticketTitle: subscription.service,
+          ticketId: "",
+        });
+        await enqueueNotification({
+          organizationId,
+          ticketId: null,
+          eventType: "service.restored",
+          recipientUserIds: [subscription.user_id],
+          subject: notification.subject,
+          body: notification.body,
+          url: "/assistant",
+          dedupeKey: `outage:${subscription.id}`,
+        });
+        const updated = await admin
+          .from("outage_subscriptions")
+          .update({ status: "notified", notified_at: new Date().toISOString() })
+          .eq("id", subscription.id)
+          .eq("status", "active");
+        if (updated.error) throw updated.error;
+        notified += 1;
+      } catch {
+        failed += 1;
+      }
     }
   }
 
-  return { checked: subscriptions.length, notified };
+  return { checked: subscriptions.length, notified, failed };
 }

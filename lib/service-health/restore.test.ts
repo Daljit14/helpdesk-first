@@ -65,7 +65,7 @@ const subscriptions = [
     organization_id: "org-1",
     user_id: "user-3",
     source: "statuspage",
-    incident_id: "sp-789",
+    incident_id: "status-source:sp-789",
     service: "Company Status",
   },
 ];
@@ -77,7 +77,12 @@ beforeEach(() => {
     sources: [
       { source: "microsoft365", name: "Microsoft 365", ok: false },
       { source: "google_workspace", name: "Google Workspace", ok: true },
-      { source: "statuspage", name: "Company Status", ok: true },
+      {
+        source: "statuspage",
+        sourceId: "status-source",
+        name: "Company Status",
+        ok: true,
+      },
     ],
     incidents: [
       {
@@ -101,6 +106,7 @@ describe("notifyRestoredOutages", () => {
     await expect(notifyRestoredOutages(admin as never)).resolves.toEqual({
       checked: 3,
       notified: 1,
+      failed: 0,
     });
 
     expect(admin.limit).toHaveBeenCalledWith(500);
@@ -158,6 +164,100 @@ describe("notifyRestoredOutages", () => {
       "org-2",
     ]);
     expect(mocks.enqueueNotification).toHaveBeenCalledTimes(2);
+  });
+
+  test("does not restore a failed Statuspage source when another row succeeds", async () => {
+    const admin = makeAdmin([
+      {
+        ...subscriptions[2],
+        incident_id: "status-a:sp-789",
+      },
+    ]);
+    mocks.getServiceHealth.mockResolvedValue({
+      sources: [
+        {
+          source: "statuspage",
+          sourceId: "status-a",
+          name: "Status A",
+          ok: false,
+        },
+        {
+          source: "statuspage",
+          sourceId: "status-b",
+          name: "Status B",
+          ok: true,
+        },
+      ],
+      incidents: [],
+      checkedAt: "2026-09-01T00:00:00.000Z",
+    });
+
+    await expect(notifyRestoredOutages(admin as never)).resolves.toEqual({
+      checked: 1,
+      notified: 0,
+      failed: 0,
+    });
+    expect(mocks.enqueueNotification).not.toHaveBeenCalled();
+  });
+
+  test("restores a Statuspage incident when its own row succeeds", async () => {
+    const admin = makeAdmin([
+      {
+        ...subscriptions[2],
+        incident_id: "status-a:sp-789",
+      },
+    ]);
+    mocks.getServiceHealth.mockResolvedValue({
+      sources: [
+        {
+          source: "statuspage",
+          sourceId: "status-a",
+          name: "Status A",
+          ok: true,
+        },
+        {
+          source: "statuspage",
+          sourceId: "status-b",
+          name: "Status B",
+          ok: true,
+        },
+      ],
+      incidents: [],
+      checkedAt: "2026-09-01T00:00:00.000Z",
+    });
+
+    await expect(notifyRestoredOutages(admin as never)).resolves.toEqual({
+      checked: 1,
+      notified: 1,
+      failed: 0,
+    });
+    expect(mocks.enqueueNotification).toHaveBeenCalledOnce();
+  });
+
+  test("continues restoring subscriptions after one notification fails", async () => {
+    const rows = [
+      { ...subscriptions[1], id: "sub-failed" },
+      { ...subscriptions[1], id: "sub-success", user_id: "user-success" },
+    ];
+    const admin = makeAdmin(rows);
+    mocks.getServiceHealth.mockResolvedValue({
+      sources: [
+        { source: "google_workspace", name: "Google Workspace", ok: true },
+      ],
+      incidents: [],
+      checkedAt: "2026-09-01T00:00:00.000Z",
+    });
+    mocks.enqueueNotification
+      .mockRejectedValueOnce(new Error("enqueue failed"))
+      .mockResolvedValueOnce(undefined);
+
+    await expect(notifyRestoredOutages(admin as never)).resolves.toEqual({
+      checked: 2,
+      notified: 1,
+      failed: 1,
+    });
+    expect(mocks.enqueueNotification).toHaveBeenCalledTimes(2);
+    expect(admin.update).toHaveBeenCalledTimes(1);
   });
 
   test("fails the run when the active-subscription query fails", async () => {

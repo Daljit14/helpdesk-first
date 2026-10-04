@@ -51,6 +51,7 @@ describe("service-health cron", () => {
     mocks.notifyRestoredOutages.mockResolvedValue({
       checked: 3,
       notified: 1,
+      failed: 0,
     });
     const response = await GET(
       new Request("http://localhost/api/cron/service-health", {
@@ -61,6 +62,7 @@ describe("service-health cron", () => {
     await expect(response.json()).resolves.toEqual({
       checked: 3,
       notified: 1,
+      failed: 0,
     });
     expect(mocks.notifyRestoredOutages).toHaveBeenCalledWith({
       id: "admin",

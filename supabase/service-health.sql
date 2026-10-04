@@ -97,7 +97,9 @@ create policy outage_subscriptions_requester_cancel
   with check (user_id = auth.uid() and status = 'cancelled');
 
 revoke all on public.outage_subscriptions from anon;
-grant select, insert, update on public.outage_subscriptions to authenticated;
+revoke update on public.outage_subscriptions from authenticated;
+grant select, insert on public.outage_subscriptions to authenticated;
+grant update (status) on public.outage_subscriptions to authenticated;
 grant all on public.outage_subscriptions to service_role;
 
 alter table public.agent_steps

@@ -53,7 +53,7 @@ export function parseStatuspageIncidents(
     .slice(0, 50)
     .map((incident) => ({
       source: "statuspage" as const,
-      incidentId: incident.id,
+      incidentId: `${source.id}:${incident.id}`,
       service,
       title: sanitizeServiceText(incident.name, 200),
       impact:

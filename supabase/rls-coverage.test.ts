@@ -127,6 +127,25 @@ describe("Supabase RLS coverage", () => {
     );
   });
 
+  test("limits requester outage subscription updates to status", async () => {
+    const source = await readFile(
+      join(process.cwd(), "supabase/service-health.sql"),
+      "utf8"
+    );
+    expect(source).toMatch(
+      /revoke update on public\.outage_subscriptions from authenticated;/i
+    );
+    expect(source).toMatch(
+      /grant select, insert on public\.outage_subscriptions to authenticated;/i
+    );
+    expect(source).toMatch(
+      /grant update \(status\) on public\.outage_subscriptions to authenticated;/i
+    );
+    expect(source).not.toMatch(
+      /grant select,\s*insert,\s*update on public\.outage_subscriptions to authenticated;/i
+    );
+  });
+
   test("restricts research and public device grants", async () => {
     const research = await readFile(
       join(process.cwd(), "supabase/research.sql"),

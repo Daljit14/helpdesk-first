@@ -38,7 +38,7 @@ describe("Statuspage incident parser", () => {
     ).toEqual([
       {
         source: "statuspage",
-        incidentId: "one",
+        incidentId: "status-source:one",
         service: "Contoso Mail",
         title: "Mail outage",
         impact: "outage",
@@ -47,7 +47,7 @@ describe("Statuspage incident parser", () => {
       },
       {
         source: "statuspage",
-        incidentId: "two",
+        incidentId: "status-source:two",
         service: "Contoso Mail",
         title: "Minor incident",
         impact: "degraded",

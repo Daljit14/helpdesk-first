@@ -19,6 +19,7 @@ type SourceResult = {
   name: string;
   incidents: ServiceIncident[];
   ok: boolean;
+  sourceId?: string;
 };
 
 async function fetchMicrosoft365(
@@ -56,6 +57,7 @@ async function fetchStatusSource(
     name: source.name,
     incidents: result.ok ? result.value : [],
     ok: result.ok,
+    sourceId: source.id,
   };
 }
 
@@ -148,7 +150,12 @@ export async function getServiceHealth(
 
   const snapshot: ServiceHealthSnapshot = {
     incidents: results.flatMap((result) => result.incidents).slice(0, 50),
-    sources: results.map(({ source, name, ok }) => ({ source, name, ok })),
+    sources: results.map(({ source, name, ok, sourceId }) => ({
+      source,
+      name,
+      ok,
+      ...(sourceId ? { sourceId } : {}),
+    })),
     checkedAt,
   };
   if (snapshot.sources.some((source) => source.ok)) {

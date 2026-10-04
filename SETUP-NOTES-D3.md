@@ -15,15 +15,17 @@ creates tenant-scoped Statuspage sources and requester outage subscriptions.
 - **Microsoft 365:** configure the Entra application with the Microsoft Graph
   application permission `ServiceHealth.Read.All`, then grant admin consent.
   The integration reads `/admin/serviceAnnouncement/issues` using the active
-  Entra connector. Incidents link to the generic Microsoft 365 service-health
-  page; the issue-specific deep-link format is unverified.
+  Entra connector with `$select=id,title,service,status,isResolved,classification,startDateTime`,
+  following at most five pages. Incidents link to the generic Microsoft 365
+  service-health page; the issue-specific deep-link format is unverified.
 - **Google Workspace:** when the active identity connector is Google, the
   integration reads the public
   `https://www.google.com/appsstatus/dashboard/incidents.json` feed. No
   credential is required.
 - **Statuspage:** organization admins can add up to 10 HTTPS status-page
   origins under Admin → Integrations. The base URL is validated both when
-  saved and before each fetch.
+  saved and before each fetch. Incident IDs are stored as
+  `<sourceRowId>:<incidentId>`.
 
 ## Cache and restoration notifications
 

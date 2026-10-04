@@ -32,6 +32,11 @@ const serviceHealthIssueSchema = z.object({
   startDateTime: z.string().nullable().optional(),
 });
 
+const serviceHealthIssuesPageSchema = z.object({
+  value: z.array(serviceHealthIssueSchema),
+  "@odata.nextLink": z.string().optional(),
+});
+
 export type EntraServiceHealthIssue = z.infer<typeof serviceHealthIssueSchema>;
 
 function escapeFilter(value: string): string {
@@ -191,14 +196,28 @@ export class EntraDirectory implements IdentityDirectory {
   async listServiceHealthIssues(
     signal: AbortSignal
   ): Promise<ConnectorResult<EntraServiceHealthIssue[]>> {
-    return this.graph(
-      "/admin/serviceAnnouncement/issues",
-      signal,
-      (raw) =>
-        z.object({ value: z.array(serviceHealthIssueSchema) }).parse(raw).value,
-      {},
-      true
-    );
+    const nextLinkPrefix = "https://graph.microsoft.com/v1.0/";
+    const issues: EntraServiceHealthIssue[] = [];
+    let path =
+      "/admin/serviceAnnouncement/issues?$select=id,title,service,status,isResolved,classification,startDateTime";
+
+    for (let page = 0; page < 5; page += 1) {
+      const result = await this.graph(
+        path,
+        signal,
+        (raw) => serviceHealthIssuesPageSchema.parse(raw),
+        {},
+        true
+      );
+      if (!result.ok) return result;
+      issues.push(...result.value.value);
+
+      const nextLink = result.value["@odata.nextLink"];
+      if (!nextLink?.startsWith(nextLinkPrefix)) break;
+      path = `/${nextLink.slice(nextLinkPrefix.length)}`;
+    }
+
+    return { ok: true, value: issues };
   }
 
   async getUserById(

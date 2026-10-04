@@ -442,7 +442,8 @@ export async function proposeAction(
     );
   if (
     evidence.tool === "search_guides" ||
-    evidence.tool === "get_ticket_history"
+    evidence.tool === "get_ticket_history" ||
+    evidence.tool === "get_org_environment"
   )
     return reject(
       "research_only_evidence",

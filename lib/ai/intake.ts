@@ -88,7 +88,8 @@ export async function processAiIntake(
   );
   if (
     coerced?.decision === "clarify" &&
-    (input.previousAnswers?.length ?? 0) >= MAX_DIAGNOSTIC_ANSWERS
+    (input.previousAnswers?.filter((answer) => answer.source !== "org_profile")
+      .length ?? 0) >= MAX_DIAGNOSTIC_ANSWERS
   ) {
     const query = [
       input.message,

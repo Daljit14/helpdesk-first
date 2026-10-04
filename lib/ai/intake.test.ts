@@ -266,6 +266,47 @@ describe("processAiIntake", () => {
     }
   });
 
+  test("does not count organization-profile answers toward the clarifier cap", async () => {
+    const provider: AiProvider = {
+      async classify(): Promise<AiIntakeOutput> {
+        return {
+          decision: "clarify",
+          detectedPlatform: "Windows",
+          diagnosticQuestionIds: ["network-owner"],
+          explanation: "Please provide one more answer.",
+        };
+      },
+    };
+    const result = await processAiIntake(
+      {
+        message: "no wifi on laptop",
+        platform: "Windows",
+        previousAnswers: [
+          {
+            questionId: "which-platform",
+            answer: "Windows (organization standard)",
+            source: "org_profile",
+          },
+          {
+            questionId: "where-happens",
+            answer: "Managed email",
+            source: "org_profile",
+          },
+          {
+            questionId: "account-managed",
+            answer: "Yes — managed by the organization (Microsoft 365)",
+            source: "org_profile",
+          },
+        ],
+      },
+      { provider }
+    );
+    expect(result).toMatchObject({
+      status: "success",
+      output: { decision: "clarify" },
+    });
+  });
+
   test("passes clarification through below the answer cap", async () => {
     vi.stubEnv("HELP_DESK_AI_PROVIDER", "anthropic");
     const provider: AiProvider = {

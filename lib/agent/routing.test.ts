@@ -89,4 +89,14 @@ describe("agent model routing", () => {
       ])
     ).toBe(1);
   });
+
+  test("does not count organization environment profiles as evidence sources", () => {
+    expect(
+      countEvidenceSources([
+        { tool: "get_org_environment" },
+        { tool: "search_guides" },
+        { tool: "get_device_diagnostics" },
+      ])
+    ).toBe(1);
+  });
 });

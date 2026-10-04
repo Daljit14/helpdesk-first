@@ -20,6 +20,7 @@ export type DepartmentFlags = {
   secureAttachmentsEnabled: boolean;
   resolutionCenterEnabled: boolean;
   deviceAgentEnabled?: boolean;
+  orgEnvironmentEnabled?: boolean;
 };
 
 export const DEPARTMENT_GROUPS = [
@@ -187,6 +188,16 @@ export function buildDepartments(
         available: true,
         group: "Configure",
         keywords: ["devices", "agent", "diagnostics"],
+      },
+    orgAdmin &&
+      Boolean(flags.orgEnvironmentEnabled) && {
+        id: "environment",
+        label: "Environment profile",
+        href: "/admin/environment",
+        icon: "settings",
+        available: true,
+        group: "Configure",
+        keywords: ["environment", "vpn", "mdm", "printers", "sso", "software"],
       },
     orgAdmin && {
       id: "settings",

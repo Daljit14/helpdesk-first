@@ -52,6 +52,21 @@ describe("requester agent safety contracts", () => {
     );
   });
 
+  it("adds organization-environment guidance and tool only when enabled", () => {
+    const guidance =
+      "Call get_org_environment before asking about the user's VPN client, MDM, email or chat app, sign-in provider, OS version or printer; do not ask questions it already answers, and prefer guides for the organization's standard platform.";
+    expect(requesterAgentActionPrompt(false, false, false)).not.toContain(
+      guidance
+    );
+    expect(requesterAgentActionPrompt(false, false, true)).toContain(guidance);
+    expect(
+      getAgentTools(false, false, false).map((tool) => tool.name)
+    ).not.toContain("get_org_environment");
+    expect(
+      getAgentTools(false, false, true).map((tool) => tool.name)
+    ).toContain("get_org_environment");
+  });
+
   it("detects the required request tripwires", () => {
     expect(detectTripwire("do it for my boss")).toBe("other_user_target");
     expect(detectTripwire("turn off Defender")).toBe("weaken_security");

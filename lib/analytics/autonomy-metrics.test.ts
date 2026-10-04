@@ -510,4 +510,56 @@ describe("computeAutonomyMetrics", () => {
     );
     expect(metrics.sessions).toBe(0);
   });
+
+  test("averages distinct question ids across included tickets with investigation turns", () => {
+    const metrics = computeAutonomyMetrics(
+      input({
+        orgEnvironment: true,
+        excludedTicketIds: new Set(["excluded-ticket"]),
+        investigationTurns: [
+          { ticketId: "ticket-1", questionIds: ["q1", "q1"] },
+          { ticketId: "ticket-1", questionIds: ["q2"] },
+          { ticketId: "ticket-2", questionIds: ["q3"] },
+          { ticketId: "excluded-ticket", questionIds: ["q4", "q5"] },
+        ],
+      }),
+      window
+    );
+    expect(metrics).toMatchObject({
+      orgEnvironment: true,
+      clarifiedTickets: 2,
+      avgClarifyingQuestions: 1.5,
+    });
+  });
+
+  test("keeps clarifying-question metrics disabled or null without turns", () => {
+    expect(computeAutonomyMetrics(input(), window)).toMatchObject({
+      orgEnvironment: false,
+      clarifiedTickets: 0,
+      avgClarifyingQuestions: null,
+    });
+
+    const disabled = computeAutonomyMetrics(
+      input({
+        orgEnvironment: false,
+        investigationTurns: [{ ticketId: "ticket-1", questionIds: ["q1"] }],
+      }),
+      window
+    );
+    expect(disabled).toMatchObject({
+      orgEnvironment: false,
+      clarifiedTickets: 0,
+      avgClarifyingQuestions: null,
+    });
+
+    const noTurns = computeAutonomyMetrics(
+      input({ orgEnvironment: true }),
+      window
+    );
+    expect(noTurns).toMatchObject({
+      orgEnvironment: true,
+      clarifiedTickets: 0,
+      avgClarifyingQuestions: null,
+    });
+  });
 });

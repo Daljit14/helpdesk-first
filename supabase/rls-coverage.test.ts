@@ -146,6 +146,35 @@ describe("Supabase RLS coverage", () => {
     );
   });
 
+  test("keeps organization environment profiles tenant-scoped without deletion", async () => {
+    const source = await readFile(
+      join(process.cwd(), "supabase/org-environment-profile.sql"),
+      "utf8"
+    );
+    expect(source).toMatch(
+      /apply after wave-3-organizations\.sql and investigation\.sql/i
+    );
+    expect(source).toMatch(
+      /alter table public\.org_environment_profile enable row level security/i
+    );
+    expect(source).toMatch(
+      /org_environment_profile_member_select[\s\S]*?is_org_member\(organization_id\)/i
+    );
+    expect(source).toMatch(
+      /org_environment_profile_admin_insert[\s\S]*?is_org_admin\(organization_id\)/i
+    );
+    expect(source).toMatch(
+      /org_environment_profile_admin_update[\s\S]*?is_org_admin\(organization_id\)[\s\S]*?with check \(public\.is_org_admin\(organization_id\)\)/i
+    );
+    expect(source).not.toMatch(/create policy [^;]*delete/i);
+    expect(source).toMatch(
+      /grant select, insert, update on public\.org_environment_profile to authenticated;/i
+    );
+    expect(source).toMatch(
+      /grant all on public\.org_environment_profile to service_role;/i
+    );
+  });
+
   test("restricts organization model-cost RPC execution to service role", async () => {
     const source = await readFile(
       join(process.cwd(), "supabase/model-routing.sql"),

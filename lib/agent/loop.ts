@@ -28,6 +28,7 @@ import {
 import { proposeAction } from "./actions";
 import {
   isAgentCostTrackingEnabled,
+  isOrgEnvironmentEnabled,
   isRequesterAgentActionsEnabled,
   isRequesterAgentEnabledForOrg,
   isServiceHealthEnabled,
@@ -78,6 +79,7 @@ export type AgentLoopDeps = {
   proposeAction: typeof proposeAction;
   hasServiceIncident: typeof hasServiceIncident;
   serviceHealthEnabled?: boolean;
+  orgEnvironmentEnabled?: boolean;
 };
 
 const defaultDeps: AgentLoopDeps = {
@@ -148,6 +150,8 @@ export async function runAgentTurn(input: {
     isRequesterAgentEnabledForOrg(session.organization_id);
   const serviceHealthEnabled =
     deps.serviceHealthEnabled ?? isServiceHealthEnabled();
+  const orgEnvironmentEnabled =
+    deps.orgEnvironmentEnabled ?? isOrgEnvironmentEnabled();
   let serviceIncidentActive = false;
   if (serviceHealthEnabled) {
     try {
@@ -232,16 +236,19 @@ export async function runAgentTurn(input: {
     const result = await model.next({
       system: requesterAgentActionPrompt(
         actionToolsEnabled,
-        serviceHealthEnabled
+        serviceHealthEnabled,
+        orgEnvironmentEnabled
       ),
       messages,
-      tools: getAgentTools(actionToolsEnabled, serviceHealthEnabled).map(
-        (tool) => ({
-          name: tool.name,
-          description: tool.description,
-          input_schema: tool.input_schema as Record<string, unknown>,
-        })
-      ),
+      tools: getAgentTools(
+        actionToolsEnabled,
+        serviceHealthEnabled,
+        orgEnvironmentEnabled
+      ).map((tool) => ({
+        name: tool.name,
+        description: tool.description,
+        input_schema: tool.input_schema as Record<string, unknown>,
+      })),
       maxTokens: 1200,
       signal,
     });

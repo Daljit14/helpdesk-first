@@ -54,6 +54,18 @@ export function AutonomyMetricsCard({ metrics }: { metrics: AutonomyMetrics }) {
           title="No sessions yet"
           body="Outcome metrics will appear here after requester-agent sessions are recorded for this organization."
         />
+        {metrics.orgEnvironment && (
+          <div className="mt-4 max-w-sm">
+            <StatTile
+              label="Avg clarifying questions"
+              value={metrics.avgClarifyingQuestions?.toFixed(1) ?? "—"}
+              icon={Lightbulb}
+              tone="info"
+              index={8}
+              hint={`${metrics.clarifiedTickets} tickets`}
+            />
+          </div>
+        )}
       </Panel>
     );
   }
@@ -83,6 +95,18 @@ export function AutonomyMetricsCard({ metrics }: { metrics: AutonomyMetrics }) {
           );
         })}
       </div>
+      {metrics.orgEnvironment && (
+        <div className="mt-3 max-w-sm">
+          <StatTile
+            label="Avg clarifying questions"
+            value={metrics.avgClarifyingQuestions?.toFixed(1) ?? "—"}
+            icon={Lightbulb}
+            tone="info"
+            index={8}
+            hint={`${metrics.clarifiedTickets} tickets`}
+          />
+        </div>
+      )}
       {metrics.costTracking && (
         <div className="mt-3 grid grid-cols-2 gap-3">
           <StatTile

@@ -2,6 +2,16 @@
 
 The admin Database page provides a tenant-scoped view of important stored data and a live activity tracker. Users are loaded through the service-role-only `public.admin_auth_users` projection; apply `supabase/admin-database.sql` before the Users section can show data.
 
+## D5 — organization environment profile
+
+D5 adds a confirmed organization environment profile, bounded inventory
+suggestions, a requester-agent research-only tool, clarification-question
+skipping during ticket triage, and a Resolution Center metric. The feature is
+implemented on this branch behind the default-off
+`HELP_DESK_ORG_ENVIRONMENT_ENABLED` flag. The additive
+`supabase/org-environment-profile.sql` migration is authored but has not been
+applied. See `SETUP-NOTES-D5.md` for setup and safety details.
+
 ## D4 — model routing, prompt caching, and cost controls
 
 D4 adds optional planner routing, Anthropic prompt caching, model-call cost

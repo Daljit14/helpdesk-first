@@ -113,6 +113,8 @@ export async function confirmOrgEnvironmentAction(
   _previous: Result,
   _formData: FormData
 ): Promise<OrgEnvironmentActionState> {
+  void _previous;
+  void _formData;
   const session = await sessionOrError();
   if (!("organizationId" in session)) return session;
 

@@ -1,4 +1,5 @@
 import { getExcludedRecordIds } from "@/lib/admin/record-exclusions";
+import { isAgentCostTrackingEnabled } from "@/lib/admin/flags";
 import { sanitizeForUser } from "@/lib/agent/untrusted";
 import type { AdminSession } from "@/lib/admin/auth";
 import { decryptAgentText } from "@/lib/security/ticket-crypto";
@@ -42,10 +43,14 @@ export type AutonomyMetrics = {
   medianHumanResolutionMs: number;
   unhandledIntents: UnhandledIntent[];
   unhandledIntentCount: number;
+  costTracking: boolean;
+  totalCostMicros: number;
+  costPerAiResolutionMicros: number | null;
 };
 
 export type AutonomyMetricsInput = {
   excludedTicketIds?: ReadonlySet<string>;
+  costTracking?: boolean;
   sessions: Array<{
     id: string;
     requesterId: string;
@@ -56,6 +61,7 @@ export type AutonomyMetricsInput = {
     resolutionSummary: string | null;
     backingTicketId: string | null;
     escalationTicketId: string | null;
+    costMicros?: number | null;
   }>;
   tickets: Array<{
     id: string;
@@ -151,6 +157,9 @@ function zeroMetrics(window: AutonomyMetricsWindow): AutonomyMetrics {
     medianHumanResolutionMs: 0,
     unhandledIntents: [],
     unhandledIntentCount: 0,
+    costTracking: false,
+    totalCostMicros: 0,
+    costPerAiResolutionMicros: null,
   };
 }
 
@@ -329,6 +338,10 @@ export function computeAutonomyMetrics(
     createdAt: item.createdAt,
     text: sanitizeForUser(item.text ?? "").slice(0, 300),
   }));
+  const costTracking = Boolean(input.costTracking);
+  const totalCostMicros = costTracking
+    ? sessions.reduce((total, session) => total + (session.costMicros ?? 0), 0)
+    : 0;
 
   return {
     window,
@@ -352,6 +365,12 @@ export function computeAutonomyMetrics(
     medianHumanResolutionMs: median(humanDurations),
     unhandledIntents,
     unhandledIntentCount: allUnhandledIntents.length,
+    costTracking,
+    totalCostMicros,
+    costPerAiResolutionMicros:
+      costTracking && aiResolvedSessions.length > 0
+        ? totalCostMicros / aiResolvedSessions.length
+        : null,
   };
 }
 
@@ -394,11 +413,12 @@ export async function getAutonomyMetrics(
 ): Promise<AutonomyMetrics> {
   const window = metricsWindow(opts.windowDays ?? 30);
   const admin = createAdminClient();
+  const costTracking = isAgentCostTrackingEnabled();
+  const sessionSelect =
+    "id,requester_id,status,started_at,ended_at,last_user_message,resolution_summary,backing_ticket_id,escalation_ticket_id";
   const sessionResult = await admin
     .from("agent_sessions")
-    .select(
-      "id,requester_id,status,started_at,ended_at,last_user_message,resolution_summary,backing_ticket_id,escalation_ticket_id"
-    )
+    .select(costTracking ? `${sessionSelect},cost_micros` : sessionSelect)
     .eq("organization_id", session.organizationId)
     .gte("started_at", window.from)
     .neq("status", "active")
@@ -412,7 +432,7 @@ export async function getAutonomyMetrics(
     opts.showExcluded && session.role === "org_admin"
       ? new Set<string>()
       : await getExcludedRecordIds(admin, session.organizationId, "tickets");
-  const rawSessions = (sessionResult.data ?? []) as Array<{
+  const rawSessions = (sessionResult.data ?? []) as unknown as Array<{
     id: string;
     requester_id: string;
     status: string;
@@ -422,6 +442,7 @@ export async function getAutonomyMetrics(
     resolution_summary: string | null;
     backing_ticket_id: string | null;
     escalation_ticket_id: string | null;
+    cost_micros?: number | null;
   }>;
   const selectedRows = rawSessions.filter(
     (row) =>
@@ -511,6 +532,7 @@ export async function getAutonomyMetrics(
       ),
       backingTicketId: row.backing_ticket_id,
       escalationTicketId: row.escalation_ticket_id,
+      ...(costTracking ? { costMicros: row.cost_micros ?? 0 } : {}),
     }))
   );
   const steps = await Promise.all(
@@ -596,6 +618,7 @@ export async function getAutonomyMetrics(
       })),
       steps,
       feedback,
+      costTracking,
     },
     window
   );

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import {
+  AnthropicAgentModel,
   AnthropicScreenshotTranscriber,
   MockAgentModel,
   MockScreenshotTranscriber,
@@ -180,6 +181,143 @@ describe("screenshot transcribers", () => {
       })
     ).resolves.toMatchObject({
       kind: "final",
+    });
+  });
+});
+
+describe("Anthropic requester-agent model", () => {
+  test("keeps the request body unchanged when prompt caching is off", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          content: [{ type: "text", text: "Try reconnecting." }],
+          usage: { input_tokens: 100, output_tokens: 20 },
+        }),
+        { status: 200 }
+      )
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const input = {
+      system: "system prompt",
+      messages: [{ role: "user" as const, content: "Wi-Fi is down." }],
+      tools: [],
+      maxTokens: 1200,
+      signal: new AbortController().signal,
+    };
+
+    await new AnthropicAgentModel("key", "claude-haiku-4-5").next(input);
+
+    expect(fetchMock.mock.calls[0][1].body).toBe(
+      JSON.stringify({
+        model: "claude-haiku-4-5",
+        max_tokens: 1200,
+        system: "system prompt",
+        tools: [],
+        tool_choice: { type: "auto" },
+        messages: input.messages,
+      })
+    );
+  });
+
+  test("adds the top-level ephemeral cache control when enabled", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          content: [{ type: "text", text: "Try reconnecting." }],
+          usage: {},
+        }),
+        { status: 200 }
+      )
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    await new AnthropicAgentModel("key", "claude-sonnet-5", {
+      promptCache: true,
+    }).next({
+      system: "system prompt",
+      messages: [{ role: "user", content: "Wi-Fi is down." }],
+      tools: [],
+      maxTokens: 1200,
+      signal: new AbortController().signal,
+    });
+
+    const request = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(request.cache_control).toEqual({ type: "ephemeral" });
+  });
+
+  test("parses non-negative token usage, including prompt-cache token counts", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          content: [
+            {
+              type: "tool_use",
+              id: "tool-1",
+              name: "search_guides",
+              input: { query: "Wi-Fi" },
+            },
+          ],
+          usage: {
+            input_tokens: -1,
+            output_tokens: 12.5,
+            cache_creation_input_tokens: 40,
+            cache_read_input_tokens: 25,
+          },
+        }),
+        { status: 200 }
+      )
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const result = await new AnthropicAgentModel(
+      "key",
+      "claude-haiku-4-5-20251001"
+    ).next({
+      system: "system prompt",
+      messages: [{ role: "user", content: "Wi-Fi is down." }],
+      tools: [],
+      maxTokens: 1200,
+      signal: new AbortController().signal,
+    });
+
+    expect(result).toMatchObject({
+      kind: "tool_use",
+      model: "claude-haiku-4-5-20251001",
+      usage: {
+        inputTokens: 0,
+        outputTokens: 0,
+        cacheCreationInputTokens: 40,
+        cacheReadInputTokens: 25,
+      },
+    });
+  });
+
+  test.each([
+    {
+      content: [{ type: "text", text: "Helpful response." }],
+      kind: "final",
+    },
+    { content: [], kind: "invalid" },
+  ])("sets the model id on $kind outputs", async ({ content, kind }) => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ content }), { status: 200 })
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const result = await new AnthropicAgentModel("key", "claude-opus-5").next({
+      system: "system prompt",
+      messages: [{ role: "user", content: "Help." }],
+      tools: [],
+      maxTokens: 1200,
+      signal: new AbortController().signal,
+    });
+
+    expect(result.kind).toBe(kind);
+    expect(result.model).toBe("claude-opus-5");
+    expect(result.usage).toEqual({
+      inputTokens: 0,
+      outputTokens: 0,
+      cacheCreationInputTokens: 0,
+      cacheReadInputTokens: 0,
     });
   });
 });

@@ -97,6 +97,18 @@ export function isServiceHealthEnabled(): boolean {
   return process.env.HELP_DESK_SERVICE_HEALTH_ENABLED === "true";
 }
 
+export function isAgentModelRoutingEnabled(): boolean {
+  return process.env.HELP_DESK_AGENT_MODEL_ROUTING_ENABLED === "true";
+}
+
+export function isAgentPromptCacheEnabled(): boolean {
+  return process.env.HELP_DESK_AGENT_PROMPT_CACHE_ENABLED === "true";
+}
+
+export function isAgentCostTrackingEnabled(): boolean {
+  return process.env.HELP_DESK_AGENT_COST_TRACKING_ENABLED === "true";
+}
+
 export function isRequesterAgentEnabledForOrg(organizationId: string): boolean {
   if (!isRequesterAgentEnabled()) return false;
   const allowlist = (process.env.HELP_DESK_REQUESTER_AGENT_ORG_ALLOWLIST ?? "")

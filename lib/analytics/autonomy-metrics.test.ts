@@ -61,6 +61,9 @@ describe("computeAutonomyMetrics", () => {
       medianHumanResolutionMs: 0,
       unhandledIntents: [],
       unhandledIntentCount: 0,
+      costTracking: false,
+      totalCostMicros: 0,
+      costPerAiResolutionMicros: null,
     });
   });
 
@@ -93,6 +96,71 @@ describe("computeAutonomyMetrics", () => {
       sessions: 3,
       aiResolved: 1,
       aiResolutionRate: 1 / 3,
+    });
+  });
+
+  test("computes total spend and cost per AI resolution for the selected window", () => {
+    const metrics = computeAutonomyMetrics(
+      input({
+        costTracking: true,
+        sessions: [
+          session({ id: "ai", costMicros: 125 }),
+          session({
+            id: "escalated",
+            status: "escalated",
+            backingTicketId: null,
+            escalationTicketId: "ticket-2",
+            costMicros: 75,
+          }),
+        ],
+        tickets: [
+          { id: "ticket-1", status: "Resolved", resolvedAt: null },
+          { id: "ticket-2", status: "Open", resolvedAt: null },
+        ],
+      }),
+      window
+    );
+
+    expect(metrics).toMatchObject({
+      costTracking: true,
+      totalCostMicros: 200,
+      aiResolved: 1,
+      costPerAiResolutionMicros: 200,
+    });
+  });
+
+  test("returns null per-resolution cost when tracking is off or no AI resolution exists", () => {
+    const trackingOff = computeAutonomyMetrics(
+      input({
+        sessions: [session({ costMicros: 500 })],
+      }),
+      window
+    );
+    expect(trackingOff).toMatchObject({
+      costTracking: false,
+      totalCostMicros: 0,
+      costPerAiResolutionMicros: null,
+    });
+
+    const noAiResolution = computeAutonomyMetrics(
+      input({
+        costTracking: true,
+        sessions: [
+          session({
+            status: "escalated",
+            backingTicketId: null,
+            escalationTicketId: "ticket-2",
+            costMicros: 500,
+          }),
+        ],
+      }),
+      window
+    );
+    expect(noAiResolution).toMatchObject({
+      costTracking: true,
+      totalCostMicros: 500,
+      aiResolved: 0,
+      costPerAiResolutionMicros: null,
     });
   });
 

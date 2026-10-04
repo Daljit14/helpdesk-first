@@ -1,5 +1,30 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { createAgentEvalHarness } from "./eval-harness";
+import { handleAgentRequest, type AgentTurnDeps } from "./turn";
+import type { AgentSession } from "./types";
+
+type TurnRunInput = Parameters<NonNullable<AgentTurnDeps["runAgentTurn"]>>[0];
+
+function turnSession(): AgentSession {
+  return {
+    id: "session-1",
+    organization_id: "org-1",
+    requester_id: "requester-1",
+    status: "active",
+    started_at: new Date().toISOString(),
+    ended_at: null,
+    last_user_message: null,
+    resolution_summary: null,
+    escalation_ticket_id: null,
+    action_count: 0,
+    tool_call_count: 0,
+    model_turn_count: 0,
+    token_count: 0,
+    halt_reason: null,
+    security_flag: false,
+    updated_at: new Date().toISOString(),
+  };
+}
 
 afterEach(() => vi.unstubAllEnvs());
 
@@ -106,6 +131,93 @@ describe("requester agent turn dispatch", () => {
       role: "user",
       content: "Still broken after `the attempted fix`",
     });
+  });
+
+  test("marks failed verification and next-hypothesis re-entries for routing, not declines", async () => {
+    const failedInput: TurnRunInput[] = [];
+    await handleAgentRequest({
+      admin: {} as never,
+      session: turnSession(),
+      message: "Continue troubleshooting.",
+      consent: { approvalRequestId: "approval-1", decision: "approve" },
+      emit: () => {},
+      signal: new AbortController().signal,
+      deps: {
+        decideConsent: async () => "executed_verified_failed",
+        runAgentTurn: async (input) => {
+          failedInput.push(input);
+        },
+      },
+    });
+    expect(failedInput[0]?.routing).toEqual({ failedVerification: true });
+
+    const hypothesisInput: TurnRunInput[] = [];
+    await handleAgentRequest({
+      admin: {} as never,
+      session: turnSession(),
+      message: "It is still broken.",
+      confirm: "no",
+      emit: () => {},
+      signal: new AbortController().signal,
+      deps: {
+        confirmOutcome: async () => "next_hypothesis",
+        runAgentTurn: async (input) => {
+          hypothesisInput.push(input);
+        },
+      },
+    });
+    expect(hypothesisInput[0]?.routing).toEqual({
+      failedVerification: true,
+    });
+
+    const declineInput: TurnRunInput[] = [];
+    await handleAgentRequest({
+      admin: {} as never,
+      session: turnSession(),
+      message: "Continue troubleshooting.",
+      consent: { approvalRequestId: "approval-1", decision: "decline" },
+      emit: () => {},
+      signal: new AbortController().signal,
+      deps: {
+        decideConsent: async () => "declined",
+        runAgentTurn: async (input) => {
+          declineInput.push(input);
+        },
+      },
+    });
+    expect(declineInput[0]?.routing?.failedVerification).toBeUndefined();
+  });
+
+  test("marks turns that include an accepted screenshot attachment", async () => {
+    const runInputs: TurnRunInput[] = [];
+    await handleAgentRequest({
+      admin: {} as never,
+      session: turnSession(),
+      message: "What is shown here?",
+      attachmentIds: ["attachment-1"],
+      emit: () => {},
+      signal: new AbortController().signal,
+      deps: {
+        intakeScreenshots: async () => ({
+          ok: true,
+          items: [
+            {
+              attachmentId: "attachment-1",
+              modelText: "Screenshot text.",
+              userSummary: "Screenshot text.",
+              sha256: "sha256",
+            },
+          ],
+        }),
+        writeStep: async () => {},
+        updateSession: async () => {},
+        runAgentTurn: async (input) => {
+          runInputs.push(input);
+        },
+      },
+    });
+
+    expect(runInputs[0]?.routing).toEqual({ screenshotAttached: true });
   });
 
   test("rejects consent approval during an active service incident", async () => {

@@ -146,6 +146,25 @@ describe("Supabase RLS coverage", () => {
     );
   });
 
+  test("restricts organization model-cost RPC execution to service role", async () => {
+    const source = await readFile(
+      join(process.cwd(), "supabase/model-routing.sql"),
+      "utf8"
+    );
+    expect(source).toMatch(
+      /create or replace function public\.agent_org_cost_today\(p_organization_id uuid\)[\s\S]*?security definer[\s\S]*?set search_path = public/i
+    );
+    expect(source).toMatch(
+      /revoke all on function public\.agent_org_cost_today\(uuid\)\s+from public, anon, authenticated;/i
+    );
+    expect(source).toMatch(
+      /grant execute on function public\.agent_org_cost_today\(uuid\) to service_role;/i
+    );
+    expect(source).not.toMatch(
+      /grant [^;]*on public\.agent_sessions[^;]*to authenticated/i
+    );
+  });
+
   test("restricts research and public device grants", async () => {
     const research = await readFile(
       join(process.cwd(), "supabase/research.sql"),

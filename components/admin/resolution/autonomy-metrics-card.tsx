@@ -4,6 +4,8 @@ import {
   Bot,
   CheckCircle2,
   Clock,
+  Coins,
+  DollarSign,
   Lightbulb,
   TrendingUp,
   XCircle,
@@ -81,6 +83,28 @@ export function AutonomyMetricsCard({ metrics }: { metrics: AutonomyMetrics }) {
           );
         })}
       </div>
+      {metrics.costTracking && (
+        <div className="mt-3 grid grid-cols-2 gap-3">
+          <StatTile
+            label="Cost per AI resolution"
+            value={
+              metrics.costPerAiResolutionMicros === null
+                ? "—"
+                : `$${(metrics.costPerAiResolutionMicros / 1_000_000).toFixed(4)}`
+            }
+            icon={DollarSign}
+            tone="neutral"
+            index={6}
+          />
+          <StatTile
+            label="AI spend (window)"
+            value={`$${(metrics.totalCostMicros / 1_000_000).toFixed(2)}`}
+            icon={Coins}
+            tone="neutral"
+            index={7}
+          />
+        </div>
+      )}
       <div className="mt-5 grid gap-5 lg:grid-cols-2">
         <div className="rounded-2xl border border-border p-4">
           <h3 className="mb-3 flex items-center gap-2 font-extrabold">

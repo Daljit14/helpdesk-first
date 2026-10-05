@@ -5,7 +5,7 @@ import { signUpAction, type AuthState } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { startSso } from "@/app/actions/auth";
+import { SsoButtons } from "@/components/auth/sso-buttons";
 import { TurnstileWidget } from "@/components/turnstile-widget";
 import { useEffect } from "react";
 import { useState } from "react";
@@ -158,6 +158,12 @@ export function SignupForm({
       noValidate
     >
       <input type="hidden" name="next" value={next} />
+      <SsoButtons
+        google={googleSsoEnabled}
+        microsoft={microsoftSsoEnabled}
+        next={"/"}
+        verb="Continue"
+      />
 
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="fullName">Full name</Label>
@@ -403,32 +409,6 @@ export function SignupForm({
       <Button type="submit" disabled={pending}>
         {pending ? "Signing up…" : "Sign up"}
       </Button>
-      {(googleSsoEnabled || microsoftSsoEnabled) && (
-        <div className="grid gap-2">
-          {googleSsoEnabled && (
-            <Button
-              type="submit"
-              formAction={() => startSso({ provider: "google", next: "/" })}
-              data-sso="google"
-              variant="outline"
-              className="w-full"
-            >
-              Continue with Google
-            </Button>
-          )}
-          {microsoftSsoEnabled && (
-            <Button
-              type="submit"
-              formAction={() => startSso({ provider: "azure", next: "/" })}
-              data-sso="azure"
-              variant="outline"
-              className="w-full"
-            >
-              Continue with Microsoft
-            </Button>
-          )}
-        </div>
-      )}
     </form>
   );
 }

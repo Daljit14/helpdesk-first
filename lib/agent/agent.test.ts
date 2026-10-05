@@ -113,9 +113,12 @@ describe("requester agent safety contracts", () => {
     expect(JSON.stringify(tool?.input_schema)).toContain("issueSlug");
   });
 
-  it("offers one mock user step from a searched guide when enabled", async () => {
+  it("offers one mock user step from a wrapped printer guide when enabled", async () => {
     vi.stubEnv("HELP_DESK_AGENT_USER_STEPS_ENABLED", "true");
     const model = new MockAgentModel("My email app keeps crashing.");
+    const searchResult = wrapUntrusted("tool:search_guides", [
+      { slug: "printer-offline" },
+    ]);
     await expect(model.next()).resolves.toMatchObject({
       kind: "tool_use",
       name: "search_guides",
@@ -126,8 +129,7 @@ describe("requester agent safety contracts", () => {
           {
             role: "tool_result",
             tool_use_id: "mock-search",
-            content:
-              '<untrusted_data source="tool">{"slug":"outlook-crashes"}</untrusted_data>',
+            content: searchResult,
           },
         ],
       })
@@ -135,7 +137,7 @@ describe("requester agent safety contracts", () => {
       kind: "tool_use",
       name: "give_user_step",
       input: {
-        issueSlug: "outlook-crashes",
+        issueSlug: "printer-offline",
         stepIndex: 0,
         why: "It is the first safe step in the matching guide.",
       },
@@ -146,7 +148,7 @@ describe("requester agent safety contracts", () => {
           {
             role: "tool_result",
             tool_use_id: "mock-search",
-            content: '{"slug":"outlook-crashes"}',
+            content: searchResult,
           },
         ],
       })
@@ -160,6 +162,9 @@ describe("requester agent safety contracts", () => {
   it("preserves mock guide behavior when user steps are disabled", async () => {
     vi.stubEnv("HELP_DESK_AGENT_USER_STEPS_ENABLED", "false");
     const model = new MockAgentModel("My email app keeps crashing.");
+    const searchResult = wrapUntrusted("tool:search_guides", [
+      { slug: "printer-offline" },
+    ]);
     await model.next();
     await expect(
       model.next({
@@ -167,7 +172,7 @@ describe("requester agent safety contracts", () => {
           {
             role: "tool_result",
             tool_use_id: "mock-search",
-            content: '{"slug":"outlook-crashes"}',
+            content: searchResult,
           },
         ],
       })

@@ -139,6 +139,34 @@ function modelTelemetry(
   });
 }
 
+function guideSlugFromToolResult(content: string): string | undefined {
+  const wrappedContent = content.match(
+    /<untrusted_data\b[^>]*>([\s\S]*?)<\/untrusted_data>/i
+  )?.[1];
+  if (wrappedContent !== undefined) {
+    try {
+      const decoded: unknown = JSON.parse(wrappedContent);
+      const payload =
+        typeof decoded === "string" ? JSON.parse(decoded) : decoded;
+      if (Array.isArray(payload)) {
+        const first = payload[0];
+        if (
+          typeof first === "object" &&
+          first !== null &&
+          "slug" in first &&
+          typeof first.slug === "string" &&
+          /^[a-z0-9-]{1,80}$/i.test(first.slug)
+        ) {
+          return first.slug;
+        }
+      }
+    } catch {
+      return content.match(/"slug"\s*:\s*"([a-z0-9-]{1,80})"/i)?.[1];
+    }
+  }
+  return content.match(/"slug"\s*:\s*"([a-z0-9-]{1,80})"/i)?.[1];
+}
+
 export class MockAgentModel implements AgentModel {
   private called = false;
   private diagnosticCalled = false;
@@ -221,9 +249,9 @@ export class MockAgentModel implements AgentModel {
             message.role === "tool_result" &&
             message.tool_use_id === "mock-search"
         );
-      const guideSlug = searchResult?.content.match(
-        /"slug"\s*:\s*"([a-z0-9-]{1,80})"/i
-      )?.[1];
+      const guideSlug = searchResult
+        ? guideSlugFromToolResult(searchResult.content)
+        : undefined;
       if (guideSlug) {
         this.userStepCalled = true;
         return {

@@ -10,8 +10,9 @@ export const CLAY_FIRST_BLINK_MS = [1000, 3000] as const;
 export const CLAY_FIRST_WAVE_MS = [800, 1600] as const;
 export const CLAY_WAVE_INTERVAL_MS = [8000, 12000] as const;
 export const CLAY_CROSSFADE_MS = 60;
+export const CLAY_WAVE_BLEND_MS = 200;
 export const CLAY_WAVE_STEPS = [
-  ["lift", 110],
+  ["lift", 200],
   ["raise", 130],
   ["wave-a", 230],
   ["wave-b", 230],
@@ -89,7 +90,9 @@ export function createClayTimeline(random: () => number = Math.random): {
     for (let index = 0; index < CLAY_WAVE_STEPS.length; index += 1) {
       const [frame, duration] = CLAY_WAVE_STEPS[index];
       if (elapsed < stepStart + duration) {
-        const alpha = Math.min(1, (elapsed - stepStart) / CLAY_CROSSFADE_MS);
+        const blendDuration =
+          index === 0 ? CLAY_WAVE_BLEND_MS : CLAY_CROSSFADE_MS;
+        const alpha = Math.min(1, (elapsed - stepStart) / blendDuration);
         if (index === 0) {
           return [
             { frame: "base", alpha: 1 },
@@ -107,7 +110,7 @@ export function createClayTimeline(random: () => number = Math.random): {
 
     const alpha = Math.min(
       1,
-      (elapsed - CLAY_WAVE_DURATION_MS) / CLAY_CROSSFADE_MS
+      (elapsed - CLAY_WAVE_DURATION_MS) / CLAY_WAVE_BLEND_MS
     );
     return [
       { frame: "lift", alpha: 1 },
@@ -123,9 +126,11 @@ export function createClayTimeline(random: () => number = Math.random): {
       const breath = breathAt(time);
 
       if (waveStart !== null) {
-        const waveEnd = waveStart + CLAY_WAVE_DURATION_MS + CLAY_CROSSFADE_MS;
+        const waveEnd = waveStart + CLAY_WAVE_DURATION_MS + CLAY_WAVE_BLEND_MS;
         if (time >= waveEnd) {
-          if (nextBlinkAt < waveEnd) nextBlinkAt = waveEnd;
+          if (nextBlinkAt < waveEnd) {
+            nextBlinkAt = waveEnd + randomInRange(random, [300, 800]);
+          }
           nextWaveAt = waveEnd + randomInRange(random, CLAY_WAVE_INTERVAL_MS);
           waveStart = null;
         }
@@ -133,13 +138,7 @@ export function createClayTimeline(random: () => number = Math.random): {
 
       if (waveStart === null) updateBlink(time);
 
-      if (
-        waveStart === null &&
-        time >= nextWaveAt &&
-        breath < 0.12 &&
-        blinkStart === null &&
-        nextBlinkAt > time + CLAY_WAVE_DURATION_MS + CLAY_CROSSFADE_MS
-      ) {
+      if (waveStart === null && time >= nextWaveAt && blinkStart === null) {
         waveStart = time;
       }
 

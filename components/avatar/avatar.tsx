@@ -352,7 +352,7 @@ export function AvatarPicker({
                 <span
                   aria-hidden
                   className={cn(
-                    "absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm transition-opacity duration-150",
+                    "absolute bottom-1 right-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm transition-opacity duration-150",
                     selected ? "opacity-100" : "opacity-0"
                   )}
                 >

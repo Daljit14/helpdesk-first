@@ -1,30 +1,119 @@
 import type { DiagnosticKind } from "../../../lib/device-agent/protocol";
-import { boundedError, record, type Collector } from "./index";
+import {
+  boundedError,
+  record,
+  type AgentExecOptions,
+  type Collector,
+} from "./index";
 import { SERVICE_NAMES, WINDOWS_SERVICE_COMMANDS } from "../service-maps";
 import { parseJsonRows } from "./shared";
+import {
+  recentErrorEventsRecord,
+  type RecentErrorCategory,
+} from "./error-events";
 
 function powershell(
   kind: DiagnosticKind,
   command: string,
-  parse: (output: string) => ReturnType<typeof record>
+  parse: (output: string) => ReturnType<typeof record>,
+  options?: AgentExecOptions
 ): Collector {
   return {
     kind,
     run: async (exec) => {
       try {
         return parse(
-          await exec("powershell.exe", [
-            "-NoProfile",
-            "-NonInteractive",
-            "-Command",
-            command,
-          ])
+          await exec(
+            "powershell.exe",
+            ["-NoProfile", "-NonInteractive", "-Command", command],
+            options
+          )
         );
       } catch (error) {
-        return boundedError(kind, error);
+        return boundedError(
+          kind,
+          kind === "recent_error_events" ? "command failed" : error
+        );
       }
     },
   };
+}
+
+function windowsErrorCategory(
+  provider: string,
+  rawId: unknown
+): RecentErrorCategory {
+  const name = provider.toLowerCase();
+  const id = typeof rawId === "number" ? rawId : Number(rawId);
+  if (name === "application error" && id === 1000) return "appCrash";
+  if (name === "application hang" && id === 1002) return "appHang";
+  if (
+    [
+      "microsoft-windows-security-kerberos",
+      "microsoft-windows-aad",
+      "microsoft-windows-user device registration",
+      "netlogon",
+    ].includes(name)
+  ) {
+    return "signIn";
+  }
+  if (
+    [
+      "disk",
+      "ntfs",
+      "microsoft-windows-ntfs",
+      "volmgr",
+      "storahci",
+      "stornvme",
+    ].includes(name)
+  ) {
+    return "disk";
+  }
+  if (
+    [
+      "microsoft-windows-kernel-pnp",
+      "microsoft-windows-driverframeworks-usermode",
+      "display",
+      "microsoft-windows-whea-logger",
+      "nvlddmkm",
+      "amdkmdag",
+    ].includes(name)
+  ) {
+    return "driver";
+  }
+  if (
+    [
+      "microsoft-windows-dns-client",
+      "tcpip",
+      "microsoft-windows-wlan-autoconfig",
+      "microsoft-windows-dhcp-client",
+      "dhcp-client",
+    ].includes(name)
+  ) {
+    return "network";
+  }
+  return "other";
+}
+
+function recentErrorEventsCollector(): Collector {
+  const command =
+    "$e = Get-WinEvent -FilterHashtable @{LogName=@('Application','System'); Level=@(1,2); StartTime=(Get-Date).AddHours(-24)} -MaxEvents 500 -ErrorAction SilentlyContinue; @($e | ForEach-Object { [pscustomobject]@{ p=$_.ProviderName; id=$_.Id; t=$_.TimeCreated.ToUniversalTime().ToString('o'); app=$(if ($_.Id -in 1000,1002) { [string]$_.Properties[0].Value } else { $null }) } }) | ConvertTo-Json -Compress";
+  return powershell(
+    "recent_error_events",
+    command,
+    (output) =>
+      recentErrorEventsRecord(
+        parseJsonRows(output).map((row) => ({
+          category: windowsErrorCategory(
+            typeof row.p === "string" ? row.p : "",
+            row.id
+          ),
+          at: typeof row.t === "string" ? row.t : null,
+          app: typeof row.app === "string" ? row.app : null,
+        }))
+      ),
+    { timeoutMs: 15_000 }
+  );
 }
 
 function parseNetwork(output: string) {
@@ -302,4 +391,5 @@ export const windowsCollectors: Collector[] = [
     "Get-PnpDevice -Class AudioEndpoint -PresentOnly -ErrorAction SilentlyContinue | Where-Object { $_.FriendlyName -match 'Microphone|Mic|Input' }"
   ),
   windowsCredentialHealthCollector(),
+  recentErrorEventsCollector(),
 ];

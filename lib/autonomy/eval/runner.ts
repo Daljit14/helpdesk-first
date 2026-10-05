@@ -197,6 +197,33 @@ function evidenceFor(input: BenchmarkCase): EvidenceRecord {
         : [];
     }
   );
+  const recentErrorHypotheses = (input.device?.diagnostics ?? []).flatMap(
+    (diagnostic) => {
+      if (diagnostic.kind !== "recent_error_events") return [];
+      const data = diagnostic.data ?? {};
+      const count = (key: string) =>
+        typeof data[key] === "number" ? (data[key] as number) : 0;
+      const causes: Array<[string, string]> = [];
+      if (count("disk") >= 1)
+        causes.push(["disk", "Recent disk errors — route to IT"]);
+      if (count("appCrash") + count("appHang") >= 3)
+        causes.push(["crashes", "Repeated app crashes in the last 24 hours"]);
+      if (count("signIn") >= 3)
+        causes.push(["sign-in", "Repeated sign-in errors on the device"]);
+      if (count("driver") >= 3)
+        causes.push(["driver", "Recent driver or hardware errors"]);
+      return causes.map(([key, cause]) => ({
+        id: `device-recent_error_events-${key}`,
+        cause,
+        guideSlug: null,
+        rawConfidence: input.device?.stale ? 0.5 : 0.8,
+        confidence: input.device?.stale ? 0.5 : 0.8,
+        explanation: diagnostic.summary,
+        supporting: [],
+        rejecting: [],
+      }));
+    }
+  );
   const deviceSafetyWarnings = (input.device?.diagnostics ?? [])
     .filter(
       (diagnostic) =>
@@ -246,6 +273,7 @@ function evidenceFor(input: BenchmarkCase): EvidenceRecord {
     unknownFacts: [],
     hypotheses: [
       ...deviceHypotheses,
+      ...recentErrorHypotheses,
       ...input.evidence
         .filter((fixture) => fixture.kind === "hypothesis")
         .map((fixture) => ({

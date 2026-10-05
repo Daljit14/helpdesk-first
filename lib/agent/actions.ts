@@ -443,7 +443,8 @@ export async function proposeAction(
   if (
     evidence.tool === "search_guides" ||
     evidence.tool === "get_ticket_history" ||
-    evidence.tool === "get_org_environment"
+    evidence.tool === "get_org_environment" ||
+    evidence.tool === "count_similar_org_issues"
   )
     return reject(
       "research_only_evidence",

@@ -220,6 +220,41 @@ export function buildEvidence(
       ];
     }
   );
+  const recentErrorHypotheses = (inputs.device?.diagnostics ?? []).flatMap(
+    (diagnostic) => {
+      if (diagnostic.kind !== "recent_error_events") return [];
+      const data = diagnostic.data ?? {};
+      const count = (key: string) =>
+        typeof data[key] === "number" ? (data[key] as number) : 0;
+      const causes: Array<[string, string]> = [];
+      if (count("disk") >= 1)
+        causes.push(["disk", "Recent disk errors — route to IT"]);
+      if (count("appCrash") + count("appHang") >= 3)
+        causes.push(["crashes", "Repeated app crashes in the last 24 hours"]);
+      if (count("signIn") >= 3)
+        causes.push(["sign-in", "Repeated sign-in errors on the device"]);
+      if (count("driver") >= 3)
+        causes.push(["driver", "Recent driver or hardware errors"]);
+      return causes.map(([key, cause]) => ({
+        id: `device-${diagnostic.kind}-${key}`,
+        cause,
+        guideSlug: null,
+        rawConfidence: inputs.device?.stale ? 0.5 : 0.8,
+        confidence: inputs.device?.stale ? 0.5 : 0.8,
+        explanation: diagnostic.summary,
+        supporting: [
+          {
+            id: `device:${diagnostic.kind}`,
+            kind: "action" as const,
+            summary: diagnostic.summary,
+            result: "supports" as const,
+            at: inputs.device?.collectedAt,
+          },
+        ],
+        rejecting: [],
+      }));
+    }
+  );
   const topBeforeResearch = buildHypotheses(
     hypothesesFor(inputs.investigation, turn),
     facts.tests
@@ -292,7 +327,7 @@ export function buildEvidence(
       ...researchFacts,
     ],
     unknownFacts: facts.unknownFacts,
-    hypotheses: [...deviceHypotheses, ...hypotheses],
+    hypotheses: [...deviceHypotheses, ...recentErrorHypotheses, ...hypotheses],
     citations: citationsFor(
       turn?.matched_issue_slug ?? inputs.ticket.issue_id,
       hypothesesFor(inputs.investigation, turn)

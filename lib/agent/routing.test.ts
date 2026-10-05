@@ -99,4 +99,13 @@ describe("agent model routing", () => {
       ])
     ).toBe(1);
   });
+
+  test("does not count similar-issue research as an evidence source", () => {
+    expect(
+      countEvidenceSources([
+        { tool: "count_similar_org_issues" },
+        { tool: "get_device_diagnostics" },
+      ])
+    ).toBe(1);
+  });
 });

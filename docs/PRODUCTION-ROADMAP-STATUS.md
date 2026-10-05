@@ -12,6 +12,17 @@ implemented on this branch behind the default-off
 `supabase/org-environment-profile.sql` migration is authored but has not been
 applied. See `SETUP-NOTES-D5.md` for setup and safety details.
 
+## PR 14 — additional read-only diagnostic sources
+
+PR 14 adds a shadow-mode, organization-enabled `device_recent_error_events`
+capability plus default-off requester-agent tools for recent Entra sign-in
+failure reasons and privacy-preserving counts of similar organization tickets.
+The agent tools and their prompt guidance are gated by
+`HELP_DESK_AGENT_DIAGNOSTIC_SOURCES_ENABLED`; Google sign-in audit is
+unsupported. `supabase/diagnostic-sources.sql` adds ticket-count indexes and is
+authored but has not been applied. `run_read_only_check` and browser checks
+remain deferred. See `SETUP-NOTES-D-DIAGNOSTIC-SOURCES.md`.
+
 ## D4 — model routing, prompt caching, and cost controls
 
 D4 adds optional planner routing, Anthropic prompt caching, model-call cost

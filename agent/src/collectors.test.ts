@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
+import { homedir } from "node:os";
 import { cameraPrivacyCollector, linuxCollectors } from "./collectors/linux";
 import { macosCollectors } from "./collectors/macos";
 import { windowsCollectors } from "./collectors/windows";
+import { recentErrorEventsRecord } from "./collectors/error-events";
 
 const happyOutput: Record<string, string> = {
   nmcli: "wlan0:wifi:connected:default\neth0:ethernet:disconnected",
@@ -73,7 +75,7 @@ describe("platform collectors", () => {
     const records = await Promise.all(
       collectors.map((collector) => collector.run(fakeExec({})))
     );
-    expect(records).toHaveLength(12);
+    expect(records).toHaveLength(13);
     expect(records.every((record) => record.summary.length <= 512)).toBe(true);
     expect(
       records.find((record) => record.kind === "network_status")?.data
@@ -252,6 +254,279 @@ describe("platform collectors", () => {
       ok: false,
       summary: "Diagnostic unavailable.",
     });
+  });
+
+  it("categorizes Windows error events without retaining sensitive values", async () => {
+    const collector = windowsCollectors.find(
+      (candidate) => candidate.kind === "recent_error_events"
+    );
+    const rows = [
+      {
+        p: "Application Error",
+        id: 1000,
+        t: "2026-10-04T10:00:00.000Z",
+        app: "C:\\Users\\bob\\Outlook.exe",
+        message: "password at C:\\Users\\bob\\private.txt",
+      },
+      {
+        p: "Application Hang",
+        id: 1002,
+        t: "2026-10-04T10:01:00.000Z",
+        app: "secret-tool.exe",
+      },
+      { p: "Microsoft-Windows-AAD", id: 1, t: "2026-10-04T10:02:00.000Z" },
+      { p: "Disk", id: 7, t: "2026-10-04T10:03:00.000Z" },
+      {
+        p: "Microsoft-Windows-Kernel-PnP",
+        id: 219,
+        t: "2026-10-04T10:04:00.000Z",
+      },
+      {
+        p: "Microsoft-Windows-DNS-Client",
+        id: 1014,
+        t: "2026-10-04T10:05:00.000Z",
+      },
+      { p: "Unknown Provider", id: 999, t: "2026-10-04T10:06:00.000Z" },
+    ];
+    const result = await collector!.run(async (file, args, options) => {
+      expect(file).toBe("powershell.exe");
+      expect(args.at(-1)).toContain("Get-WinEvent -FilterHashtable");
+      expect(args.at(-1)).toContain("-MaxEvents 500");
+      expect(options?.timeoutMs).toBe(15_000);
+      return JSON.stringify(rows);
+    });
+    expect(result.data).toEqual({
+      windowHours: 24,
+      total: 7,
+      appCrash: 1,
+      appHang: 1,
+      signIn: 1,
+      driver: 1,
+      disk: 1,
+      network: 1,
+      other: 1,
+      crashedApps: ["Outlook"],
+      newestAt: "2026-10-04T10:06:00.000Z",
+    });
+    const serialized = JSON.stringify(result);
+    expect(serialized).not.toContain("secret-tool");
+    expect(serialized).not.toContain("C:\\Users\\bob");
+    expect(serialized).not.toContain("password");
+  });
+
+  it("deduplicates and caps allowlisted crashed application names", () => {
+    const apps = [
+      "outlook.exe",
+      "teams",
+      "onedrive.exe",
+      "excel",
+      "winword.exe",
+      "powerpnt",
+      "chrome.exe",
+      "msedge",
+      "firefox",
+      "safari",
+      "zoom.us",
+      "slack",
+      "explorer.exe",
+      "finder",
+      "outlook",
+    ];
+    const result = recentErrorEventsRecord(
+      apps.map((app) => ({ category: "appCrash" as const, app }))
+    );
+    expect(result.data).toMatchObject({
+      total: 15,
+      appCrash: 15,
+      crashedApps: [
+        "Outlook",
+        "Teams",
+        "OneDrive",
+        "Excel",
+        "Word",
+        "PowerPoint",
+        "Chrome",
+        "Edge",
+        "Firefox",
+        "Safari",
+      ],
+    });
+    expect(result.data?.crashedApps).toHaveLength(10);
+  });
+
+  it("categorizes macOS diagnostic reports using basenames only", async () => {
+    const collector = macosCollectors.find(
+      (candidate) => candidate.kind === "recent_error_events"
+    );
+    const paths = [
+      "/Users/bob/Library/Logs/DiagnosticReports/Outlook-2026-10-04-100000.ips",
+      "/Users/bob/Library/Logs/DiagnosticReports/secret-tool-2026-10-04-110000.crash",
+      "/Library/Logs/DiagnosticReports/Kernel-2026-10-04-120000.panic",
+      "/Users/bob/Library/Logs/DiagnosticReports/Teams-2026-10-04-130000.hang",
+    ];
+    const result = await collector!.run(async (file, args, options) => {
+      expect(file).toBe("/usr/bin/find");
+      expect(args).toEqual([
+        `${homedir()}/Library/Logs/DiagnosticReports`,
+        "/Library/Logs/DiagnosticReports",
+        "-maxdepth",
+        "1",
+        "-type",
+        "f",
+        "-mtime",
+        "-1",
+      ]);
+      expect(options?.timeoutMs).toBe(15_000);
+      return paths.join("\n");
+    });
+    expect(result.data).toEqual({
+      windowHours: 24,
+      total: 4,
+      appCrash: 2,
+      appHang: 1,
+      signIn: null,
+      driver: 1,
+      disk: null,
+      network: null,
+      other: null,
+      crashedApps: ["Outlook"],
+      newestAt: "2026-10-04T13:00:00.000Z",
+    });
+    const serialized = JSON.stringify(result);
+    expect(serialized).not.toContain("secret-tool");
+    expect(serialized).not.toContain("/Users/bob");
+  });
+
+  it("uses obtainable macOS find output after a missing-directory exit", async () => {
+    const collector = macosCollectors.find(
+      (candidate) => candidate.kind === "recent_error_events"
+    );
+    const error = Object.assign(new Error("find failed for /Users/bob"), {
+      stdout:
+        "/Users/bob/Library/Logs/DiagnosticReports/Teams-2026-10-04-130000.ips",
+    });
+    const result = await collector!.run(async () => {
+      throw error;
+    });
+    expect(result.ok).toBe(true);
+    expect(result.data?.appCrash).toBe(1);
+    expect(JSON.stringify(result)).not.toContain("/Users/bob");
+  });
+
+  it("categorizes Linux journal errors without reading messages", async () => {
+    const collector = linuxCollectors.find(
+      (candidate) => candidate.kind === "recent_error_events"
+    );
+    const rows = [
+      {
+        SYSLOG_IDENTIFIER: "systemd-coredump",
+        _COMM: "systemd-coredump",
+        COREDUMP_COMM: "google chrome",
+        __REALTIME_TIMESTAMP: "1791108000000000",
+        MESSAGE: "private message for bob",
+      },
+      {
+        SYSLOG_IDENTIFIER: "kernel",
+        _COMM: "kernel",
+        __REALTIME_TIMESTAMP: "1791108060000000",
+      },
+      {
+        SYSLOG_IDENTIFIER: "NetworkManager",
+        _COMM: "NetworkManager",
+        __REALTIME_TIMESTAMP: "1791108120000000",
+      },
+      {
+        SYSLOG_IDENTIFIER: "sssd",
+        _COMM: "sssd",
+        __REALTIME_TIMESTAMP: "1791108180000000",
+      },
+      {
+        _COMM: "udisksd",
+        __REALTIME_TIMESTAMP: "1791108240000000",
+      },
+      {
+        SYSLOG_IDENTIFIER: "unknown-service",
+        _COMM: "bob",
+        __REALTIME_TIMESTAMP: "1791108300000000",
+        MESSAGE: "C:\\Users\\bob\\private.txt",
+      },
+    ];
+    const result = await collector!.run(async (file, args, options) => {
+      expect(file).toBe("journalctl");
+      expect(args).toEqual([
+        "--priority=3",
+        "--since=-24h",
+        "--output=json",
+        "--no-pager",
+        "--lines=500",
+      ]);
+      expect(options?.timeoutMs).toBe(15_000);
+      return rows.map((row) => JSON.stringify(row)).join("\n");
+    });
+    expect(result.data).toEqual({
+      windowHours: 24,
+      total: 6,
+      appCrash: 1,
+      appHang: null,
+      signIn: 1,
+      driver: 1,
+      disk: 1,
+      network: 1,
+      other: 1,
+      crashedApps: ["Chrome"],
+      newestAt: "2026-10-04T10:05:00.000Z",
+    });
+    const serialized = JSON.stringify(result);
+    expect(serialized).not.toContain("private message");
+    expect(serialized).not.toContain("C:\\Users\\bob");
+    expect(serialized).not.toContain("unknown-service");
+  });
+
+  it.each([
+    ["linux", linuxCollectors],
+    ["macos", macosCollectors],
+    ["windows", windowsCollectors],
+  ])(
+    "%s returns zero counts for empty error-event output",
+    async (platform, collectors) => {
+      const collector = collectors.find(
+        (candidate) => candidate.kind === "recent_error_events"
+      );
+      const result = await collector!.run(async () => "");
+      expect(result.ok).toBe(true);
+      expect(result.data).toEqual({
+        windowHours: 24,
+        total: 0,
+        appCrash: 0,
+        appHang: platform === "linux" ? null : 0,
+        signIn: platform === "macos" ? null : 0,
+        driver: 0,
+        disk: platform === "macos" ? null : 0,
+        network: platform === "macos" ? null : 0,
+        other: platform === "macos" ? null : 0,
+        crashedApps: [],
+        newestAt: null,
+      });
+    }
+  );
+
+  it.each([
+    ["linux", linuxCollectors],
+    ["macos", macosCollectors],
+    ["windows", windowsCollectors],
+  ])("%s bounds error-event execution failures", async (_, collectors) => {
+    const collector = collectors.find(
+      (candidate) => candidate.kind === "recent_error_events"
+    );
+    const result = await collector!.run(async () => {
+      throw new Error("C:\\Users\\bob\\private path");
+    });
+    expect(result).toMatchObject({
+      kind: "recent_error_events",
+      ok: false,
+      summary: "Diagnostic unavailable.",
+    });
+    expect(JSON.stringify(result)).not.toContain("C:\\Users\\bob");
   });
 
   it("maps denied Windows microphone access to blocked", async () => {

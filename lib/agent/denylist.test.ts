@@ -27,6 +27,7 @@ describe("requester agent denylist", () => {
       "device_camera_privacy_status",
       "device_mic_privacy_status",
       "device_stale_credential_report",
+      "device_recent_error_events",
     ]) {
       expect(isDenylisted(id), id).toBe(false);
       expect(

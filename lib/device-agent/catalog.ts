@@ -169,6 +169,12 @@ export const DEVICE_ACTIONS: readonly DeviceAction[] = [
     "Report counts of stored and expired sign-in tickets without names.",
     ["credential_health"]
   ),
+  readOnly(
+    "device_recent_error_events",
+    "endpoint",
+    "Count recent app crash, hang, sign-in, driver, disk and network error events from the last 24 hours without messages.",
+    ["recent_error_events"]
+  ),
   {
     ...readOnly("device_flush_dns", "network", "Flush the local DNS cache.", [
       "dns_resolution",
@@ -327,7 +333,7 @@ export function validateDeviceCatalog(
 const catalogErrors = validateDeviceCatalog(DEVICE_ACTIONS);
 if (catalogErrors.length) throw new Error(catalogErrors.join(", "));
 
-export const DEVICE_CATALOG_VERSION = "2026-10-04.1";
+export const DEVICE_CATALOG_VERSION = "2026-10-04.2";
 
 export function deviceCatalogChecksum(): string {
   return createHash("sha256")

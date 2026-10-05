@@ -330,6 +330,27 @@ export class DeterministicPlanner implements Planner {
         if (credentials?.data?.stale === true) {
           return escalate("stale_credentials_require_review");
         }
+        const recentErrors = diagnostic("recent_error_events");
+        if (recentErrors) {
+          const diskErrors = recentErrors.data?.disk;
+          if (typeof diskErrors === "number" && diskErrors >= 1) {
+            return escalate("disk_errors_require_review");
+          }
+          const hasRecentErrors = [
+            "appCrash",
+            "appHang",
+            "signIn",
+            "driver",
+            "disk",
+            "network",
+            "other",
+          ].some(
+            (key) =>
+              typeof recentErrors.data?.[key] === "number" &&
+              (recentErrors.data[key] as number) > 0
+          );
+          if (hasRecentErrors) return escalate("no_applicable_capability");
+        }
       }
     }
 

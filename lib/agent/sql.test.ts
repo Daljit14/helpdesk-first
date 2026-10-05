@@ -46,4 +46,22 @@ describe("requester agent SQL contracts", () => {
     );
     expect(sql).not.toMatch(/grant [^;]*agent_sessions[^;]*authenticated/i);
   });
+
+  test("adds idempotent organization-scoped indexes for similar issue counts", () => {
+    const sql = readFileSync(
+      join(root, "supabase", "diagnostic-sources.sql"),
+      "utf8"
+    );
+    expect(sql).toMatch(
+      /create index if not exists tickets_org_issue_created_idx\s+on public\.tickets \(organization_id, issue_id, created_at desc\);/i
+    );
+    expect(sql).toMatch(
+      /create index if not exists tickets_org_ai_issue_created_idx\s+on public\.tickets \(organization_id, ai_recommended_issue_id, created_at desc\);/i
+    );
+    const ticketSchema = readFileSync(
+      join(root, "supabase", "resolution-tracking.sql"),
+      "utf8"
+    );
+    expect(ticketSchema).toContain("ai_recommended_issue_id");
+  });
 });

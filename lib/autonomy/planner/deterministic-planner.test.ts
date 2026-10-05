@@ -182,6 +182,53 @@ describe("deterministic planner", () => {
     ).toBe(false);
   });
 
+  test.each([
+    [
+      "disk errors",
+      { disk: 1, appCrash: 0, appHang: null, signIn: 0, driver: 0 },
+      "disk_errors_require_review",
+    ],
+    [
+      "repeated crashes",
+      { disk: 0, appCrash: 3, appHang: null, signIn: 0, driver: 0 },
+      "no_applicable_capability",
+    ],
+  ])(
+    "does not propose an action for recent %s",
+    async (_label, counts, reason) => {
+      const result = await planner.plan(
+        input({
+          evidence: {
+            ...evidence,
+            device: {
+              deviceId: "device-1",
+              platform: "linux",
+              deviceClass: "managed",
+              collectedAt: "2026-10-04T00:00:00.000Z",
+              diagnostics: [
+                {
+                  kind: "recent_error_events",
+                  ok: true,
+                  summary: "Recent device errors.",
+                  data: counts,
+                },
+              ],
+              stale: false,
+            },
+          },
+          allowedCapabilities: caps(
+            "device_recent_error_events",
+            "search_approved_knowledge"
+          ),
+        })
+      );
+      expect(result).toMatchObject({
+        decision: "escalate",
+        reason,
+      });
+    }
+  );
+
   test("escalates when no capability is allowed", async () => {
     const result = await planner.plan(input({ allowedCapabilities: [] }));
     expect(result).toMatchObject({

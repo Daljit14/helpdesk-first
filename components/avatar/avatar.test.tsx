@@ -29,7 +29,10 @@ const EXPECTED_PORTRAITS = [
   ["luca", "Locs with headband"],
 ] as const;
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 describe("shared portrait avatars", () => {
   it("defines the 16 ordered portrait ids and exact captions", () => {
@@ -77,6 +80,20 @@ describe("shared portrait avatars", () => {
     ).toBeInTheDocument();
   });
 
+  it("falls back when a server-rendered image failed before hydration", () => {
+    vi.spyOn(HTMLImageElement.prototype, "complete", "get").mockReturnValue(
+      true
+    );
+    vi.spyOn(HTMLImageElement.prototype, "naturalWidth", "get").mockReturnValue(
+      0
+    );
+    const { container } = render(<Avatar id="nova" size={96} />);
+
+    expect(
+      container.querySelector('[data-avatar="nova"] svg')
+    ).toBeInTheDocument();
+  });
+
   it("gives the bot avatar its accessible default name", () => {
     render(<Avatar id="bot" />);
     expect(
@@ -99,6 +116,10 @@ describe("AvatarPicker", () => {
     render(<AvatarPicker value="nova" initial="D" onChange={vi.fn()} />);
     const caption = () =>
       screen.getByText(/^(Selected: )?(Curly hair with glasses|Pink bob)$/);
+
+    fireEvent.blur(
+      screen.getByRole("radio", { name: "Curly hair with glasses" })
+    );
     expect(caption()).toHaveTextContent("Selected: Curly hair with glasses");
 
     const pinkBob = screen.getByRole("radio", { name: "Pink bob" });
@@ -110,6 +131,13 @@ describe("AvatarPicker", () => {
     expect(caption()).toHaveTextContent("Pink bob");
     fireEvent.blur(pinkBob);
     expect(caption()).toHaveTextContent("Selected: Curly hair with glasses");
+  });
+
+  it("focuses the selected radio when the picker mounts", () => {
+    render(<AvatarPicker value="kai" initial="D" onChange={vi.fn()} />);
+    expect(document.activeElement).toBe(
+      screen.getByRole("radio", { name: "Short dark hair with earbuds" })
+    );
   });
 
   it("moves focus without saving and selects with Enter", () => {
@@ -144,6 +172,7 @@ describe("AvatarPicker", () => {
 
   it("keeps the initial selection caption until another option is previewed", () => {
     render(<AvatarPicker value="initial" initial="D" onChange={vi.fn()} />);
+    fireEvent.blur(screen.getByRole("radio", { name: "Use my initial" }));
     expect(screen.getByText("Selected: Your initial")).toBeInTheDocument();
     const pinkBob = screen.getByRole("radio", { name: "Pink bob" });
     fireEvent.mouseEnter(pinkBob);

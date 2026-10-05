@@ -99,9 +99,21 @@ export function Avatar({
   const fill = size === "fill";
   const pixelSize = fill ? 64 : size;
   const [failedAvatar, setFailedAvatar] = useState<AvatarId | null>(null);
+  const human: AvatarId = isHumanId(id)
+    ? id
+    : (LEGACY_AVATAR_MAP[id as LegacyAvatarId] ?? DEFAULT_AVATAR);
+  const src = portraitSrc(human, pixelSize > 96 ? 256 : 96);
+  const imageRef = useRef<HTMLImageElement>(null);
   const box = fill
     ? { width: "100%", height: "100%" }
     : { width: size, height: size };
+
+  useEffect(() => {
+    const image = imageRef.current;
+    if (image?.complete && image.naturalWidth === 0) {
+      setFailedAvatar(human);
+    }
+  }, [human, id, src]);
 
   if (id === "bot") {
     return (
@@ -124,10 +136,6 @@ export function Avatar({
     );
   }
 
-  const human: AvatarId = isHumanId(id)
-    ? id
-    : (LEGACY_AVATAR_MAP[id as LegacyAvatarId] ?? DEFAULT_AVATAR);
-
   return (
     <span
       data-avatar={human}
@@ -148,7 +156,8 @@ export function Avatar({
       ) : (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={portraitSrc(human, pixelSize > 96 ? 256 : 96)}
+          ref={imageRef}
+          src={src}
           srcSet={`${portraitSrc(human, 96)} 96w, ${portraitSrc(human, 256)} 256w`}
           sizes={`${pixelSize}px`}
           width={fill ? 96 : size}
@@ -219,6 +228,7 @@ export function AvatarPicker({
     0,
     RADIO_OPTIONS.indexOf(value as (typeof RADIO_OPTIONS)[number])
   );
+  const initialSelectedIndex = useRef(selectedIndex);
   const preview = hovered ?? focused;
   const caption = preview
     ? preview === INITIAL_OPTION
@@ -227,6 +237,10 @@ export function AvatarPicker({
     : value === INITIAL_OPTION
       ? "Selected: Your initial"
       : `Selected: ${AVATAR_LABELS[value]}`;
+
+  useEffect(() => {
+    buttonsRef.current[initialSelectedIndex.current]?.focus();
+  }, []);
 
   function focusOption(index: number) {
     const nextIndex = Math.max(0, Math.min(RADIO_OPTIONS.length - 1, index));
@@ -329,7 +343,7 @@ export function AvatarPicker({
         </div>
         <p
           aria-live="polite"
-          className="mt-2 min-h-4 truncate px-1 text-center text-[11px] font-bold text-muted-foreground"
+          className="mt-2 min-h-[2lh] px-1 text-center text-[11px] font-bold leading-tight text-balance text-muted-foreground"
         >
           {caption}
         </p>

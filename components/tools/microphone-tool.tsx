@@ -8,6 +8,8 @@ import {
   listDevices,
   mediaErrorGuidance,
   mediaSupported,
+  resumeAudio,
+  stopStream,
   type ToolReport,
 } from "./diagnostics";
 import { ToolButton, ToolCard, ToolNotice } from "./tool-shell";
@@ -38,20 +40,35 @@ export function MicrophoneTool() {
   const ctxRef = useRef<AudioContext | null>(null);
   const rafRef = useRef(0);
 
-  useEffect(
-    () => () => {
+  const aliveRef = useRef(true);
+  const attemptRef = useRef(0);
+  const [slow, setSlow] = useState(false);
+
+  useEffect(() => {
+    aliveRef.current = true;
+    return () => {
+      aliveRef.current = false;
+      attemptRef.current++;
       cancelAnimationFrame(rafRef.current);
-      streamRef.current?.getTracks().forEach((t) => t.stop());
+      stopStream(streamRef.current);
       streamRef.current = null;
       void ctxRef.current?.close().catch(() => undefined);
       ctxRef.current = null;
-    },
-    []
-  );
+    };
+  }, []);
+
+  useEffect(() => {
+    if (status !== "starting") return;
+    const timer = window.setTimeout(() => setSlow(true), 8000);
+    return () => {
+      window.clearTimeout(timer);
+      setSlow(false);
+    };
+  }, [status]);
 
   function release() {
     cancelAnimationFrame(rafRef.current);
-    streamRef.current?.getTracks().forEach((t) => t.stop());
+    stopStream(streamRef.current);
     streamRef.current = null;
     void ctxRef.current?.close().catch(() => undefined);
     ctxRef.current = null;
@@ -63,6 +80,8 @@ export function MicrophoneTool() {
       setStatus("unsupported");
       return;
     }
+    const attempt = ++attemptRef.current;
+    const current = () => aliveRef.current && attempt === attemptRef.current;
     release();
     setError(null);
     setHeard(false);
@@ -70,19 +89,54 @@ export function MicrophoneTool() {
     setLevel(0);
     setHistory(Array(BARS).fill(0));
     setStatus("starting");
+    // Create + resume the AudioContext NOW, while we're still inside the click
+    // handler. After the permission prompt the user gesture may be gone, and
+    // Safari/iOS (and Chrome with strict autoplay) would leave a context
+    // created later suspended — the meter would read flat silence.
+    let ctx: AudioContext;
+    try {
+      ctx = new Ctor();
+    } catch {
+      setStatus("unsupported");
+      return;
+    }
+    ctxRef.current = ctx;
+    void resumeAudio(ctx);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: deviceId ? { deviceId: { exact: deviceId } } : true,
+        // Raw-ish input so the meter reflects the mic, not noise-gating that
+        // can swallow quiet speech.
+        audio: deviceId
+          ? {
+              deviceId: { exact: deviceId },
+              echoCancellation: false,
+              noiseSuppression: false,
+              autoGainControl: false,
+            }
+          : {
+              echoCancellation: false,
+              noiseSuppression: false,
+              autoGainControl: false,
+            },
         video: false,
       });
+      if (!current()) {
+        stopStream(stream);
+        void ctx.close().catch(() => undefined);
+        return;
+      }
       streamRef.current = stream;
       const track = stream.getAudioTracks()[0];
       setLabel(track?.label || "Microphone");
       setSelected(track?.getSettings().deviceId ?? deviceId ?? "");
-      if (track) track.onended = () => stop();
+      if (track) {
+        track.onended = () => {
+          if (current()) stop();
+        };
+      }
 
-      const ctx = new Ctor();
-      ctxRef.current = ctx;
+      await resumeAudio(ctx);
+      if (!current()) return;
       const source = ctx.createMediaStreamSource(stream);
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 1024;
@@ -118,17 +172,22 @@ export function MicrophoneTool() {
       };
       rafRef.current = requestAnimationFrame(loop);
 
-      setDevices(await listDevices("audioinput"));
       setStatus("live");
+      // Labels are empty until permission is granted, so list AFTER.
+      const found = await listDevices("audioinput");
+      if (current()) setDevices(found);
     } catch (err) {
+      if (!current()) return;
       release();
       setError(mediaErrorGuidance(err, "microphone"));
-      setDevices(await listDevices("audioinput"));
       setStatus("error");
+      const found = await listDevices("audioinput");
+      if (current()) setDevices(found);
     }
   }
 
   function stop() {
+    attemptRef.current++;
     release();
     setLevel(0);
     setStatus((s) => (s === "live" || s === "starting" ? "stopped" : s));
@@ -197,7 +256,11 @@ export function MicrophoneTool() {
                 : undefined
       }
       actions={
-        running ? (
+        status === "starting" ? (
+          <ToolButton icon={RefreshCw} spinning disabled>
+            Starting…
+          </ToolButton>
+        ) : status === "live" ? (
           <ToolButton variant="danger" icon={Square} onClick={stop}>
             Stop listening
           </ToolButton>
@@ -273,8 +336,15 @@ export function MicrophoneTool() {
 
         {status === "unsupported" && (
           <ToolNotice title="Not supported on this browser">
-            This browser can&apos;t access microphones from web pages. Try an
-            up-to-date Chrome, Edge, Firefox or Safari.
+            This page can&apos;t access microphones — it must be opened over
+            https in an up-to-date Chrome, Edge, Firefox or Safari (not inside
+            an app&apos;s built-in browser).
+          </ToolNotice>
+        )}
+        {status === "starting" && slow && (
+          <ToolNotice title="Still waiting for the microphone">
+            Check the address bar for a microphone prompt or a blocked icon, and
+            make sure no other app is holding the microphone.
           </ToolNotice>
         )}
 

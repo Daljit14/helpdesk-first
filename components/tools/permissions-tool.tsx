@@ -17,6 +17,8 @@ import {
   PERM_STATE_LABEL,
   PERMISSION_LABELS,
   permissionsReport,
+  requestNotificationPermission,
+  showTestNotification,
   type PermissionInfo,
   type PermissionKey,
   type PermState,
@@ -41,24 +43,35 @@ export function PermissionsTool() {
   const [info, setInfo] = useState<PermissionInfo | null>(null);
   const [busy, setBusy] = useState(false);
   const [runKey, setRunKey] = useState(0);
-  const [testSent, setTestSent] = useState(false);
+
+  const [testState, setTestState] = useState<"idle" | "sent" | "failed">(
+    "idle"
+  );
+  const [asking, setAsking] = useState(false);
 
   async function run() {
     setBusy(true);
+    setTestState("idle");
     setInfo(await getPermissionInfo());
     setRunKey((k) => k + 1);
     setBusy(false);
   }
 
-  function sendTest() {
-    try {
-      new Notification("HelpDesk First", {
-        body: "Notifications are working on this device.",
-      });
-      setTestSent(true);
-    } catch {
-      setTestSent(false);
-    }
+  async function ask() {
+    // Must be called straight from the click: browsers ignore permission
+    // requests that aren't triggered by a user gesture.
+    setAsking(true);
+    const state = await requestNotificationPermission();
+    setInfo((prev) => (prev ? { ...prev, notifications: state } : prev));
+    setAsking(false);
+  }
+
+  async function sendTest() {
+    const ok = await showTestNotification(
+      "HelpDesk First",
+      "Notifications are working on this device."
+    );
+    setTestState(ok ? "sent" : "failed");
   }
 
   const report = info ? permissionsReport(info) : null;
@@ -120,17 +133,47 @@ export function PermissionsTool() {
               );
             })}
           </ul>
+          {info.notifications === "prompt" && (
+            <div className="flex flex-wrap items-center gap-3">
+              <ToolButton
+                variant="ghost"
+                icon={Bell}
+                onClick={ask}
+                disabled={asking}
+              >
+                {asking ? "Waiting for your answer…" : "Allow notifications"}
+              </ToolButton>
+              <span className="text-xs font-semibold text-white/60">
+                Your browser will show a prompt — choose Allow.
+              </span>
+            </div>
+          )}
+          {info.notifications === "denied" && (
+            <p className="text-xs font-semibold text-white/70">
+              Notifications are blocked. Click the padlock in the address bar,
+              set Notifications to Allow, then check again.
+            </p>
+          )}
           {info.notifications === "granted" && (
             <div className="flex flex-wrap items-center gap-3">
               <ToolButton variant="ghost" icon={Bell} onClick={sendTest}>
                 Send a test notification
               </ToolButton>
-              {testSent && (
+              {testState === "sent" && (
                 <span
                   className="hf-rise text-xs font-semibold text-white/70"
                   aria-live="polite"
                 >
                   Sent — if nothing appeared, check Focus / Do Not Disturb.
+                </span>
+              )}
+              {testState === "failed" && (
+                <span
+                  className="hf-rise text-xs font-semibold text-[#ffd27c]"
+                  aria-live="polite"
+                >
+                  This browser wouldn&apos;t show a notification. Try again
+                  after reloading, or check your system notification settings.
                 </span>
               )}
             </div>

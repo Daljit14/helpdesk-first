@@ -1613,6 +1613,64 @@ body {
       transform: none;
     }
   }
+  /* ---- Devices toolkit (hf-dt-) ---- */
+  .hf-dt-ripple {
+    animation: hf-dt-ripple 0.7s ease-out forwards;
+  }
+  .hf-dt-nudge {
+    animation: hf-dt-nudge 0.25s ease-out;
+  }
+  .hf-dt-wheel-up {
+    animation: hf-dt-wheel-up 0.25s ease-out;
+  }
+  .hf-dt-wheel-down {
+    animation: hf-dt-wheel-down 0.25s ease-out;
+  }
+  .hf-dt-bar {
+    width: 0;
+    animation: hf-dt-bar linear forwards;
+  }
+  .hf-dt-needle {
+    transition: left 0.9s cubic-bezier(0.2, 0.8, 0.2, 1);
+    animation: hf-dt-needle-in 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+  .hf-dt-print-root {
+    display: none;
+  }
+  .hf-dt-sheet,
+  .hf-dt-sheet * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  @media print {
+    body.hf-dt-printing > *:not(.hf-dt-print-root) {
+      display: none !important;
+    }
+    body.hf-dt-printing .hf-dt-print-root {
+      display: block !important;
+      margin: 0 auto;
+      background: #fff;
+      color: #111;
+    }
+    html:has(body.hf-dt-printing),
+    body.hf-dt-printing {
+      background: #fff !important;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .hf-dt-ripple,
+    .hf-dt-nudge,
+    .hf-dt-wheel-up,
+    .hf-dt-wheel-down,
+    .hf-dt-needle {
+      animation: none !important;
+    }
+    .hf-dt-bar {
+      animation: none !important;
+      width: 100%;
+    }
+  }
+
   /* ---- Browse page ---- */
   .hf-browse-hero {
     background: linear-gradient(
@@ -2675,6 +2733,52 @@ body {
   to {
     transform: scale(1) rotate(0deg);
     opacity: 1;
+  }
+}
+@keyframes hf-dt-ripple {
+  from {
+    transform: scale(0.3);
+    opacity: 0.9;
+  }
+  to {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+@keyframes hf-dt-nudge {
+  from {
+    transform: translateY(5px) scale(0.85);
+    opacity: 0.5;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+@keyframes hf-dt-wheel-up {
+  from {
+    transform: translateY(8px);
+  }
+  to {
+    transform: none;
+  }
+}
+@keyframes hf-dt-wheel-down {
+  from {
+    transform: translateY(-8px);
+  }
+  to {
+    transform: none;
+  }
+}
+@keyframes hf-dt-bar {
+  to {
+    width: 100%;
+  }
+}
+@keyframes hf-dt-needle-in {
+  from {
+    left: 50%;
   }
 }
 @keyframes hf-fill {

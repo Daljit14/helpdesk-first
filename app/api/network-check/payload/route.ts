@@ -4,7 +4,7 @@ import { getClientIp, MemoryRateLimiter } from "@/lib/ai/rate-limit";
 const MAX_BYTES = 4_000_000; // 4 MB hard cap
 const DEFAULT_BYTES = 2_000_000; // 2 MB default
 const CHUNK = 65536; // Web Crypto getRandomValues limit per call
-const limiter = new MemoryRateLimiter({ windowMs: 60_000, maxRequests: 20 });
+const limiter = new MemoryRateLimiter({ windowMs: 60_000, maxRequests: 60 });
 
 function randomPayload(size: number): Uint8Array<ArrayBuffer> {
   const buf = new Uint8Array<ArrayBuffer>(new ArrayBuffer(size));

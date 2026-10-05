@@ -13,21 +13,35 @@ import {
   Zap,
 } from "lucide-react";
 import {
-  measureLatency,
-  measureDownloadSpeed,
+  measureLatencyOnce,
+  measureDownload,
   summarizeLatency,
+  type DownloadFailure,
   getConnectionInfo,
   type ConnectionInfo,
   type LatencySample,
 } from "@/lib/network-check";
 import { cn } from "@/lib/utils";
+import { CopyResultsButton } from "@/components/tools/tool-shell";
+import type { ToolReport } from "@/components/tools/diagnostics";
 
 type Result = {
   online: boolean;
   latencyMs: number | null;
   jitterMs: number | null;
   downloadMbps: number | null;
+  downloadFailure: DownloadFailure | null;
   connection: ConnectionInfo | null;
+};
+
+const FAILURE_TEXT: Record<DownloadFailure, string> = {
+  timeout:
+    "The download test took too long and was stopped — your connection may be very slow or dropping out.",
+  "rate-limited":
+    "The speed test was run too many times in a row. Wait a minute and try again.",
+  failed:
+    "The download test couldn't finish. A VPN, firewall or flaky Wi-Fi can interrupt it — try again, or switch networks.",
+  aborted: "The test was cancelled.",
 };
 
 type Phase = "idle" | "ping" | "download" | "done";
@@ -44,6 +58,9 @@ function interpret(result: Result): {
       tone: "bad",
       text: "This device could not reach the server at all — that points at your network connection, not this site.",
     };
+  }
+  if (result.downloadFailure && result.downloadFailure !== "aborted") {
+    return { tone: "warn", text: FAILURE_TEXT[result.downloadFailure] };
   }
   if (result.latencyMs !== null && result.latencyMs > 300) {
     return {
@@ -131,28 +148,55 @@ export function NetworkCheckWidget() {
   const [result, setResult] = useState<Result | null>(null);
   const running = phase === "ping" || phase === "download";
 
+  const abortRef = useRef<AbortController | null>(null);
+  const runIdRef = useRef(0);
+
+  // Cancel any in-flight test if the tab/tool is switched away or unmounted.
+  useEffect(() => {
+    return () => {
+      runIdRef.current++;
+      abortRef.current?.abort();
+    };
+  }, []);
+
   const run = async () => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const runId = ++runIdRef.current;
+    const stale = () => runId !== runIdRef.current;
+
     setResult(null);
     setSamples([]);
     setPhase("ping");
+    // The first request pays for DNS + TLS + a possible serverless cold start;
+    // it would make latency and jitter look much worse than they are.
+    await measureLatencyOnce(5000, controller.signal);
+    if (stale()) return;
     const collected: LatencySample[] = [];
     for (let i = 0; i < PING_COUNT; i++) {
-      const [sample] = await measureLatency(1);
+      const sample = await measureLatencyOnce(5000, controller.signal);
+      if (stale()) return;
       collected.push(sample);
       setSamples([...collected]);
     }
     const { avgMs, jitterMs } = summarizeLatency(collected);
     const online = collected.some((s) => s.ok);
     let downloadMbps: number | null = null;
+    let downloadFailure: DownloadFailure | null = null;
     if (online) {
       setPhase("download");
-      downloadMbps = await measureDownloadSpeed();
+      const dl = await measureDownload({ signal: controller.signal });
+      if (stale()) return;
+      if (dl.ok) downloadMbps = dl.mbps;
+      else downloadFailure = dl.reason;
     }
     setResult({
       online,
       latencyMs: avgMs,
       jitterMs,
       downloadMbps,
+      downloadFailure,
       connection: getConnectionInfo(),
     });
     setPhase("done");
@@ -164,6 +208,39 @@ export function NetworkCheckWidget() {
   const latency = useCountUp(result?.latencyMs ?? null, 900);
   const jitter = useCountUp(result?.jitterMs ?? null, 900);
   const verdict = result ? interpret(result) : null;
+  const report: ToolReport | null =
+    result && verdict
+      ? {
+          tool: "Network check",
+          tone: verdict.tone === "good" ? "good" : verdict.tone,
+          verdict: verdict.text,
+          tip: "Measured from this browser to this site, not your whole internet connection.",
+          lines: [
+            ["Reaches this site", result.online ? "Yes" : "No"],
+            [
+              "Latency",
+              result.latencyMs !== null
+                ? `${Math.round(result.latencyMs)} ms`
+                : "n/a",
+            ],
+            [
+              "Jitter",
+              result.jitterMs !== null
+                ? `${Math.round(result.jitterMs)} ms`
+                : "n/a",
+            ],
+            [
+              "Download",
+              result.downloadMbps !== null
+                ? `${result.downloadMbps.toFixed(1)} Mbps`
+                : result.downloadFailure
+                  ? "Test failed"
+                  : "n/a",
+            ],
+          ],
+        }
+      : null;
+  const failed = !!result && (!result.online || !!result.downloadFailure);
 
   // Gauge geometry: 270° arc.
   const R = 88;
@@ -240,7 +317,15 @@ export function NetworkCheckWidget() {
           ) : (
             <Zap className="h-4 w-4" aria-hidden />
           )}
-          {running ? "Testing…" : result ? "Run again" : "Run network check"}
+          {phase === "ping"
+            ? "Testing latency…"
+            : phase === "download"
+              ? "Testing download…"
+              : failed
+                ? "Retry network check"
+                : result
+                  ? "Run again"
+                  : "Run network check"}
         </button>
       </div>
 
@@ -570,7 +655,14 @@ export function NetworkCheckWidget() {
               aria-hidden
             />
           )}
-          <p>{verdict.text}</p>
+          <div className="min-w-0 flex-1">
+            <p>{verdict.text}</p>
+            {report && (
+              <div className="mt-3 flex flex-wrap justify-end gap-2">
+                <CopyResultsButton reports={[report]} />
+              </div>
+            )}
+          </div>
         </div>
       )}
     </section>

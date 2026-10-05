@@ -19,7 +19,11 @@ const nextConfig: NextConfig = {
           },
           {
             key: "Permissions-Policy",
-            value: "camera=(), microphone=(), geolocation=()",
+            // The Toolkit's camera / microphone / display tests run on this origin,
+            // so allow them for same-origin documents only (still denied to any
+            // embedded third-party frame). `()` here silently breaks them.
+            value:
+              "camera=(self), microphone=(self), geolocation=(self), fullscreen=(self)",
           },
           { key: "X-Frame-Options", value: "DENY" },
           {
@@ -30,7 +34,7 @@ const nextConfig: NextConfig = {
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: blob: https:",
               "font-src 'self' data:",
-              "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.sentry.io https://challenges.cloudflare.com",
+              "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.sentry.io https://challenges.cloudflare.com https://www.cloudflare.com https://cloudflare-dns.com https://dns.google https://api.pwnedpasswords.com",
               "frame-src https://challenges.cloudflare.com",
               "frame-ancestors 'none'",
               "base-uri 'self'",

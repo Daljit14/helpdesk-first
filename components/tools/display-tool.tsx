@@ -1,10 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Gauge, Maximize, Monitor, RefreshCw, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
+  enterFullscreen,
+  exitFullscreen,
+  fullscreenActive,
   measureRefreshRate,
   refreshReport,
   type ToolReport,
@@ -28,34 +31,84 @@ export function DisplayTool() {
   const [measuring, setMeasuring] = useState(false);
   const startWrapRef = useRef<HTMLDivElement | null>(null);
 
+  const testingRef = useRef(false);
+  const everFullscreenRef = useRef(false);
+  const measureIdRef = useRef(0);
+
+  useEffect(() => {
+    testingRef.current = testing;
+  }, [testing]);
+
   // Leaving browser fullscreen (Esc handled by the browser) ends the test.
+  // Only reacts after we've actually seen fullscreen turn on, so browsers that
+  // refuse it (iOS Safari) keep the in-page overlay instead of closing it.
   useEffect(() => {
     if (!testing) return;
     const onChange = () => {
-      if (document.fullscreenElement) return;
+      if (fullscreenActive()) {
+        everFullscreenRef.current = true;
+        return;
+      }
+      if (!everFullscreenRef.current) return;
+      everFullscreenRef.current = false;
       setTesting(false);
       setPixelDone(true);
       startWrapRef.current?.querySelector("button")?.focus();
     };
     document.addEventListener("fullscreenchange", onChange);
-    return () => document.removeEventListener("fullscreenchange", onChange);
+    document.addEventListener("webkitfullscreenchange", onChange);
+    // Keys are listened for on the document: entering fullscreen can drop
+    // focus from the overlay, which would make Esc / arrows do nothing.
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      const onButton = !!(e.target as HTMLElement | null)?.closest?.("button");
+      if ((e.key === " " || e.key === "Enter") && onButton) return; // let "Exit test" work
+      if (e.key === "Escape") {
+        e.preventDefault();
+        finishTest();
+      } else if (e.key === "ArrowRight" || e.key === " " || e.key === "Enter") {
+        e.preventDefault();
+        setColorIndex((i) => (i + 1) % COLORS.length);
+      } else if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        setColorIndex((i) => (i - 1 + COLORS.length) % COLORS.length);
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("fullscreenchange", onChange);
+      document.removeEventListener("webkitfullscreenchange", onChange);
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+    // finishTest only touches stable setters/refs
   }, [testing]);
+
+  // Leave fullscreen and stop any measurement if the tool unmounts mid-test
+  // (e.g. switching tabs in the guide page).
+  useEffect(() => {
+    return () => {
+      measureIdRef.current++;
+      if (testingRef.current) void exitFullscreen();
+    };
+  }, []);
 
   function startTest() {
     setColorIndex(0);
     setTesting(true);
-    const root = document.documentElement;
-    if (root.requestFullscreen && !document.fullscreenElement) {
-      root.requestFullscreen().catch(() => undefined);
-    }
+    everFullscreenRef.current = false;
+    // Must run inside the click handler to count as a user gesture.
+    void enterFullscreen().then((ok) => {
+      if (ok) everFullscreenRef.current = true;
+    });
   }
 
   function finishTest() {
+    everFullscreenRef.current = false;
     setTesting(false);
     setPixelDone(true);
-    if (document.fullscreenElement && document.exitFullscreen) {
-      document.exitFullscreen().catch(() => undefined);
-    }
+    void exitFullscreen();
     window.setTimeout(
       () => startWrapRef.current?.querySelector("button")?.focus(),
       0
@@ -63,8 +116,11 @@ export function DisplayTool() {
   }
 
   async function measure() {
+    const id = ++measureIdRef.current;
     setMeasuring(true);
-    setHz(await measureRefreshRate(1200));
+    const value = await measureRefreshRate(1200);
+    if (id !== measureIdRef.current) return;
+    setHz(value);
     setMeasuring(false);
   }
 
@@ -172,9 +228,6 @@ export function DisplayTool() {
           <PixelOverlay
             index={colorIndex}
             onNext={() => setColorIndex((i) => (i + 1) % COLORS.length)}
-            onPrev={() =>
-              setColorIndex((i) => (i - 1 + COLORS.length) % COLORS.length)
-            }
             onExit={finishTest}
           />,
           document.body
@@ -186,12 +239,10 @@ export function DisplayTool() {
 function PixelOverlay({
   index,
   onNext,
-  onPrev,
   onExit,
 }: {
   index: number;
   onNext: () => void;
-  onPrev: () => void;
   onExit: () => void;
 }) {
   const ref = useRef<HTMLDivElement | null>(null);
@@ -201,19 +252,6 @@ function PixelOverlay({
     ref.current?.focus();
   }, []);
 
-  function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
-    if (e.key === "Escape") {
-      e.preventDefault();
-      onExit();
-    } else if (e.key === "ArrowRight" || e.key === " " || e.key === "Enter") {
-      e.preventDefault();
-      onNext();
-    } else if (e.key === "ArrowLeft") {
-      e.preventDefault();
-      onPrev();
-    }
-  }
-
   return (
     <div
       ref={ref}
@@ -221,7 +259,6 @@ function PixelOverlay({
       aria-modal="true"
       aria-label={`Dead pixel test: ${color.name} screen. Press the right arrow for the next colour, Escape to exit.`}
       tabIndex={-1}
-      onKeyDown={onKeyDown}
       onClick={onNext}
       className="fixed inset-0 z-[9999] cursor-pointer outline-none"
       style={{ background: color.bg, color: color.fg }}

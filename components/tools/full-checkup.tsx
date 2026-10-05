@@ -26,6 +26,7 @@ import {
   readConnection,
   refreshReport,
   storageReport,
+  withTimeout,
   type ToolReport,
 } from "./diagnostics";
 import { CopyResultsButton, ToneIcon, TONE_TEXT } from "./tool-shell";
@@ -106,22 +107,31 @@ export function useFullCheckup() {
     running.current = true;
     const reports: ToolReport[] = [];
     setState({ phase: "running", current: 0, reports: [] });
-    for (let i = 0; i < STEPS.length; i++) {
-      setState({ phase: "running", current: i, reports: [...reports] });
-      const [report] = await Promise.all([
-        STEPS[i].run().catch((): ToolReport => ({
+    try {
+      for (let i = 0; i < STEPS.length; i++) {
+        setState({ phase: "running", current: i, reports: [...reports] });
+        const fallback: ToolReport = {
           tool: STEPS[i].label,
           tone: "info",
           verdict: "Couldn't run this check.",
-          tip: "Your browser blocked or doesn't support it — that's okay.",
+          tip: "Your browser blocked it, doesn't support it, or it took too long — that's okay.",
           lines: [],
-        })),
-        wait(420),
-      ]);
-      reports.push(report);
+        };
+        // One stuck browser API must never freeze the whole check-up.
+        const [report] = await Promise.all([
+          withTimeout(
+            Promise.resolve().then(() => STEPS[i].run()),
+            8000,
+            fallback
+          ),
+          wait(420),
+        ]);
+        reports.push(report);
+      }
+      setState({ phase: "done", current: STEPS.length, reports });
+    } finally {
+      running.current = false;
     }
-    setState({ phase: "done", current: STEPS.length, reports });
-    running.current = false;
   }
 
   return { ...state, run };

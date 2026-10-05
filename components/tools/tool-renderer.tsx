@@ -1,7 +1,7 @@
 "use client";
 
 import { NetworkCheckWidget } from "@/components/network-check-widget";
-import type { ToolId } from "./tool-registry";
+import { CATALOG } from "./tool-catalog";
 import { BatteryTool } from "./battery-tool";
 import { CameraTool } from "./camera-tool";
 import { ConnectionTool } from "./connection-tool";
@@ -19,7 +19,7 @@ export function ToolRenderer({
   speedTestHref,
   onSpeedTest,
 }: {
-  id: ToolId;
+  id: string;
   speedTestHref?: string;
   onSpeedTest?: () => void;
 }) {
@@ -57,5 +57,9 @@ export function ToolRenderer({
       return <PermissionsTool />;
     case "password-tips":
       return <PasswordTipsCard />;
+    default: {
+      const Extra = CATALOG[id]?.Component;
+      return Extra ? <Extra /> : null;
+    }
   }
 }

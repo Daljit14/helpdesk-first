@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   Activity,
@@ -13,7 +13,7 @@ import {
   WifiOff,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { ConnectionInfo } from "@/lib/network-check";
+import { measureLatencyOnce, type ConnectionInfo } from "@/lib/network-check";
 import { connectionReport, readConnection } from "./diagnostics";
 import { StatTile, ToolButton, ToolCard, ToolNotice } from "./tool-shell";
 
@@ -34,6 +34,17 @@ export function ConnectionTool({
     info: ConnectionInfo | null;
   } | null>(null);
   const [runKey, setRunKey] = useState(0);
+  // undefined = not measured yet, null = couldn't reach this site, number = ms
+  const [reach, setReach] = useState<number | null | undefined>(undefined);
+  const [probing, setProbing] = useState(false);
+  const probeId = useRef(0);
+
+  useEffect(() => {
+    const ref = probeId;
+    return () => {
+      ref.current++;
+    };
+  }, []);
 
   // Once checked, keep the online/offline status live.
   useEffect(() => {
@@ -47,12 +58,21 @@ export function ConnectionTool({
     };
   }, [data]);
 
-  function run() {
+  async function run() {
+    const id = ++probeId.current;
     setData(readConnection());
     setRunKey((k) => k + 1);
+    setReach(undefined);
+    setProbing(true);
+    // navigator.onLine only says a network adapter is up. A real round trip
+    // to this site catches "Wi-Fi connected, no internet".
+    const sample = await measureLatencyOnce(6000);
+    if (id !== probeId.current) return;
+    setReach(sample.ok ? sample.ms : null);
+    setProbing(false);
   }
 
-  const report = data ? connectionReport(data.online, data.info) : null;
+  const report = data ? connectionReport(data.online, data.info, reach) : null;
 
   return (
     <ToolCard
@@ -65,8 +85,13 @@ export function ConnectionTool({
         data ? (data.online ? "You are online" : "You are offline") : undefined
       }
       actions={
-        <ToolButton icon={data ? RefreshCw : Play} onClick={run}>
-          {data ? "Check again" : "Check connection"}
+        <ToolButton
+          icon={data ? RefreshCw : Play}
+          spinning={probing}
+          onClick={run}
+          disabled={probing}
+        >
+          {probing ? "Checking…" : data ? "Check again" : "Check connection"}
         </ToolButton>
       }
     >
@@ -103,6 +128,25 @@ export function ConnectionTool({
                   : "Network type not shared by this browser"}
               </p>
             </div>
+          </div>
+          <div className="hf-rise flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm">
+            <span className="font-bold text-white/70">Can reach this site</span>
+            <span
+              className={cn(
+                "font-extrabold tabular-nums",
+                reach === undefined
+                  ? "text-white/60"
+                  : reach === null
+                    ? "text-[#ff9bb3]"
+                    : "text-[#5ee0a8]"
+              )}
+            >
+              {reach === undefined
+                ? "Checking…"
+                : reach === null
+                  ? "No — timed out"
+                  : `Yes · ${Math.round(reach)} ms`}
+            </span>
           </div>
           {data.info ? (
             <div className="grid grid-cols-3 gap-2.5">

@@ -1,5 +1,9 @@
 import { describe, expect, test } from "vitest";
-import { getConnectionInfo, summarizeLatency } from "./network-check";
+import {
+  computeMbps,
+  getConnectionInfo,
+  summarizeLatency,
+} from "./network-check";
 
 describe("summarizeLatency", () => {
   test("returns null values when every sample fails", () => {
@@ -28,5 +32,19 @@ describe("summarizeLatency", () => {
 describe("getConnectionInfo", () => {
   test("returns null when navigator.connection is unavailable", () => {
     expect(getConnectionInfo()).toBeNull();
+  });
+});
+
+describe("computeMbps", () => {
+  test("converts bytes and seconds to megabits per second", () => {
+    expect(computeMbps(1_250_000, 1)).toBeCloseTo(10);
+    expect(computeMbps(9_000_000, 3)).toBeCloseTo(24);
+  });
+
+  test("rejects unusable input and caps instant responses", () => {
+    expect(computeMbps(0, 1)).toBeNull();
+    expect(computeMbps(1000, 0)).toBeNull();
+    expect(computeMbps(1000, Number.NaN)).toBeNull();
+    expect(computeMbps(1_000_000, 0.0001)).toBeCloseTo(400); // 20 ms floor
   });
 });

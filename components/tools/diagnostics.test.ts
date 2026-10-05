@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   batteryReport,
   connectionReport,
@@ -7,7 +7,9 @@ import {
   formatBytes,
   formatReports,
   mediaErrorGuidance,
+  snapRefreshRate,
   storageReport,
+  withTimeout,
 } from "./diagnostics";
 import { CATEGORY_TOOLS, toolsForCategory } from "./tool-registry";
 import { CATEGORIES } from "@/lib/issues";
@@ -90,5 +92,56 @@ describe("self-check diagnostics", () => {
     }
     expect(toolsForCategory("network")[0]).toBe("speed-test");
     expect(toolsForCategory("unknown")).toEqual(["device"]);
+  });
+});
+
+describe("robustness helpers", () => {
+  it("withTimeout resolves with the fallback when a promise never settles", async () => {
+    vi.useFakeTimers();
+    const never = new Promise<string>(() => undefined);
+    const pending = withTimeout(never, 1000, "fallback");
+    await vi.advanceTimersByTimeAsync(1001);
+    await expect(pending).resolves.toBe("fallback");
+    vi.useRealTimers();
+  });
+
+  it("withTimeout passes through results and swallows rejections", async () => {
+    await expect(withTimeout(Promise.resolve(5), 1000, 0)).resolves.toBe(5);
+    await expect(
+      withTimeout(Promise.reject(new Error("x")), 1000, 0)
+    ).resolves.toBe(0);
+  });
+
+  it("snaps frame gaps to common refresh rates", () => {
+    expect(snapRefreshRate(16.7)).toBe(60);
+    expect(snapRefreshRate(6.9)).toBe(144);
+    expect(snapRefreshRate(8.4)).toBe(120);
+    expect(snapRefreshRate(0)).toBeNull();
+    expect(snapRefreshRate(Number.NaN)).toBeNull();
+  });
+
+  it("a failed reachability probe overrides the browser's online flag", () => {
+    const failed = connectionReport(true, null, null);
+    expect(failed.tone).toBe("bad");
+    expect(failed.verdict).toMatch(/couldn't reach this site/);
+    expect(connectionReport(true, null, 40).tone).toBe("info");
+    const slow = connectionReport(
+      true,
+      { effectiveType: "4g", downlinkMbps: 20, rttMs: 50, saveData: false },
+      1500
+    );
+    expect(slow.tone).toBe("warn");
+    expect(slow.lines).toContainEqual(["Reaches this site", "Yes (1500 ms)"]);
+  });
+
+  it("explains small storage quotas without claiming the disk is full", () => {
+    const report = storageReport({
+      supported: true,
+      usage: 0,
+      quota: 200 * 1024 ** 2,
+      persisted: null,
+    });
+    expect(report.tone).toBe("warn");
+    expect(report.tip).toMatch(/private\/incognito/);
   });
 });

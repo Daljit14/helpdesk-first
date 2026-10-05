@@ -74,11 +74,11 @@ export function AdminHero({
     >
       <span
         aria-hidden
-        className="hf-adm-blob pointer-events-none absolute -right-16 -top-24 h-72 w-72 rounded-full bg-[radial-gradient(closest-side,rgb(255_255_255/0.28),transparent)]"
+        className="pointer-events-none absolute -right-16 -top-24 h-72 w-72 rounded-full bg-[radial-gradient(closest-side,rgb(255_255_255/0.28),transparent)]"
       />
       <span
         aria-hidden
-        className="hf-adm-blob-b pointer-events-none absolute -bottom-32 left-[38%] h-72 w-72 rounded-full bg-[radial-gradient(closest-side,rgb(255_255_255/0.18),transparent)]"
+        className="pointer-events-none absolute -bottom-32 left-[38%] h-72 w-72 rounded-full bg-[radial-gradient(closest-side,rgb(255_255_255/0.18),transparent)]"
       />
       {Array.from({ length: 9 }, (_, i) => (
         <span
@@ -98,9 +98,8 @@ export function AdminHero({
         <div className="flex min-w-0 items-center gap-4">
           <span
             aria-hidden
-            className="hf-adm-medallion relative hidden h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/30 backdrop-blur sm:flex"
+            className="relative hidden h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/30 backdrop-blur sm:flex"
           >
-            <span className="hf-adm-orbit absolute -inset-2 rounded-[22px] border border-dashed border-white/35" />
             <Icon className="h-7 w-7" />
           </span>
           <div className="min-w-0">
@@ -308,8 +307,7 @@ export function EmptyState({
   return (
     <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
       <span className="relative flex h-14 w-14 items-center justify-center rounded-2xl bg-secondary text-secondary-foreground">
-        <span aria-hidden className="hf-halo absolute inset-0 rounded-2xl" />
-        <Icon className="hf-bob h-6 w-6" aria-hidden />
+        <Icon className="h-6 w-6" aria-hidden />
       </span>
       <p className="mt-1 font-extrabold">{title}</p>
       {body && <p className="max-w-md text-sm text-muted-foreground">{body}</p>}

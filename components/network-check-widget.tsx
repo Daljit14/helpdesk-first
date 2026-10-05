@@ -275,11 +275,11 @@ export function NetworkCheckWidget() {
       />
       <div
         aria-hidden
-        className="hf-blob-a pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-[#7c5cff]/30 blur-3xl"
+        className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-[#7c5cff]/30 blur-3xl"
       />
       <div
         aria-hidden
-        className="hf-blob-b pointer-events-none absolute -bottom-28 left-10 h-72 w-72 rounded-full bg-[#22d3ee]/20 blur-3xl"
+        className="pointer-events-none absolute -bottom-28 left-10 h-72 w-72 rounded-full bg-[#22d3ee]/20 blur-3xl"
       />
 
       <div className="relative flex flex-wrap items-start justify-between gap-4">
@@ -289,10 +289,7 @@ export function NetworkCheckWidget() {
             className="flex items-center gap-2.5 text-xl font-extrabold"
           >
             <span className="relative flex h-9 w-9 items-center justify-center rounded-xl bg-white/10">
-              <Wifi
-                className={cn("h-5 w-5 text-[#9ee7ff]", running && "hf-blink")}
-                aria-hidden
-              />
+              <Wifi className="h-5 w-5 text-[#9ee7ff]" aria-hidden />
             </span>
             Network check
           </h2>
@@ -305,15 +302,12 @@ export function NetworkCheckWidget() {
           type="button"
           onClick={run}
           disabled={running}
-          className="group relative inline-flex min-h-12 items-center gap-2 overflow-hidden rounded-2xl bg-[linear-gradient(110deg,#7c5cff,#22d3ee,#7c5cff)] bg-[length:200%_100%] px-5 text-sm font-extrabold text-[#0d0a1c] shadow-[0_10px_30px_-10px_#7c5cff] transition-transform hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-90 hf-shimmer focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#22d3ee]/40"
+          className="group relative inline-flex min-h-12 items-center gap-2 overflow-hidden rounded-2xl bg-[linear-gradient(110deg,#7c5cff,#22d3ee,#7c5cff)] bg-[length:200%_100%] px-5 text-sm font-extrabold text-[#0d0a1c] shadow-[0_10px_30px_-10px_#7c5cff] transition-transform hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-90 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#22d3ee]/40"
         >
           {running ? (
             <RefreshCw className="h-4 w-4 animate-spin" aria-hidden />
           ) : result ? (
-            <RefreshCw
-              className="h-4 w-4 transition-transform group-hover:rotate-180"
-              aria-hidden
-            />
+            <RefreshCw className="h-4 w-4" aria-hidden />
           ) : (
             <Zap className="h-4 w-4" aria-hidden />
           )}
@@ -347,14 +341,11 @@ export function NetworkCheckWidget() {
                   done || finished
                     ? "border-[#5ee0a8]/40 bg-[#5ee0a8]/15 text-[#a7f3d0]"
                     : active
-                      ? "hf-halo border-[#9ee7ff]/60 bg-[#22d3ee]/15 text-[#cffafe]"
+                      ? "border-[#9ee7ff]/60 bg-[#22d3ee]/15 text-[#cffafe]"
                       : "border-white/10 bg-white/5 text-white/50"
                 )}
               >
-                <Icon
-                  className={cn("h-3.5 w-3.5", active && "hf-float-sm")}
-                  aria-hidden
-                />
+                <Icon className="h-3.5 w-3.5" aria-hidden />
                 {label}
               </span>
               {i < steps.length - 1 && (
@@ -439,7 +430,7 @@ export function NetworkCheckWidget() {
             {/* value arc */}
             {phase === "download" ? (
               <g
-                className="hf-nc-sweep"
+                className={cn(running && "hf-nc-sweep")}
                 style={{ transformOrigin: "110px 110px" }}
               >
                 <circle
@@ -476,7 +467,7 @@ export function NetworkCheckWidget() {
                 transformOrigin: "110px 110px",
                 transition: "transform 1.1s cubic-bezier(.2,.8,.2,1)",
               }}
-              className={cn(phase === "download" && "hf-nc-needle")}
+              className={cn(running && phase === "download" && "hf-nc-needle")}
             >
               <path
                 d="M110 110 L106 104 L110 34 L114 104 Z"
@@ -579,11 +570,7 @@ export function NetworkCheckWidget() {
                       <div
                         className={cn(
                           "w-full rounded-lg transition-[height] duration-500 ease-out",
-                          tone ? TONE_BAR[tone] : "bg-white/10",
-                          !s &&
-                            phase === "ping" &&
-                            samples.length === i &&
-                            "hf-blink"
+                          tone ? TONE_BAR[tone] : "bg-white/10"
                         )}
                         style={{ height: `${h}%` }}
                       />

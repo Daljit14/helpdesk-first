@@ -22,7 +22,7 @@ export function QuickChecksCard({ className }: { className?: string }) {
     >
       <span
         aria-hidden
-        className="hf-blob-b pointer-events-none absolute -bottom-12 -right-12 h-36 w-36 rounded-full bg-[radial-gradient(closest-side,rgb(34_211_238/0.22),transparent)]"
+        className="pointer-events-none absolute -bottom-12 -right-12 h-36 w-36 rounded-full bg-[radial-gradient(closest-side,rgb(34_211_238/0.22),transparent)]"
       />
       <div className="relative">
         <h2 id="quick-checks-heading" className="text-base font-extrabold">

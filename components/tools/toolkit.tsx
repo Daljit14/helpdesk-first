@@ -82,11 +82,11 @@ export function Toolkit() {
       <header className="hf-rise relative overflow-hidden rounded-[32px] bg-[linear-gradient(120deg,#4b2fb8,#7c5cff_45%,#d946ef)] p-6 text-white shadow-[0_24px_60px_-24px_rgba(91,63,214,0.7)] sm:p-10">
         <span
           aria-hidden
-          className="hf-blob-a pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-white/15 blur-3xl"
+          className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-white/15 blur-3xl"
         />
         <span
           aria-hidden
-          className="hf-blob-b pointer-events-none absolute -bottom-24 left-1/3 h-64 w-64 rounded-full bg-[#22d3ee]/25 blur-3xl"
+          className="pointer-events-none absolute -bottom-24 left-1/3 h-64 w-64 rounded-full bg-[#22d3ee]/25 blur-3xl"
         />
         <div className="relative grid items-center gap-8 md:grid-cols-[minmax(0,1fr)_220px]">
           <div>
@@ -111,10 +111,7 @@ export function Toolkit() {
                 {runningCheckup ? (
                   <RefreshCw className="h-4 w-4 animate-spin" aria-hidden />
                 ) : (
-                  <Stethoscope
-                    className="h-4 w-4 transition-transform group-hover:rotate-12"
-                    aria-hidden
-                  />
+                  <Stethoscope className="h-4 w-4" aria-hidden />
                 )}
                 {runningCheckup
                   ? "Running check-up…"
@@ -129,20 +126,13 @@ export function Toolkit() {
             </div>
           </div>
           <div aria-hidden className="relative hidden h-[180px] md:block">
-            <span className="hf-float-sm absolute left-2 top-2 flex h-16 w-16 items-center justify-center rounded-2xl border border-white/40 bg-white/20 backdrop-blur-md">
+            <span className="absolute left-2 top-2 flex h-16 w-16 items-center justify-center rounded-2xl border border-white/40 bg-white/20 backdrop-blur-md">
               <Wifi className="h-7 w-7" />
             </span>
-            <span
-              className="hf-float-sm absolute right-2 top-10 flex h-16 w-16 items-center justify-center rounded-2xl border border-white/40 bg-white/20 backdrop-blur-md"
-              style={{ animationDelay: "0.5s" }}
-            >
+            <span className="absolute right-2 top-10 flex h-16 w-16 items-center justify-center rounded-2xl border border-white/40 bg-white/20 backdrop-blur-md">
               <Camera className="h-7 w-7" />
             </span>
-            <span
-              className="hf-float-sm absolute bottom-0 left-12 flex h-16 w-16 items-center justify-center rounded-2xl bg-white text-[#5b3fd6] shadow-[0_12px_30px_-10px_rgba(0,0,0,0.45)]"
-              style={{ animationDelay: "1s" }}
-            >
-              <span className="hf-ping absolute inset-0 rounded-2xl bg-white/50" />
+            <span className="absolute bottom-0 left-12 flex h-16 w-16 items-center justify-center rounded-2xl bg-white text-[#5b3fd6] shadow-[0_12px_30px_-10px_rgba(0,0,0,0.45)]">
               <Keyboard className="relative h-7 w-7" />
             </span>
           </div>

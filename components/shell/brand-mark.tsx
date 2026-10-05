@@ -24,7 +24,7 @@ export function BrandMark({ className }: { className?: string }) {
         <circle cx="12" cy="12" r="4" />
         <path d="m5.6 5.6 3.6 3.6M14.8 14.8l3.6 3.6M18.4 5.6l-3.6 3.6M9.2 14.8l-3.6 3.6" />
       </svg>
-      <span className="hf-bounce absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-card bg-highlight" />
+      <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-card bg-highlight" />
     </span>
   );
 }
@@ -35,7 +35,7 @@ export function AssistantBot({ className }: { className?: string }) {
     <svg
       viewBox="0 0 44 44"
       aria-hidden
-      className={cn("hf-bob h-12 w-12 shrink-0 overflow-visible", className)}
+      className={cn("h-12 w-12 shrink-0 overflow-visible", className)}
     >
       <path
         d="M22 10V4"
@@ -43,9 +43,9 @@ export function AssistantBot({ className }: { className?: string }) {
         strokeWidth={3}
         strokeLinecap="round"
       />
-      <circle cx="22" cy="4" r="3" fill="#ffc24b" className="hf-glow" />
+      <circle cx="22" cy="4" r="3" fill="#ffc24b" />
       <rect x="6" y="10" width="32" height="24" rx="8" fill="var(--primary)" />
-      <g className="hf-blink-eyes">
+      <g>
         <circle cx="16" cy="22" r="3" fill="var(--primary-foreground)" />
         <circle cx="28" cy="22" r="3" fill="var(--primary-foreground)" />
       </g>

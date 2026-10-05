@@ -39,7 +39,7 @@ export function PasswordTipsCard() {
     >
       <div
         aria-hidden
-        className="hf-blob-b pointer-events-none absolute -bottom-20 -right-16 h-56 w-56 rounded-full bg-[#d946ef]/20 blur-3xl"
+        className="pointer-events-none absolute -bottom-20 -right-16 h-56 w-56 rounded-full bg-[#d946ef]/20 blur-3xl"
       />
       <h3
         id="password-tips-tool-heading"

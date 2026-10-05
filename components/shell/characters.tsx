@@ -1,14 +1,12 @@
+import { Avatar } from "@/components/avatar/avatar";
 import {
-  AVATAR_VIEWBOX,
-  HUMAN_AVATARS,
   HUMAN_AVATAR_IDS,
-  HumanFigure,
-  humanAvatarBackground,
+  PORTRAITS,
   type HumanAvatarId,
-} from "@/components/avatar/human-avatars";
+} from "@/components/avatar/portraits";
 import { cn } from "@/lib/utils";
 
-/** Selectable people avatars (illustrated humans, see components/avatar). */
+/** Selectable people avatars (see components/avatar/portraits). */
 export const CHARACTERS = HUMAN_AVATAR_IDS;
 
 export type CharacterId = HumanAvatarId;
@@ -38,7 +36,7 @@ export function resolveCharacterId(
 }
 
 export function characterLabel(id: CharacterId) {
-  return HUMAN_AVATARS[id].label;
+  return PORTRAITS[id].label;
 }
 
 export function Character({
@@ -53,19 +51,11 @@ export function Character({
       aria-hidden
       data-character={id}
       className={cn(
-        "hf-ava hf-ava3 inline-flex h-11 w-11 shrink-0 overflow-hidden rounded-full",
+        "inline-flex h-11 w-11 shrink-0 overflow-hidden rounded-full",
         className
       )}
-      style={{ background: humanAvatarBackground(id) }}
     >
-      <svg
-        viewBox={AVATAR_VIEWBOX}
-        width="100%"
-        height="100%"
-        className="block"
-      >
-        <HumanFigure id={id} index={CHARACTERS.indexOf(id)} />
-      </svg>
+      <Avatar id={id} size="fill" className="h-full w-full rounded-full" />
     </span>
   );
 }

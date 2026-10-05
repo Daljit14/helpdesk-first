@@ -376,7 +376,7 @@ function AttentionCard({
         {hot && (
           <span
             aria-hidden
-            className={`hf-adm-alarm h-2.5 w-2.5 rounded-full ${tone === "danger" ? "bg-status-danger" : "bg-status-warning"}`}
+            className={`h-2.5 w-2.5 rounded-full ${tone === "danger" ? "bg-status-danger" : "bg-status-warning"}`}
           />
         )}
       </span>
@@ -1059,11 +1059,11 @@ export function AdminDashboard({
       <section className="hf-adm-hero hf-rise relative overflow-hidden rounded-[28px] px-5 pt-6 shadow-[0_24px_50px_-28px_var(--primary)] sm:px-7">
         <span
           aria-hidden
-          className="hf-adm-blob pointer-events-none absolute -right-16 -top-24 h-72 w-72 rounded-full bg-[radial-gradient(closest-side,rgb(255_255_255/0.28),transparent)]"
+          className="pointer-events-none absolute -right-16 -top-24 h-72 w-72 rounded-full bg-[radial-gradient(closest-side,rgb(255_255_255/0.28),transparent)]"
         />
         <span
           aria-hidden
-          className="hf-adm-blob-b pointer-events-none absolute -bottom-32 left-[38%] h-72 w-72 rounded-full bg-[radial-gradient(closest-side,rgb(255_214_248/0.4),transparent)]"
+          className="pointer-events-none absolute -bottom-32 left-[38%] h-72 w-72 rounded-full bg-[radial-gradient(closest-side,rgb(255_214_248/0.4),transparent)]"
         />
         {sparks.map((i) => (
           <span
@@ -1304,9 +1304,7 @@ export function AdminDashboard({
                     <span
                       aria-hidden
                       className="relative hidden h-0.5 w-7 shrink-0 bg-[repeating-linear-gradient(90deg,var(--muted-foreground)_0_4px,transparent_4px_8px)] opacity-60 xl:block"
-                    >
-                      <span className="hf-adm-travel absolute -top-[2px] h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_8px_var(--primary)]" />
-                    </span>
+                    />
                   )}
                 </li>
               ))}
@@ -1907,14 +1905,14 @@ export function AdminDashboard({
               <span className="sr-only">Loading operations data…</span>
               <span
                 aria-hidden
-                className="hf-adm-travel absolute inset-y-0 w-1/4 rounded-full bg-primary"
+                className="absolute inset-y-0 w-1/4 animate-pulse rounded-full bg-primary"
               />
             </div>
           )}
           {visibleTickets.length === 0 && status !== "refreshing" ? (
             <div className="flex flex-col items-center gap-2 p-10 text-center">
               <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-secondary text-secondary-foreground">
-                <Inbox className="h-5 w-5 hf-bob" aria-hidden />
+                <Inbox className="h-5 w-5" aria-hidden />
               </span>
               <p className="font-bold text-muted-foreground">
                 No tickets match these filters

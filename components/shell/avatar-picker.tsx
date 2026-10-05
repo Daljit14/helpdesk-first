@@ -51,8 +51,18 @@ export function AvatarPicker({
 }) {
   const [current, setCurrent] = useState<string | null>(toAvatarValue(avatar));
   const [open, setOpen] = useState(false);
-  const [error, setError] = useState(false);
+  const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">(
+    "idle"
+  );
+  const [retryTarget, setRetryTarget] = useState<AvatarValue | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (status !== "saved") return;
+    const timeout = window.setTimeout(() => setStatus("idle"), 2000);
+    return () => window.clearTimeout(timeout);
+  }, [status]);
 
   useEffect(() => {
     if (!open) return;
@@ -60,7 +70,10 @@ export function AvatarPicker({
       if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
     };
     const escape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key === "Escape") {
+        setOpen(false);
+        triggerRef.current?.focus();
+      }
     };
     document.addEventListener("mousedown", close);
     document.addEventListener("keydown", escape);
@@ -71,14 +84,23 @@ export function AvatarPicker({
   }, [open]);
 
   async function select(next: AvatarValue) {
+    const previous = current;
     setCurrent(next);
-    setError(false);
+    setStatus("saving");
+    setRetryTarget(null);
     setOpen(false);
-    const result = await createClient().auth.updateUser({
-      data: { avatar: next },
-    });
-    const updateError = result?.error;
-    if (updateError) setError(true);
+    triggerRef.current?.focus();
+    try {
+      const result = await createClient().auth.updateUser({
+        data: { avatar: next },
+      });
+      if (result?.error) throw result.error;
+      setStatus("saved");
+    } catch {
+      setCurrent(previous);
+      setStatus("error");
+      setRetryTarget(next);
+    }
   }
 
   const display = current?.startsWith("char:") ? (
@@ -98,6 +120,7 @@ export function AvatarPicker({
   return (
     <div ref={rootRef} className="relative min-w-0">
       <button
+        ref={triggerRef}
         type="button"
         aria-label="Choose avatar"
         aria-expanded={open}
@@ -144,9 +167,9 @@ export function AvatarPicker({
                   aria-label={characterLabel(id)}
                   onClick={() => void select(value)}
                   className={cn(
-                    "hf-ava3-hover hf-ava3-tile grid aspect-square min-w-0 place-items-center rounded-xl p-0.5 hover:bg-muted",
+                    "grid aspect-square min-w-0 place-items-center rounded-xl border border-border p-0.5 transition-[box-shadow,border-color] duration-150 hover:bg-muted hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
                     current === value
-                      ? "hf-ava3-on ring-2 ring-primary"
+                      ? "border-primary ring-2 ring-primary ring-offset-2 ring-offset-card"
                       : undefined
                   )}
                 >
@@ -179,13 +202,35 @@ export function AvatarPicker({
           >
             Use my initial
           </button>
-          {error && (
-            <p className="mt-2 text-xs font-semibold text-destructive">
-              Couldn&apos;t save
-            </p>
-          )}
         </div>
       )}
+      <div className="min-h-4 px-2 text-[11px] leading-4">
+        <p
+          role="status"
+          aria-live="polite"
+          className={cn(
+            status === "error" && "font-semibold text-destructive",
+            status === "saved" && "text-muted-foreground"
+          )}
+        >
+          {status === "saving" && "Saving avatar…"}
+          {status === "saved" && "Avatar saved"}
+          {status === "error" && (
+            <>
+              Couldn&apos;t save your avatar.{" "}
+              <button
+                type="button"
+                className="font-bold underline underline-offset-2"
+                onClick={() => {
+                  if (retryTarget) void select(retryTarget);
+                }}
+              >
+                Retry
+              </button>
+            </>
+          )}
+        </p>
+      </div>
     </div>
   );
 }

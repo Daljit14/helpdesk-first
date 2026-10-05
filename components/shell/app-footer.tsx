@@ -24,7 +24,7 @@ import {
   Wrench,
   type LucideIcon,
 } from "lucide-react";
-import { AnimatedAvatar } from "@/components/avatar/animated-avatar";
+import { Avatar } from "@/components/avatar/avatar";
 import {
   STATUS_DOT,
   STATUS_TEXT,
@@ -205,16 +205,16 @@ export function AppFooter({
           />
           <Sparkles
             aria-hidden
-            className="hf-foot-spark hf-foot-spark-b right-[30%] top-10 h-3 w-3"
+            className="hf-foot-spark right-[30%] top-10 h-3 w-3"
           />
           <Sparkles
             aria-hidden
-            className="hf-foot-spark hf-foot-spark-c bottom-6 left-[36%] h-3.5 w-3.5"
+            className="hf-foot-spark bottom-6 left-[36%] h-3.5 w-3.5"
           />
           <div className="relative flex flex-col items-start gap-6 md:flex-row md:items-center md:justify-between">
             <div className="flex items-center gap-5">
-              <span className="hf-foot-bot hidden shrink-0 rounded-full bg-white/15 p-2 ring-1 ring-white/30 sm:block">
-                <AnimatedAvatar id="bot" size={72} />
+              <span className="hidden shrink-0 rounded-full bg-white/15 p-2 ring-1 ring-white/30 sm:block">
+                <Avatar id="bot" size={72} />
               </span>
               <div>
                 <h2

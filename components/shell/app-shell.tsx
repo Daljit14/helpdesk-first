@@ -34,7 +34,7 @@ import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { breadcrumbsForPath } from "@/components/shell/breadcrumbs-for-path";
 import { AppFooter } from "@/components/shell/app-footer";
 import { BrandMark } from "@/components/shell/brand-mark";
-import { AnimatedAvatar } from "@/components/avatar/animated-avatar";
+import { Avatar } from "@/components/avatar/avatar";
 import { AccountChip } from "@/components/shell/account-chip";
 import { TypewriterText } from "@/components/assistant/typewriter-text";
 import { cn } from "@/lib/utils";
@@ -153,11 +153,7 @@ function AssistantHelper({ onNavigate }: { onNavigate?: () => void }) {
         />
         <div className="relative flex min-w-0 items-center gap-3">
           <span className="relative shrink-0">
-            <AnimatedAvatar
-              id="bot"
-              size={44}
-              className="ring-2 ring-card shadow-sm"
-            />
+            <Avatar id="bot" size={44} className="ring-2 ring-card shadow-sm" />
             <span
               aria-hidden
               className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-card bg-status-success"
@@ -198,8 +194,11 @@ function AssistantHelper({ onNavigate }: { onNavigate?: () => void }) {
         onClick={onNavigate}
         className="hidden min-h-12 min-w-0 shrink-0 items-center gap-3 rounded-2xl bg-muted px-3 text-sm font-bold [@media(max-height:780px)]:flex"
       >
-        <AnimatedAvatar id="bot" size={32} className="bg-card" />
-        Start a chat
+        <Avatar id="bot" size={32} />
+        <span>Start a chat</span>
+        <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-extrabold text-primary">
+          AI
+        </span>
         <ArrowRight className="ml-auto h-4 w-4" aria-hidden />
       </Link>
     </>
@@ -278,12 +277,14 @@ function QuickFixes({ onNavigate }: { onNavigate?: () => void }) {
 
 function SidebarFooter({
   email,
+  userId,
   staff,
   avatar,
   displayName,
   onNavigate,
 }: {
   email?: string | null;
+  userId?: string | null;
   staff: boolean;
   avatar?: string | null;
   displayName?: string | null;
@@ -295,7 +296,12 @@ function SidebarFooter({
     <div className="grid min-w-0 gap-1.5 border-t border-border pt-4 [@media(max-height:780px)]:pt-3">
       {email ? (
         <>
-          <AccountChip email={email} avatar={avatar} name={displayName} />
+          <AccountChip
+            email={email}
+            userId={userId ?? email}
+            avatar={avatar}
+            name={displayName}
+          />
           <form action={logoutAction} className="px-2">
             <Button
               type="submit"
@@ -349,6 +355,7 @@ function Brand() {
 export function AppShell({
   children,
   email,
+  userId,
   staff = false,
   aiEnabled = false,
   avatar,
@@ -356,6 +363,7 @@ export function AppShell({
 }: {
   children: ReactNode;
   email?: string | null;
+  userId?: string | null;
   staff?: boolean;
   aiEnabled?: boolean;
   avatar?: string | null;
@@ -391,6 +399,7 @@ export function AppShell({
         <div className="mt-auto min-w-0 shrink-0">
           <SidebarFooter
             email={email}
+            userId={userId}
             staff={staff}
             avatar={avatar}
             displayName={displayName}
@@ -467,6 +476,7 @@ export function AppShell({
           <div className="mt-auto min-w-0 shrink-0">
             <SidebarFooter
               email={email}
+              userId={userId}
               staff={staff}
               avatar={avatar}
               displayName={displayName}

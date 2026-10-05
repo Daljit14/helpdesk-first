@@ -27,11 +27,11 @@ export function ContinueCard({
     >
       <span
         aria-hidden
-        className="hf-blob-a absolute -top-20 right-24 h-64 w-64 rounded-full bg-white/10"
+        className="absolute -top-20 right-24 h-64 w-64 rounded-full bg-white/10"
       />
       <span
         aria-hidden
-        className="hf-blob-b absolute -bottom-28 left-1/3 h-60 w-60 rounded-full bg-pink-400/20"
+        className="absolute -bottom-28 left-1/3 h-60 w-60 rounded-full bg-pink-400/20"
       />
       <div className="relative flex flex-col gap-6 sm:flex-row sm:items-center">
         <div className="flex max-w-xl flex-col gap-3">
@@ -88,14 +88,11 @@ export function ContinueCard({
               strokeWidth="14"
               strokeLinecap="round"
               strokeDasharray="120 428"
-              className="hf-spin-slow origin-center"
-              style={{
-                animationDuration: "6s",
-                transformBox: "fill-box",
-              }}
+              className="origin-center"
+              style={{ transformBox: "fill-box" }}
             />
           </svg>
-          <Wifi className="hf-bob absolute inset-0 m-auto h-10 w-10" />
+          <Wifi className="absolute inset-0 m-auto h-10 w-10" />
         </div>
       </div>
     </section>

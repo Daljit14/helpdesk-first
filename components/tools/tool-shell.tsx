@@ -31,7 +31,6 @@ export function ToolCard({
   children,
   report,
   live,
-  active = false,
   className,
 }: {
   id: string;
@@ -43,7 +42,6 @@ export function ToolCard({
   report?: ToolReport | null;
   /** Short status text announced to screen readers. */
   live?: string;
-  /** Adds a subtle "working" glow to the icon tile. */
   active?: boolean;
   className?: string;
 }) {
@@ -63,7 +61,7 @@ export function ToolCard({
       />
       <div
         aria-hidden
-        className="hf-blob-a pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full bg-[#7c5cff]/25 blur-3xl"
+        className="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full bg-[#7c5cff]/25 blur-3xl"
       />
 
       <div className="relative flex flex-wrap items-start justify-between gap-4">
@@ -74,8 +72,7 @@ export function ToolCard({
           >
             <span
               className={cn(
-                "relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10",
-                active && "hf-tool-glow"
+                "relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10"
               )}
             >
               <Icon className="h-5 w-5 text-[#c9b8ff]" aria-hidden />
@@ -231,7 +228,7 @@ export function ToolButton({
       className={cn(
         "group relative inline-flex min-h-11 items-center gap-2 overflow-hidden rounded-2xl px-4 text-sm font-extrabold transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-4 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0",
         variant === "primary" &&
-          "hf-shimmer bg-[linear-gradient(110deg,#7c5cff,#c084fc,#7c5cff)] bg-[length:200%_100%] text-[#0d0a1c] shadow-[0_10px_30px_-10px_#7c5cff] focus-visible:ring-[#c084fc]/40",
+          "bg-[linear-gradient(110deg,#7c5cff,#c084fc,#7c5cff)] bg-[length:200%_100%] text-[#0d0a1c] shadow-[0_10px_30px_-10px_#7c5cff] focus-visible:ring-[#c084fc]/40",
         variant === "ghost" &&
           "border border-white/15 bg-white/10 text-white hover:bg-white/15 focus-visible:ring-white/30 aria-[pressed=true]:border-[#c9b8ff]/60 aria-[pressed=true]:bg-[#7c5cff]/30",
         variant === "danger" &&

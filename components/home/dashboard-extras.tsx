@@ -10,7 +10,7 @@ import {
   Search,
   Ticket,
 } from "lucide-react";
-import { AnimatedAvatar } from "@/components/avatar/animated-avatar";
+import { Avatar } from "@/components/avatar/avatar";
 import { cn } from "@/lib/utils";
 
 const STEPS = [
@@ -31,17 +31,8 @@ const STEPS = [
   },
 ];
 
-/** Three-step explainer; the highlighted step cycles every two seconds. */
+/** Three-step explainer for the support flow. */
 export function HowItWorks({ className }: { className?: string }) {
-  const [active, setActive] = useState(0);
-  useEffect(() => {
-    const id = window.setInterval(
-      () => setActive((value) => (value + 1) % STEPS.length),
-      2000
-    );
-    return () => window.clearInterval(id);
-  }, []);
-
   return (
     <section
       aria-labelledby="how-it-works-heading"
@@ -65,21 +56,12 @@ export function HowItWorks({ className }: { className?: string }) {
           stroke="var(--secondary)"
           strokeWidth={2}
           strokeDasharray="6 6"
-          className="hf-dash"
         />
       </svg>
       <ol className="relative mt-6 grid gap-6 sm:grid-cols-3">
         {STEPS.map(({ title, body, icon: Icon }, index) => (
           <li key={title} className="flex flex-col items-start gap-2.5">
-            <span
-              key={active === index ? `on-${title}` : `off-${title}`}
-              className={cn(
-                "flex h-[52px] w-[52px] items-center justify-center rounded-2xl",
-                active === index
-                  ? "hf-pop bg-primary text-primary-foreground shadow-[0_12px_24px_-10px_var(--primary)]"
-                  : "bg-secondary text-secondary-foreground"
-              )}
-            >
+            <span className="flex h-[52px] w-[52px] items-center justify-center rounded-2xl bg-secondary text-secondary-foreground">
               <Icon className="h-6 w-6" aria-hidden />
             </span>
             <span className="text-xs font-extrabold text-muted-foreground">
@@ -133,7 +115,7 @@ export function QuickTips({ className }: { className?: string }) {
           id="quick-tip-heading"
           className="inline-flex items-center gap-2 text-sm font-extrabold text-[#8a5200] dark:text-[#ffd68a]"
         >
-          <Lightbulb className="hf-glow h-[18px] w-[18px]" aria-hidden />
+          <Lightbulb className="h-[18px] w-[18px]" aria-hidden />
           Quick tip
         </h2>
         <span className="text-xs font-bold opacity-80">
@@ -187,10 +169,10 @@ export function StillStuckCard({ className }: { className?: string }) {
     >
       <span
         aria-hidden
-        className="hf-blob-a pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-[radial-gradient(closest-side,rgb(124_92_255/0.3),transparent)]"
+        className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-[radial-gradient(closest-side,rgb(124_92_255/0.3),transparent)]"
       />
       <div className="relative flex items-center gap-3">
-        <AnimatedAvatar id="bot" size={44} />
+        <Avatar id="bot" size={44} />
         <div>
           <h2 id="still-stuck-heading" className="text-base font-extrabold">
             Still stuck?

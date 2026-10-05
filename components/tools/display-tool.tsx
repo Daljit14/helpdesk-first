@@ -189,7 +189,7 @@ export function DisplayTool() {
             <span
               className={cn(
                 "absolute top-1 h-6 w-6 rounded-full bg-[linear-gradient(135deg,#9ee7ff,#7c5cff)] shadow-[0_0_14px_#7c5cff]",
-                measuring ? "hf-tool-slide" : "left-1"
+                measuring ? "left-1/2" : "left-1"
               )}
             />
           </div>

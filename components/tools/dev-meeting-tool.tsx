@@ -657,13 +657,7 @@ export function DevMeetingTool() {
             )}
             {!camLive && !thumb && (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-4 text-center">
-                <Camera
-                  className={cn(
-                    "h-10 w-10 text-white/40",
-                    running && step === "camera" && "hf-blink"
-                  )}
-                  aria-hidden
-                />
+                <Camera className={cn("h-10 w-10 text-white/40")} aria-hidden />
                 <p className="text-sm font-semibold text-white/60">
                   {running && step === "camera"
                     ? "Waiting for permission..."
@@ -830,7 +824,7 @@ function StateIcon({
     return <Circle className={cn(cls, "text-white/30")} aria-label="Skipped" />;
   return (
     <Circle
-      className={cn(cls, active ? "hf-blink text-[#c9b8ff]" : "text-white/30")}
+      className={cn(cls, active ? "text-[#c9b8ff]" : "text-white/30")}
       aria-label={active ? "In progress" : "Not checked"}
     />
   );

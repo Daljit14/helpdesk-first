@@ -18,7 +18,7 @@ import { QUICK_SEARCHES } from "@/components/home/home-copy";
 import { RecentlyViewed } from "@/components/recently-viewed";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { AnimatedAvatar } from "@/components/avatar/animated-avatar";
+import { Avatar } from "@/components/avatar/avatar";
 import { TypewriterText } from "@/components/assistant/typewriter-text";
 import {
   HowItWorks,
@@ -395,11 +395,6 @@ function StartGuideCard() {
         aria-hidden
         className="pointer-events-none absolute -bottom-24 right-24 h-64 w-64 rounded-full bg-[#ffd6f5]/25 blur-3xl"
       />
-      <span
-        aria-hidden
-        className="hf-shimmer pointer-events-none absolute inset-0 bg-[linear-gradient(110deg,transparent_35%,rgba(255,255,255,0.35)_50%,transparent_65%)] opacity-60"
-      />
-
       <span className="relative min-w-0">
         <span className="inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-white/15 px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-[0.14em] backdrop-blur">
           <Sparkles className="h-3 w-3" aria-hidden />
@@ -433,25 +428,17 @@ function StartGuideCard() {
             strokeDasharray="6 6"
             strokeLinecap="round"
             strokeWidth="2.5"
-            className="hf-dash"
           />
         </svg>
-        <span className="hf-float-sm absolute left-0 top-2 flex h-10 w-[68px] items-center gap-2 rounded-2xl border border-white/40 bg-white/20 px-3 backdrop-blur-md">
+        <span className="absolute left-0 top-2 flex h-10 w-[68px] items-center gap-2 rounded-2xl border border-white/40 bg-white/20 px-3 backdrop-blur-md">
           <span className="h-2 w-2 rounded-full bg-white" />
           <span className="h-1.5 flex-1 rounded-full bg-white/70" />
         </span>
-        <span
-          className="hf-float-sm absolute left-[68px] top-[42px] flex h-10 w-[68px] items-center gap-2 rounded-2xl border border-white/40 bg-white/20 px-3 backdrop-blur-md"
-          style={{ animationDelay: "0.4s" }}
-        >
+        <span className="absolute left-[68px] top-[42px] flex h-10 w-[68px] items-center gap-2 rounded-2xl border border-white/40 bg-white/20 px-3 backdrop-blur-md">
           <span className="h-2 w-2 rounded-full bg-white" />
           <span className="h-1.5 flex-1 rounded-full bg-white/70" />
         </span>
-        <span
-          className="hf-float-sm absolute right-0 top-[80px] flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-[#5b3fd6] shadow-[0_12px_30px_-10px_rgba(0,0,0,0.45)]"
-          style={{ animationDelay: "0.8s" }}
-        >
-          <span className="hf-ping absolute inset-0 rounded-2xl bg-white/60" />
+        <span className="absolute right-0 top-[80px] flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-[#5b3fd6] shadow-[0_12px_30px_-10px_rgba(0,0,0,0.45)]">
           <CheckCircle2 className="relative h-6 w-6" strokeWidth={2.5} />
         </span>
       </span>
@@ -486,15 +473,15 @@ function HelperPreview() {
     >
       <span
         aria-hidden
-        className="hf-blob-a absolute -right-16 -top-16 h-52 w-52 rounded-full bg-white/10"
+        className="absolute -right-16 -top-16 h-52 w-52 rounded-full bg-white/10"
       />
       <span
         aria-hidden
-        className="hf-blob-b absolute -bottom-24 -left-10 h-56 w-56 rounded-full bg-pink-400/20"
+        className="absolute -bottom-24 -left-10 h-56 w-56 rounded-full bg-pink-400/20"
       />
 
       <div className="relative flex items-center gap-3">
-        <AnimatedAvatar id="bot" size={48} className="ring-4 ring-white/25" />
+        <Avatar id="bot" size={48} className="ring-4 ring-white/25" />
         <div>
           <p className="text-base font-extrabold">Support Assistant</p>
           <p className="inline-flex items-center gap-1.5 text-xs font-semibold text-white/85">
@@ -558,15 +545,7 @@ const DEVICES: Array<{
     art: (
       <svg viewBox="0 0 64 48" className="h-12 w-16" aria-hidden>
         <rect x="6" y="4" width="52" height="32" rx="4" fill="#1c1633" />
-        <rect
-          x="9"
-          y="7"
-          width="46"
-          height="26"
-          rx="2"
-          fill="#2553b0"
-          className="hf-screen"
-        />
+        <rect x="9" y="7" width="46" height="26" rx="2" fill="#2553b0" />
         <g fill="#ffffff">
           <rect x="24" y="12" width="7" height="7" rx="1" />
           <rect x="33" y="12" width="7" height="7" rx="1" />
@@ -584,15 +563,7 @@ const DEVICES: Array<{
     art: (
       <svg viewBox="0 0 64 48" className="h-12 w-16" aria-hidden>
         <rect x="6" y="4" width="52" height="32" rx="4" fill="#c9c4d8" />
-        <rect
-          x="9"
-          y="7"
-          width="46"
-          height="26"
-          rx="2"
-          fill="#ece8fd"
-          className="hf-screen"
-        />
+        <rect x="9" y="7" width="46" height="26" rx="2" fill="#ece8fd" />
         <path
           d="M18 30 L30 16 L38 24 L46 12"
           fill="none"
@@ -600,7 +571,6 @@ const DEVICES: Array<{
           strokeWidth="2.5"
           strokeLinecap="round"
           strokeLinejoin="round"
-          className="hf-draw"
         />
         <path d="M2 38h60l-4 6H6z" fill="#b8b2c9" />
       </svg>
@@ -612,14 +582,11 @@ const DEVICES: Array<{
     hint: "iPhone & iPad",
     art: (
       <svg viewBox="0 0 64 48" className="h-12 w-16" aria-hidden>
-        <g
-          className="hf-tilt"
-          style={{ transformOrigin: "32px 24px", transformBox: "view-box" }}
-        >
+        <g>
           <rect x="22" y="2" width="20" height="44" rx="5" fill="#1c1633" />
           <rect x="24.5" y="6" width="15" height="36" rx="3" fill="#fde7f1" />
           <rect x="28" y="3.5" width="8" height="2" rx="1" fill="#1c1633" />
-          <circle cx="37" cy="10" r="2.6" fill="#e0245e" className="hf-i-rec" />
+          <circle cx="37" cy="10" r="2.6" fill="#e0245e" />
         </g>
       </svg>
     ),
@@ -630,7 +597,7 @@ const DEVICES: Array<{
     hint: "Phones & tablets",
     art: (
       <svg viewBox="0 0 64 48" className="h-12 w-16" aria-hidden>
-        <g className="hf-i-vib">
+        <g>
           <rect x="22" y="2" width="20" height="44" rx="4" fill="#123b2c" />
           <rect x="24.5" y="5" width="15" height="37" rx="2" fill="#e3f6ee" />
           <path d="M28 16a4 4 0 0 1 8 0z" fill="#12805c" />

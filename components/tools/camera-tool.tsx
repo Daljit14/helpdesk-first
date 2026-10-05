@@ -224,12 +224,6 @@ export function CameraTool() {
             <span className="absolute bottom-0 left-0 h-5 w-5 rounded-bl-lg border-b-2 border-l-2 border-white/60" />
             <span className="absolute bottom-0 right-0 h-5 w-5 rounded-br-lg border-b-2 border-r-2 border-white/60" />
           </span>
-          {status === "starting" && (
-            <span
-              aria-hidden
-              className="hf-tool-scan pointer-events-none absolute inset-x-0 top-0 h-1/3 bg-[linear-gradient(180deg,transparent,rgb(124_92_255/0.45),transparent)]"
-            />
-          )}
           {status === "live" && (
             <span className="hf-pop absolute left-4 top-4 inline-flex items-center gap-1.5 rounded-full bg-black/55 px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-wider backdrop-blur">
               <span className="relative flex h-2 w-2">
@@ -241,13 +235,7 @@ export function CameraTool() {
           )}
           {status !== "live" && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-4 text-center">
-              <Camera
-                className={cn(
-                  "h-10 w-10 text-white/40",
-                  status === "starting" && "hf-blink"
-                )}
-                aria-hidden
-              />
+              <Camera className="h-10 w-10 text-white/40" aria-hidden />
               <p className="text-sm font-semibold text-white/60">
                 {status === "starting"
                   ? "Waiting for permission…"

@@ -288,7 +288,7 @@ export function AgentChat({
     <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6">
       <div className="rounded-3xl border border-border/60 bg-background/80 p-6 shadow-sm">
         <div className="flex items-center gap-3">
-          <Bot className="hf-bob size-5" aria-hidden />
+          <Bot className="size-5" aria-hidden />
           <div>
             <p className="font-semibold">AI support assistant</p>
             <p className="text-sm text-muted-foreground">

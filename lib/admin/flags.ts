@@ -113,6 +113,10 @@ export function isOrgEnvironmentEnabled(): boolean {
   return process.env.HELP_DESK_ORG_ENVIRONMENT_ENABLED === "true";
 }
 
+export function isAgentDiagnosticSourcesEnabled(): boolean {
+  return process.env.HELP_DESK_AGENT_DIAGNOSTIC_SOURCES_ENABLED === "true";
+}
+
 export function isRequesterAgentEnabledForOrg(organizationId: string): boolean {
   if (!isRequesterAgentEnabled()) return false;
   const allowlist = (process.env.HELP_DESK_REQUESTER_AGENT_ORG_ALLOWLIST ?? "")

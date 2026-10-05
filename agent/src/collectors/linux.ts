@@ -4,6 +4,11 @@ import { boundedError, record, type Collector } from "./index";
 import { LINUX_SERVICE_COMMANDS, SERVICE_NAMES } from "../service-maps";
 import { userSystemctl } from "../user-systemctl";
 import { kerberosCredentialCollector } from "./kerberos";
+import {
+  allowlistedAppDisplayName,
+  recentErrorEventsRecord,
+  type RecentErrorCategory,
+} from "./error-events";
 
 function commandCollector(
   kind: DiagnosticKind,
@@ -143,6 +148,99 @@ function microphonePrivacyCollector(): Collector {
   };
 }
 
+function linuxErrorCategory(identifier: string): RecentErrorCategory {
+  const name = identifier.toLowerCase();
+  if (name === "systemd-coredump") return "appCrash";
+  if (name === "kernel") return "driver";
+  if (
+    [
+      "networkmanager",
+      "systemd-resolved",
+      "systemd-networkd",
+      "wpa_supplicant",
+      "dhclient",
+    ].includes(name)
+  ) {
+    return "network";
+  }
+  if (["sssd", "sssd_be", "krb5kdc", "gdm-password", "login"].includes(name)) {
+    return "signIn";
+  }
+  if (["udisksd", "smartd"].includes(name)) return "disk";
+  return "other";
+}
+
+function linuxJournalTimestamp(value: unknown): string | null {
+  if (typeof value !== "number" && typeof value !== "string") return null;
+  const microseconds = Number(value);
+  if (!Number.isFinite(microseconds)) return null;
+  const date = new Date(microseconds / 1000);
+  return Number.isFinite(date.getTime()) ? date.toISOString() : null;
+}
+
+function parseLinuxErrorEvents(output: string) {
+  const events = output
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .slice(0, 500)
+    .flatMap((line) => {
+      let row: Record<string, unknown>;
+      try {
+        const parsed: unknown = JSON.parse(line);
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
+          return [];
+        row = parsed as Record<string, unknown>;
+      } catch {
+        return [];
+      }
+      const identifier =
+        typeof row.SYSLOG_IDENTIFIER === "string" &&
+        row.SYSLOG_IDENTIFIER.trim()
+          ? row.SYSLOG_IDENTIFIER
+          : typeof row._COMM === "string"
+            ? row._COMM
+            : "";
+      const category = linuxErrorCategory(identifier);
+      const process =
+        category === "appCrash" && typeof row.COREDUMP_COMM === "string"
+          ? row.COREDUMP_COMM
+          : null;
+      return [
+        {
+          category,
+          at: linuxJournalTimestamp(row.__REALTIME_TIMESTAMP),
+          app:
+            category === "appCrash" ? allowlistedAppDisplayName(process) : null,
+        },
+      ];
+    });
+  return recentErrorEventsRecord(events, ["appHang"]);
+}
+
+function recentErrorEventsCollector(): Collector {
+  return {
+    kind: "recent_error_events",
+    run: async (exec) => {
+      try {
+        const output = await exec(
+          "journalctl",
+          [
+            "--priority=3",
+            "--since=-24h",
+            "--output=json",
+            "--no-pager",
+            "--lines=500",
+          ],
+          { timeoutMs: 15_000 }
+        );
+        return parseLinuxErrorEvents(output);
+      } catch {
+        return boundedError("recent_error_events", "command failed");
+      }
+    },
+  };
+}
+
 function serviceCollector(): Collector {
   return {
     kind: "service_status",
@@ -238,4 +336,5 @@ export const linuxCollectors: Collector[] = [
   cameraPrivacyCollector(),
   microphonePrivacyCollector(),
   kerberosCredentialCollector(),
+  recentErrorEventsCollector(),
 ];

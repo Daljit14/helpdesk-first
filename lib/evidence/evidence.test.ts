@@ -265,6 +265,57 @@ describe("evidence primitives", () => {
     );
   });
 
+  test("adds thresholded hypotheses from recent error events", () => {
+    const record = buildEvidence({
+      ticket: {
+        message: "Several applications are crashing.",
+        platform: "Linux",
+        issue_id: "app-crashes",
+        diagnostic_answers: [],
+      },
+      investigation: null,
+      turns: [],
+      stepOutcomes: [],
+      attachments: [],
+      now: new Date("2026-10-04T00:00:00.000Z"),
+      device: {
+        deviceId: "device-1",
+        platform: "linux",
+        deviceClass: "managed",
+        collectedAt: "2026-10-04T00:00:00.000Z",
+        diagnostics: [
+          {
+            kind: "recent_error_events",
+            ok: true,
+            summary: "Recent errors from the device.",
+            data: {
+              windowHours: 24,
+              total: 9,
+              appCrash: 3,
+              appHang: 0,
+              signIn: 3,
+              driver: 3,
+              disk: 1,
+              network: 0,
+              other: 0,
+              crashedApps: ["Outlook"],
+              newestAt: "2026-10-04T10:00:00.000Z",
+            },
+          },
+        ],
+        stale: false,
+      },
+    });
+    expect(record.hypotheses.map(({ cause }) => cause)).toEqual(
+      expect.arrayContaining([
+        "Recent disk errors — route to IT",
+        "Repeated app crashes in the last 24 hours",
+        "Repeated sign-in errors on the device",
+        "Recent driver or hardware errors",
+      ])
+    );
+  });
+
   test("recognizes camera and credential requests as device-family topics", () => {
     for (const message of [
       "camera is unavailable",

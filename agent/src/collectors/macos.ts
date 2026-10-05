@@ -1,7 +1,14 @@
 import type { DiagnosticKind } from "../../../lib/device-agent/protocol";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { boundedError, record, type Collector } from "./index";
 import { MACOS_SERVICE_COMMANDS, SERVICE_NAMES } from "../service-maps";
 import { kerberosCredentialCollector } from "./kerberos";
+import {
+  allowlistedAppDisplayName,
+  recentErrorEventsRecord,
+  type RecentErrorCategory,
+} from "./error-events";
 
 function commandCollector(
   kind: DiagnosticKind,
@@ -153,6 +160,96 @@ function microphonePrivacyCollector(): Collector {
   };
 }
 
+function macosErrorCategory(name: string): RecentErrorCategory | null {
+  const lower = name.toLowerCase();
+  if (lower.endsWith(".panic") || /^(kernel|panic)/i.test(name))
+    return "driver";
+  if (lower.endsWith(".ips") || lower.endsWith(".crash")) return "appCrash";
+  if (lower.endsWith(".hang") || lower.endsWith(".spin")) return "appHang";
+  return null;
+}
+
+function timestampFromDiagnosticName(name: string): string | null {
+  const match = name.match(
+    /[-_](\d{4})-(\d{2})-(\d{2})(?:[-_](\d{2})(\d{2})(\d{2}))?/
+  );
+  if (!match) return null;
+  const [, year, month, day, hour = "00", minute = "00", second = "00"] = match;
+  const date = new Date(
+    Date.UTC(
+      Number(year),
+      Number(month) - 1,
+      Number(day),
+      Number(hour),
+      Number(minute),
+      Number(second)
+    )
+  );
+  return Number.isFinite(date.getTime()) ? date.toISOString() : null;
+}
+
+function outputFromExecError(error: unknown): string | null {
+  if (!error || typeof error !== "object" || !("stdout" in error)) return null;
+  const stdout = (error as { stdout?: unknown }).stdout;
+  return typeof stdout === "string" ? stdout : null;
+}
+
+function parseMacosErrorEvents(output: string) {
+  const events = output
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .slice(0, 500)
+    .flatMap((path) => {
+      const name = path.replaceAll("\\", "/").split("/").at(-1) ?? "";
+      const category = macosErrorCategory(name);
+      if (!category) return [];
+      const processName = name.match(/^(.+?)[-_]\d{4}-\d{2}-\d{2}/)?.[1];
+      return [
+        {
+          category,
+          at: timestampFromDiagnosticName(name),
+          app:
+            category === "appCrash"
+              ? allowlistedAppDisplayName(processName)
+              : null,
+        },
+      ];
+    });
+  return recentErrorEventsRecord(events, [
+    "signIn",
+    "disk",
+    "network",
+    "other",
+  ]);
+}
+
+function recentErrorEventsCollector(): Collector {
+  return {
+    kind: "recent_error_events",
+    run: async (exec) => {
+      const args = [
+        join(homedir(), "Library/Logs/DiagnosticReports"),
+        "/Library/Logs/DiagnosticReports",
+        "-maxdepth",
+        "1",
+        "-type",
+        "f",
+        "-mtime",
+        "-1",
+      ];
+      try {
+        return parseMacosErrorEvents(
+          await exec("/usr/bin/find", args, { timeoutMs: 15_000 })
+        );
+      } catch (error) {
+        const output = outputFromExecError(error);
+        if (output !== null) return parseMacosErrorEvents(output);
+        return boundedError("recent_error_events", "command failed");
+      }
+    },
+  };
+}
+
 function serviceCollector(): Collector {
   return {
     kind: "service_status",
@@ -244,4 +341,5 @@ export const macosCollectors: Collector[] = [
   cameraPrivacyCollector(),
   microphonePrivacyCollector(),
   kerberosCredentialCollector(),
+  recentErrorEventsCollector(),
 ];

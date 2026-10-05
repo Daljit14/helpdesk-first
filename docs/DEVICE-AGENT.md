@@ -116,6 +116,13 @@ missing cameras, muted microphones, and expired sign-in tickets; the planner
 does not propose device actions for these findings. Registry synchronization
 does not enable the capabilities: organization enablement remains explicit.
 
+`device_recent_error_events` adds a 24-hour read-only diagnostic on Windows,
+macOS, and Linux. It returns bounded category counts, allowlisted crashed-app
+display names, and the newest timestamp; event messages, paths, usernames,
+hostnames, and non-allowlisted process names are not collected into the result.
+The capability is shadow-only and must be enabled per organization through the
+existing device capability controls.
+
 ## Packaging and deployment (B4)
 
 `npm run agent:package` builds the outbound agent and creates a versioned

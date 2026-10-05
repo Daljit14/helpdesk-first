@@ -15,11 +15,12 @@ describe("device-agent catalog", () => {
     expect(getDeviceAction("device_flush_dns", 1)?.sideEffects).toBe(
       "local_write"
     );
-    expect(DEVICE_CATALOG_VERSION).toBe("2026-10-04.1");
+    expect(DEVICE_CATALOG_VERSION).toBe("2026-10-04.2");
     for (const id of [
       "device_camera_privacy_status",
       "device_mic_privacy_status",
       "device_stale_credential_report",
+      "device_recent_error_events",
     ]) {
       const action = getDeviceAction(id, 1);
       expect(action?.sideEffects).toBe("read_only");

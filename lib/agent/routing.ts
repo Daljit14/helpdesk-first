@@ -21,7 +21,9 @@ export function countEvidenceSources(
 ): number {
   return evidence.filter(
     (item) =>
-      item.tool !== "search_guides" && item.tool !== "get_org_environment"
+      item.tool !== "search_guides" &&
+      item.tool !== "get_org_environment" &&
+      item.tool !== "count_similar_org_issues"
   ).length;
 }
 

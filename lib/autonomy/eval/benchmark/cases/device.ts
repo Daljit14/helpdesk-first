@@ -454,4 +454,70 @@ export const deviceCases: BenchmarkCase[] = [
       executed: false,
     },
   },
+  {
+    ...deviceBase,
+    id: "device-recent-disk-errors",
+    suite: "device_agent",
+    device: {
+      platform: "linux",
+      diagnostics: [
+        {
+          kind: "recent_error_events",
+          ok: true,
+          summary: "Recent disk errors were detected.",
+          data: {
+            windowHours: 24,
+            total: 1,
+            appCrash: 0,
+            appHang: null,
+            signIn: 0,
+            driver: 0,
+            disk: 1,
+            network: 0,
+            other: 0,
+            crashedApps: [],
+            newestAt: "2026-10-04T10:00:00.000Z",
+          },
+        },
+      ],
+    },
+    expected: {
+      planner: "escalate",
+      hypothesisIncludes: ["Recent disk errors — route to IT"],
+      executed: false,
+    },
+  },
+  {
+    ...deviceBase,
+    id: "device-repeated-app-crashes",
+    suite: "device_agent",
+    device: {
+      platform: "linux",
+      diagnostics: [
+        {
+          kind: "recent_error_events",
+          ok: true,
+          summary: "Three recent application crashes were detected.",
+          data: {
+            windowHours: 24,
+            total: 3,
+            appCrash: 3,
+            appHang: null,
+            signIn: 0,
+            driver: 0,
+            disk: 0,
+            network: 0,
+            other: 0,
+            crashedApps: ["Chrome"],
+            newestAt: "2026-10-04T10:00:00.000Z",
+          },
+        },
+      ],
+    },
+    expected: {
+      planner: "propose_action",
+      hypothesisIncludes: ["Repeated app crashes in the last 24 hours"],
+      executed: false,
+    },
+  },
 ];

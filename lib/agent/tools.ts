@@ -11,12 +11,14 @@ import type { AgentContext } from "./types";
 import { wrapUntrusted, sanitizeForUser } from "./untrusted";
 import { parameterHash } from "@/lib/autonomy/guardrails/hash";
 import {
+  isAgentDiagnosticSourcesEnabled,
   isRequesterAgentActionsEnabled,
   isOrgEnvironmentEnabled,
   isServiceHealthEnabled,
 } from "@/lib/admin/flags";
 import { getServiceHealth, matchIncidents } from "@/lib/service-health";
 import { loadConfirmedOrgEnvironment } from "@/lib/org-environment/profile";
+import type { AccountStatus } from "@/lib/autonomy/connectors/types";
 
 const querySchema = z
   .object({
@@ -25,6 +27,9 @@ const querySchema = z
   })
   .strict();
 const emptySchema = z.object({}).strict();
+const similarIssuesSchema = z
+  .object({ issueSlug: z.string().regex(/^[a-z0-9-]{1,80}$/) })
+  .strict();
 export const serviceHealthSchema = z
   .object({ symptom: z.string().trim().min(1).max(200) })
   .strict();
@@ -83,17 +88,33 @@ const ORG_ENVIRONMENT_TOOL = {
     "Read the organization's confirmed IT environment profile (VPN, MDM, email/chat, SSO, standard OS, printers, approved software).",
   input_schema: z.toJSONSchema(emptySchema, { io: "input" }),
 };
+const RECENT_SIGN_IN_FAILURES_TOOL = {
+  name: "get_recent_sign_in_failures" as const,
+  description:
+    "Read recent sign-in failure reasons for the requester's own directory account.",
+  input_schema: z.toJSONSchema(emptySchema, { io: "input" }),
+};
+const SIMILAR_ORG_ISSUES_TOOL = {
+  name: "count_similar_org_issues" as const,
+  description:
+    "Count recent reports of an approved issue by other requesters in the organization.",
+  input_schema: z.toJSONSchema(similarIssuesSchema, { io: "input" }),
+};
 
 export function getAgentTools(
   actionsEnabled = isRequesterAgentActionsEnabled(),
   serviceHealthEnabled = isServiceHealthEnabled(),
-  orgEnvironmentEnabled = isOrgEnvironmentEnabled()
+  orgEnvironmentEnabled = isOrgEnvironmentEnabled(),
+  diagnosticSourcesEnabled = isAgentDiagnosticSourcesEnabled()
 ) {
   return [
     ...AGENT_TOOLS,
     ...(actionsEnabled ? [PROPOSE_ACTION_TOOL] : []),
     ...(serviceHealthEnabled ? [SERVICE_HEALTH_TOOL] : []),
     ...(orgEnvironmentEnabled ? [ORG_ENVIRONMENT_TOOL] : []),
+    ...(diagnosticSourcesEnabled
+      ? [RECENT_SIGN_IN_FAILURES_TOOL, SIMILAR_ORG_ISSUES_TOOL]
+      : []),
   ];
 }
 
@@ -101,7 +122,9 @@ export type AgentToolName =
   | (typeof AGENT_TOOLS)[number]["name"]
   | "propose_action"
   | "get_service_health"
-  | "get_org_environment";
+  | "get_org_environment"
+  | "get_recent_sign_in_failures"
+  | "count_similar_org_issues";
 
 export type AgentToolResult =
   | {
@@ -138,6 +161,76 @@ function hasTargetKey(value: unknown): boolean {
   return false;
 }
 
+type RequesterDirectoryLookup =
+  | { status: "identity_denied" }
+  | { status: "no_connector" }
+  | {
+      status: "loaded";
+      provider: "entra" | "google";
+      account: AccountStatus;
+    };
+
+async function loadRequesterDirectoryLookup(
+  ctx: AgentContext
+): Promise<RequesterDirectoryLookup> {
+  const requester = await checkRequesterEmailForOrg(
+    ctx.admin,
+    ctx.organizationId,
+    ctx.requesterId
+  );
+  if (!requester.ok) return { status: "identity_denied" };
+  const loaded = await loadDirectoryForOrganization(
+    ctx.admin,
+    ctx.organizationId
+  );
+  if (!loaded) return { status: "no_connector" };
+  const result = await loaded.directory.lookupUserByEmail(
+    requester.email,
+    ctx.signal
+  );
+  if (!result.ok) return { status: "identity_denied" };
+  return {
+    status: "loaded",
+    provider: loaded.directory.provider,
+    account: result.value,
+  };
+}
+
+const SIGN_IN_FAILURE_REASONS = [
+  "wrong_password",
+  "account_locked",
+  "account_disabled",
+  "password_expired",
+  "mfa_required",
+  "mfa_failed",
+  "conditional_access",
+  "other",
+] as const;
+type SignInFailureReason = (typeof SIGN_IN_FAILURE_REASONS)[number];
+
+function mapSignInFailureReason(code: string): SignInFailureReason {
+  if (code === "50126") return "wrong_password";
+  if (code === "50053") return "account_locked";
+  if (code === "50057") return "account_disabled";
+  if (code === "50055") return "password_expired";
+  if (["50074", "50076", "50079"].includes(code)) return "mfa_required";
+  if (code === "500121") return "mfa_failed";
+  if (["53000", "53001", "53002", "53003"].includes(code))
+    return "conditional_access";
+  return "other";
+}
+
+const SIGN_IN_FAILURE_LABELS: Record<SignInFailureReason, string> = {
+  wrong_password: "Wrong password",
+  account_locked: "Account locked",
+  account_disabled: "Account disabled",
+  password_expired: "Password expired",
+  mfa_required: "MFA required",
+  mfa_failed: "MFA failed",
+  conditional_access: "Conditional access",
+  other: "Other",
+};
+
 export async function runTool(
   ctx: AgentContext,
   name: string,
@@ -166,7 +259,9 @@ export async function runTool(
         ? serviceHealthSchema.safeParse(input)
         : name === "get_ticket_history"
           ? historySchema.safeParse(input)
-          : emptySchema.safeParse(input);
+          : name === "count_similar_org_issues"
+            ? similarIssuesSchema.safeParse(input)
+            : emptySchema.safeParse(input);
   if (!parsed.success) {
     const userSummary = "The tool parameters were invalid.";
     return {
@@ -222,12 +317,8 @@ export async function runTool(
         };
       }
     } else if (name === "get_account_status") {
-      const requester = await checkRequesterEmailForOrg(
-        ctx.admin,
-        ctx.organizationId,
-        ctx.requesterId
-      );
-      if (!requester.ok) {
+      const lookup = await loadRequesterDirectoryLookup(ctx);
+      if (lookup.status === "identity_denied") {
         const userSummary = "Account status is unavailable for this identity.";
         return {
           ok: false,
@@ -236,11 +327,7 @@ export async function runTool(
           userSummary,
         };
       }
-      const loaded = await loadDirectoryForOrganization(
-        ctx.admin,
-        ctx.organizationId
-      );
-      if (!loaded) {
+      if (lookup.status === "no_connector") {
         const userSummary = "No directory connector is configured.";
         return {
           ok: true,
@@ -252,12 +339,20 @@ export async function runTool(
           userSummary,
         };
       }
-      const result = await loaded.directory.lookupUserByEmail(
-        requester.email,
-        ctx.signal
-      );
-      if (!result.ok) {
-        const userSummary = "The directory did not authorize this lookup.";
+      const result = lookup.account;
+      value = {
+        enabled: result.enabled,
+        suspended: result.suspended,
+        passwordExpired: result.passwordExpired,
+        lastSignInAt: result.lastSignInAt,
+        mfaRegistered: result.mfaRegistered,
+        recentSignInErrorCount: result.recentSignInErrors.length,
+      };
+    } else if (name === "get_recent_sign_in_failures") {
+      const lookup = await loadRequesterDirectoryLookup(ctx);
+      if (lookup.status === "identity_denied") {
+        const userSummary =
+          "Sign-in failures are unavailable for this identity.";
         return {
           ok: false,
           code: "identity_denied",
@@ -265,13 +360,85 @@ export async function runTool(
           userSummary,
         };
       }
+      if (lookup.status === "no_connector") {
+        const userSummary = "No directory connector is configured.";
+        return {
+          ok: true,
+          value: { available: false, reason: "no_connector" },
+          modelText: wrapUntrusted("tool:get_recent_sign_in_failures", {
+            available: false,
+            reason: "no_connector",
+          }).slice(0, 6000),
+          userSummary,
+        };
+      }
+      if (lookup.provider !== "entra") {
+        value = { available: false, reason: "unsupported_provider" };
+      } else {
+        const now = Date.now();
+        const start = now - 24 * 60 * 60 * 1000;
+        const recent = lookup.account.recentSignInErrors
+          .filter((failure) => {
+            const at = Date.parse(failure.at);
+            return (
+              failure.code !== "0" &&
+              Number.isFinite(at) &&
+              at >= start &&
+              at <= now
+            );
+          })
+          .sort((left, right) => Date.parse(right.at) - Date.parse(left.at));
+        const counts = Object.fromEntries(
+          SIGN_IN_FAILURE_REASONS.map((reason) => [reason, 0])
+        ) as Record<SignInFailureReason, number>;
+        for (const failure of recent)
+          counts[mapSignInFailureReason(failure.code)] += 1;
+        value = {
+          available: true,
+          provider: "entra",
+          windowHours: 24,
+          failures: recent.slice(0, 5).map((failure) => ({
+            at: failure.at,
+            reason: mapSignInFailureReason(failure.code),
+          })),
+          counts,
+        };
+      }
+    } else if (name === "count_similar_org_issues") {
+      const args = parsed.data as z.infer<typeof similarIssuesSchema>;
+      const approved = new Set(await getApprovedSlugs(ctx.organizationId));
+      if (!approved.has(args.issueSlug)) {
+        const userSummary = "That issue is not an approved support guide.";
+        return {
+          ok: false,
+          code: "tool_rejected",
+          modelText: userSummary,
+          userSummary,
+        };
+      }
+      const now = Date.now();
+      const countSince = async (milliseconds: number) => {
+        const result = await ctx.admin
+          .from("tickets")
+          .select("id", { count: "exact", head: true })
+          .eq("organization_id", ctx.organizationId)
+          .neq("user_id", ctx.requesterId)
+          .or(
+            `issue_id.eq.${args.issueSlug},ai_recommended_issue_id.eq.${args.issueSlug}`
+          )
+          .gte("created_at", new Date(now - milliseconds).toISOString());
+        if (result.error) throw result.error;
+        return typeof result.count === "number" ? result.count : 0;
+      };
+      const [hourCount, dayCount] = await Promise.all([
+        countSince(60 * 60 * 1000),
+        countSince(24 * 60 * 60 * 1000),
+      ]);
       value = {
-        enabled: result.value.enabled,
-        suspended: result.value.suspended,
-        passwordExpired: result.value.passwordExpired,
-        lastSignInAt: result.value.lastSignInAt,
-        mfaRegistered: result.value.mfaRegistered,
-        recentSignInErrorCount: result.value.recentSignInErrors.length,
+        issueSlug: args.issueSlug,
+        threshold: 3,
+        lastHour: hourCount >= 3 ? hourCount : null,
+        last24h: dayCount >= 3 ? dayCount : null,
       };
     } else if (name === "get_service_health") {
       const args = parsed.data as z.infer<typeof serviceHealthSchema>;
@@ -373,6 +540,48 @@ export async function runTool(
 }
 
 function toolUserSummary(name: string, value: unknown): string {
+  if (name === "get_recent_sign_in_failures") {
+    const result =
+      value && typeof value === "object"
+        ? (value as {
+            available?: unknown;
+            counts?: Partial<Record<SignInFailureReason, number>>;
+          })
+        : {};
+    if (result.available !== true)
+      return sanitizeForUser(
+        "Sign-in failure diagnostics are unavailable for this provider."
+      );
+    const counts = result.counts ?? {};
+    const total = SIGN_IN_FAILURE_REASONS.reduce(
+      (sum, reason) => sum + (counts[reason] ?? 0),
+      0
+    );
+    if (total === 0) return sanitizeForUser("No recent sign-in failures.");
+    const topReason = [...SIGN_IN_FAILURE_REASONS]
+      .filter((reason) => (counts[reason] ?? 0) > 0)
+      .sort((left, right) => (counts[right] ?? 0) - (counts[left] ?? 0))[0];
+    return sanitizeForUser(
+      `${total} recent sign-in failure${total === 1 ? "" : "s"}: ${
+        SIGN_IN_FAILURE_LABELS[topReason ?? "other"]
+      }.`
+    ).slice(0, 300);
+  }
+  if (name === "count_similar_org_issues") {
+    const result =
+      value && typeof value === "object"
+        ? (value as { lastHour?: unknown; last24h?: unknown })
+        : {};
+    if (typeof result.lastHour === "number")
+      return sanitizeForUser(
+        `${result.lastHour} others in your organization reported this in the last hour.`
+      ).slice(0, 300);
+    if (typeof result.last24h === "number")
+      return sanitizeForUser(
+        `${result.last24h} others reported this today.`
+      ).slice(0, 300);
+    return sanitizeForUser("No widespread reports of this issue.");
+  }
   if (name === "get_org_environment") {
     return value &&
       typeof value === "object" &&

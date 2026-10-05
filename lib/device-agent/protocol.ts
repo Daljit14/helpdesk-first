@@ -77,6 +77,7 @@ export const diagnosticKindSchema = z.enum([
   "camera_privacy",
   "mic_privacy",
   "credential_health",
+  "recent_error_events",
 ]);
 export type DiagnosticKind = z.infer<typeof diagnosticKindSchema>;
 

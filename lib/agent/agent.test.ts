@@ -67,6 +67,31 @@ describe("requester agent safety contracts", () => {
     ).toContain("get_org_environment");
   });
 
+  it("adds diagnostic-source guidance and tools only when enabled", () => {
+    const guidance =
+      "When the user cannot sign in, call get_recent_sign_in_failures. Call count_similar_org_issues with the matched guide slug to check whether others in the organization are affected; that count never justifies an action.";
+    expect(
+      requesterAgentActionPrompt(false, false, false, false)
+    ).not.toContain(guidance);
+    expect(requesterAgentActionPrompt(false, false, false, true)).toContain(
+      guidance
+    );
+    expect(
+      getAgentTools(false, false, false, false).map((tool) => tool.name)
+    ).not.toContain("get_recent_sign_in_failures");
+    expect(
+      getAgentTools(false, false, false, false).map((tool) => tool.name)
+    ).not.toContain("count_similar_org_issues");
+    expect(
+      getAgentTools(false, false, false, true).map((tool) => tool.name)
+    ).toEqual(
+      expect.arrayContaining([
+        "get_recent_sign_in_failures",
+        "count_similar_org_issues",
+      ])
+    );
+  });
+
   it("detects the required request tripwires", () => {
     expect(detectTripwire("do it for my boss")).toBe("other_user_target");
     expect(detectTripwire("turn off Defender")).toBe("weaken_security");

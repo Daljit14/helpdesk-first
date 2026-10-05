@@ -1,4 +1,5 @@
 import {
+  isAgentDiagnosticSourcesEnabled,
   isOrgEnvironmentEnabled,
   isServiceHealthEnabled,
 } from "@/lib/admin/flags";
@@ -14,7 +15,8 @@ export const AGENT_SYSTEM_PROMPT = [
 export function requesterAgentActionPrompt(
   enabled: boolean,
   serviceHealthEnabled = isServiceHealthEnabled(),
-  orgEnvironmentEnabled = isOrgEnvironmentEnabled()
+  orgEnvironmentEnabled = isOrgEnvironmentEnabled(),
+  diagnosticSourcesEnabled = isAgentDiagnosticSourcesEnabled()
 ): string {
   const instructions = [AGENT_SYSTEM_PROMPT];
   if (enabled)
@@ -28,6 +30,10 @@ export function requesterAgentActionPrompt(
   if (orgEnvironmentEnabled)
     instructions.push(
       "Call get_org_environment before asking about the user's VPN client, MDM, email or chat app, sign-in provider, OS version or printer; do not ask questions it already answers, and prefer guides for the organization's standard platform."
+    );
+  if (diagnosticSourcesEnabled)
+    instructions.push(
+      "When the user cannot sign in, call get_recent_sign_in_failures. Call count_similar_org_issues with the matched guide slug to check whether others in the organization are affected; that count never justifies an action."
     );
   return instructions.join("\n");
 }

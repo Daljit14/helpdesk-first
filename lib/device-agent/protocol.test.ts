@@ -82,6 +82,31 @@ describe("device-agent protocol", () => {
         ],
       })
     ).not.toThrow();
+    expect(() =>
+      diagnosticsBatchSchema.parse({
+        records: [
+          {
+            kind: "recent_error_events",
+            collectedAt: new Date().toISOString(),
+            ok: true,
+            summary: "Recent error events counted.",
+            data: {
+              windowHours: 24,
+              total: 1,
+              appCrash: 1,
+              appHang: null,
+              signIn: 0,
+              driver: 0,
+              disk: 0,
+              network: 0,
+              other: null,
+              crashedApps: ["Outlook"],
+              newestAt: new Date().toISOString(),
+            },
+          },
+        ],
+      })
+    ).not.toThrow();
   });
 
   it("requires rollbackOf on every polled job", () => {

@@ -217,6 +217,29 @@ describe("requester action proposals", () => {
     expect(mocks.executePlan).not.toHaveBeenCalled();
   });
 
+  test("does not let similar-issue research authorize an action", async () => {
+    const admin = actionAdmin();
+    const result = await proposeAction(
+      admin as never,
+      proposalSession(),
+      {
+        capabilityId: "device_flush_dns",
+        params: {},
+        hypothesisId: "ev-1",
+        rationale: "Other people reported this issue.",
+      },
+      {
+        actor: "requester_agent:session-1",
+        evidence: [{ id: "ev-1", tool: "count_similar_org_issues" }],
+      }
+    );
+    expect(result).toMatchObject({
+      kind: "rejected",
+      code: "research_only_evidence",
+    });
+    expect(mocks.executePlan).not.toHaveBeenCalled();
+  });
+
   test("passes covered session consent to autorun and writes an autorun step", async () => {
     mocks.readTier.mockResolvedValue("autorun");
     mocks.executePlan.mockResolvedValue({ status: "executing" });

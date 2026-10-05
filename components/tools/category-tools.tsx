@@ -4,7 +4,7 @@ import { useRef, useState, type KeyboardEvent } from "react";
 import Link from "next/link";
 import { ArrowRight, Stethoscope } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { TOOLS, toolsForCategory, type ToolId } from "./tool-registry";
+import { CATALOG, catalogToolsForCategory } from "./tool-catalog";
 import { ToolRenderer } from "./tool-renderer";
 
 /**
@@ -12,8 +12,8 @@ import { ToolRenderer } from "./tool-renderer";
  * fit this guide's category, shown as tabs when there's more than one.
  */
 export function CategoryTools({ category }: { category: string }) {
-  const ids = toolsForCategory(category);
-  const [active, setActive] = useState<ToolId>(ids[0]);
+  const ids = catalogToolsForCategory(category);
+  const [active, setActive] = useState<string>(ids[0]);
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const current = ids.includes(active) ? active : ids[0];
 
@@ -75,7 +75,7 @@ export function CategoryTools({ category }: { category: string }) {
           className="mt-4 flex flex-wrap gap-2"
         >
           {ids.map((id, i) => {
-            const meta = TOOLS[id];
+            const meta = CATALOG[id];
             const Icon = meta.icon;
             const selected = id === current;
             return (

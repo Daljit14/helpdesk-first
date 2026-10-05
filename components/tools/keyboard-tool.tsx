@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { Keyboard, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ToolReport } from "./diagnostics";
@@ -9,6 +9,13 @@ import { ToolButton, ToolCard } from "./tool-shell";
 type Cap = { code: string; label: string; w?: number };
 
 const ROWS: Cap[][] = [
+  [
+    ...Array.from({ length: 12 }, (_, i) => ({
+      code: `F${i + 1}`,
+      label: `F${i + 1}`,
+    })),
+    { code: "Delete", label: "Del", w: 1.4 },
+  ],
   [
     { code: "Backquote", label: "`" },
     ...["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"].map((d) => ({
@@ -71,7 +78,9 @@ function labelFor(code: string, key: string) {
   return key.length === 1 ? key.toUpperCase() : key || code;
 }
 
-const STUCK_REPEATS = 30;
+// Auto-repeat fires ~30 times a second, so 30 repeats is just a key held for a
+// second. A genuinely stuck key keeps going far longer.
+const STUCK_REPEATS = 150;
 
 export function KeyboardTool() {
   const [seen, setSeen] = useState<Record<string, true>>({});
@@ -82,6 +91,14 @@ export function KeyboardTool() {
     null
   );
   const [count, setCount] = useState(0);
+  // Phones/tablets have no key events from an on-screen keyboard on a div.
+  const [touch, setTouch] = useState(false);
+  useEffect(() => {
+    const coarse = window.matchMedia?.(
+      "(pointer: coarse) and (hover: none)"
+    ).matches;
+    queueMicrotask(() => setTouch(!!coarse));
+  }, []);
 
   function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
     if (e.key === "Tab") return; // keep keyboard navigation working
@@ -89,7 +106,15 @@ export function KeyboardTool() {
       e.currentTarget.blur();
       return;
     }
-    e.preventDefault();
+    // Let browser shortcuts (Ctrl+R, Ctrl+W, F5, F12, Alt+Tab...) through so the
+    // tester doesn't trap people; the key is still counted below.
+    const isModifier = ["Control", "Shift", "Alt", "Meta", "AltGraph"].includes(
+      e.key
+    );
+    const isShortcut = !isModifier && (e.ctrlKey || e.metaKey);
+    if (!isShortcut && e.key !== "F5" && e.key !== "F11" && e.key !== "F12") {
+      e.preventDefault();
+    }
     const code = e.code || e.key;
     const label = labelFor(code, e.key);
     setDown((d) => ({ ...d, [code]: true }));
@@ -181,12 +206,17 @@ export function KeyboardTool() {
         aria-label="Keyboard test area. Press any keys to test them. Press Tab or Escape to leave."
         onKeyDown={onKeyDown}
         onKeyUp={onKeyUp}
-        onBlur={() => setDown({})}
+        onBlur={() => {
+          setDown({});
+          repeatsRef.current = {};
+        }}
         className="group rounded-[20px] border border-white/10 bg-[#0a0716] p-3 outline-none transition-[border-color,box-shadow] focus:border-[#c9b8ff]/70 focus:shadow-[0_0_0_4px_rgb(124_92_255/0.3)] sm:p-4"
       >
         <div className="mb-3 flex items-center justify-between gap-3 text-xs font-bold text-white/60">
           <span className="group-focus:hidden">
-            Click or tab here, then start typing
+            {touch
+              ? "Tap here — this test needs a physical keyboard"
+              : "Click or tab here, then start typing"}
           </span>
           <span className="hidden text-[#c9b8ff] group-focus:inline">
             Ready — press any key (Esc to leave)

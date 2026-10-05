@@ -5,6 +5,7 @@ import { Camera, Play, RefreshCw, Square } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   listDevices,
+  stopStream,
   mediaErrorGuidance,
   mediaSupported,
   type ReportLine,
@@ -34,16 +35,37 @@ export function CameraTool() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  useEffect(
-    () => () => {
-      streamRef.current?.getTracks().forEach((t) => t.stop());
+  const aliveRef = useRef(true);
+  const attemptRef = useRef(0);
+  const [slow, setSlow] = useState(false);
+
+  // Strict Mode runs effect -> cleanup -> effect, so "alive" is set in the
+  // setup half too. Bumping attemptRef invalidates any getUserMedia call that
+  // is still waiting for the permission prompt when the tool unmounts (tab
+  // switch) — its stream is stopped the moment it arrives instead of leaking.
+  useEffect(() => {
+    aliveRef.current = true;
+    return () => {
+      aliveRef.current = false;
+      attemptRef.current++;
+      stopStream(streamRef.current);
       streamRef.current = null;
-    },
-    []
-  );
+    };
+  }, []);
+
+  // If the permission prompt is ignored/hidden, say so after a few seconds
+  // instead of showing "Waiting…" forever.
+  useEffect(() => {
+    if (status !== "starting") return;
+    const timer = window.setTimeout(() => setSlow(true), 8000);
+    return () => {
+      window.clearTimeout(timer);
+      setSlow(false);
+    };
+  }, [status]);
 
   function releaseStream() {
-    streamRef.current?.getTracks().forEach((t) => t.stop());
+    stopStream(streamRef.current);
     streamRef.current = null;
     if (videoRef.current) videoRef.current.srcObject = null;
   }
@@ -53,6 +75,8 @@ export function CameraTool() {
       setStatus("unsupported");
       return;
     }
+    const attempt = ++attemptRef.current;
+    const current = () => aliveRef.current && attempt === attemptRef.current;
     releaseStream();
     setError(null);
     setStatus("starting");
@@ -61,13 +85,25 @@ export function CameraTool() {
         video: deviceId ? { deviceId: { exact: deviceId } } : true,
         audio: false,
       });
+      if (!current()) {
+        stopStream(stream); // superseded, stopped, or unmounted while waiting
+        return;
+      }
       streamRef.current = stream;
+      const track = stream.getVideoTracks()[0];
+      if (track) {
+        track.onended = () => {
+          if (current()) stop();
+        };
+      }
       const video = videoRef.current;
       if (video) {
         video.srcObject = stream;
+        // play() rejects if the element is detached or an autoplay rule bites;
+        // the stream is still live, so don't treat it as a failure.
         await video.play().catch(() => undefined);
+        if (!current()) return;
       }
-      const track = stream.getVideoTracks()[0];
       const settings = track?.getSettings() ?? {};
       setInfo({
         label: track?.label || "Camera",
@@ -76,18 +112,22 @@ export function CameraTool() {
         fps: settings.frameRate ? Math.round(settings.frameRate) : null,
       });
       setSelected(settings.deviceId ?? deviceId ?? "");
-      if (track) track.onended = () => stop();
-      setDevices(await listDevices("videoinput"));
       setStatus("live");
+      // Device labels are empty until permission is granted, so list AFTER.
+      const found = await listDevices("videoinput");
+      if (current()) setDevices(found);
     } catch (err) {
+      if (!current()) return;
       releaseStream();
       setError(mediaErrorGuidance(err, "camera"));
-      setDevices(await listDevices("videoinput"));
       setStatus("error");
+      const found = await listDevices("videoinput");
+      if (current()) setDevices(found);
     }
   }
 
   function stop() {
+    attemptRef.current++;
     releaseStream();
     setStatus((s) => (s === "live" || s === "starting" ? "stopped" : s));
   }
@@ -147,7 +187,11 @@ export function CameraTool() {
                 : undefined
       }
       actions={
-        running ? (
+        status === "starting" ? (
+          <ToolButton icon={RefreshCw} spinning disabled>
+            Starting…
+          </ToolButton>
+        ) : status === "live" ? (
           <ToolButton variant="danger" icon={Square} onClick={stop}>
             Stop camera
           </ToolButton>
@@ -218,13 +262,16 @@ export function CameraTool() {
         <div className="grid content-start gap-3">
           {status === "unsupported" && (
             <ToolNotice title="Not supported on this browser">
-              This browser can&apos;t access cameras from web pages. Try an
-              up-to-date Chrome, Edge, Firefox or Safari.
+              This page can&apos;t access cameras — it must be opened over https
+              in an up-to-date Chrome, Edge, Firefox or Safari (not inside an
+              app&apos;s built-in browser).
             </ToolNotice>
           )}
           {status === "starting" && (
             <ToolNotice title="Look for a permission prompt">
-              Your browser will ask to use the camera — choose Allow.
+              {slow
+                ? "Still waiting. Check the address bar for a camera prompt or a blocked-camera icon, and make sure no other app (Zoom, Teams) is using it."
+                : "Your browser will ask to use the camera — choose Allow."}
             </ToolNotice>
           )}
           {info && (status === "live" || status === "stopped") && (

@@ -19,6 +19,90 @@ export type ToolReport = {
 };
 
 /* ------------------------------------------------------------------ */
+/* Small async helpers                                                 */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Resolves with `fallback` if `promise` hasn't settled within `ms`, and with
+ * `fallback` if it rejects. Browser APIs like getBattery() or
+ * storage.estimate() occasionally never settle (private windows, locked-down
+ * work profiles) — a tool must never spin forever because of that.
+ */
+export function withTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+  fallback: T
+): Promise<T> {
+  return new Promise<T>((resolve) => {
+    const timer = setTimeout(() => resolve(fallback), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      () => {
+        clearTimeout(timer);
+        resolve(fallback);
+      }
+    );
+  });
+}
+
+/** Stops every track on a stream (safe on null). */
+export function stopStream(stream: MediaStream | null | undefined) {
+  stream?.getTracks().forEach((t) => {
+    try {
+      t.onended = null;
+      t.stop();
+    } catch {
+      // already stopped
+    }
+  });
+}
+
+/** Fullscreen with the old WebKit prefix; resolves false if unsupported or refused. */
+export async function enterFullscreen(
+  el: HTMLElement = document.documentElement
+): Promise<boolean> {
+  const anyEl = el as HTMLElement & {
+    webkitRequestFullscreen?: () => Promise<void> | void;
+  };
+  try {
+    if (el.requestFullscreen) {
+      await el.requestFullscreen();
+      return true;
+    }
+    if (anyEl.webkitRequestFullscreen) {
+      await anyEl.webkitRequestFullscreen();
+      return true;
+    }
+  } catch {
+    // iOS Safari and some embedded browsers refuse — the overlay still works
+  }
+  return false;
+}
+
+export function fullscreenActive(): boolean {
+  const doc = document as Document & {
+    webkitFullscreenElement?: Element | null;
+  };
+  return !!(document.fullscreenElement ?? doc.webkitFullscreenElement);
+}
+
+export async function exitFullscreen(): Promise<void> {
+  const doc = document as Document & {
+    webkitExitFullscreen?: () => Promise<void> | void;
+  };
+  try {
+    if (!fullscreenActive()) return;
+    if (document.exitFullscreen) await document.exitFullscreen();
+    else if (doc.webkitExitFullscreen) await doc.webkitExitFullscreen();
+  } catch {
+    // ignore
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* Report formatting                                                   */
 /* ------------------------------------------------------------------ */
 
@@ -47,11 +131,18 @@ export async function copyText(text: string): Promise<boolean> {
     area.value = text;
     area.setAttribute("readonly", "");
     area.style.position = "fixed";
+    area.style.top = "0";
+    area.style.left = "0";
     area.style.opacity = "0";
+    area.style.fontSize = "16px"; // stops iOS zooming into the field
+    const previous = document.activeElement as HTMLElement | null;
     document.body.appendChild(area);
+    area.focus({ preventScroll: true });
     area.select();
+    area.setSelectionRange(0, text.length);
     const ok = document.execCommand("copy");
     area.remove();
+    previous?.focus?.({ preventScroll: true });
     return ok;
   } catch {
     return false;
@@ -254,11 +345,16 @@ export async function getStorageInfo(): Promise<StorageInfo> {
     return { supported: false };
   }
   try {
-    const estimate = await navigator.storage.estimate();
+    const estimate = await withTimeout(
+      navigator.storage.estimate(),
+      4000,
+      null
+    );
+    if (!estimate) return { supported: false };
     let persisted: boolean | null = null;
     try {
       persisted = navigator.storage.persisted
-        ? await navigator.storage.persisted()
+        ? await withTimeout(navigator.storage.persisted(), 2000, null)
         : null;
     } catch {
       persisted = null;
@@ -280,7 +376,7 @@ export function storageReport(info: StorageInfo): ToolReport {
       tool: "Storage",
       tone: "info",
       verdict: "This browser doesn't report storage space.",
-      tip: "Check free space in your system settings instead: Windows → Settings → System → Storage, Mac → System Settings → General → Storage.",
+      tip: "This can also happen in private/incognito windows. Check free space in your system settings instead: Windows → Settings → System → Storage, Mac → System Settings → General → Storage.",
       lines: [["Storage estimate", "Not supported"]],
     };
   }
@@ -294,11 +390,11 @@ export function storageReport(info: StorageInfo): ToolReport {
     lines,
     tone: lowQuota ? "warn" : "good",
     verdict: lowQuota
-      ? "Your disk looks close to full."
+      ? "Your browser has very little room to work with."
       : "There's plenty of room available to your browser.",
     tip: lowQuota
-      ? "Browsers get a share of your free disk space, and yours is small. Empty the recycle bin/trash, clear Downloads, and remove apps you don't use — a nearly full disk makes everything slow."
-      : "Browsers get a share of your free disk space, so a healthy number here usually means your disk isn't full. If apps still complain, check storage in system settings.",
+      ? "Browsers get a share of your disk, and yours is small — either the disk is nearly full or this is a private/incognito window (those always report a small number). Try a normal window; if it's still small, empty the recycle bin/trash, clear Downloads, and remove apps you don't use."
+      : "This is only a rough hint — browsers get a share of your disk, so a healthy number usually means the disk isn't full. For the real free space, check storage in your system settings.",
   };
 }
 
@@ -329,7 +425,8 @@ export async function getBatteryInfo(): Promise<BatteryInfo> {
   };
   if (typeof nav.getBattery !== "function") return { supported: false };
   try {
-    const b = await nav.getBattery();
+    const b = await withTimeout(nav.getBattery(), 4000, null);
+    if (!b) return { supported: false };
     return {
       supported: true,
       level: b.level,
@@ -409,23 +506,75 @@ export const PERM_STATE_LABEL: Record<PermState, string> = {
 async function queryPermission(name: string): Promise<PermState> {
   if (!navigator.permissions?.query) return "unsupported";
   try {
-    const status = await navigator.permissions.query({
-      name: name as PermissionName,
-    });
-    return status.state as PermState;
+    const status = await withTimeout(
+      navigator.permissions.query({ name: name as PermissionName }),
+      3000,
+      null
+    );
+    return status ? (status.state as PermState) : "unsupported";
   } catch {
     return "unsupported";
   }
 }
 
-export async function getPermissionInfo(): Promise<PermissionInfo> {
-  let notifications: PermState = "unsupported";
-  if (typeof Notification !== "undefined") {
-    notifications =
-      Notification.permission === "default"
-        ? "prompt"
-        : (Notification.permission as PermState);
+/** Maps the Notification API's "default" to our "prompt". */
+export function notificationState(): PermState {
+  if (typeof Notification === "undefined") return "unsupported";
+  return Notification.permission === "default"
+    ? "prompt"
+    : (Notification.permission as PermState);
+}
+
+/**
+ * Asks for notification permission. MUST be called straight from a click
+ * handler. Handles the old callback-style API (Safari < 15).
+ */
+export async function requestNotificationPermission(): Promise<PermState> {
+  if (typeof Notification === "undefined") return "unsupported";
+  try {
+    const result = await new Promise<NotificationPermission>(
+      (resolve, reject) => {
+        const maybe = Notification.requestPermission(resolve);
+        if (maybe && typeof maybe.then === "function")
+          maybe.then(resolve, reject);
+      }
+    );
+    return result === "default" ? "prompt" : (result as PermState);
+  } catch {
+    return notificationState();
   }
+}
+
+/**
+ * Shows a notification. Chrome on Android (and installed PWAs) throw on
+ * `new Notification()`, so fall back to the service worker registration.
+ */
+export async function showTestNotification(
+  title: string,
+  body: string
+): Promise<boolean> {
+  try {
+    new Notification(title, { body });
+    return true;
+  } catch {
+    // fall through to the service worker route
+  }
+  try {
+    const reg = await withTimeout(
+      navigator.serviceWorker?.getRegistration() ?? Promise.resolve(undefined),
+      2500,
+      undefined
+    );
+    if (!reg) return false;
+    await reg.showNotification(title, { body, icon: "/icon-192.png" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function getPermissionInfo(): Promise<PermissionInfo> {
+  const notifications = notificationState();
   const [camera, microphone, geolocation] = await Promise.all([
     queryPermission("camera"),
     queryPermission("microphone"),
@@ -469,11 +618,20 @@ export function readConnection(): {
   return { online: navigator.onLine, info: getConnectionInfo() };
 }
 
+/**
+ * `reachMs`: undefined = not measured, null = tried and failed, number = ms
+ * to reach this site. A failed probe overrides the browser's (often wrong)
+ * "online" flag.
+ */
 export function connectionReport(
   online: boolean,
-  info: ConnectionInfo | null
+  info: ConnectionInfo | null,
+  reachMs?: number | null
 ): ToolReport {
   const lines: ReportLine[] = [["Online", online ? "Yes" : "No"]];
+  if (reachMs === null) lines.push(["Reaches this site", "No"]);
+  else if (typeof reachMs === "number")
+    lines.push(["Reaches this site", `Yes (${Math.round(reachMs)} ms)`]);
   if (info) {
     lines.push(["Network type", info.effectiveType ?? "Unknown"]);
     if (info.downlinkMbps !== null)
@@ -492,6 +650,15 @@ export function connectionReport(
       tip: "Check that Wi-Fi is on (or the cable is plugged in), then restart your router if other devices are offline too.",
     };
   }
+  if (reachMs === null) {
+    return {
+      tool: "Connection",
+      lines,
+      tone: "bad",
+      verdict: "Your device says it's online, but it couldn't reach this site.",
+      tip: "That usually means Wi-Fi is connected without internet (captive portal, router problem) or a VPN/firewall is blocking the site. Try opening another website, reconnect to Wi-Fi, and restart the router if nothing loads.",
+    };
+  }
   if (!info) {
     return {
       tool: "Connection",
@@ -502,6 +669,7 @@ export function connectionReport(
     };
   }
   const slow =
+    (typeof reachMs === "number" && reachMs > 800) ||
     (info.effectiveType && /(^|-)2g|3g/.test(info.effectiveType)) ||
     (info.rttMs !== null && info.rttMs > 300) ||
     (info.downlinkMbps !== null && info.downlinkMbps < 1.5);
@@ -531,28 +699,49 @@ const COMMON_RATES = [
   30, 50, 60, 72, 75, 90, 100, 120, 144, 165, 180, 240, 360,
 ];
 
+/** Pure: median frame gap (ms) -> refresh rate snapped to a common value. */
+export function snapRefreshRate(medianMs: number): number | null {
+  if (!Number.isFinite(medianMs) || medianMs <= 0) return null;
+  const hz = 1000 / medianMs;
+  const snap = COMMON_RATES.find((r) => Math.abs(r - hz) / r < 0.06);
+  return snap ?? Math.round(hz);
+}
+
+/**
+ * Counts animation frames for `durationMs`. Resolves null (never hangs) if
+ * the tab is hidden — browsers pause requestAnimationFrame there — or too
+ * few frames arrive.
+ */
 export function measureRefreshRate(durationMs = 1000): Promise<number | null> {
   return new Promise((resolve) => {
     if (typeof requestAnimationFrame !== "function") return resolve(null);
     const deltas: number[] = [];
     let last = 0;
     let start = 0;
+    let settled = false;
+    let frame = 0;
+    const finish = (value: number | null) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(guard);
+      cancelAnimationFrame(frame);
+      resolve(value);
+    };
+    const guard = setTimeout(() => finish(null), durationMs + 2500);
     const tick = (now: number) => {
       if (!start) start = now;
       if (last) deltas.push(now - last);
       last = now;
-      if (now - start < durationMs) requestAnimationFrame(tick);
+      if (now - start < durationMs) frame = requestAnimationFrame(tick);
       else {
-        if (deltas.length < 5) return resolve(null);
-        const sorted = [...deltas].sort((a, b) => a - b);
-        const median = sorted[Math.floor(sorted.length / 2)];
-        if (!median) return resolve(null);
-        const hz = 1000 / median;
-        const snap = COMMON_RATES.find((r) => Math.abs(r - hz) / r < 0.06);
-        resolve(snap ?? Math.round(hz));
+        // Drop the first frames (layout/start-up jitter) before taking the median.
+        const usable = deltas.slice(2);
+        if (usable.length < 5) return finish(null);
+        const sorted = [...usable].sort((a, b) => a - b);
+        finish(snapRefreshRate(sorted[Math.floor(sorted.length / 2)]));
       }
     };
-    requestAnimationFrame(tick);
+    frame = requestAnimationFrame(tick);
   });
 }
 
@@ -673,4 +862,14 @@ export function getAudioContextCtor(): typeof AudioContext | null {
   if (typeof window === "undefined") return null;
   const w = window as Window & { webkitAudioContext?: typeof AudioContext };
   return window.AudioContext ?? w.webkitAudioContext ?? null;
+}
+
+/**
+ * Resumes a suspended/interrupted AudioContext. Call from inside the click
+ * handler. Never hangs: iOS can leave resume() pending forever.
+ */
+export async function resumeAudio(ctx: AudioContext): Promise<boolean> {
+  if (ctx.state === "running") return true;
+  await withTimeout(ctx.resume(), 1500, undefined);
+  return (ctx.state as string) === "running";
 }

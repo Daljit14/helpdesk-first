@@ -3,7 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import { Check, Volume2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getAudioContextCtor, type ToolReport } from "./diagnostics";
+import {
+  getAudioContextCtor,
+  resumeAudio,
+  type ToolReport,
+} from "./diagnostics";
 import { ToolButton, ToolCard, ToolNotice } from "./tool-shell";
 
 type Channel = "left" | "both" | "right";
@@ -17,6 +21,9 @@ const CHANNELS: Array<{ id: Channel; label: string; pan: number }> = [
 
 const NOTES = [523.25, 659.25, 783.99, 1046.5];
 const NOTE_LEN = 0.28;
+// Bluetooth speakers/headphones often drop the first ~100 ms while they wake
+// up, which would swallow the first note — lead in with a little silence.
+const LEAD_IN = 0.18;
 
 export function SpeakerTool() {
   const [playing, setPlaying] = useState<Channel | null>(null);
@@ -26,15 +33,19 @@ export function SpeakerTool() {
   const [noPan, setNoPan] = useState(false);
   const ctxRef = useRef<AudioContext | null>(null);
   const timerRef = useRef<number | null>(null);
+  const masterRef = useRef<GainNode | null>(null);
+  const playIdRef = useRef(0);
+  const [blocked, setBlocked] = useState(false);
 
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    return () => {
+      playIdRef.current++;
       if (timerRef.current) window.clearTimeout(timerRef.current);
       void ctxRef.current?.close().catch(() => undefined);
       ctxRef.current = null;
-    },
-    []
-  );
+      masterRef.current = null;
+    };
+  }, []);
 
   async function play(channel: Channel) {
     const Ctor = getAudioContextCtor();
@@ -42,13 +53,44 @@ export function SpeakerTool() {
       setUnsupported(true);
       return;
     }
-    const ctx = ctxRef.current ?? new Ctor();
-    ctxRef.current = ctx;
-    if (ctx.state === "suspended") await ctx.resume().catch(() => undefined);
+    const playId = ++playIdRef.current;
+    let ctx = ctxRef.current;
+    if (!ctx || ctx.state === "closed") {
+      try {
+        ctx = new Ctor();
+      } catch {
+        setUnsupported(true);
+        return;
+      }
+      ctxRef.current = ctx;
+    }
+    // Instant feedback + silence any chime that's still playing, so quick
+    // repeat taps don't stack into noise.
+    setBlocked(false);
+    setPlaying(channel);
+    setLastPlayed(channel);
+    if (masterRef.current) {
+      try {
+        masterRef.current.disconnect();
+      } catch {
+        // already disconnected
+      }
+      masterRef.current = null;
+    }
+    // resume() must be triggered from the click; it can stay pending forever
+    // on iOS, so it is time-limited.
+    const running = await resumeAudio(ctx);
+    if (playId !== playIdRef.current || ctxRef.current !== ctx) return;
+    if (!running) {
+      setBlocked(true);
+      setPlaying(null);
+      return;
+    }
 
     const pan = CHANNELS.find((c) => c.id === channel)?.pan ?? 0;
     const master = ctx.createGain();
     master.gain.value = 0.22;
+    masterRef.current = master;
     let out: AudioNode = master;
     if (typeof ctx.createStereoPanner === "function") {
       const panner = ctx.createStereoPanner();
@@ -60,7 +102,7 @@ export function SpeakerTool() {
     }
     out.connect(ctx.destination);
 
-    const t0 = ctx.currentTime + 0.02;
+    const t0 = ctx.currentTime + LEAD_IN;
     NOTES.forEach((freq, i) => {
       const osc = ctx.createOscillator();
       const env = ctx.createGain();
@@ -76,12 +118,12 @@ export function SpeakerTool() {
       osc.stop(start + NOTE_LEN * 1.5);
     });
 
-    setPlaying(channel);
-    setLastPlayed(channel);
     if (timerRef.current) window.clearTimeout(timerRef.current);
     timerRef.current = window.setTimeout(
-      () => setPlaying(null),
-      (NOTES.length * NOTE_LEN + 0.2) * 1000
+      () => {
+        if (playId === playIdRef.current) setPlaying(null);
+      },
+      (LEAD_IN + NOTES.length * NOTE_LEN + 0.2) * 1000
     );
   }
 
@@ -224,6 +266,15 @@ export function SpeakerTool() {
           <ToolNotice title="Not supported on this browser">
             This browser can&apos;t play generated test tones. Try playing any
             video or song instead to check your speakers.
+          </ToolNotice>
+        </div>
+      )}
+      {blocked && (
+        <div className="mt-4">
+          <ToolNotice tone="warn" title="Your browser blocked the sound">
+            Tap a button again — browsers only allow sound after a tap or click.
+            If it keeps failing, check the tab isn&apos;t muted (look for a
+            speaker icon on the tab) and the volume is up.
           </ToolNotice>
         </div>
       )}

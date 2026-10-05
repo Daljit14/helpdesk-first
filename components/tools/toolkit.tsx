@@ -12,14 +12,14 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CheckupReport, useFullCheckup } from "./full-checkup";
-import { isToolId, TOOL_GROUPS, TOOLS, type ToolId } from "./tool-registry";
+import { CATALOG, CATALOG_GROUPS, isCatalogId } from "./tool-catalog";
 import { ToolRenderer } from "./tool-renderer";
 
 function prefersReducedMotion() {
   return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 }
 
-function scrollToPanel(id: ToolId) {
+function scrollToPanel(id: string) {
   window.setTimeout(() => {
     document.getElementById(id)?.scrollIntoView({
       behavior: prefersReducedMotion() ? "auto" : "smooth",
@@ -29,7 +29,7 @@ function scrollToPanel(id: ToolId) {
 }
 
 export function Toolkit() {
-  const [open, setOpen] = useState<ToolId | null>(null);
+  const [open, setOpen] = useState<string | null>(null);
   const checkup = useFullCheckup();
   const reportRef = useRef<HTMLDivElement | null>(null);
 
@@ -37,7 +37,7 @@ export function Toolkit() {
   useEffect(() => {
     const fromHash = () => {
       const id = decodeURIComponent(window.location.hash.slice(1));
-      if (isToolId(id)) {
+      if (isCatalogId(id)) {
         setOpen(id);
         scrollToPanel(id);
       }
@@ -47,7 +47,7 @@ export function Toolkit() {
     return () => window.removeEventListener("hashchange", fromHash);
   }, []);
 
-  function toggle(id: ToolId) {
+  function toggle(id: string) {
     const next = open === id ? null : id;
     setOpen(next);
     try {
@@ -123,7 +123,8 @@ export function Toolkit() {
                     : "Run a full check-up"}
               </button>
               <span className="text-sm font-semibold text-white/80">
-                6 automatic checks · about 5 seconds
+                6 automatic checks · about 5 seconds ·{" "}
+                {Object.keys(CATALOG).length} tools in all
               </span>
             </div>
           </div>
@@ -153,7 +154,7 @@ export function Toolkit() {
       </div>
 
       {/* ---------- Tool groups ---------- */}
-      {TOOL_GROUPS.map((group, gi) => {
+      {CATALOG_GROUPS.map((group, gi) => {
         const openHere = open && group.tools.includes(open) ? open : null;
         return (
           <section
@@ -174,7 +175,7 @@ export function Toolkit() {
             </p>
             <ul className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {group.tools.map((id, i) => {
-                const meta = TOOLS[id];
+                const meta = CATALOG[id];
                 const Icon = meta.icon;
                 const expanded = open === id;
                 return (

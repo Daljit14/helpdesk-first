@@ -17,7 +17,7 @@ export const metadata: Metadata = {
 export default async function AdminLoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string }>;
+  searchParams: Promise<{ next?: string; error?: string }>;
 }) {
   if (!isAdminDashboardEnabled()) notFound();
   const params = await searchParams;
@@ -25,6 +25,12 @@ export default async function AdminLoginPage({
     params.next?.startsWith("/") && !params.next.startsWith("//")
       ? params.next
       : "/admin/operations";
+  const initialError =
+    params.error === "not_staff"
+      ? "That account isn't a HelpDesk First staff account. Sign in with an authorized staff account."
+      : params.error === "sso"
+        ? "Google or Microsoft sign-in didn't complete. Please try again."
+        : undefined;
   return (
     <section className="flex flex-1 items-center justify-center px-4 py-16">
       <div className="glass-strong hf-rise w-full max-w-md p-8 shadow-[var(--shadow-md)] sm:p-9">
@@ -39,6 +45,7 @@ export default async function AdminLoginPage({
             googleSsoEnabled={isGoogleSsoEnabled()}
             microsoftSsoEnabled={isMicrosoftSsoEnabled()}
             turnstileSiteKey={getTurnstileSiteKey()}
+            initialError={initialError}
           />
         </div>
       </div>

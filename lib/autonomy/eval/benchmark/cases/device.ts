@@ -515,7 +515,7 @@ export const deviceCases: BenchmarkCase[] = [
       ],
     },
     expected: {
-      planner: "escalate",
+      planner: "propose_action",
       hypothesisIncludes: ["Repeated app crashes in the last 24 hours"],
       executed: false,
     },

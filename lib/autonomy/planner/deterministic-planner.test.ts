@@ -63,6 +63,39 @@ function input(overrides: Partial<PlannerInput> = {}): PlannerInput {
   };
 }
 
+function recentErrorsInput(
+  data?: Record<string, number | null>,
+  cause = "notification delivery failure"
+): PlannerInput {
+  return input({
+    evidence: {
+      ...evidence,
+      hypotheses: [{ ...evidence.hypotheses[0], cause }],
+      device: {
+        deviceId: "device-1",
+        platform: "linux",
+        deviceClass: "managed",
+        collectedAt: "2026-10-04T00:00:00.000Z",
+        diagnostics: data
+          ? [
+              {
+                kind: "recent_error_events",
+                ok: true,
+                summary: "Recent device errors.",
+                data,
+              },
+            ]
+          : [],
+        stale: false,
+      },
+    },
+    allowedCapabilities: caps(
+      "device_recent_error_events",
+      "search_approved_knowledge"
+    ),
+  });
+}
+
 describe("deterministic planner", () => {
   const planner = new DeterministicPlanner();
 
@@ -182,52 +215,59 @@ describe("deterministic planner", () => {
     ).toBe(false);
   });
 
-  test.each([
-    [
-      "disk errors",
-      { disk: 1, appCrash: 0, appHang: null, signIn: 0, driver: 0 },
-      "disk_errors_require_review",
-    ],
-    [
-      "repeated crashes",
-      { disk: 0, appCrash: 3, appHang: null, signIn: 0, driver: 0 },
-      "no_applicable_capability",
-    ],
-  ])(
-    "does not propose an action for recent %s",
-    async (_label, counts, reason) => {
-      const result = await planner.plan(
-        input({
-          evidence: {
-            ...evidence,
-            device: {
-              deviceId: "device-1",
-              platform: "linux",
-              deviceClass: "managed",
-              collectedAt: "2026-10-04T00:00:00.000Z",
-              diagnostics: [
-                {
-                  kind: "recent_error_events",
-                  ok: true,
-                  summary: "Recent device errors.",
-                  data: counts,
-                },
-              ],
-              stale: false,
-            },
-          },
-          allowedCapabilities: caps(
-            "device_recent_error_events",
-            "search_approved_knowledge"
-          ),
-        })
-      );
-      expect(result).toMatchObject({
-        decision: "escalate",
-        reason,
-      });
-    }
-  );
+  test("escalates when recent error events include disk errors", async () => {
+    const result = await planner.plan(
+      recentErrorsInput({
+        disk: 1,
+        appCrash: 0,
+        appHang: 0,
+        signIn: 0,
+        driver: 0,
+      })
+    );
+    expect(result).toMatchObject({
+      decision: "escalate",
+      reason: "disk_errors_require_review",
+    });
+  });
+
+  test("uses knowledge search for repeated crashes without a device action", async () => {
+    const result = await planner.plan(
+      recentErrorsInput(
+        {
+          disk: 0,
+          appCrash: 3,
+          appHang: 0,
+          signIn: 0,
+          driver: 0,
+        },
+        "Repeated app crashes in the last 24 hours"
+      )
+    );
+    expect(result).toMatchObject({
+      decision: "propose_action",
+      capability: { id: "search_approved_knowledge" },
+    });
+    expect(
+      result.decision === "propose_action" &&
+        result.capability.id.startsWith("device_")
+    ).toBe(false);
+  });
+
+  test("ignores non-disk recent errors when selecting a plan", async () => {
+    const counts = {
+      disk: 0,
+      appCrash: 0,
+      appHang: 0,
+      signIn: 0,
+      driver: 0,
+      network: 0,
+      other: 5,
+    };
+    const withRecentErrors = await planner.plan(recentErrorsInput(counts));
+    const withoutRecentErrors = await planner.plan(recentErrorsInput());
+    expect(withRecentErrors).toEqual(withoutRecentErrors);
+  });
 
   test("escalates when no capability is allowed", async () => {
     const result = await planner.plan(input({ allowedCapabilities: [] }));

@@ -336,20 +336,6 @@ export class DeterministicPlanner implements Planner {
           if (typeof diskErrors === "number" && diskErrors >= 1) {
             return escalate("disk_errors_require_review");
           }
-          const hasRecentErrors = [
-            "appCrash",
-            "appHang",
-            "signIn",
-            "driver",
-            "disk",
-            "network",
-            "other",
-          ].some(
-            (key) =>
-              typeof recentErrors.data?.[key] === "number" &&
-              (recentErrors.data[key] as number) > 0
-          );
-          if (hasRecentErrors) return escalate("no_applicable_capability");
         }
       }
     }

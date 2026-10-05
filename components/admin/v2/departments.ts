@@ -125,6 +125,22 @@ export function buildDepartments(
       group: "People",
       keywords: ["members", "employees", "invitations", "people"],
     },
+    (orgAdmin || session.isPlatformAdmin) && {
+      id: "users",
+      label: "Users & logins",
+      href: "/admin/users",
+      icon: "login",
+      available: true,
+      group: "People",
+      keywords: [
+        "logins",
+        "sign-in",
+        "google",
+        "microsoft",
+        "last seen",
+        "users",
+      ],
+    },
     session.isPlatformAdmin && {
       id: "organizations",
       label: "Organizations",

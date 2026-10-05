@@ -38,3 +38,27 @@ describe("environment profile department", () => {
     expect(departments.map(({ id }) => id)).not.toContain("environment");
   });
 });
+
+describe("users and logins department", () => {
+  test("is available to org admins and platform admins", () => {
+    const orgAdmin = buildDepartments(
+      { role: "org_admin", isPlatformAdmin: false },
+      flags
+    );
+    expect(orgAdmin.map(({ id }) => id)).toContain("users");
+
+    const platformAdmin = buildDepartments(
+      { role: "support_agent", isPlatformAdmin: true },
+      flags
+    );
+    expect(platformAdmin.map(({ id }) => id)).toContain("users");
+  });
+
+  test("is not available to support agents", () => {
+    const supportAgent = buildDepartments(
+      { role: "support_agent", isPlatformAdmin: false },
+      flags
+    );
+    expect(supportAgent.map(({ id }) => id)).not.toContain("users");
+  });
+});

@@ -117,6 +117,10 @@ export function isAgentDiagnosticSourcesEnabled(): boolean {
   return process.env.HELP_DESK_AGENT_DIAGNOSTIC_SOURCES_ENABLED === "true";
 }
 
+export function isAgentUserStepsEnabled(): boolean {
+  return process.env.HELP_DESK_AGENT_USER_STEPS_ENABLED === "true";
+}
+
 export function isRequesterAgentEnabledForOrg(organizationId: string): boolean {
   if (!isRequesterAgentEnabled()) return false;
   const allowlist = (process.env.HELP_DESK_REQUESTER_AGENT_ORG_ALLOWLIST ?? "")

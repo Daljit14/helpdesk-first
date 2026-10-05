@@ -1,5 +1,6 @@
 import {
   isAgentDiagnosticSourcesEnabled,
+  isAgentUserStepsEnabled,
   isOrgEnvironmentEnabled,
   isServiceHealthEnabled,
 } from "@/lib/admin/flags";
@@ -16,7 +17,8 @@ export function requesterAgentActionPrompt(
   enabled: boolean,
   serviceHealthEnabled = isServiceHealthEnabled(),
   orgEnvironmentEnabled = isOrgEnvironmentEnabled(),
-  diagnosticSourcesEnabled = isAgentDiagnosticSourcesEnabled()
+  diagnosticSourcesEnabled = isAgentDiagnosticSourcesEnabled(),
+  userStepsEnabled = isAgentUserStepsEnabled()
 ): string {
   const instructions = [AGENT_SYSTEM_PROMPT];
   if (enabled)
@@ -34,6 +36,10 @@ export function requesterAgentActionPrompt(
   if (diagnosticSourcesEnabled)
     instructions.push(
       "When the user cannot sign in, call get_recent_sign_in_failures. Call count_similar_org_issues with the matched guide slug to check whether others in the organization are affected; that count never justifies an action."
+    );
+  if (userStepsEnabled)
+    instructions.push(
+      "When no tool can fix the problem and an approved guide has a safe step the user can do themselves, call give_user_step with the guide slug, step index and a one-sentence reason; never invent step text."
     );
   return instructions.join("\n");
 }

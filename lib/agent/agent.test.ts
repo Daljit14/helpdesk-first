@@ -1,10 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { AGENT_TOOLS, getAgentTools, proposeActionSchema } from "./tools";
 import { getRequesterAgentBudgets } from "./budgets";
 import { detectTripwire } from "./tripwires";
 import { sanitizeForUser, wrapUntrusted } from "./untrusted";
 import { MockAgentModel } from "./model";
 import { requesterAgentActionPrompt } from "./prompt";
+
+afterEach(() => vi.unstubAllEnvs());
 
 describe("requester agent safety contracts", () => {
   it("uses strict read-only tool schemas without target fields", () => {
@@ -90,6 +92,91 @@ describe("requester agent safety contracts", () => {
         "count_similar_org_issues",
       ])
     );
+  });
+
+  it("adds user-step guidance and its tool only when enabled", () => {
+    const guidance =
+      "When no tool can fix the problem and an approved guide has a safe step the user can do themselves, call give_user_step with the guide slug, step index and a one-sentence reason; never invent step text.";
+    expect(
+      requesterAgentActionPrompt(false, false, false, false, false)
+    ).not.toContain(guidance);
+    expect(
+      requesterAgentActionPrompt(false, false, false, false, true)
+    ).toContain(guidance);
+    expect(
+      getAgentTools(false, false, false, false, false).map((tool) => tool.name)
+    ).not.toContain("give_user_step");
+    const tool = getAgentTools(false, false, false, false, true).find(
+      (item) => item.name === "give_user_step"
+    );
+    expect(tool).toBeDefined();
+    expect(JSON.stringify(tool?.input_schema)).toContain("issueSlug");
+  });
+
+  it("offers one mock user step from a wrapped printer guide when enabled", async () => {
+    vi.stubEnv("HELP_DESK_AGENT_USER_STEPS_ENABLED", "true");
+    const model = new MockAgentModel("My email app keeps crashing.");
+    const searchResult = wrapUntrusted("tool:search_guides", [
+      { slug: "printer-offline" },
+    ]);
+    await expect(model.next()).resolves.toMatchObject({
+      kind: "tool_use",
+      name: "search_guides",
+    });
+    await expect(
+      model.next({
+        messages: [
+          {
+            role: "tool_result",
+            tool_use_id: "mock-search",
+            content: searchResult,
+          },
+        ],
+      })
+    ).resolves.toMatchObject({
+      kind: "tool_use",
+      name: "give_user_step",
+      input: {
+        issueSlug: "printer-offline",
+        stepIndex: 0,
+        why: "It is the first safe step in the matching guide.",
+      },
+    });
+    await expect(
+      model.next({
+        messages: [
+          {
+            role: "tool_result",
+            tool_use_id: "mock-search",
+            content: searchResult,
+          },
+        ],
+      })
+    ).resolves.toMatchObject({ kind: "final" });
+
+    await expect(
+      new MockAgentModel("User step result: done").next()
+    ).resolves.toMatchObject({ kind: "final" });
+  });
+
+  it("preserves mock guide behavior when user steps are disabled", async () => {
+    vi.stubEnv("HELP_DESK_AGENT_USER_STEPS_ENABLED", "false");
+    const model = new MockAgentModel("My email app keeps crashing.");
+    const searchResult = wrapUntrusted("tool:search_guides", [
+      { slug: "printer-offline" },
+    ]);
+    await model.next();
+    await expect(
+      model.next({
+        messages: [
+          {
+            role: "tool_result",
+            tool_use_id: "mock-search",
+            content: searchResult,
+          },
+        ],
+      })
+    ).resolves.toMatchObject({ kind: "final" });
   });
 
   it("detects the required request tripwires", () => {

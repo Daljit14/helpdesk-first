@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   isRequesterAgentEnabled: vi.fn(),
   isRequesterAgentEnabledForOrg: vi.fn(),
   isRequesterAgentVisionEnabledForOrg: vi.fn(),
+  isAgentUserStepsEnabled: vi.fn(),
   checkRateLimit: vi.fn(),
   createRateLimiter: vi.fn(() => ({})),
   createAdminClient: vi.fn(),
@@ -27,6 +28,7 @@ vi.mock("@/lib/admin/flags", () => ({
   isRequesterAgentEnabledForOrg: mocks.isRequesterAgentEnabledForOrg,
   isRequesterAgentVisionEnabledForOrg:
     mocks.isRequesterAgentVisionEnabledForOrg,
+  isAgentUserStepsEnabled: mocks.isAgentUserStepsEnabled,
 }));
 vi.mock("@/lib/ai/rate-limit", () => ({
   createRateLimiter: mocks.createRateLimiter,
@@ -69,6 +71,7 @@ beforeEach(() => {
   mocks.isRequesterAgentEnabled.mockReturnValue(true);
   mocks.isRequesterAgentEnabledForOrg.mockReturnValue(true);
   mocks.isRequesterAgentVisionEnabledForOrg.mockReturnValue(true);
+  mocks.isAgentUserStepsEnabled.mockReturnValue(false);
   mocks.checkRateLimit.mockResolvedValue({ allowed: true });
   mocks.createSession.mockResolvedValue(session);
   mocks.loadActiveSession.mockResolvedValue(session);
@@ -111,6 +114,43 @@ describe("requester agent route", () => {
       request({
         message: "Inspect this",
         attachmentIds: ["00000000-0000-4000-8000-000000000010"],
+      })
+    );
+    expect(response.status).toBe(404);
+    expect(mocks.handleAgentRequest).not.toHaveBeenCalled();
+  });
+
+  test("accepts user-step outcomes as non-empty requests when enabled", async () => {
+    mocks.isAgentUserStepsEnabled.mockReturnValue(true);
+    const response = await POST(
+      request({
+        sessionId: session.id,
+        userStep: {
+          stepId: "00000000-0000-4000-8000-000000000010",
+          outcome: "done",
+        },
+      })
+    );
+    await response.text();
+    expect(response.status).toBe(200);
+    expect(mocks.handleAgentRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: "",
+        userStep: {
+          stepId: "00000000-0000-4000-8000-000000000010",
+          outcome: "done",
+        },
+      })
+    );
+  });
+
+  test("returns 404 for user-step outcomes when disabled", async () => {
+    const response = await POST(
+      request({
+        userStep: {
+          stepId: "00000000-0000-4000-8000-000000000010",
+          outcome: "done",
+        },
       })
     );
     expect(response.status).toBe(404);

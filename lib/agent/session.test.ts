@@ -6,6 +6,9 @@ const mocks = vi.hoisted(() => ({
   decryptAgentText: vi.fn(),
   createWorkflowTicket: vi.fn(),
   attachTicketAttachments: vi.fn(),
+  enqueueNotification: vi.fn(),
+  getIssueBySlug: vi.fn(),
+  getIssueStepPolicies: vi.fn(),
 }));
 
 vi.mock("@/app/actions/tickets", () => ({
@@ -25,6 +28,15 @@ vi.mock("@/lib/security/ticket-crypto", () => ({
   encryptAgentTextForWrite: vi.fn(
     async (_admin, _org, _table, _column, value) => value
   ),
+}));
+vi.mock("@/lib/notifications/enqueue", () => ({
+  enqueueNotification: mocks.enqueueNotification,
+}));
+vi.mock("@/lib/search", () => ({
+  getIssueBySlug: mocks.getIssueBySlug,
+}));
+vi.mock("@/lib/investigation/policy", () => ({
+  getIssueStepPolicies: mocks.getIssueStepPolicies,
 }));
 
 import { escalate, halt, handoffReasonFor } from "./session";
@@ -74,8 +86,14 @@ const actionSteps = Array.from({ length: 3 }, (_, index) => {
   ];
 }).flat();
 
-function makeAdmin(options: { actionInsertError?: Error } = {}) {
+function makeAdmin(
+  options: {
+    actionInsertError?: Error;
+    userStepRows?: Array<Record<string, unknown>>;
+  } = {}
+) {
   const insertedActions: unknown[] = [];
+  const insertedSteps: unknown[] = [];
   const queries: Record<string, ReturnType<typeof makeQuery>> = {};
   const makeQuery = (table: string) => {
     let selection = "";
@@ -89,25 +107,44 @@ function makeAdmin(options: { actionInsertError?: Error } = {}) {
       not: vi.fn(() => query),
       order: vi.fn(() => query),
       limit: vi.fn(() => query),
-      insert: vi.fn(async (value: unknown) => {
+      insert: vi.fn((value: unknown) => {
         if (table === "ticket_actions" && Array.isArray(value))
           insertedActions.push(...value);
-        return { error: options.actionInsertError ?? null };
+        else if (table === "ticket_actions" && value)
+          insertedActions.push(value);
+        if (table === "agent_steps") {
+          insertedSteps.push(value);
+          return {
+            select: vi.fn(() => ({
+              single: vi.fn(async () => ({
+                data: { id: "saved-step-id" },
+                error: null,
+              })),
+            })),
+          };
+        }
+        return Promise.resolve({ error: options.actionInsertError ?? null });
       }),
       update: vi.fn(() => query),
       maybeSingle: vi.fn(async () => ({ data: null, error: null })),
+      single: vi.fn(async () => ({
+        data: { id: "saved-step-id" },
+        error: null,
+      })),
       then: (resolve: (value: unknown) => unknown) => {
         let data: unknown = [];
         if (table === "agent_steps") {
           data =
             selection === "seq"
               ? { seq: actionSteps.length }
-              : selection.includes("capability_id")
-                ? actionSteps
-                : actionSteps.map((step) => ({
-                    kind: step.kind,
-                    tool_name: step.capability_id,
-                  }));
+              : selection.includes("params_hash")
+                ? (options.userStepRows ?? [])
+                : selection.includes("capability_id")
+                  ? actionSteps
+                  : actionSteps.map((step) => ({
+                      kind: step.kind,
+                      tool_name: step.capability_id,
+                    }));
         }
         if (table === "ticket_actions") data = [];
         if (table === "agent_sessions") data = [];
@@ -120,10 +157,11 @@ function makeAdmin(options: { actionInsertError?: Error } = {}) {
   const admin = {
     from: vi.fn((table: string) => queries[table] ?? makeQuery(table)),
   };
-  return { admin, insertedActions };
+  return { admin, insertedActions, insertedSteps };
 }
 
 afterEach(() => {
+  vi.unstubAllEnvs();
   vi.clearAllMocks();
   mocks.decryptAgentText.mockImplementation(
     async (_admin, _org, _table, _column, value) => value
@@ -133,6 +171,18 @@ afterEach(() => {
   });
   mocks.completeUserHandoff.mockResolvedValue(undefined);
   mocks.attachTicketAttachments.mockResolvedValue(undefined);
+  mocks.enqueueNotification.mockResolvedValue(undefined);
+  mocks.getIssueBySlug.mockReturnValue({
+    id: "wifi-guide",
+    title: "Wi-Fi keeps disconnecting",
+  });
+  mocks.getIssueStepPolicies.mockReturnValue([
+    { text: "Restart the router." },
+    { text: "Reconnect to the Wi-Fi network." },
+    { text: "Check the cable connection." },
+    { text: "Restart the device." },
+    { text: "Ask IT for help." },
+  ]);
 });
 
 describe("requester-agent escalation handoff reasons", () => {
@@ -153,6 +203,7 @@ describe("requester-agent escalation handoff reasons", () => {
   });
 
   test("records attempted actions and maps repeated failure", async () => {
+    vi.stubEnv("HELP_DESK_AGENT_USER_STEPS_ENABLED", "false");
     const { admin, insertedActions } = makeAdmin();
     const rpc = vi.fn(async () => ({ error: null }));
     mocks.createClient.mockReturnValue({ rpc });
@@ -236,5 +287,124 @@ describe("requester-agent escalation handoff reasons", () => {
     ).resolves.toBe("ticket-1");
     expect(rpc).toHaveBeenCalled();
     expect(mocks.completeUserHandoff).toHaveBeenCalledWith("ticket-1");
+  });
+
+  test("adds user steps and notifies only pending unsaved steps when enabled", async () => {
+    vi.stubEnv("HELP_DESK_AGENT_USER_STEPS_ENABLED", "true");
+    const at = "2026-09-28T00:00:00.000Z";
+    const userStepRows = [
+      {
+        id: "step-done",
+        kind: "user_step_offered",
+        params_hash: "wifi-guide#0",
+        result_summary: JSON.stringify({ why: "Try this first." }),
+        created_at: at,
+      },
+      {
+        id: "done-outcome",
+        kind: "user_step_outcome",
+        params_hash: "step-done",
+        result_summary: "done",
+        created_at: at,
+      },
+      {
+        id: "step-didnt-work",
+        kind: "user_step_offered",
+        params_hash: "wifi-guide#1",
+        result_summary: JSON.stringify({ why: "This isolates the issue." }),
+        created_at: at,
+      },
+      {
+        id: "didnt-work-outcome",
+        kind: "user_step_outcome",
+        params_hash: "step-didnt-work",
+        result_summary: "didnt_work",
+        created_at: at,
+      },
+      {
+        id: "step-cant-do",
+        kind: "user_step_offered",
+        params_hash: "wifi-guide#2",
+        result_summary: JSON.stringify({ why: "Check this connection." }),
+        created_at: at,
+      },
+      {
+        id: "cant-do-outcome",
+        kind: "user_step_outcome",
+        params_hash: "step-cant-do",
+        result_summary: "cant_do",
+        created_at: at,
+      },
+      {
+        id: "step-pending",
+        kind: "user_step_offered",
+        params_hash: "wifi-guide#3",
+        result_summary: JSON.stringify({ why: "This may restore service." }),
+        created_at: at,
+      },
+      {
+        id: "step-already-saved",
+        kind: "user_step_offered",
+        params_hash: "wifi-guide#4",
+        result_summary: JSON.stringify({ why: "Ask for help if needed." }),
+        created_at: at,
+      },
+      {
+        id: "saved-marker",
+        kind: "user_step_saved",
+        params_hash: "step-already-saved",
+        result_summary: "pending",
+        created_at: at,
+      },
+    ];
+    const { admin, insertedActions, insertedSteps } = makeAdmin({
+      userStepRows,
+    });
+
+    await escalate(admin as never, session, "user_requested_human", "Help.");
+
+    const stepActions = insertedActions.filter(
+      (action) => (action as { tool_name?: string }).tool_name === "user_step"
+    );
+    expect(stepActions).toHaveLength(5);
+    expect(stepActions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action_summary:
+            "Your step: Restart the router. — Source: Wi-Fi keeps disconnecting",
+          result_summary: "Requester did it",
+        }),
+        expect.objectContaining({
+          action_summary:
+            "Your step: Reconnect to the Wi-Fi network. — Source: Wi-Fi keeps disconnecting",
+          result_summary: "Requester said it didn't work",
+        }),
+        expect.objectContaining({
+          result_summary: "Requester couldn't do it",
+        }),
+        expect.objectContaining({
+          result_summary: "Not done before the session ended",
+        }),
+      ])
+    );
+    expect(mocks.enqueueNotification).toHaveBeenCalledTimes(1);
+    expect(mocks.enqueueNotification).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: session.organization_id,
+        ticketId: "ticket-1",
+        eventType: "agent.user_step_pending",
+        recipientUserIds: [session.requester_id],
+        subject: "A step to try from your support chat",
+        body: "Restart the device.\n\nThis may restore service.\n\nWi-Fi keeps disconnecting",
+        url: "/tickets/ticket-1",
+        dedupeKey: "user-step:step-pending",
+      })
+    );
+    expect(insertedSteps).toContainEqual(
+      expect.objectContaining({
+        kind: "user_step_saved",
+        params_hash: "step-pending",
+      })
+    );
   });
 });

@@ -2,6 +2,17 @@
 
 The admin Database page provides a tenant-scoped view of important stored data and a live activity tracker. Users are loaded through the service-role-only `public.admin_auth_users` projection; apply `supabase/admin-database.sql` before the Users section can show data.
 
+## PR 16 — requester "Your step" cards
+
+PR 16 lets the requester agent offer one safe instruction from an
+organization-approved guide when it cannot act. The instruction and source
+link are derived from the guide and never from model-provided text. Requester
+steps and outcomes are audited; pending steps are surfaced to staff and through
+a requester notification. The feature is disabled by default with
+`HELP_DESK_AGENT_USER_STEPS_ENABLED=false`. The additive
+`supabase/agent-user-steps.sql` migration is authored but has not been applied.
+See `SETUP-NOTES-D-USER-STEPS.md` for safety and rollout details.
+
 ## D5 — organization environment profile
 
 D5 adds a confirmed organization environment profile, bounded inventory

@@ -171,6 +171,10 @@ export function AgentChat({
       consent?: { approvalRequestId: string; decision: "approve" | "decline" };
       confirm?: "yes" | "no";
       sessionConsent?: "grant" | "revoke";
+      userStep?: {
+        stepId: string;
+        outcome: "done" | "didnt_work" | "cant_do";
+      };
     },
     messageOverride?: string
   ) {
@@ -205,11 +209,12 @@ export function AgentChat({
     if (attachmentIds) setScreenshot(null);
     const body: Record<string, unknown> = {
       sessionId,
-      message:
-        typed.trim() ||
-        (attachmentIds?.length
-          ? "I shared a screenshot of the problem."
-          : "I would like to speak with a human."),
+      message: action?.userStep
+        ? ""
+        : typed.trim() ||
+          (attachmentIds?.length
+            ? "I shared a screenshot of the problem."
+            : "I would like to speak with a human."),
       humanRequested,
       ...(attachmentIds ? { attachmentIds } : {}),
       ...action,
@@ -455,6 +460,80 @@ export function AgentChat({
                     </Button>
                   </div>
                 </div>
+              );
+            }
+            if (event.type === "user_step") {
+              const disabled = pending || answeredCards[event.id];
+              return (
+                <section
+                  key={event.id}
+                  aria-label="Your step"
+                  className="rounded-2xl border border-primary/30 bg-primary/5 p-4"
+                >
+                  <p className="font-medium">Your step</p>
+                  <p className="mt-2 font-medium">{event.card.instruction}</p>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Why this helps: {event.card.why}
+                  </p>
+                  <p className="mt-2 text-sm">
+                    Source:{" "}
+                    <Link
+                      href={event.card.source.url}
+                      className="underline underline-offset-4"
+                    >
+                      {event.card.source.title}
+                    </Link>
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      disabled={disabled}
+                      onClick={() => {
+                        answerCard(event.id);
+                        void send(false, {
+                          userStep: {
+                            stepId: event.card.stepId,
+                            outcome: "done",
+                          },
+                        });
+                      }}
+                    >
+                      Done
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={disabled}
+                      onClick={() => {
+                        answerCard(event.id);
+                        void send(false, {
+                          userStep: {
+                            stepId: event.card.stepId,
+                            outcome: "didnt_work",
+                          },
+                        });
+                      }}
+                    >
+                      Didn&apos;t work
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={disabled}
+                      onClick={() => {
+                        answerCard(event.id);
+                        void send(false, {
+                          userStep: {
+                            stepId: event.card.stepId,
+                            outcome: "cant_do",
+                          },
+                        });
+                      }}
+                    >
+                      I can&apos;t do this
+                    </Button>
+                  </div>
+                </section>
               );
             }
             if (event.type === "session_consent_offer") {

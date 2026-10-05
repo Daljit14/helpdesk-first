@@ -1,7 +1,19 @@
-import { afterEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { createAgentEvalHarness } from "./eval-harness";
 import { handleAgentRequest, type AgentTurnDeps } from "./turn";
-import type { AgentSession } from "./types";
+import type { AgentEvent, AgentSession } from "./types";
+
+const userStepMocks = vi.hoisted(() => ({
+  getIssueBySlug: vi.fn(),
+  getIssueStepPolicies: vi.fn(),
+}));
+
+vi.mock("@/lib/search", () => ({
+  getIssueBySlug: userStepMocks.getIssueBySlug,
+}));
+vi.mock("@/lib/investigation/policy", () => ({
+  getIssueStepPolicies: userStepMocks.getIssueStepPolicies,
+}));
 
 type TurnRunInput = Parameters<NonNullable<AgentTurnDeps["runAgentTurn"]>>[0];
 
@@ -25,6 +37,16 @@ function turnSession(): AgentSession {
     updated_at: new Date().toISOString(),
   };
 }
+
+beforeEach(() => {
+  userStepMocks.getIssueBySlug.mockReturnValue({
+    id: "wifi-disconnecting",
+    title: "Wi-Fi keeps disconnecting",
+  });
+  userStepMocks.getIssueStepPolicies.mockReturnValue([
+    { text: "Restart your router and reconnect to Wi-Fi." },
+  ]);
+});
 
 afterEach(() => vi.unstubAllEnvs());
 
@@ -209,7 +231,7 @@ describe("requester agent turn dispatch", () => {
             },
           ],
         }),
-        writeStep: async () => {},
+        writeStep: async () => null,
         updateSession: async () => {},
         runAgentTurn: async (input) => {
           runInputs.push(input);
@@ -219,6 +241,190 @@ describe("requester agent turn dispatch", () => {
 
     expect(runInputs[0]?.routing).toEqual({ screenshotAttached: true });
   });
+
+  test.each([
+    [
+      "done",
+      'User step result: done — the user completed "Restart your router and reconnect to Wi-Fi.". Ask whether the problem is solved; do not claim it is fixed.',
+      undefined,
+    ],
+    [
+      "didnt_work",
+      `User step result: didn't work — "Restart your router and reconnect to Wi-Fi." did not help. Try the next hypothesis.`,
+      { failedVerification: true },
+    ],
+    [
+      "cant_do",
+      `User step result: the user can't do "Restart your router and reconnect to Wi-Fi.". Offer a different approach or escalate.`,
+      undefined,
+    ],
+  ] as const)(
+    "records a %s user-step outcome and resumes the agent",
+    async (outcome, expectedMessage, expectedRouting) => {
+      let queryCount = 0;
+      const query = {
+        select() {
+          return this;
+        },
+        eq() {
+          return this;
+        },
+        limit() {
+          return this;
+        },
+        async maybeSingle() {
+          queryCount += 1;
+          return queryCount === 1
+            ? { data: { params_hash: "wifi-disconnecting#0" }, error: null }
+            : { data: null, error: null };
+        },
+      };
+      const admin = { from: vi.fn(() => query) };
+      const written: Array<Record<string, unknown>> = [];
+      const runInputs: TurnRunInput[] = [];
+
+      await handleAgentRequest({
+        admin: admin as never,
+        session: turnSession(),
+        message: "",
+        userStep: {
+          stepId: "00000000-0000-4000-8000-000000000010",
+          outcome,
+        },
+        emit: () => {},
+        signal: new AbortController().signal,
+        deps: {
+          writeStep: async (_admin, _session, step) => {
+            written.push(step);
+            return null;
+          },
+          runAgentTurn: async (input) => {
+            runInputs.push(input);
+          },
+        },
+      });
+
+      expect(admin.from).toHaveBeenCalledTimes(2);
+      expect(written).toContainEqual({
+        kind: "user_step_outcome",
+        paramsHash: "00000000-0000-4000-8000-000000000010",
+        resultSummary: outcome,
+      });
+      expect(runInputs[0]?.userMessage).toBe(expectedMessage);
+      expect(runInputs[0]?.routing?.failedVerification).toBe(
+        expectedRouting?.failedVerification
+      );
+    }
+  );
+
+  test("marks forgot-password step outcomes as trusted system events", async () => {
+    const instruction =
+      "Use the official password reset or account recovery option.";
+    userStepMocks.getIssueBySlug.mockReturnValueOnce({
+      id: "forgot-password",
+      title: "Forgot password",
+    });
+    userStepMocks.getIssueStepPolicies.mockReturnValueOnce([
+      { text: instruction },
+    ]);
+    let queryCount = 0;
+    const query = {
+      select() {
+        return this;
+      },
+      eq() {
+        return this;
+      },
+      limit() {
+        return this;
+      },
+      async maybeSingle() {
+        queryCount += 1;
+        return queryCount === 1
+          ? { data: { params_hash: "forgot-password#0" }, error: null }
+          : { data: null, error: null };
+      },
+    };
+    const runInputs: TurnRunInput[] = [];
+
+    await handleAgentRequest({
+      admin: { from: vi.fn(() => query) } as never,
+      session: turnSession(),
+      message: "",
+      userStep: {
+        stepId: "00000000-0000-4000-8000-000000000010",
+        outcome: "done",
+      },
+      emit: () => {},
+      signal: new AbortController().signal,
+      deps: {
+        writeStep: async () => null,
+        runAgentTurn: async (input) => {
+          runInputs.push(input);
+        },
+      },
+    });
+
+    expect(runInputs[0]?.trustedSystemEvent).toBe(true);
+    expect(runInputs[0]?.userMessage).toContain(instruction);
+  });
+
+  test.each([
+    ["missing offer", null, null],
+    [
+      "already answered offer",
+      { params_hash: "wifi-disconnecting#0" },
+      { id: "outcome-row" },
+    ],
+  ])(
+    "rejects a %s as no longer available",
+    async (_name, offered, existingOutcome) => {
+      let queryCount = 0;
+      const query = {
+        select() {
+          return this;
+        },
+        eq() {
+          return this;
+        },
+        limit() {
+          return this;
+        },
+        async maybeSingle() {
+          queryCount += 1;
+          return {
+            data: queryCount === 1 ? offered : existingOutcome,
+            error: null,
+          };
+        },
+      };
+      const admin = { from: vi.fn(() => query) } as never;
+      const events: AgentEvent[] = [];
+      const runAgentTurn = vi.fn();
+      const writeStep = vi.fn();
+
+      await handleAgentRequest({
+        admin,
+        session: turnSession(),
+        message: "",
+        userStep: {
+          stepId: "00000000-0000-4000-8000-000000000010",
+          outcome: "done",
+        },
+        emit: (event) => events.push(event),
+        signal: new AbortController().signal,
+        deps: { runAgentTurn, writeStep },
+      });
+
+      expect(events).toContainEqual({
+        type: "error",
+        message: "That step is no longer available.",
+        recoverable: true,
+      });
+      expect(runAgentTurn).not.toHaveBeenCalled();
+      expect(writeStep).not.toHaveBeenCalled();
+    }
+  );
 
   test("rejects consent approval during an active service incident", async () => {
     vi.stubEnv("HELP_DESK_SERVICE_HEALTH_ENABLED", "true");

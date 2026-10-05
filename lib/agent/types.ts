@@ -1,4 +1,5 @@
 import type { createAdminClient } from "@/lib/supabase/admin";
+import type { UserStepCard } from "./user-steps";
 
 export type ConsentCard = {
   approvalRequestId: string;
@@ -42,6 +43,7 @@ export type AgentEvent =
         url: string;
       }>;
     }
+  | { type: "user_step"; card: UserStepCard }
   | { type: "action_proposed"; capabilityId: string; text: string }
   | { type: "consent_required"; card: ConsentCard }
   | { type: "session_consent_offer"; card: SessionConsentCard }

@@ -238,7 +238,7 @@ describe("loadUsersOverview", () => {
     expect(overview.filteredTotal).toBe(1003);
     expect(overview.counts).toEqual({
       today: 1,
-      week: 1,
+      week: 2,
       never: 1000,
       google: 1,
       microsoft: 1,

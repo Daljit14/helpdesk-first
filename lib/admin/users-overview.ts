@@ -216,7 +216,9 @@ export async function loadUsersOverview(
   const allRows = scopedUsers.map((user) => toUserRow(user, now));
   const counts = {
     today: allRows.filter((row) => row.status === "today").length,
-    week: allRows.filter((row) => row.status === "week").length,
+    week: allRows.filter(
+      (row) => row.status === "today" || row.status === "week"
+    ).length,
     never: allRows.filter((row) => row.status === "never").length,
     google: allRows.filter((row) => row.methods.includes("google")).length,
     microsoft: allRows.filter((row) => row.methods.includes("microsoft"))

@@ -46,13 +46,35 @@ export async function sweepPendingUserSteps(
   now = new Date()
 ): Promise<{ sessionsScanned: number; stepsSaved: number; failed: number }> {
   const cutoff = new Date(now.getTime() - 30 * 60_000).toISOString();
+  const stepWindowStart = new Date(
+    now.getTime() - 7 * 24 * 60 * 60_000
+  ).toISOString();
+  const offeredResult = await admin
+    .from("agent_steps")
+    .select("session_id")
+    .eq("kind", "user_step_offered")
+    .lt("created_at", cutoff)
+    .gte("created_at", stepWindowStart)
+    .order("created_at", { ascending: true })
+    .limit(200);
+  if (offeredResult.error) throw new Error("user_step_offer_sweep_failed");
+  const sessionIds = [
+    ...new Set(
+      (offeredResult.data ?? [])
+        .map((step) => step.session_id)
+        .filter((id): id is string => typeof id === "string" && id.length > 0)
+    ),
+  ];
+  if (sessionIds.length === 0)
+    return { sessionsScanned: 0, stepsSaved: 0, failed: 0 };
+
   const sessionResult = await admin
     .from("agent_sessions")
     .select("*")
     .eq("status", "active")
     .lt("updated_at", cutoff)
-    .order("updated_at", { ascending: true })
-    .limit(100);
+    .in("id", sessionIds)
+    .order("updated_at", { ascending: true });
   if (sessionResult.error) throw new Error("user_step_session_sweep_failed");
   const sessions = (sessionResult.data ?? []) as AgentSession[];
   let stepsSaved = 0;

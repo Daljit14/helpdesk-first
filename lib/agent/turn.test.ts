@@ -317,6 +317,58 @@ describe("requester agent turn dispatch", () => {
     }
   );
 
+  test("marks forgot-password step outcomes as trusted system events", async () => {
+    const instruction =
+      "Use the official password reset or account recovery option.";
+    userStepMocks.getIssueBySlug.mockReturnValueOnce({
+      id: "forgot-password",
+      title: "Forgot password",
+    });
+    userStepMocks.getIssueStepPolicies.mockReturnValueOnce([
+      { text: instruction },
+    ]);
+    let queryCount = 0;
+    const query = {
+      select() {
+        return this;
+      },
+      eq() {
+        return this;
+      },
+      limit() {
+        return this;
+      },
+      async maybeSingle() {
+        queryCount += 1;
+        return queryCount === 1
+          ? { data: { params_hash: "forgot-password#0" }, error: null }
+          : { data: null, error: null };
+      },
+    };
+    const runInputs: TurnRunInput[] = [];
+
+    await handleAgentRequest({
+      admin: { from: vi.fn(() => query) } as never,
+      session: turnSession(),
+      message: "",
+      userStep: {
+        stepId: "00000000-0000-4000-8000-000000000010",
+        outcome: "done",
+      },
+      emit: () => {},
+      signal: new AbortController().signal,
+      deps: {
+        writeStep: async () => null,
+        runAgentTurn: async (input) => {
+          runInputs.push(input);
+        },
+      },
+    });
+
+    expect(runInputs[0]?.trustedSystemEvent).toBe(true);
+    expect(runInputs[0]?.userMessage).toContain(instruction);
+  });
+
   test.each([
     ["missing offer", null, null],
     [

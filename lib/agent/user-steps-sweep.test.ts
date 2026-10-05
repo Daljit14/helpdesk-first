@@ -50,6 +50,7 @@ const session: AgentSession = {
 function makeAdmin(
   options: {
     sessions?: AgentSession[];
+    stepSessionIds?: string[];
     steps?: Array<Record<string, unknown>>;
     events?: string[];
   } = {}
@@ -57,10 +58,18 @@ function makeAdmin(
   const filters: Array<[string, unknown]> = [];
   const actions: unknown[] = [];
   const events = options.events ?? [];
+  const stepSessionIds =
+    options.stepSessionIds ??
+    ((options.steps?.length ?? 0) > 0
+      ? (options.sessions ?? []).map((item) => item.id)
+      : []);
   const admin = {
     from: vi.fn((table: string) => {
+      let selectedColumns: string | undefined;
+      let sessionIds: string[] | undefined;
       const query = {
-        select() {
+        select(columns?: string) {
+          selectedColumns = columns;
           return query;
         },
         eq(column: string, value: unknown) {
@@ -72,6 +81,16 @@ function makeAdmin(
           return query;
         },
         in(column: string, value: unknown) {
+          filters.push([`${table}.${column}`, value]);
+          if (
+            table === "agent_sessions" &&
+            column === "id" &&
+            Array.isArray(value)
+          )
+            sessionIds = value as string[];
+          return query;
+        },
+        gte(column: string, value: unknown) {
           filters.push([`${table}.${column}`, value]);
           return query;
         },
@@ -90,9 +109,13 @@ function makeAdmin(
         then(resolve: (value: unknown) => unknown) {
           const data =
             table === "agent_sessions"
-              ? (options.sessions ?? [])
+              ? (options.sessions ?? []).filter(
+                  (item) => !sessionIds || sessionIds.includes(item.id)
+                )
               : table === "agent_steps"
-                ? (options.steps ?? [])
+                ? selectedColumns === "session_id"
+                  ? stepSessionIds.map((session_id) => ({ session_id }))
+                  : (options.steps ?? [])
                 : [];
           return Promise.resolve({ data, error: null }).then(resolve);
         },
@@ -158,7 +181,13 @@ describe("pending user-step sweep", () => {
       "agent_sessions.updated_at",
       "2026-10-01T00:30:00.000Z",
     ]);
-    expect(filters).toContainEqual(["agent_sessions.limit", 100]);
+    expect(filters).toContainEqual(["agent_steps.kind", "user_step_offered"]);
+    expect(filters).toContainEqual([
+      "agent_steps.created_at",
+      "2026-09-24T01:00:00.000Z",
+    ]);
+    expect(filters).toContainEqual(["agent_steps.limit", 200]);
+    expect(filters).toContainEqual(["agent_sessions.id", ["session-1"]]);
     expect(events).toEqual(["saved", "action", "notification"]);
     expect(actions).toEqual([
       expect.objectContaining({
@@ -224,5 +253,38 @@ describe("pending user-step sweep", () => {
     expect(mocks.writeStep).not.toHaveBeenCalled();
     expect(mocks.enqueueNotification).not.toHaveBeenCalled();
     expect(actions).toHaveLength(0);
+  });
+
+  test("sweeps pending steps despite many stale sessions without steps", async () => {
+    const pendingSession: AgentSession = {
+      ...session,
+      id: "pending-session",
+    };
+    const staleStepLessSessions = Array.from({ length: 150 }, (_, index) => ({
+      ...session,
+      id: `step-less-${index}`,
+    }));
+    const { admin, filters } = makeAdmin({
+      sessions: [...staleStepLessSessions, pendingSession],
+      stepSessionIds: [pendingSession.id],
+      steps: [
+        {
+          id: "pending-offer",
+          kind: "user_step_offered",
+          params_hash: "wifi-guide#0",
+          result_summary: JSON.stringify({ why: "Try this step." }),
+          created_at: "2026-10-01T00:00:00.000Z",
+        },
+      ],
+    });
+
+    await expect(
+      sweepPendingUserSteps(admin as never, new Date("2026-10-01T01:00:00Z"))
+    ).resolves.toEqual({ sessionsScanned: 1, stepsSaved: 1, failed: 0 });
+
+    expect(filters).toContainEqual(["agent_sessions.id", [pendingSession.id]]);
+    expect(filters).toContainEqual(["agent_steps.limit", 200]);
+    expect(filters).not.toContainEqual(["agent_sessions.limit", 100]);
+    expect(mocks.writeStep).toHaveBeenCalledTimes(1);
   });
 });

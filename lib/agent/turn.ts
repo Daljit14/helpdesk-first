@@ -135,6 +135,7 @@ export async function handleAgentRequest(input: {
       emit,
       signal,
       userMessage,
+      trustedSystemEvent: true,
       ...(input.userStep.outcome === "didnt_work"
         ? { routing: { failedVerification: true } }
         : {}),

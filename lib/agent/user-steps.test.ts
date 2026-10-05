@@ -141,6 +141,8 @@ describe("requester user-step validation", () => {
     const input = { issueSlug: issue.id, stepIndex: 0 };
     for (const why of [
       "Read more at https://example.com",
+      "See example.com/fix",
+      "https://x.io",
       "Read more at www.example.com",
       "Read more at example.com/help",
       "Please provide your recovery keys.",
@@ -159,6 +161,18 @@ describe("requester user-step validation", () => {
       )
     ).resolves.toMatchObject({ ok: false, code: "step_blocked" });
   });
+
+  test.each(["e.g. restart", "use the 2.4 GHz band"])(
+    "allows ordinary text that is not a URL: %s",
+    async (why) => {
+      await expect(
+        checkUserStep(
+          { issueSlug: issue.id, stepIndex: 0, why },
+          { approvedSlugs: new Set([issue.id]), approvedSoftware: [] }
+        )
+      ).resolves.toMatchObject({ ok: true, why });
+    }
+  );
 
   test("sanitizes and bounds the reason, with a safe default when empty", async () => {
     const context = {

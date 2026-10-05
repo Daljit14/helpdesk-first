@@ -123,6 +123,7 @@ export async function runAgentTurn(input: {
   admin: Admin;
   session: AgentSession;
   userMessage: string;
+  trustedSystemEvent?: boolean;
   model?: AgentModel;
   platform?: string;
   routing?: { screenshotAttached?: boolean; failedVerification?: boolean };
@@ -135,9 +136,25 @@ export async function runAgentTurn(input: {
   const costTrackingEnabled =
     deps.costTrackingEnabled ?? isAgentCostTrackingEnabled();
   const guarded = guardModelInput([{ source: "event", text: userMessage }]);
-  const safety = checkUserMessageSafety({ message: userMessage });
-  const tripwire = detectTripwire(userMessage);
-  if (guarded.blocked || !safety.allowed || tripwire) {
+  const trustedEventSafetyFindings = new Set([
+    "password-bypass",
+    "password-request",
+    "malware-report",
+  ]);
+  const guardedBlocked =
+    guarded.blocked &&
+    !(
+      input.trustedSystemEvent &&
+      guarded.blockReason !== null &&
+      trustedEventSafetyFindings.has(guarded.blockReason)
+    );
+  const safety = input.trustedSystemEvent
+    ? { allowed: true as const, category: undefined }
+    : checkUserMessageSafety({ message: userMessage });
+  const tripwire = input.trustedSystemEvent
+    ? null
+    : detectTripwire(userMessage);
+  if (guardedBlocked || !safety.allowed || tripwire) {
     const reason =
       tripwire ?? guarded.blockReason ?? safety.category ?? "unsafe_input";
     const ticketId = await deps.halt(admin, session, reason, userMessage, true);

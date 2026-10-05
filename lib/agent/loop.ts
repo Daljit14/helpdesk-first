@@ -8,11 +8,20 @@ import {
 } from "@/lib/ai/budget";
 import { costMicros } from "@/lib/ai/pricing";
 import { recordAgentModelCall } from "@/lib/ai/telemetry";
-import { getAgentTools, runTool, toolParamsHash } from "./tools";
+import {
+  getAgentTools,
+  giveUserStepSchema,
+  runTool,
+  toolParamsHash,
+} from "./tools";
 import { budgetExceeded } from "./budgets";
 import { createAgentModel, type AgentMessage, type AgentModel } from "./model";
 import { countEvidenceSources, selectAgentRoute } from "./routing";
 import { requesterAgentActionPrompt } from "./prompt";
+import {
+  checkUserStep as validateUserStep,
+  type UserStepCheck,
+} from "./user-steps";
 import { detectTripwire } from "./tripwires";
 import { isDenylisted } from "./denylist";
 import { sanitizeForUser } from "./untrusted";
@@ -28,11 +37,14 @@ import {
 import { proposeAction } from "./actions";
 import {
   isAgentCostTrackingEnabled,
+  isAgentUserStepsEnabled,
   isOrgEnvironmentEnabled,
   isRequesterAgentActionsEnabled,
   isRequesterAgentEnabledForOrg,
   isServiceHealthEnabled,
 } from "@/lib/admin/flags";
+import { getApprovedSlugs } from "@/lib/knowledge/governance";
+import { loadConfirmedOrgEnvironment } from "@/lib/org-environment/profile";
 import {
   getAllowedStatusHosts,
   isAllowedIncidentUrl,
@@ -80,6 +92,12 @@ export type AgentLoopDeps = {
   hasServiceIncident: typeof hasServiceIncident;
   serviceHealthEnabled?: boolean;
   orgEnvironmentEnabled?: boolean;
+  userStepsEnabled?: boolean;
+  checkUserStep?: (input: {
+    issueSlug: string;
+    stepIndex: number;
+    why: string;
+  }) => Promise<UserStepCheck>;
 };
 
 const defaultDeps: AgentLoopDeps = {
@@ -152,6 +170,16 @@ export async function runAgentTurn(input: {
     deps.serviceHealthEnabled ?? isServiceHealthEnabled();
   const orgEnvironmentEnabled =
     deps.orgEnvironmentEnabled ?? isOrgEnvironmentEnabled();
+  const userStepsEnabled = deps.userStepsEnabled ?? isAgentUserStepsEnabled();
+  const checkUserStep =
+    deps.checkUserStep ??
+    (async (stepInput) =>
+      validateUserStep(stepInput, {
+        approvedSlugs: new Set(await getApprovedSlugs(session.organization_id)),
+        approvedSoftware:
+          (await loadConfirmedOrgEnvironment(admin, session.organization_id))
+            ?.approvedSoftware ?? [],
+      }));
   let serviceIncidentActive = false;
   if (serviceHealthEnabled) {
     try {
@@ -237,13 +265,17 @@ export async function runAgentTurn(input: {
       system: requesterAgentActionPrompt(
         actionToolsEnabled,
         serviceHealthEnabled,
-        orgEnvironmentEnabled
+        orgEnvironmentEnabled,
+        undefined,
+        userStepsEnabled
       ),
       messages,
       tools: getAgentTools(
         actionToolsEnabled,
         serviceHealthEnabled,
-        orgEnvironmentEnabled
+        orgEnvironmentEnabled,
+        undefined,
+        userStepsEnabled
       ).map((tool) => ({
         name: tool.name,
         description: tool.description,
@@ -352,6 +384,91 @@ export async function runAgentTurn(input: {
         type: "halted",
         ticketId,
         reason: "model_proposed_denylisted",
+      });
+      return;
+    }
+    if (result.name === "give_user_step" && userStepsEnabled) {
+      const parsed = giveUserStepSchema.safeParse(result.input);
+      const checked = parsed.success
+        ? await checkUserStep(parsed.data)
+        : {
+            ok: false as const,
+            code: "step_not_found" as const,
+            message: "That step could not be found in the approved guide.",
+          };
+      toolCalls += 1;
+      session.tool_call_count = toolCalls;
+      await deps.updateSession(admin, session, { tool_call_count: toolCalls });
+      if (!checked.ok) {
+        const rejection = `User step rejected: ${checked.code}`;
+        const paramsHash = toolParamsHash(result.name, result.input);
+        await deps.writeStep(admin, session, {
+          kind: "tool_rejected",
+          toolName: result.name,
+          paramsHash,
+          resultSummary: rejection,
+        });
+        emit({
+          type: "tool_result_summary",
+          tool: result.name,
+          summary: rejection,
+        });
+        const key = `${result.name}:${paramsHash}`;
+        const repeats = (seen.get(key) ?? 0) + 1;
+        seen.set(key, repeats);
+        if (repeats >= 3) {
+          const ticketId = await deps.escalate(
+            admin,
+            session,
+            "loop_detected",
+            userMessage
+          );
+          emit({ type: "escalated", ticketId, reason: "loop_detected" });
+          return;
+        }
+        messages.push(
+          {
+            role: "assistant",
+            content: [
+              {
+                type: "tool_use",
+                id: result.id,
+                name: result.name,
+                input: result.input,
+              },
+            ],
+          },
+          { role: "tool_result", tool_use_id: result.id, content: rejection }
+        );
+        continue;
+      }
+      if (!parsed.success) continue;
+      const stepId = await deps.writeStep(admin, session, {
+        kind: "user_step_offered",
+        toolName: result.name,
+        paramsHash: `${parsed.data.issueSlug}#${parsed.data.stepIndex}`,
+        resultSummary: JSON.stringify({
+          guideSlug: checked.source.guideSlug,
+          stepIndex: checked.source.stepIndex,
+          why: checked.why,
+        }),
+      });
+      if (!stepId) {
+        emit({
+          type: "error",
+          message: "That step could not be saved. Please try again.",
+          recoverable: true,
+        });
+        return;
+      }
+      emit({
+        type: "user_step",
+        card: {
+          stepId,
+          instruction: checked.instruction,
+          why: checked.why,
+          source: checked.source,
+        },
       });
       return;
     }

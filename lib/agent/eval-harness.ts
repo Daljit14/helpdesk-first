@@ -8,6 +8,7 @@ import type { ProposeOutcome } from "./actions";
 import { recordAutonomyOutcome } from "@/lib/autonomy/ladder";
 import { guardModelInput } from "@/lib/autonomy/guardrails/input";
 import { wrapUntrusted, sanitizeForUser } from "./untrusted";
+import { checkUserStep } from "./user-steps";
 
 type HarnessAdmin = Record<string, never>;
 
@@ -75,6 +76,8 @@ export function createAgentEvalHarness(input: {
   toolResults?: ScriptedToolResult[];
   serviceIncidentActive?: boolean;
   serviceHealthEnabled?: boolean;
+  userStepsEnabled?: boolean;
+  approvedSlugs?: string[];
   killSwitchAfterTool?: boolean;
   maxToolCalls?: number;
   message?: string;
@@ -181,6 +184,9 @@ export function createAgentEvalHarness(input: {
     step
   ) => {
     steps.push(step);
+    if (step.kind === "user_step_offered")
+      return "00000000-0000-4000-8000-000000000005";
+    return null;
   };
   const updateSession: NonNullable<AgentLoopDeps["updateSession"]> = async (
     _admin,
@@ -221,6 +227,12 @@ export function createAgentEvalHarness(input: {
     loadContext: async () => input.context ?? [],
     hasServiceIncident: async () => Boolean(input.serviceIncidentActive),
     serviceHealthEnabled: input.serviceHealthEnabled,
+    userStepsEnabled: input.userStepsEnabled ?? false,
+    checkUserStep: (stepInput) =>
+      checkUserStep(stepInput, {
+        approvedSlugs: new Set(input.approvedSlugs ?? []),
+        approvedSoftware: [],
+      }),
     writeStep,
     updateSession,
     runTool: async (_context, name, input) => {

@@ -296,6 +296,24 @@ describe("requester agent tools", () => {
     );
   });
 
+  test("omits and rejects give_user_step while the flag is off", async () => {
+    vi.stubEnv("HELP_DESK_AGENT_USER_STEPS_ENABLED", "false");
+    expect(
+      getAgentTools(false, false, false, false, false).map((tool) => tool.name)
+    ).not.toContain("give_user_step");
+    await expect(
+      runTool(context, "give_user_step", {
+        issueSlug: "wifi-disconnecting",
+        stepIndex: 0,
+        why: "This may help.",
+      })
+    ).resolves.toMatchObject({ ok: false, code: "tool_rejected" });
+
+    expect(
+      getAgentTools(false, false, false, false, true).map((tool) => tool.name)
+    ).toContain("give_user_step");
+  });
+
   test("maps and bounds recent Entra sign-in failures", async () => {
     vi.stubEnv("HELP_DESK_AGENT_DIAGNOSTIC_SOURCES_ENABLED", "true");
     mocks.readKillSwitches.mockResolvedValue({});

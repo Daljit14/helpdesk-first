@@ -11,6 +11,9 @@ import {
   confirmOutcome as defaultConfirmOutcome,
 } from "./actions";
 import type { AgentEvent, AgentSession } from "./types";
+import { getIssueBySlug } from "@/lib/search";
+import { getIssueStepPolicies } from "@/lib/investigation/policy";
+import type { UserStepOutcome } from "./user-steps";
 import type { createAdminClient } from "@/lib/supabase/admin";
 import {
   autorunCoveredCapabilities,
@@ -51,6 +54,7 @@ export async function handleAgentRequest(input: {
   confirm?: "yes" | "no";
   sessionConsent?: "grant" | "revoke";
   attachmentIds?: string[];
+  userStep?: { stepId: string; outcome: UserStepOutcome };
   humanRequested?: boolean;
   platform?: string;
   emit: (event: AgentEvent) => void;
@@ -67,6 +71,77 @@ export async function handleAgentRequest(input: {
     deps,
     attachmentIds = [],
   } = input;
+  if (input.userStep) {
+    const unavailable = () =>
+      emit({
+        type: "error",
+        message: "That step is no longer available.",
+        recoverable: true,
+      });
+    const offered = await admin
+      .from("agent_steps")
+      .select("params_hash")
+      .eq("id", input.userStep.stepId)
+      .eq("session_id", session.id)
+      .eq("kind", "user_step_offered")
+      .maybeSingle();
+    const paramsHash = offered.data?.params_hash;
+    if (offered.error || !paramsHash) {
+      unavailable();
+      return;
+    }
+    const existingOutcome = await admin
+      .from("agent_steps")
+      .select("id")
+      .eq("session_id", session.id)
+      .eq("kind", "user_step_outcome")
+      .eq("params_hash", input.userStep.stepId)
+      .limit(1)
+      .maybeSingle();
+    if (existingOutcome.error || existingOutcome.data) {
+      unavailable();
+      return;
+    }
+    const match = /^([a-z0-9-]{1,80})#(\d+)$/.exec(paramsHash);
+    const stepIndex = match ? Number(match[2]) : -1;
+    const issue = match ? getIssueBySlug(match[1]) : undefined;
+    const instruction =
+      issue &&
+      Number.isSafeInteger(stepIndex) &&
+      stepIndex >= 0 &&
+      getIssueStepPolicies(issue)[stepIndex]?.text;
+    if (!instruction) {
+      unavailable();
+      return;
+    }
+    await (deps?.writeStep ?? writeStep)(admin, session, {
+      kind: "user_step_outcome",
+      paramsHash: input.userStep.stepId,
+      resultSummary: input.userStep.outcome,
+    });
+    const userMessage =
+      input.userStep.outcome === "done"
+        ? `User step result: done — the user completed "${instruction}". Ask whether the problem is solved; do not claim it is fixed.`
+        : input.userStep.outcome === "didnt_work"
+          ? `User step result: didn't work — "${instruction}" did not help. Try the next hypothesis.`
+          : `User step result: the user can't do "${instruction}". Offer a different approach or escalate.`;
+    const injectedRunAgentTurn = deps?.runAgentTurn ?? runAgentTurn;
+    const loopDeps = { ...deps };
+    delete loopDeps.runAgentTurn;
+    await injectedRunAgentTurn({
+      admin,
+      session,
+      platform,
+      emit,
+      signal,
+      userMessage,
+      ...(input.userStep.outcome === "didnt_work"
+        ? { routing: { failedVerification: true } }
+        : {}),
+      deps: loopDeps,
+    });
+    return;
+  }
   if (input.sessionConsent) {
     if (input.sessionConsent === "grant") {
       const granted = await grantSessionConsent(

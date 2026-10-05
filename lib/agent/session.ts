@@ -8,6 +8,11 @@ import {
 } from "@/lib/security/ticket-crypto";
 import type { HandoffReason } from "@/lib/tickets/routing";
 import type { AgentEvent, AgentSession } from "./types";
+import { isAgentUserStepsEnabled } from "@/lib/admin/flags";
+import { enqueueNotification } from "@/lib/notifications/enqueue";
+import { getIssueBySlug } from "@/lib/search";
+import { getIssueStepPolicies } from "@/lib/investigation/policy";
+import { sanitizeForUser } from "./untrusted";
 
 type Admin = ReturnType<
   typeof import("@/lib/supabase/admin").createAdminClient
@@ -96,7 +101,7 @@ export async function writeStep(
     attachmentId?: string;
     resultSummary?: string;
   }
-): Promise<void> {
+): Promise<string | null> {
   const current = await admin
     .from("agent_steps")
     .select("seq")
@@ -114,19 +119,24 @@ export async function writeStep(
         input.resultSummary.slice(0, 500)
       )
     : null;
-  await admin.from("agent_steps").insert({
-    session_id: session.id,
-    organization_id: session.organization_id,
-    seq,
-    kind: input.kind,
-    tool_name: input.toolName ?? null,
-    capability_id: input.capabilityId ?? null,
-    params_hash: input.paramsHash ?? null,
-    policy_decision: input.policyDecision ?? null,
-    consent_id: input.consentId ?? null,
-    attachment_id: input.attachmentId ?? null,
-    result_summary: encrypted,
-  });
+  const result = await admin
+    .from("agent_steps")
+    .insert({
+      session_id: session.id,
+      organization_id: session.organization_id,
+      seq,
+      kind: input.kind,
+      tool_name: input.toolName ?? null,
+      capability_id: input.capabilityId ?? null,
+      params_hash: input.paramsHash ?? null,
+      policy_decision: input.policyDecision ?? null,
+      consent_id: input.consentId ?? null,
+      attachment_id: input.attachmentId ?? null,
+      result_summary: encrypted,
+    })
+    .select("id")
+    .single();
+  return result.data?.id ?? null;
 }
 
 export async function updateSession(
@@ -234,6 +244,138 @@ export async function hasServiceIncident(
   }
 }
 
+async function escalatedUserStepActions(
+  admin: Admin,
+  session: AgentSession,
+  ticketId: string
+): Promise<
+  Array<{
+    ticket_id: string;
+    organization_id: string;
+    agent_id: null;
+    tool_name: string;
+    action_summary: string;
+    result_summary: string;
+    approval_type: "none";
+    consent_required: false;
+    consent_received: false;
+    created_at: string | null;
+  }>
+> {
+  if (!isAgentUserStepsEnabled()) return [];
+  const result = await admin
+    .from("agent_steps")
+    .select("id,kind,params_hash,result_summary,created_at")
+    .eq("organization_id", session.organization_id)
+    .eq("session_id", session.id)
+    .in("kind", ["user_step_offered", "user_step_outcome", "user_step_saved"])
+    .order("seq", { ascending: true });
+  const rows = result.data ?? [];
+  const outcomes = new Map(
+    rows
+      .filter((step) => step.kind === "user_step_outcome")
+      .map((step) => [step.params_hash, step])
+  );
+  const saved = new Set(
+    rows
+      .filter((step) => step.kind === "user_step_saved")
+      .map((step) => step.params_hash)
+  );
+  const actions: Array<{
+    ticket_id: string;
+    organization_id: string;
+    agent_id: null;
+    tool_name: string;
+    action_summary: string;
+    result_summary: string;
+    approval_type: "none";
+    consent_required: false;
+    consent_received: false;
+    created_at: string | null;
+  }> = [];
+  for (const step of rows.filter((item) => item.kind === "user_step_offered")) {
+    const match = /^([a-z0-9-]{1,80})#(\d+)$/.exec(step.params_hash ?? "");
+    const stepIndex = match ? Number(match[2]) : -1;
+    const issue = match ? getIssueBySlug(match[1]) : undefined;
+    const instruction =
+      issue &&
+      Number.isSafeInteger(stepIndex) &&
+      stepIndex >= 0 &&
+      getIssueStepPolicies(issue)[stepIndex]?.text;
+    if (!instruction || !issue) continue;
+
+    const outcomeStep = outcomes.get(step.id);
+    const rawOutcome = outcomeStep
+      ? await decryptAgentText(
+          admin,
+          session.organization_id,
+          "agent_steps",
+          "result_summary",
+          outcomeStep.result_summary
+        )
+      : null;
+    const resultSummary =
+      rawOutcome === "done"
+        ? "Requester did it"
+        : rawOutcome === "didnt_work"
+          ? "Requester said it didn't work"
+          : rawOutcome === "cant_do"
+            ? "Requester couldn't do it"
+            : "Not done before the session ended";
+    const actionSummary = `Your step: ${instruction} — Source: ${issue.title}`;
+    actions.push({
+      ticket_id: ticketId,
+      organization_id: session.organization_id,
+      agent_id: null,
+      tool_name: "user_step",
+      action_summary: actionSummary.slice(0, 1000),
+      result_summary: resultSummary,
+      approval_type: "none",
+      consent_required: false,
+      consent_received: false,
+      created_at: step.created_at,
+    });
+
+    if (!outcomeStep && !saved.has(step.id)) {
+      const summary = await decryptAgentText(
+        admin,
+        session.organization_id,
+        "agent_steps",
+        "result_summary",
+        step.result_summary
+      );
+      let why = "";
+      try {
+        const parsed = JSON.parse(summary ?? "") as { why?: unknown };
+        if (typeof parsed.why === "string")
+          why = sanitizeForUser(parsed.why).slice(0, 200);
+      } catch {
+        why = "";
+      }
+      try {
+        await enqueueNotification({
+          organizationId: session.organization_id,
+          ticketId,
+          eventType: "agent.user_step_pending",
+          recipientUserIds: [session.requester_id],
+          subject: "A step to try from your support chat",
+          body: `${instruction}\n\n${why}\n\n${issue.title}`,
+          url: `/tickets/${ticketId}`,
+          dedupeKey: `user-step:${step.id}`,
+        });
+        await writeStep(admin, session, {
+          kind: "user_step_saved",
+          paramsHash: step.id,
+          resultSummary: "pending",
+        });
+      } catch (error) {
+        console.error("Failed to save pending requester step.", error);
+      }
+    }
+  }
+  return actions;
+}
+
 export async function escalate(
   admin: Admin,
   session: AgentSession,
@@ -334,6 +476,9 @@ export async function escalate(
           created_at: step.created_at,
         };
       })
+    );
+    actions.push(
+      ...(await escalatedUserStepActions(admin, session, created.ticketId))
     );
     if (actions.length > 0) {
       const inserted = await admin.from("ticket_actions").insert(actions);

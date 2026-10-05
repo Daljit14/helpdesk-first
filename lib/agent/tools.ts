@@ -12,6 +12,7 @@ import { wrapUntrusted, sanitizeForUser } from "./untrusted";
 import { parameterHash } from "@/lib/autonomy/guardrails/hash";
 import {
   isAgentDiagnosticSourcesEnabled,
+  isAgentUserStepsEnabled,
   isRequesterAgentActionsEnabled,
   isOrgEnvironmentEnabled,
   isServiceHealthEnabled,
@@ -29,6 +30,13 @@ const querySchema = z
 const emptySchema = z.object({}).strict();
 const similarIssuesSchema = z
   .object({ issueSlug: z.string().regex(/^[a-z0-9-]{1,80}$/) })
+  .strict();
+export const giveUserStepSchema = z
+  .object({
+    issueSlug: z.string().regex(/^[a-z0-9-]{1,80}$/),
+    stepIndex: z.number().int().min(0).max(49),
+    why: z.string().max(400),
+  })
   .strict();
 export const serviceHealthSchema = z
   .object({ symptom: z.string().trim().min(1).max(200) })
@@ -100,12 +108,19 @@ const SIMILAR_ORG_ISSUES_TOOL = {
     "Count recent reports of an approved issue by other requesters in the organization.",
   input_schema: z.toJSONSchema(similarIssuesSchema, { io: "input" }),
 };
+const GIVE_USER_STEP_TOOL = {
+  name: "give_user_step" as const,
+  description:
+    "Offer one safe instruction from an approved guide for the requester to do themselves.",
+  input_schema: z.toJSONSchema(giveUserStepSchema, { io: "input" }),
+};
 
 export function getAgentTools(
   actionsEnabled = isRequesterAgentActionsEnabled(),
   serviceHealthEnabled = isServiceHealthEnabled(),
   orgEnvironmentEnabled = isOrgEnvironmentEnabled(),
-  diagnosticSourcesEnabled = isAgentDiagnosticSourcesEnabled()
+  diagnosticSourcesEnabled = isAgentDiagnosticSourcesEnabled(),
+  userStepsEnabled = isAgentUserStepsEnabled()
 ) {
   return [
     ...AGENT_TOOLS,
@@ -115,6 +130,7 @@ export function getAgentTools(
     ...(diagnosticSourcesEnabled
       ? [RECENT_SIGN_IN_FAILURES_TOOL, SIMILAR_ORG_ISSUES_TOOL]
       : []),
+    ...(userStepsEnabled ? [GIVE_USER_STEP_TOOL] : []),
   ];
 }
 
@@ -124,7 +140,8 @@ export type AgentToolName =
   | "get_service_health"
   | "get_org_environment"
   | "get_recent_sign_in_failures"
-  | "count_similar_org_issues";
+  | "count_similar_org_issues"
+  | "give_user_step";
 
 export type AgentToolResult =
   | {
@@ -241,7 +258,9 @@ export async function runTool(
   const definition = getAgentTools(
     false,
     serviceHealthEnabled,
-    orgEnvironmentEnabled
+    orgEnvironmentEnabled,
+    isAgentDiagnosticSourcesEnabled(),
+    isAgentUserStepsEnabled()
   ).find((tool) => tool.name === name);
   if (!definition || hasTargetKey(input)) {
     const userSummary = "That read-only tool request was rejected.";

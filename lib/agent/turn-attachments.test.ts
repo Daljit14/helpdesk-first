@@ -62,12 +62,17 @@ function adminForScreenshotSteps() {
           filters[column] = value;
           return query;
         },
+        in: () => query,
         not: () => query,
         order: () => query,
         limit: () => query,
-        insert: async () => ({ data: null, error: null }),
+        insert: () => query,
         update: () => query,
         maybeSingle: async () => ({ data: null, error: null }),
+        single: async () => ({
+          data: { id: "00000000-0000-4000-8000-000000000020" },
+          error: null,
+        }),
         get data() {
           if (table === "agent_steps" && filters.kind === "screenshot_received")
             return [{ attachment_id: "00000000-0000-4000-8000-000000000010" }];
@@ -124,6 +129,7 @@ describe("requester agent screenshot escalation", () => {
       deps: {
         writeStep: async (_admin, _session, step) => {
           steps.push(step);
+          return null;
         },
         intakeScreenshots: intakeMock,
       },

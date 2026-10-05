@@ -8,6 +8,7 @@ import {
   isRequesterAgentEnabledForOrg,
   isRequesterAgentAutorunEnabledForOrg,
   isRequesterAgentVisionEnabledForOrg,
+  isAgentUserStepsEnabled,
 } from "@/lib/admin/flags";
 import { createRateLimiter, checkRateLimit } from "@/lib/ai/rate-limit";
 import {
@@ -17,6 +18,7 @@ import {
 } from "@/lib/agent/session";
 import { handleAgentRequest } from "@/lib/agent/turn";
 import type { AgentEvent } from "@/lib/agent/types";
+import { USER_STEP_OUTCOMES } from "@/lib/agent/user-steps";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -40,6 +42,12 @@ const inputSchema = z
     confirm: z.enum(["yes", "no"]).optional(),
     sessionConsent: z.enum(["grant", "revoke"]).optional(),
     attachmentIds: z.array(z.string().uuid()).max(2).optional(),
+    userStep: z
+      .object({
+        stepId: z.string().uuid(),
+        outcome: z.enum(USER_STEP_OUTCOMES),
+      })
+      .optional(),
   })
   .strict();
 
@@ -73,7 +81,8 @@ export async function POST(request: Request): Promise<Response> {
     !parsed.data.attachmentIds?.length &&
     parsed.data.consent === undefined &&
     parsed.data.confirm === undefined &&
-    parsed.data.sessionConsent === undefined
+    parsed.data.sessionConsent === undefined &&
+    parsed.data.userStep === undefined
   )
     return Response.json({ error: "Invalid request" }, { status: 400 });
   if (
@@ -90,6 +99,8 @@ export async function POST(request: Request): Promise<Response> {
     parsed.data.attachmentIds?.length &&
     !isRequesterAgentVisionEnabledForOrg(organizationId)
   )
+    return Response.json({ error: "Not found" }, { status: 404 });
+  if (parsed.data.userStep && !isAgentUserStepsEnabled())
     return Response.json({ error: "Not found" }, { status: 404 });
   const admin = createAdminClient();
   const session = parsed.data.sessionId
@@ -127,6 +138,7 @@ export async function POST(request: Request): Promise<Response> {
           confirm: parsed.data.confirm,
           sessionConsent: parsed.data.sessionConsent,
           attachmentIds: parsed.data.attachmentIds,
+          userStep: parsed.data.userStep,
           humanRequested: parsed.data.humanRequested,
           platform: parsed.data.platform ?? undefined,
           emit,

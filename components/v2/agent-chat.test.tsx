@@ -65,6 +65,76 @@ describe("AgentChat", () => {
     expect(screen.queryByText("Screenshot")).not.toBeInTheDocument();
   });
 
+  test.each([
+    ["Done", "done"],
+    ["Didn't work", "didnt_work"],
+    ["I can't do this", "cant_do"],
+  ] as const)(
+    "renders and answers a user-step card with %s",
+    async (buttonName, outcome) => {
+      const stepId = "00000000-0000-4000-8000-000000000020";
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(
+          streamResponse([
+            { type: "session", sessionId: "session-123" },
+            {
+              type: "user_step",
+              card: {
+                stepId,
+                instruction: "Restart the router and reconnect.",
+                why: "This is the first safe step in the guide.",
+                source: {
+                  kind: "guide",
+                  guideSlug: "wifi-disconnecting",
+                  stepIndex: 0,
+                  title: "Wi-Fi keeps disconnecting",
+                  url: "/issues/wifi-disconnecting/guide",
+                },
+              },
+            },
+          ])
+        )
+        .mockResolvedValueOnce(streamResponse([]));
+      vi.stubGlobal("fetch", fetchMock);
+      render(<AgentChat initialProblem="Wi-Fi is down" />);
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "Ask the assistant" })
+      );
+      expect(
+        await screen.findByRole("region", { name: "Your step" })
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("Restart the router and reconnect.")
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "Why this helps: This is the first safe step in the guide."
+        )
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("link", { name: "Wi-Fi keeps disconnecting" })
+      ).toHaveAttribute("href", "/issues/wifi-disconnecting/guide");
+
+      const answer = screen.getByRole("button", { name: buttonName });
+      fireEvent.click(answer);
+
+      await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+      expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({
+        message: "",
+        userStep: { stepId, outcome },
+      });
+      expect(screen.getByRole("button", { name: "Done" })).toBeDisabled();
+      expect(
+        screen.getByRole("button", { name: "Didn't work" })
+      ).toBeDisabled();
+      expect(
+        screen.getByRole("button", { name: "I can't do this" })
+      ).toBeDisabled();
+    }
+  );
+
   test("uploads a ready screenshot and sends its attachment id", async () => {
     uploadMock.mockResolvedValue({
       attachmentId: "00000000-0000-4000-8000-000000000010",

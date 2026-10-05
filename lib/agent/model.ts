@@ -4,6 +4,7 @@ import { getProviderTimeoutMs } from "@/lib/ai/safety-policy";
 import type { ModelUsage } from "@/lib/ai/pricing";
 import { sanitizeForUser } from "./untrusted";
 import {
+  isAgentUserStepsEnabled,
   isAgentPromptCacheEnabled,
   isRequesterAgentActionsEnabled,
 } from "@/lib/admin/flags";
@@ -141,6 +142,7 @@ function modelTelemetry(
 export class MockAgentModel implements AgentModel {
   private called = false;
   private diagnosticCalled = false;
+  private userStepCalled = false;
   private diagnosticsEvidenceId: string | undefined;
   private diagnosticsSsid: string | undefined;
   constructor(private readonly firstMessage: string) {}
@@ -148,6 +150,15 @@ export class MockAgentModel implements AgentModel {
   async next(
     input: { messages: AgentMessage[] } = { messages: [] }
   ): Promise<AgentModelOutput> {
+    if (/^User step result:/.test(this.firstMessage) && !this.called) {
+      this.called = true;
+      return {
+        kind: "final",
+        text: "I found some information that may help. Please tell me whether it resolves the problem.",
+        confidence: 0.9,
+        summary: "I’m summarizing the available findings.",
+      };
+    }
     const diagnosticsResult = [...input.messages]
       .reverse()
       .find(
@@ -199,6 +210,34 @@ export class MockAgentModel implements AgentModel {
         input: { query },
         summary: "I’m checking approved support guides.",
       };
+    }
+    if (isAgentUserStepsEnabled() && !networkMessage && !this.userStepCalled) {
+      const searchResult = [...input.messages]
+        .reverse()
+        .find(
+          (
+            message
+          ): message is Extract<AgentMessage, { role: "tool_result" }> =>
+            message.role === "tool_result" &&
+            message.tool_use_id === "mock-search"
+        );
+      const guideSlug = searchResult?.content.match(
+        /"slug"\s*:\s*"([a-z0-9-]{1,80})"/i
+      )?.[1];
+      if (guideSlug) {
+        this.userStepCalled = true;
+        return {
+          kind: "tool_use",
+          id: "mock-user-step",
+          name: "give_user_step",
+          input: {
+            issueSlug: guideSlug,
+            stepIndex: 0,
+            why: "It is the first safe step in the matching guide.",
+          },
+          summary: "I found a safe step in the approved guide.",
+        };
+      }
     }
     if (!this.diagnosticCalled && networkMessage) {
       this.diagnosticCalled = true;

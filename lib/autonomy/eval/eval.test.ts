@@ -54,6 +54,31 @@ describe("versioned autonomy benchmark", () => {
     ).toBe(true);
   });
 
+  test("covers trusted-source user-step offers and rejection cases", () => {
+    const userStepCases = benchmarkCases.filter((item) =>
+      item.suite.startsWith("requester_agent_user_step")
+    );
+
+    expect(userStepCases.map((item) => item.suite)).toEqual([
+      "requester_agent_user_step_approved",
+      "requester_agent_user_step_unapproved",
+      "requester_agent_user_step_withheld",
+      "requester_agent_user_step_injection",
+    ]);
+    expect(
+      userStepCases.every(
+        (item) =>
+          item.requesterAgent?.userStepsEnabled === true &&
+          benchmarkCaseSchema.safeParse(item).success
+      )
+    ).toBe(true);
+    expect(
+      userStepCases
+        .slice(1)
+        .every((item) => item.requesterAgent?.expectUserStepRejected === true)
+    ).toBe(true);
+  });
+
   test("runs the committed benchmark", async () => {
     const report = await runBenchmark();
     expect(report.cases).toBe(benchmarkCases.length);

@@ -19,6 +19,20 @@ export const HUMAN_AVATAR_IDS = [
 
 export type HumanAvatarId = (typeof HUMAN_AVATAR_IDS)[number];
 
+export const CLAY_FRAMES = [
+  "base",
+  "blink",
+  "lift",
+  "raise",
+  "wave-a",
+  "wave-b",
+  "inhale",
+] as const;
+
+export type ClayFrame = (typeof CLAY_FRAMES)[number];
+
+export const CLAY_FRAME_PX = 192;
+
 export const PORTRAITS: Record<HumanAvatarId, { label: string }> = {
   nova: { label: "Curly hair with glasses" },
   kai: { label: "Short dark hair with earbuds" },
@@ -40,4 +54,8 @@ export const PORTRAITS: Record<HumanAvatarId, { label: string }> = {
 
 export function portraitSrc(id: HumanAvatarId, px: 96 | 256) {
   return `/avatars/${id}-${px}.webp`;
+}
+
+export function animationSheetSrc(id: HumanAvatarId) {
+  return `/avatars/anim/${id}.webp`;
 }

@@ -1,7 +1,13 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   AVATAR_LABELS,
   Avatar,
@@ -29,9 +35,115 @@ const EXPECTED_PORTRAITS = [
   ["luca", "Locs with headband"],
 ] as const;
 
+let prefersReducedMotion = false;
+let originalVisibilityState: PropertyDescriptor | undefined;
+const intersectionObservers: MockIntersectionObserver[] = [];
+
+class MockImage {
+  static instances: MockImage[] = [];
+
+  src = "";
+  complete = false;
+  naturalWidth = 0;
+  onload: ((event: Event) => void) | null = null;
+  onerror: ((event: Event) => void) | null = null;
+
+  constructor() {
+    MockImage.instances.push(this);
+  }
+
+  load() {
+    this.complete = true;
+    this.naturalWidth = 1344;
+    this.onload?.(new Event("load"));
+  }
+}
+
+class MockIntersectionObserver {
+  private target: Element | null = null;
+
+  constructor(private callback: IntersectionObserverCallback) {
+    intersectionObservers.push(this);
+  }
+
+  observe(target: Element) {
+    this.target = target;
+  }
+
+  disconnect() {
+    this.target = null;
+  }
+
+  trigger(isIntersecting: boolean) {
+    if (!this.target) return;
+    this.callback(
+      [
+        {
+          target: this.target,
+          isIntersecting,
+        } as unknown as IntersectionObserverEntry,
+      ],
+      this as unknown as IntersectionObserver
+    );
+  }
+}
+
+const canvasContext = {
+  globalAlpha: 1,
+  clearRect: vi.fn(),
+  drawImage: vi.fn(),
+};
+
+function setDocumentVisibility(state: DocumentVisibilityState) {
+  Object.defineProperty(document, "visibilityState", {
+    configurable: true,
+    value: state,
+  });
+}
+
+beforeEach(() => {
+  prefersReducedMotion = false;
+  originalVisibilityState = Object.getOwnPropertyDescriptor(
+    document,
+    "visibilityState"
+  );
+  setDocumentVisibility("visible");
+  localStorage.clear();
+  intersectionObservers.length = 0;
+  MockImage.instances = [];
+  canvasContext.clearRect.mockClear();
+  canvasContext.drawImage.mockClear();
+  vi.stubGlobal("matchMedia", (media: string) => ({
+    media,
+    matches: prefersReducedMotion,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+  }));
+  vi.stubGlobal(
+    "IntersectionObserver",
+    MockIntersectionObserver as unknown as typeof IntersectionObserver
+  );
+  vi.stubGlobal("Image", MockImage as unknown as typeof Image);
+  vi.stubGlobal(
+    "requestAnimationFrame",
+    vi.fn(() => 1)
+  );
+  vi.stubGlobal("cancelAnimationFrame", vi.fn());
+  vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(
+    canvasContext as unknown as CanvasRenderingContext2D
+  );
+});
+
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+  localStorage.clear();
+  if (originalVisibilityState) {
+    Object.defineProperty(document, "visibilityState", originalVisibilityState);
+  } else {
+    Reflect.deleteProperty(document, "visibilityState");
+  }
 });
 
 describe("shared portrait avatars", () => {
@@ -80,6 +192,38 @@ describe("shared portrait avatars", () => {
     ).toBeInTheDocument();
   });
 
+  it("animates only when explicitly requested and keeps the static image", () => {
+    const { container, rerender } = render(<Avatar id="nova" size={36} />);
+    expect(container.querySelector("canvas")).not.toBeInTheDocument();
+    expect(container.querySelector('[data-avatar="nova"]')).toHaveAttribute(
+      "data-animating",
+      "false"
+    );
+    expect(container.querySelector("img")).toBeInTheDocument();
+
+    rerender(<Avatar id="nova" size={36} animate />);
+    expect(container.querySelector("canvas")).toBeInTheDocument();
+    expect(container.querySelector('[data-avatar="nova"]')).toHaveAttribute(
+      "data-animating",
+      "true"
+    );
+    expect(container.querySelector("img")).toBeInTheDocument();
+  });
+
+  it("does not animate with reduced motion or a disabled preference", () => {
+    prefersReducedMotion = true;
+    const reduced = render(<Avatar id="nova" size={36} animate />);
+    expect(reduced.container.querySelector("canvas")).not.toBeInTheDocument();
+    expect(reduced.container.querySelector("img")).toBeInTheDocument();
+
+    reduced.unmount();
+    prefersReducedMotion = false;
+    localStorage.setItem("hf-avatar-animation", "off");
+    const disabled = render(<Avatar id="nova" size={36} animate />);
+    expect(disabled.container.querySelector("canvas")).not.toBeInTheDocument();
+    expect(disabled.container.querySelector("img")).toBeInTheDocument();
+  });
+
   it("falls back when a server-rendered image failed before hydration", () => {
     vi.spyOn(HTMLImageElement.prototype, "complete", "get").mockReturnValue(
       true
@@ -95,10 +239,11 @@ describe("shared portrait avatars", () => {
   });
 
   it("gives the bot avatar its accessible default name", () => {
-    render(<Avatar id="bot" />);
+    const { container } = render(<Avatar id="bot" animate />);
     expect(
       screen.getByRole("img", { name: "Support Assistant (AI)" })
     ).toBeInTheDocument();
+    expect(container.querySelector("canvas")).not.toBeInTheDocument();
   });
 
   it("normalizes current, char-prefixed, and legacy values", () => {
@@ -137,6 +282,102 @@ describe("AvatarPicker", () => {
     render(<AvatarPicker value="kai" initial="D" onChange={vi.fn()} />);
     expect(document.activeElement).toBe(
       screen.getByRole("radio", { name: "Short dark hair with earbuds" })
+    );
+  });
+
+  it("animates the selected and previewed tiles only", () => {
+    render(<AvatarPicker value="kai" initial="D" onChange={vi.fn()} />);
+    const group = screen.getByRole("radiogroup");
+    expect(group.querySelectorAll("canvas")).toHaveLength(1);
+    expect(
+      screen
+        .getByRole("radio", { name: "Short dark hair with earbuds" })
+        .querySelector("canvas")
+    ).toBeInTheDocument();
+
+    const mei = screen.getByRole("radio", {
+      name: "Top bun with stud earrings",
+    });
+    fireEvent.mouseEnter(mei);
+    expect(group.querySelectorAll("canvas")).toHaveLength(2);
+    expect(mei.querySelector("canvas")).toBeInTheDocument();
+
+    fireEvent.mouseLeave(mei);
+    expect(group.querySelectorAll("canvas")).toHaveLength(1);
+
+    fireEvent.focus(mei);
+    expect(group.querySelectorAll("canvas")).toHaveLength(2);
+    fireEvent.blur(mei);
+    expect(group.querySelectorAll("canvas")).toHaveLength(1);
+  });
+
+  it("toggles the animation preference outside the radio group", () => {
+    render(<AvatarPicker value="kai" initial="D" onChange={vi.fn()} />);
+    const switchButton = screen.getByRole("switch", {
+      name: "Avatar animation",
+    });
+    expect(screen.getByText("Avatar animation")).toBeInTheDocument();
+    expect(screen.getByRole("radiogroup")).not.toContainElement(switchButton);
+    expect(switchButton).toHaveClass("min-h-11");
+    expect(switchButton).toHaveAttribute("aria-checked", "true");
+    expect(document.querySelectorAll("canvas")).toHaveLength(1);
+
+    fireEvent.click(switchButton);
+    expect(switchButton).toHaveAttribute("aria-checked", "false");
+    expect(localStorage.getItem("hf-avatar-animation")).toBe("off");
+    expect(document.querySelectorAll("canvas")).toHaveLength(0);
+
+    fireEvent.click(switchButton);
+    expect(switchButton).toHaveAttribute("aria-checked", "true");
+    expect(localStorage.getItem("hf-avatar-animation")).toBeNull();
+    expect(document.querySelectorAll("canvas")).toHaveLength(1);
+  });
+
+  it("shows the preference as disabled without changing it under reduced motion", () => {
+    prefersReducedMotion = true;
+    render(<AvatarPicker value="kai" initial="D" onChange={vi.fn()} />);
+    const switchButton = screen.getByRole("switch", {
+      name: "Avatar animation",
+    });
+
+    expect(switchButton).toHaveAttribute("aria-disabled", "true");
+    expect(switchButton).toHaveAttribute("aria-checked", "false");
+    expect(
+      screen.getByText("Off while your device reduces motion")
+    ).toBeInTheDocument();
+    fireEvent.click(switchButton);
+    expect(localStorage.getItem("hf-avatar-animation")).toBeNull();
+  });
+
+  it("pauses the canvas while hidden or outside the viewport", () => {
+    setDocumentVisibility("hidden");
+    const { container } = render(<Avatar id="nova" size={36} animate />);
+    const canvas = container.querySelector("canvas")!;
+    const observer = intersectionObservers[0];
+
+    act(() => {
+      MockImage.instances[0].load();
+      observer.trigger(true);
+    });
+    expect(canvas).toHaveAttribute("data-playing", "false");
+
+    act(() => {
+      setDocumentVisibility("visible");
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    expect(canvas).toHaveAttribute("data-playing", "true");
+
+    act(() => observer.trigger(false));
+    expect(canvas).toHaveAttribute("data-playing", "false");
+  });
+
+  it("treats the canvas as visible when IntersectionObserver is unavailable", () => {
+    vi.stubGlobal("IntersectionObserver", undefined);
+    const { container } = render(<Avatar id="nova" size={36} animate />);
+    act(() => MockImage.instances[0].load());
+    expect(container.querySelector("canvas")).toHaveAttribute(
+      "data-playing",
+      "true"
     );
   });
 

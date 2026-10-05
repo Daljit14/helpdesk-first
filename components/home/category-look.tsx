@@ -1,10 +1,6 @@
 import type { ReactNode } from "react";
 
-/**
- * Colour tile, animated icon and a short "what's covered" line for each guide
- * category. Icons are inline SVG so individual strokes can animate (see the
- * `.hf-i-*` classes in globals.css). Everything here is decorative.
- */
+/** Colour tile, icon and a short "what's covered" line for each category. */
 export type CategoryLook = {
   tile: string;
   ink: string;
@@ -37,7 +33,7 @@ const looks: Record<string, CategoryLook> = {
       <>
         <rect x="3" y="4" width="18" height="12" rx="2" />
         <path d="M8 20h8M12 16v4" />
-        <path className="hf-i-blink" d="M7 12l3-3 2 2 4-4" />
+        <path d="M7 12l3-3 2 2 4-4" />
       </>
     ),
   },
@@ -48,21 +44,9 @@ const looks: Record<string, CategoryLook> = {
     icon: svg(
       "currentColor",
       <>
-        <path
-          className="hf-i-blink"
-          style={{ animationDelay: "0.6s" }}
-          d="M5 12.5a10 10 0 0 1 14 0"
-        />
-        <path
-          className="hf-i-blink"
-          style={{ animationDelay: "0.3s" }}
-          d="M8.5 16a5 5 0 0 1 7 0"
-        />
-        <path
-          className="hf-i-blink"
-          style={{ animationDelay: "0.9s" }}
-          d="M2 9a15 15 0 0 1 20 0"
-        />
+        <path d="M5 12.5a10 10 0 0 1 14 0" />
+        <path d="M8.5 16a5 5 0 0 1 7 0" />
+        <path d="M2 9a15 15 0 0 1 20 0" />
         <circle cx="12" cy="19.5" r="0.8" />
       </>
     ),
@@ -76,7 +60,7 @@ const looks: Record<string, CategoryLook> = {
       <>
         <path d="M6 9V3h12v6" />
         <rect x="3" y="9" width="18" height="8" rx="2" />
-        <path className="hf-i-bob" d="M7 14h10v7H7z" />
+        <path d="M7 14h10v7H7z" />
       </>
     ),
   },
@@ -88,7 +72,7 @@ const looks: Record<string, CategoryLook> = {
       "currentColor",
       <>
         <rect x="3" y="5" width="18" height="14" rx="2" />
-        <path className="hf-i-flap" d="m3 7 9 6 9-6" />
+        <path d="m3 7 9 6 9-6" />
       </>
     ),
   },
@@ -101,7 +85,7 @@ const looks: Record<string, CategoryLook> = {
       <>
         <rect x="3" y="4" width="18" height="16" rx="2" />
         <path d="M3 9h18" />
-        <circle className="hf-i-blink" cx="7" cy="6.5" r="0.6" />
+        <circle cx="7" cy="6.5" r="0.6" />
       </>
     ),
   },
@@ -113,12 +97,8 @@ const looks: Record<string, CategoryLook> = {
       "currentColor",
       <>
         <path d="M11 5 6 9H3v6h3l5 4z" />
-        <path className="hf-i-blink" d="M15.5 8.5a5 5 0 0 1 0 7" />
-        <path
-          className="hf-i-blink"
-          style={{ animationDelay: "0.4s" }}
-          d="M18.5 5.5a9 9 0 0 1 0 13"
-        />
+        <path d="M15.5 8.5a5 5 0 0 1 0 7" />
+        <path d="M18.5 5.5a9 9 0 0 1 0 13" />
       </>
     ),
   },
@@ -128,7 +108,7 @@ const looks: Record<string, CategoryLook> = {
     hint: "Passwords, 2FA, SSO",
     icon: svg(
       "currentColor",
-      <g className="hf-i-wiggle">
+      <g>
         <circle cx="8" cy="15" r="4" />
         <path d="m10.8 12.2 8.2-8.2M16 7l3 3" />
       </g>
@@ -142,7 +122,7 @@ const looks: Record<string, CategoryLook> = {
       "currentColor",
       <>
         <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-        <path className="hf-i-bob" d="M12 11v5M9.5 13.5 12 11l2.5 2.5" />
+        <path d="M12 11v5M9.5 13.5 12 11l2.5 2.5" />
       </>
     ),
   },
@@ -155,14 +135,7 @@ const looks: Record<string, CategoryLook> = {
       <>
         <rect x="3" y="6" width="13" height="12" rx="2" />
         <path d="m16 10 5-3v10l-5-3" />
-        <circle
-          className="hf-i-rec"
-          cx="7"
-          cy="10"
-          r="1.4"
-          fill="#e0245e"
-          stroke="none"
-        />
+        <circle cx="7" cy="10" r="1.4" fill="#e0245e" stroke="none" />
       </>
     ),
   },
@@ -172,7 +145,7 @@ const looks: Record<string, CategoryLook> = {
     hint: "Apps, hotspot, battery",
     icon: svg(
       "currentColor",
-      <g className="hf-i-vib">
+      <g>
         <rect x="7" y="2" width="10" height="20" rx="2" />
         <path d="M11 18h2" />
       </g>
@@ -187,7 +160,7 @@ const looks: Record<string, CategoryLook> = {
       <>
         <path d="M9 2v6M15 2v6" />
         <path d="M6 8h12v3a6 6 0 0 1-12 0z" />
-        <path className="hf-i-bob" d="M12 17v5" />
+        <path d="M12 17v5" />
       </>
     ),
   },
@@ -199,21 +172,9 @@ const looks: Record<string, CategoryLook> = {
       "currentColor",
       <>
         <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" />
-        <circle className="hf-i-blink" cx="9" cy="12" r="0.8" />
-        <circle
-          className="hf-i-blink"
-          style={{ animationDelay: "0.3s" }}
-          cx="13"
-          cy="12"
-          r="0.8"
-        />
-        <circle
-          className="hf-i-blink"
-          style={{ animationDelay: "0.6s" }}
-          cx="17"
-          cy="12"
-          r="0.8"
-        />
+        <circle cx="9" cy="12" r="0.8" />
+        <circle cx="13" cy="12" r="0.8" />
+        <circle cx="17" cy="12" r="0.8" />
       </>
     ),
   },
@@ -225,7 +186,7 @@ const looks: Record<string, CategoryLook> = {
       "currentColor",
       <>
         <path d="M12 3 4 6v6c0 4.5 3.4 8 8 9 4.6-1 8-4.5 8-9V6l-8-3Z" />
-        <path className="hf-i-draw" d="m9 12 2 2 4-4" />
+        <path d="m9 12 2 2 4-4" />
       </>
     ),
   },

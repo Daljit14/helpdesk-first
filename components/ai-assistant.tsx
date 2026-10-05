@@ -96,7 +96,7 @@ export function AiAssistant({
   return (
     <div className="mx-auto w-full max-w-2xl">
       <div className="mb-6 flex items-center gap-3">
-        <Bot className="hf-bob h-8 w-8 text-primary" aria-hidden="true" />
+        <Bot className="h-8 w-8 text-primary" aria-hidden="true" />
         <h1 className="text-3xl font-bold tracking-tight">
           Ask the Support Assistant
         </h1>

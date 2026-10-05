@@ -209,7 +209,7 @@ export function SystemStatusPanel() {
             className={`absolute inset-4 rounded-full bg-gradient-to-br ${orb} opacity-30 hf-ping`}
             style={{ animationDelay: "0.6s" }}
           />
-          <span className="hf-adm-orbit absolute inset-1 rounded-full border-2 border-dashed border-primary/25" />
+          <span className="absolute inset-1 rounded-full border-2 border-dashed border-primary/25" />
           <span
             className={`relative flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br ${orb} text-white shadow-[0_18px_40px_-12px_rgba(0,0,0,0.35)]`}
           >

@@ -434,31 +434,23 @@ export function DatabaseOverview({ initial }: { initial: DbOverview }) {
       <section className="hf-adm-hero hf-adm-hero--midnight hf-rise relative overflow-hidden rounded-[28px] px-5 py-6 shadow-[0_24px_50px_-28px_var(--primary)] sm:px-7">
         <span
           aria-hidden
-          className="hf-adm-blob pointer-events-none absolute -right-16 -top-24 h-72 w-72 rounded-full bg-[radial-gradient(closest-side,rgb(255_255_255/0.22),transparent)]"
+          className="pointer-events-none absolute -right-16 -top-24 h-72 w-72 rounded-full bg-[radial-gradient(closest-side,rgb(255_255_255/0.22),transparent)]"
         />
-        {/* Animated "data stream" columns */}
+        {/* Decorative data columns */}
         <div
           aria-hidden
           className="pointer-events-none absolute inset-y-0 right-0 hidden w-1/3 gap-3 opacity-40 md:flex"
         >
           {Array.from({ length: 9 }, (_, i) => (
-            <span
-              key={i}
-              className="hf-db-stream relative h-full flex-1 overflow-hidden"
-              style={{
-                animationDelay: `${i * 0.35}s`,
-                animationDuration: `${3 + (i % 4)}s`,
-              }}
-            />
+            <span key={i} className="relative h-full flex-1 overflow-hidden" />
           ))}
         </div>
         <div className="relative flex flex-wrap items-center justify-between gap-5">
           <div className="flex min-w-0 items-center gap-4">
             <span
               aria-hidden
-              className="hf-adm-medallion relative hidden h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/30 backdrop-blur sm:flex"
+              className="relative hidden h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/30 backdrop-blur sm:flex"
             >
-              <span className="hf-adm-orbit absolute -inset-2 rounded-[22px] border border-dashed border-white/35" />
               <Database className="h-7 w-7" />
             </span>
             <div className="min-w-0">
@@ -719,10 +711,7 @@ export function DatabaseOverview({ initial }: { initial: DbOverview }) {
             <div className="flex items-center gap-3">
               <span className="relative flex h-9 w-9 items-center justify-center rounded-xl bg-secondary text-secondary-foreground">
                 {live && (
-                  <span
-                    aria-hidden
-                    className="hf-halo absolute inset-0 rounded-xl"
-                  />
+                  <span aria-hidden className="absolute inset-0 rounded-xl" />
                 )}
                 <Radio className="h-4 w-4" aria-hidden />
               </span>

@@ -321,12 +321,10 @@ export function MicrophoneTool() {
                       ? "bg-[linear-gradient(180deg,#ff9bb3,#e0245e)]"
                       : v > HEARD_THRESHOLD
                         ? "bg-[linear-gradient(180deg,#9ee7ff,#7c5cff)]"
-                        : "bg-white/15",
-                    status === "starting" && "hf-tool-idle-bar"
+                        : "bg-white/15"
                   )}
                   style={{
                     height: `${h}%`,
-                    animationDelay: `${(i % 7) * 0.08}s`,
                   }}
                 />
               );

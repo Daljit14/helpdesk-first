@@ -131,7 +131,7 @@ export function NetDnsTool({ defaultHost }: { defaultHost?: string } = {}) {
           <button
             type="submit"
             disabled={busy}
-            className="hf-shimmer group relative inline-flex min-h-11 items-center gap-2 rounded-2xl bg-[linear-gradient(110deg,#7c5cff,#c084fc,#7c5cff)] bg-[length:200%_100%] px-4 text-sm font-extrabold text-[#0d0a1c] shadow-[0_10px_30px_-10px_#7c5cff] transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#c084fc]/40 disabled:opacity-60"
+            className="group relative inline-flex min-h-11 items-center gap-2 rounded-2xl bg-[linear-gradient(110deg,#7c5cff,#c084fc,#7c5cff)] bg-[length:200%_100%] px-4 text-sm font-extrabold text-[#0d0a1c] shadow-[0_10px_30px_-10px_#7c5cff] transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#c084fc]/40 disabled:opacity-60"
           >
             {done ? (
               <RefreshCw

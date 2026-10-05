@@ -6,7 +6,7 @@ import { Bot, Headset, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Composer } from "@/components/assistant/composer";
 import { ProgressStepper } from "@/components/assistant/progress-stepper";
-import { AnimatedAvatar } from "@/components/avatar/animated-avatar";
+import { Avatar } from "@/components/avatar/avatar";
 import {
   TypewriterText,
   TypingIndicator,
@@ -372,14 +372,14 @@ export function AssistantWorkspace({
       <div className="hf-rise relative mb-5 overflow-hidden rounded-[28px] bg-[linear-gradient(135deg,#5b3cc4,#8b6cf6_60%,#c084fc)] p-6 text-white shadow-[var(--shadow-md)] sm:p-7">
         <span
           aria-hidden
-          className="hf-blob-a absolute -top-16 right-10 h-48 w-48 rounded-full bg-white/10"
+          className="absolute -top-16 right-10 h-48 w-48 rounded-full bg-white/10"
         />
         <span
           aria-hidden
-          className="hf-blob-b absolute -bottom-20 left-1/3 h-44 w-44 rounded-full bg-pink-400/20"
+          className="absolute -bottom-20 left-1/3 h-44 w-44 rounded-full bg-pink-400/20"
         />
         <div className="relative flex items-center gap-4">
-          <AnimatedAvatar id="bot" size={64} className="ring-4 ring-white/25" />
+          <Avatar id="bot" size={64} className="ring-4 ring-white/25" />
           <div className="min-w-0">
             <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">
               Support Assistant
@@ -791,7 +791,7 @@ function Message({
         aria-hidden
         className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm"
       >
-        <Bot className={animate ? "hf-float-sm h-5 w-5" : "h-5 w-5"} />
+        <Bot className="h-5 w-5" />
       </span>
       <div className="max-w-[85%] rounded-2xl rounded-bl-md border border-border bg-card px-4 py-3 shadow-sm">
         <p className="mb-1 text-xs font-bold text-muted-foreground">

@@ -49,7 +49,6 @@ import {
 import { recordStepOutcome } from "@/app/actions/tickets";
 import type { StepPolicy } from "@/lib/investigation/policy";
 import {
-  ConfettiBurst,
   JourneyBadge,
   JourneyCheck,
   ProgressRing,
@@ -168,9 +167,6 @@ export function TroubleshootingGuide({
       ? "Recorded: your ticket is marked as resolved."
       : null
   );
-
-  // Bumped when the guide ends in success, to replay the confetti burst.
-  const [celebration, setCelebration] = useState(0);
 
   const statusRef = useRef<HTMLDivElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
@@ -309,7 +305,6 @@ export function TroubleshootingGuide({
         status: "resolved",
         solvingStep: step,
       }));
-      setCelebration((count) => count + 1);
       if (
         resolutionTrackingEnabled &&
         linkedTicket &&
@@ -394,7 +389,6 @@ export function TroubleshootingGuide({
         { step: currentStep, outcome: "completed" },
       ],
     }));
-    setCelebration((count) => count + 1);
     if (
       resolutionTrackingEnabled &&
       linkedTicket &&
@@ -565,7 +559,6 @@ export function TroubleshootingGuide({
                 resolutionNotice={resolutionNotice}
                 browseReturnHref={browseReturnHref}
                 issueTitle={issue.title}
-                celebration={celebration}
               />
             ) : state.status === "escalated" ? (
               <EscalationView
@@ -938,7 +931,6 @@ function SuccessView({
   resolutionNotice,
   browseReturnHref,
   issueTitle,
-  celebration,
 }: {
   state: GuideState;
   onChange: (state: GuideState) => void;
@@ -946,7 +938,6 @@ function SuccessView({
   resolutionNotice: string | null;
   browseReturnHref: string;
   issueTitle: string;
-  celebration: number;
 }) {
   function handleRate(rating: "helpful" | "not-helpful") {
     onChange({ ...state, rating });
@@ -954,7 +945,6 @@ function SuccessView({
 
   return (
     <div className="hf-step-finale glass-strong relative mt-6 overflow-hidden p-6 text-center">
-      {celebration > 0 && <ConfettiBurst key={celebration} />}
       <span className="hf-step-trophy mx-auto" aria-hidden="true">
         <JourneyCheck className="h-9 w-9" />
       </span>

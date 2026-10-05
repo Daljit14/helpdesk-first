@@ -152,7 +152,7 @@ export function CheckupReport({ state }: { state: CheckupState }) {
     >
       <div
         aria-hidden
-        className="hf-blob-b pointer-events-none absolute -bottom-24 -right-16 h-64 w-64 rounded-full bg-[#d946ef]/20 blur-3xl"
+        className="pointer-events-none absolute -bottom-24 -right-16 h-64 w-64 rounded-full bg-[#d946ef]/20 blur-3xl"
       />
       <div className="relative flex flex-wrap items-start justify-between gap-4">
         <div>
@@ -161,10 +161,7 @@ export function CheckupReport({ state }: { state: CheckupState }) {
             className="flex items-center gap-2.5 text-xl font-extrabold"
           >
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10">
-              <Stethoscope
-                className={cn("h-5 w-5 text-[#c9b8ff]", !done && "hf-blink")}
-                aria-hidden
-              />
+              <Stethoscope className="h-5 w-5 text-[#c9b8ff]" aria-hidden />
             </span>
             {done ? "Check-up report" : "Running check-up…"}
           </h2>
@@ -205,7 +202,7 @@ export function CheckupReport({ state }: { state: CheckupState }) {
                 report
                   ? "border-white/10 bg-white/5"
                   : active
-                    ? "hf-halo border-[#c9b8ff]/50 bg-[#7c5cff]/15"
+                    ? "border-[#c9b8ff]/50 bg-[#7c5cff]/15"
                     : "border-white/5 bg-white/[0.02] opacity-60"
               )}
             >
@@ -213,13 +210,7 @@ export function CheckupReport({ state }: { state: CheckupState }) {
                 {report ? (
                   <ToneIcon tone={report.tone} className="hf-pop h-5 w-5" />
                 ) : (
-                  <Icon
-                    className={cn(
-                      "h-4 w-4 text-white/70",
-                      active && "hf-blink"
-                    )}
-                    aria-hidden
-                  />
+                  <Icon className={cn("h-4 w-4 text-white/70")} aria-hidden />
                 )}
               </span>
               <div className="min-w-0 flex-1">

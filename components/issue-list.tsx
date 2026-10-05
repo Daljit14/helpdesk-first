@@ -41,7 +41,7 @@ export function IssueList({
           aria-hidden
           className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-secondary text-2xl"
         >
-          <span className="hf-bob">🔍</span>
+          <span>🔍</span>
         </span>
         <p className="text-lg font-extrabold">No matching problems found.</p>
         <p className="mt-2 text-muted-foreground">

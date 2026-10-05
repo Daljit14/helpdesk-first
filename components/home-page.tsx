@@ -442,14 +442,11 @@ export function HomePage({
             >
               <span
                 aria-hidden
-                className="hf-blob-a pointer-events-none absolute -right-10 -top-16 h-44 w-44 rounded-full bg-[radial-gradient(closest-side,rgb(185_162_255/0.35),transparent)]"
+                className="pointer-events-none absolute -right-10 -top-16 h-44 w-44 rounded-full bg-[radial-gradient(closest-side,rgb(185_162_255/0.35),transparent)]"
               />
               <span className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/10 ring-1 ring-white/20">
-                <span
-                  aria-hidden
-                  className="hf-halo absolute inset-0 rounded-2xl"
-                />
-                <Bot className="hf-bob h-6 w-6 text-[#c9b8ff]" aria-hidden />
+                <span aria-hidden className="absolute inset-0 rounded-2xl" />
+                <Bot className="h-6 w-6 text-[#c9b8ff]" aria-hidden />
               </span>
               <span className="relative min-w-0 flex-1">
                 <span className="block text-base font-extrabold">
@@ -714,7 +711,7 @@ export function HomePage({
                 className="hf-lift group relative mt-5 flex items-center gap-4 overflow-hidden rounded-[24px] bg-[#1c1633] p-5 text-left text-white dark:bg-[#2c2350]"
               >
                 <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/10">
-                  <Bot className="hf-bob h-6 w-6 text-[#c9b8ff]" aria-hidden />
+                  <Bot className="h-6 w-6 text-[#c9b8ff]" aria-hidden />
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block text-base font-extrabold">

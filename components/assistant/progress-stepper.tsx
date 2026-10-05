@@ -60,7 +60,7 @@ export function ProgressStepper({ current }: { current: number }) {
                   "relative z-10 flex h-10 w-10 items-center justify-center rounded-full border-2 transition-colors duration-500",
                   done && "border-primary bg-primary text-primary-foreground",
                   active &&
-                    "hf-halo border-primary bg-card text-primary shadow-[0_8px_18px_-8px_var(--primary)]",
+                    "border-primary bg-card text-primary shadow-[0_8px_18px_-8px_var(--primary)]",
                   !done &&
                     !active &&
                     "border-border bg-card text-muted-foreground"
@@ -69,10 +69,7 @@ export function ProgressStepper({ current }: { current: number }) {
                 {done ? (
                   <Check className="hf-pop h-5 w-5" aria-hidden />
                 ) : (
-                  <Icon
-                    className={cn("h-[18px] w-[18px]", active && "hf-float-sm")}
-                    aria-hidden
-                  />
+                  <Icon className="h-[18px] w-[18px]" aria-hidden />
                 )}
               </span>
               <span

@@ -254,45 +254,6 @@ export function ProgressRing({
   );
 }
 
-const CONFETTI_COLORS = [
-  "#7c5cff",
-  "#d946ef",
-  "#ffb020",
-  "#14b8a6",
-  "#ec4f8a",
-  "#3b82f6",
-  "#6cc04a",
-];
-
-/** One-shot confetti burst. Remount (change `key`) to replay. */
-export function ConfettiBurst({ pieces = 26 }: { pieces?: number }) {
-  return (
-    <span className="hf-step-confetti" aria-hidden="true">
-      {Array.from({ length: pieces }, (_, i) => {
-        // Deterministic spread so render stays pure.
-        const angle = (i / pieces) * Math.PI * 2 + (i % 3) * 0.35;
-        const distance = 90 + ((i * 37) % 70);
-        const x = Math.round(Math.cos(angle) * distance);
-        const y = Math.round(Math.sin(angle) * distance * 0.8 - 40);
-        return (
-          <i
-            key={i}
-            style={
-              {
-                "--x": `${x}px`,
-                "--y": `${y}px`,
-                "--r": `${(i * 67) % 360}deg`,
-                "--d": `${(i % 6) * 0.03}s`,
-                "--c": CONFETTI_COLORS[i % CONFETTI_COLORS.length],
-              } as React.CSSProperties
-            }
-          />
-        );
-      })}
-    </span>
-  );
-}
-
 /** Round badge on the timeline rail. */
 export function JourneyBadge({
   state,
@@ -354,7 +315,6 @@ export function StepJourneyPreview({
   const platform = platformProp || defaultPlatform(issue);
   const [state, setState] = useState<PreviewState>(EMPTY_PREVIEW);
   const [loaded, setLoaded] = useState(false);
-  const [celebration, setCelebration] = useState(0);
   const [fixedAnswer, setFixedAnswer] = useState<"yes" | "no" | null>(null);
 
   useEffect(() => {
@@ -427,10 +387,6 @@ export function StepJourneyPreview({
         : [...state.attemptedSteps, { step, outcome }];
     const nextIndex = index + 1;
     persist({ ...state, attemptedSteps, currentStepIndex: nextIndex });
-    if (nextIndex >= steps.length) {
-      const doneAfter = doneCount + (outcome === "completed" ? 1 : 0);
-      if (doneAfter === steps.length) setCelebration((n) => n + 1);
-    }
   }
 
   function answerFixed(answer: "yes" | "no") {
@@ -444,7 +400,6 @@ export function StepJourneyPreview({
         status: "resolved",
         solvingStep: state.solvingStep ?? lastDone,
       });
-      setCelebration((n) => n + 1);
     }
   }
 
@@ -586,7 +541,6 @@ export function StepJourneyPreview({
       <div aria-live="polite">
         {showFixedPrompt && (
           <div className="hf-step-finale relative mt-5 overflow-hidden rounded-[24px] border border-border bg-card p-5 shadow-sm">
-            {celebration > 0 && <ConfettiBurst key={celebration} />}
             {fixedAnswer === null && (
               <>
                 <p className="flex items-center gap-2 text-lg font-extrabold">

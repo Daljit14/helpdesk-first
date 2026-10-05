@@ -253,9 +253,6 @@ export function DevClockTool() {
 
       {status === "checking" && (
         <div className="grid gap-3" aria-hidden>
-          <div className="h-3 overflow-hidden rounded-full bg-white/10">
-            <div className="hf-tool-slide h-full w-1/3 rounded-full bg-[linear-gradient(90deg,transparent,#7c5cff,transparent)]" />
-          </div>
           <p className="text-center text-sm font-semibold text-white/60">
             Asking the server for the time, {SAMPLES} times...
           </p>

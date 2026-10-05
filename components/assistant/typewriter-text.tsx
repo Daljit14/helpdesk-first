@@ -86,7 +86,7 @@ export function TypingIndicator({
         aria-hidden
         className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm"
       >
-        <Bot className="hf-float-sm h-5 w-5" />
+        <Bot className="h-5 w-5" />
       </span>
       <div
         role="status"

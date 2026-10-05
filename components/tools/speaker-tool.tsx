@@ -214,19 +214,6 @@ export function SpeakerTool() {
               )}
             >
               <span className="relative flex h-14 w-14 items-center justify-center">
-                {isPlaying && (
-                  <>
-                    <span
-                      aria-hidden
-                      className="hf-tool-wave absolute inset-0 rounded-full border-2 border-[#c9b8ff]"
-                    />
-                    <span
-                      aria-hidden
-                      className="hf-tool-wave absolute inset-0 rounded-full border-2 border-[#9ee7ff]"
-                      style={{ animationDelay: "0.45s" }}
-                    />
-                  </>
-                )}
                 <span
                   className={cn(
                     "relative flex h-12 w-12 items-center justify-center rounded-full bg-[linear-gradient(135deg,#7c5cff,#d946ef)] shadow-[0_10px_24px_-10px_#7c5cff]",

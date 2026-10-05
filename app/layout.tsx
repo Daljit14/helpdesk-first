@@ -77,6 +77,7 @@ export default async function RootLayout({
           <AnalyticsTracker />
           <AppShell
             email={user?.email ?? null}
+            userId={user?.id ?? null}
             staff={staff}
             displayName={
               typeof user?.user_metadata?.full_name === "string"

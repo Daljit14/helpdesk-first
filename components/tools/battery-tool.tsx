@@ -59,11 +59,7 @@ export function BatteryTool() {
           <div className="relative flex items-center" aria-hidden>
             <div className="relative h-20 w-44 rounded-2xl border-[3px] border-white/70 p-1.5">
               <div
-                className={cn(
-                  "hf-tool-grow h-full rounded-xl",
-                  fill,
-                  info.charging && "hf-tool-charge"
-                )}
+                className={cn("hf-tool-grow h-full rounded-xl", fill)}
                 style={{ width: `${Math.max(4, pct)}%` }}
               />
               {info.charging && (

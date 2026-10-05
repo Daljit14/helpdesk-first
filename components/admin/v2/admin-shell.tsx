@@ -21,6 +21,7 @@ import {
   BarChart3,
   HeartPulse,
   Laptop,
+  LogIn,
   Sparkles,
   UserCheck,
 } from "lucide-react";
@@ -48,6 +49,7 @@ const icons = {
   settings: Settings,
   pulse: HeartPulse,
   laptop: Laptop,
+  login: LogIn,
   sparkles: Sparkles,
   match: UserCheck,
 } as const;

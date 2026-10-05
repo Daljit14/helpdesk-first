@@ -1,6 +1,6 @@
 import { getClientIp, MemoryRateLimiter } from "@/lib/ai/rate-limit";
 
-const limiter = new MemoryRateLimiter({ windowMs: 60_000, maxRequests: 60 });
+const limiter = new MemoryRateLimiter({ windowMs: 60_000, maxRequests: 240 });
 
 export async function GET(request: Request) {
   const check = await limiter.check(getClientIp(request));

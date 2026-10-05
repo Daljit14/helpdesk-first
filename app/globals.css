@@ -1671,6 +1671,27 @@ body {
     }
   }
 
+  /* ---- SSO buttons ---- */
+  .hf-sso-btn {
+    transition:
+      transform 0.15s ease,
+      box-shadow 0.15s ease,
+      border-color 0.15s ease;
+  }
+  .hf-sso-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 20px -12px rgba(75, 47, 184, 0.45);
+    border-color: var(--primary);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .hf-sso-btn {
+      transition: none;
+    }
+    .hf-sso-btn:hover {
+      transform: none;
+    }
+  }
+
   /* ---- Browse page ---- */
   .hf-browse-hero {
     background: linear-gradient(

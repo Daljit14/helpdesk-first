@@ -17,6 +17,7 @@ const metrics: AutonomyMetrics = {
   outcomeFeedback: 0,
   recentFeedback: [],
   escalated: 3,
+  replyRedactedSessions: 2,
   escalationRate: 0.3,
   escalationReasons: [{ reason: "budget", count: 2 }],
   medianAiResolutionMs: 120_000,
@@ -48,6 +49,8 @@ describe("AutonomyMetricsCard", () => {
     expect(screen.getByText("AI resolved")).toBeInTheDocument();
     expect(screen.getByText("60%")).toBeInTheDocument();
     expect(screen.getByText("budget")).toBeInTheDocument();
+    expect(screen.getByText("Replies redacted:")).toBeInTheDocument();
+    expect(screen.getByText("2 sessions")).toBeInTheDocument();
     expect(screen.getByText("Cannot connect")).toBeInTheDocument();
     expect(screen.getByText("Median AI resolution: 2m")).toBeInTheDocument();
     expect(screen.queryByText("AI spend (window)")).not.toBeInTheDocument();

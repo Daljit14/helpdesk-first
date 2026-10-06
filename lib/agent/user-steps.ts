@@ -1,7 +1,7 @@
 import { checkUserMessageSafety } from "@/lib/ai/safety-policy";
 import { getIssueBySlug } from "@/lib/search";
 import { getIssueStepPolicies, isOfferable } from "@/lib/investigation/policy";
-import { sanitizeForUser } from "./untrusted";
+import { NO_REQUESTER, toUserText } from "./output-guard";
 
 export const USER_STEP_OUTCOMES = ["done", "didnt_work", "cant_do"] as const;
 export type UserStepOutcome = (typeof USER_STEP_OUTCOMES)[number];
@@ -120,7 +120,7 @@ export async function checkUserStep(
       message: "That step could not be safely offered.",
     };
 
-  const sanitizedWhy = sanitizeForUser(input.why).trim().slice(0, 200);
+  const sanitizedWhy = toUserText(input.why, NO_REQUESTER).slice(0, 200);
   return {
     ok: true,
     instruction,

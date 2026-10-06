@@ -39,7 +39,12 @@ vi.mock("@/lib/investigation/policy", () => ({
   getIssueStepPolicies: mocks.getIssueStepPolicies,
 }));
 
-import { escalate, halt, handoffReasonFor } from "./session";
+import {
+  escalate,
+  halt,
+  handoffReasonFor,
+  loadRequesterIdentifiers,
+} from "./session";
 import type { AgentSession } from "./types";
 
 const session: AgentSession = {
@@ -406,5 +411,69 @@ describe("requester-agent escalation handoff reasons", () => {
         params_hash: "step-pending",
       })
     );
+  });
+});
+
+describe("loadRequesterIdentifiers", () => {
+  function makeIdentifierAdmin(options: {
+    userResult?: unknown;
+    userError?: Error;
+    deviceRows?: Array<{ hostname: string }>;
+    deviceError?: Error;
+  }) {
+    const query = {
+      select: vi.fn(() => query),
+      eq: vi.fn(() => query),
+      then: (resolve: (value: unknown) => unknown) =>
+        Promise.resolve({
+          data: options.deviceRows ?? [],
+          error: options.deviceError ?? null,
+        }).then(resolve),
+    };
+    const getUserById = options.userError
+      ? vi.fn().mockRejectedValue(options.userError)
+      : vi.fn().mockResolvedValue(
+          options.userResult ?? {
+            data: { user: { email: "Requester@Example.test" } },
+            error: null,
+          }
+        );
+    const from = vi.fn(() => query);
+    return {
+      admin: {
+        auth: { admin: { getUserById } },
+        from,
+      } as never,
+      getUserById,
+      from,
+      query,
+    };
+  }
+
+  test("loads scoped active-device hostnames when requester lookup fails", async () => {
+    const { admin, getUserById, from, query } = makeIdentifierAdmin({
+      userError: new Error("auth lookup failed"),
+      deviceRows: [{ hostname: "LAPTOP-OWN123" }],
+    });
+
+    await expect(loadRequesterIdentifiers(admin, session)).resolves.toEqual([
+      "LAPTOP-OWN123",
+    ]);
+    expect(getUserById).toHaveBeenCalledWith("requester-1");
+    expect(from).toHaveBeenCalledWith("devices_public");
+    expect(query.select).toHaveBeenCalledWith("hostname");
+    expect(query.eq).toHaveBeenNthCalledWith(1, "organization_id", "org-1");
+    expect(query.eq).toHaveBeenNthCalledWith(2, "user_id", "requester-1");
+    expect(query.eq).toHaveBeenNthCalledWith(3, "status", "active");
+  });
+
+  test("keeps the requester email when the device lookup fails", async () => {
+    const { admin } = makeIdentifierAdmin({
+      deviceError: new Error("device lookup failed"),
+    });
+
+    await expect(loadRequesterIdentifiers(admin, session)).resolves.toEqual([
+      "requester@example.test",
+    ]);
   });
 });

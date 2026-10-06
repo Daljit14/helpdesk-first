@@ -8,7 +8,8 @@ import { loadDirectoryForOrganization } from "@/lib/autonomy/connectors";
 import { checkRequesterEmailForOrg } from "@/lib/autonomy/connectors/binding";
 import { createClient } from "@/lib/supabase/server";
 import type { AgentContext } from "./types";
-import { wrapUntrusted, sanitizeForUser } from "./untrusted";
+import { wrapUntrusted } from "./untrusted";
+import { minimizeToolOutput, toUserText } from "./output-guard";
 import { parameterHash } from "@/lib/autonomy/guardrails/hash";
 import {
   isAgentDiagnosticSourcesEnabled,
@@ -351,10 +352,13 @@ export async function runTool(
         return {
           ok: true,
           value: { available: false, reason: "no_connector" },
-          modelText: wrapUntrusted("tool:get_account_status", {
-            available: false,
-            reason: "no_connector",
-          }).slice(0, 6000),
+          modelText: wrapUntrusted(
+            "tool:get_account_status",
+            minimizeToolOutput({
+              available: false,
+              reason: "no_connector",
+            })
+          ).slice(0, 6000),
           userSummary,
         };
       }
@@ -384,10 +388,13 @@ export async function runTool(
         return {
           ok: true,
           value: { available: false, reason: "no_connector" },
-          modelText: wrapUntrusted("tool:get_recent_sign_in_failures", {
-            available: false,
-            reason: "no_connector",
-          }).slice(0, 6000),
+          modelText: wrapUntrusted(
+            "tool:get_recent_sign_in_failures",
+            minimizeToolOutput({
+              available: false,
+              reason: "no_connector",
+            })
+          ).slice(0, 6000),
           userSummary,
         };
       }
@@ -526,9 +533,10 @@ export async function runTool(
         })
       );
     }
-    const wrapped = wrapUntrusted(`tool:${name}`, value);
+    const minimizedValue = minimizeToolOutput(value);
+    const wrapped = wrapUntrusted(`tool:${name}`, minimizedValue);
     const modelText = wrapped.slice(0, 6000);
-    const userSummary = toolUserSummary(name, value);
+    const userSummary = toolUserSummary(name, minimizedValue, ctx.outputGuard);
     return {
       ok: true,
       value,
@@ -558,7 +566,13 @@ export async function runTool(
   }
 }
 
-function toolUserSummary(name: string, value: unknown): string {
+function toolUserSummary(
+  name: string,
+  value: unknown,
+  outputGuard: AgentContext["outputGuard"]
+): string {
+  const summarize = (text: string, max = 300) =>
+    toUserText(text, outputGuard).slice(0, max);
   if (name === "get_recent_sign_in_failures") {
     const result =
       value && typeof value === "object"
@@ -568,7 +582,7 @@ function toolUserSummary(name: string, value: unknown): string {
           })
         : {};
     if (result.available !== true)
-      return sanitizeForUser(
+      return summarize(
         "Sign-in failure diagnostics are unavailable for this provider."
       );
     const counts = result.counts ?? {};
@@ -576,15 +590,15 @@ function toolUserSummary(name: string, value: unknown): string {
       (sum, reason) => sum + (counts[reason] ?? 0),
       0
     );
-    if (total === 0) return sanitizeForUser("No recent sign-in failures.");
+    if (total === 0) return summarize("No recent sign-in failures.");
     const topReason = [...SIGN_IN_FAILURE_REASONS]
       .filter((reason) => (counts[reason] ?? 0) > 0)
       .sort((left, right) => (counts[right] ?? 0) - (counts[left] ?? 0))[0];
-    return sanitizeForUser(
+    return summarize(
       `${total} recent sign-in failure${total === 1 ? "" : "s"}: ${
         SIGN_IN_FAILURE_LABELS[topReason ?? "other"]
       }.`
-    ).slice(0, 300);
+    );
   }
   if (name === "count_similar_org_issues") {
     const result =
@@ -592,22 +606,20 @@ function toolUserSummary(name: string, value: unknown): string {
         ? (value as { lastHour?: unknown; last24h?: unknown })
         : {};
     if (typeof result.lastHour === "number")
-      return sanitizeForUser(
+      return summarize(
         `${result.lastHour} others in your organization reported this in the last hour.`
-      ).slice(0, 300);
+      );
     if (typeof result.last24h === "number")
-      return sanitizeForUser(
-        `${result.last24h} others reported this today.`
-      ).slice(0, 300);
-    return sanitizeForUser("No widespread reports of this issue.");
+      return summarize(`${result.last24h} others reported this today.`);
+    return summarize("No widespread reports of this issue.");
   }
   if (name === "get_org_environment") {
     return value &&
       typeof value === "object" &&
       "available" in value &&
       value.available === true
-      ? "Organization environment profile loaded."
-      : "No confirmed organization environment profile.";
+      ? summarize("Organization environment profile loaded.")
+      : summarize("No confirmed organization environment profile.");
   }
   if (name === "get_service_health") {
     const matched =
@@ -618,7 +630,7 @@ function toolUserSummary(name: string, value: unknown): string {
         ? value.matched
         : [];
     if (matched.length === 0)
-      return sanitizeForUser("No matching service incidents found.");
+      return summarize("No matching service incidents found.");
     const first = matched[0] as {
       service?: unknown;
       source?: unknown;
@@ -629,9 +641,9 @@ function toolUserSummary(name: string, value: unknown): string {
         : first.source === "google_workspace"
           ? "Google Workspace"
           : "Statuspage";
-    return sanitizeForUser(
+    return summarize(
       `${matched.length} active incident${matched.length === 1 ? "" : "s"} may explain this: ${String(first.service ?? "Service")} (${sourceName}).`
-    ).slice(0, 300);
+    );
   }
   if (name === "search_guides" && Array.isArray(value)) {
     const slugs = value
@@ -642,9 +654,9 @@ function toolUserSummary(name: string, value: unknown): string {
       )
       .filter(Boolean)
       .slice(0, 5);
-    return sanitizeForUser(
+    return summarize(
       `${value.length} guides found${slugs.length ? `: ${slugs.join(", ")}` : ""}`
-    ).slice(0, 300);
+    );
   }
   if (name === "get_device_diagnostics") {
     const record =
@@ -652,7 +664,7 @@ function toolUserSummary(name: string, value: unknown): string {
         ? (value as Record<string, unknown>)
         : {};
     if (record.status === "no_device")
-      return "No enrolled device is linked to this account.";
+      return summarize("No enrolled device is linked to this account.");
     const collectedAt =
       typeof record.collectedAt === "string"
         ? Date.parse(record.collectedAt)
@@ -660,9 +672,11 @@ function toolUserSummary(name: string, value: unknown): string {
     const ageMinutes = Number.isFinite(collectedAt)
       ? Math.max(0, Math.round((Date.now() - collectedAt) / 60_000))
       : null;
-    return `Diagnostics from a device collected ${
-      ageMinutes === null ? "recently" : `${ageMinutes} min ago`
-    }${record.stale === true ? " (stale)" : ""}.`.slice(0, 300);
+    return summarize(
+      `Diagnostics from a device collected ${
+        ageMinutes === null ? "recently" : `${ageMinutes} min ago`
+      }${record.stale === true ? " (stale)" : ""}.`
+    );
   }
   if (name === "get_account_status") {
     const record =
@@ -676,13 +690,11 @@ function toolUserSummary(name: string, value: unknown): string {
         : record.mfaRegistered === false
           ? "MFA not registered"
           : "MFA status unavailable";
-    return `Account: ${account}, ${mfa}.`.slice(0, 300);
+    return summarize(`Account: ${account}, ${mfa}.`);
   }
   if (name === "get_ticket_history" && Array.isArray(value))
-    return `${value.length} recent tickets.`.slice(0, 300);
-  return sanitizeForUser(
-    JSON.stringify(value) || "Read-only result unavailable."
-  ).slice(0, 300);
+    return summarize(`${value.length} recent tickets.`);
+  return summarize(JSON.stringify(value) || "Read-only result unavailable.");
 }
 
 export function toolParamsHash(name: string, input: unknown): string {

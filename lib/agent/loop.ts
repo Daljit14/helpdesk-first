@@ -24,7 +24,7 @@ import {
 } from "./user-steps";
 import { detectTripwire } from "./tripwires";
 import { isDenylisted } from "./denylist";
-import { sanitizeForUser } from "./untrusted";
+import { toUserText, type OutputGuardContext } from "./output-guard";
 import {
   escalate,
   halt,
@@ -127,11 +127,16 @@ export async function runAgentTurn(input: {
   model?: AgentModel;
   platform?: string;
   routing?: { screenshotAttached?: boolean; failedVerification?: boolean };
+  outputGuard?: OutputGuardContext;
   emit: (event: AgentEvent) => void;
   signal: AbortSignal;
   deps?: Partial<AgentLoopDeps>;
 }): Promise<void> {
   const { admin, session, userMessage, platform, emit, signal } = input;
+  const outputGuard = input.outputGuard ?? {
+    requesterIdentifiers: [],
+    redactions: [],
+  };
   const deps = { ...defaultDeps, ...input.deps };
   const costTrackingEnabled =
     deps.costTrackingEnabled ?? isAgentCostTrackingEnabled();
@@ -351,7 +356,7 @@ export async function runAgentTurn(input: {
     if (result.kind === "final") {
       const confidence = Math.max(0, Math.min(1, result.confidence));
       const finalText = safeFinalText(result.text);
-      const text = sanitizeForUser(finalText.text).slice(0, 1200);
+      const text = toUserText(finalText.text, outputGuard).slice(0, 1200);
       if (finalText.stripped) {
         await deps.writeStep(admin, session, {
           kind: "claim_stripped",
@@ -460,14 +465,20 @@ export async function runAgentTurn(input: {
         continue;
       }
       if (!parsed.success) continue;
+      const instruction = toUserText(checked.instruction, outputGuard);
+      const why = toUserText(checked.why, outputGuard);
+      const source = {
+        ...checked.source,
+        title: toUserText(checked.source.title, outputGuard),
+      };
       const stepId = await deps.writeStep(admin, session, {
         kind: "user_step_offered",
         toolName: result.name,
         paramsHash: `${parsed.data.issueSlug}#${parsed.data.stepIndex}`,
         resultSummary: JSON.stringify({
-          guideSlug: checked.source.guideSlug,
+          guideSlug: source.guideSlug,
           stepIndex: checked.source.stepIndex,
-          why: checked.why,
+          why,
         }),
       });
       if (!stepId) {
@@ -482,9 +493,9 @@ export async function runAgentTurn(input: {
         type: "user_step",
         card: {
           stepId,
-          instruction: checked.instruction,
-          why: checked.why,
-          source: checked.source,
+          instruction,
+          why,
+          source,
         },
       });
       return;
@@ -612,7 +623,7 @@ export async function runAgentTurn(input: {
       emit({ type: "escalated", ticketId, reason: "loop_detected" });
       return;
     }
-    const thinking = summary(result.summary);
+    const thinking = toUserText(summary(result.summary), outputGuard);
     await deps.writeStep(admin, session, {
       kind: "thinking_summary",
       resultSummary: thinking,
@@ -642,11 +653,12 @@ export async function runAgentTurn(input: {
               platform: input.platform,
               signal,
               emit,
+              outputGuard,
             },
             result.name,
             result.input
           );
-    const toolSummary = tool.userSummary;
+    const toolSummary = toUserText(tool.userSummary, outputGuard);
     const evidenceId = tool.ok ? `ev-${toolCalls + 1}` : null;
     const persistedSummary = evidenceId
       ? `[evidence id: ${evidenceId}] ${toolSummary}`

@@ -138,6 +138,13 @@ export function AutonomyMetricsCard({ metrics }: { metrics: AutonomyMetrics }) {
             />
             Escalation reasons
           </h3>
+          <p className="mb-3 text-sm text-muted-foreground">
+            Replies redacted:{" "}
+            <span className="font-semibold text-foreground">
+              {metrics.replyRedactedSessions} session
+              {metrics.replyRedactedSessions === 1 ? "" : "s"}
+            </span>
+          </p>
           {metrics.escalationReasons.length === 0 ? (
             <p className="text-sm text-muted-foreground">None recorded.</p>
           ) : (

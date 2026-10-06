@@ -12,7 +12,7 @@ import { isAgentUserStepsEnabled } from "@/lib/admin/flags";
 import { enqueueNotification } from "@/lib/notifications/enqueue";
 import { getIssueBySlug } from "@/lib/search";
 import { getIssueStepPolicies } from "@/lib/investigation/policy";
-import { sanitizeForUser } from "./untrusted";
+import { NO_REQUESTER, toUserText } from "./output-guard";
 
 type Admin = ReturnType<
   typeof import("@/lib/supabase/admin").createAdminClient
@@ -348,7 +348,7 @@ async function escalatedUserStepActions(
       try {
         const parsed = JSON.parse(summary ?? "") as { why?: unknown };
         if (typeof parsed.why === "string")
-          why = sanitizeForUser(parsed.why).slice(0, 200);
+          why = toUserText(parsed.why, NO_REQUESTER).slice(0, 200);
       } catch {
         why = "";
       }
@@ -374,6 +374,38 @@ async function escalatedUserStepActions(
     }
   }
   return actions;
+}
+
+export async function loadRequesterIdentifiers(
+  admin: Admin,
+  session: AgentSession
+): Promise<string[]> {
+  const identifiers = new Set<string>();
+  try {
+    const result = await admin.auth.admin.getUserById(session.requester_id);
+    const email = result.data.user?.email?.trim().toLowerCase();
+    if (!result.error && email) identifiers.add(email);
+  } catch {
+    // Failed identity lookups leave fewer exemptions and cause more redaction.
+  }
+  try {
+    const devices = await admin
+      .from("devices_public")
+      .select("hostname")
+      .eq("organization_id", session.organization_id)
+      .eq("user_id", session.requester_id)
+      .eq("status", "active");
+    if (!devices.error) {
+      for (const row of devices.data ?? []) {
+        const hostname =
+          typeof row.hostname === "string" ? row.hostname.trim() : "";
+        if (hostname) identifiers.add(hostname);
+      }
+    }
+  } catch {
+    // Failed device lookups leave fewer exemptions and cause more redaction.
+  }
+  return [...identifiers];
 }
 
 export async function escalate(

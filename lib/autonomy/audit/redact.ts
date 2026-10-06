@@ -1,27 +1,15 @@
 import { redactForLearning } from "@/lib/knowledge/learning-redaction";
+import { SECRET_PATTERNS } from "@/lib/security/secret-patterns";
 
 const MAX_DEPTH = 6;
 const MAX_KEYS = 100;
 const MAX_STRING = 500;
 
 function redactString(value: string): string {
-  return redactForLearning(value, MAX_STRING)
-    .text.replace(/\b(?:sk|pk)[_-][A-Za-z0-9_-]{6,}\b/gi, "[token removed]")
-    .replace(/\bAKIA[A-Z0-9]{16}\b/g, "[aws key removed]")
-    .replace(/\b\d{4}(?:[ -]\d{4}){3}\b/g, "[card removed]")
-    .replace(/(?<![\d.])(?:\d[ -]*?){13,19}(?![\d.])/g, "[card removed]")
-    .replace(
-      /\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g,
-      "[jwt removed]"
-    )
-    .replace(
-      /\b(?:token|secret|password|api[_-]?key)\s*(?:is|was|[:=])\s*[^\n,;]+/gi,
-      "[token removed]"
-    )
-    .replace(
-      /\b(?:mfa\s*code|verification\s*code|recovery\s*key|passcode)\s*(?:is|was|[:=])\s*[^\n,;]+/gi,
-      "[credential removed]"
-    );
+  return SECRET_PATTERNS.reduce(
+    (text, secret) => text.replace(secret.pattern, secret.auditLabel),
+    redactForLearning(value, MAX_STRING).text
+  );
 }
 
 function redactValue(value: unknown, depth: number): unknown {

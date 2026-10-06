@@ -40,6 +40,7 @@ export type AutonomyMetrics = {
     text: string;
   }>;
   escalated: number;
+  replyRedactedSessions: number;
   escalationRate: number;
   escalationReasons: EscalationReasonCount[];
   medianAiResolutionMs: number;
@@ -159,6 +160,7 @@ function zeroMetrics(window: AutonomyMetricsWindow): AutonomyMetrics {
     outcomeFeedback: 0,
     recentFeedback: [],
     escalated: 0,
+    replyRedactedSessions: 0,
     escalationRate: 0,
     escalationReasons: [],
     medianAiResolutionMs: 0,
@@ -239,6 +241,15 @@ export function computeAutonomyMetrics(
       (left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt)
     );
   const feedbackSessionIds = new Set(feedback.map((item) => item.sessionId));
+  const replyRedactedSessions = new Set(
+    input.steps
+      .filter(
+        (step) =>
+          step.kind === "reply_redacted" &&
+          inWindowSessionIds.has(step.sessionId)
+      )
+      .map((step) => step.sessionId)
+  ).size;
   const falseResolvedSessions = aiResolvedSessions.filter((session) => {
     if (feedbackSessionIds.has(session.id)) return true;
     const endedAt = session.endedAt ? Date.parse(session.endedAt) : NaN;
@@ -388,6 +399,7 @@ export function computeAutonomyMetrics(
     outcomeFeedback: feedbackSessionIds.size,
     recentFeedback,
     escalated: escalatedSessions.length,
+    replyRedactedSessions,
     escalationRate: sessions.length
       ? escalatedSessions.length / sessions.length
       : 0,

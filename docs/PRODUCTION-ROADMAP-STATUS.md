@@ -7,6 +7,15 @@ capability/global kill switches, append-only trip events, organization alerts,
 and a platform-admin clearing panel. Apply `supabase/blast-radius.sql` before
 production rollout and follow `SETUP-NOTES-G1.md`.
 
+## Wave 2 G4 — requester-agent reply and data-leak filter
+
+G4 adds shared secret patterns, requester-output redaction, minimized tool
+context, and a kind-only `reply_redacted` audit step. The Resolution Center
+reports distinct sessions with redacted replies. It adds no flags or
+environment variables. The additive `supabase/agent-reply-guard.sql` migration
+is authored but has not been applied; see `SETUP-NOTES-G4.md` for its run order,
+rollback, and privacy limits.
+
 ## Admin Database page
 
 The admin Database page provides a tenant-scoped view of important stored data and a live activity tracker. Users are loaded through the service-role-only `public.admin_auth_users` projection; apply `supabase/admin-database.sql` before the Users section can show data.

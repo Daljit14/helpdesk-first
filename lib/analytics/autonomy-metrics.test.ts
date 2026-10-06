@@ -99,6 +99,46 @@ describe("computeAutonomyMetrics", () => {
     });
   });
 
+  test("counts distinct in-window sessions with reply-redacted audit steps", () => {
+    const metrics = computeAutonomyMetrics(
+      input({
+        sessions: [
+          session({ id: "redacted" }),
+          session({
+            id: "outside",
+            startedAt: "2025-12-01T00:00:00.000Z",
+          }),
+        ],
+        steps: [
+          {
+            sessionId: "redacted",
+            kind: "reply_redacted",
+            toolName: null,
+            resultSummary: '{"kinds":["token"],"count":1}',
+            seq: 1,
+          },
+          {
+            sessionId: "redacted",
+            kind: "reply_redacted",
+            toolName: null,
+            resultSummary: '{"kinds":["email"],"count":1}',
+            seq: 2,
+          },
+          {
+            sessionId: "outside",
+            kind: "reply_redacted",
+            toolName: null,
+            resultSummary: '{"kinds":["token"],"count":1}',
+            seq: 1,
+          },
+        ],
+      }),
+      window
+    );
+
+    expect(metrics.replyRedactedSessions).toBe(1);
+  });
+
   test("computes total spend and cost per AI resolution for the selected window", () => {
     const metrics = computeAutonomyMetrics(
       input({

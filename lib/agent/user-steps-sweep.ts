@@ -5,7 +5,7 @@ import { enqueueNotification } from "@/lib/notifications/enqueue";
 import type { createAdminClient } from "@/lib/supabase/admin";
 import { writeStep } from "./session";
 import type { AgentSession } from "./types";
-import { sanitizeForUser } from "./untrusted";
+import { NO_REQUESTER, toUserText } from "./output-guard";
 
 type Admin = ReturnType<typeof createAdminClient>;
 
@@ -34,7 +34,7 @@ async function whyForOffer(
   try {
     const parsed = JSON.parse(summary ?? "") as { why?: unknown };
     return typeof parsed.why === "string"
-      ? sanitizeForUser(parsed.why).slice(0, 200)
+      ? toUserText(parsed.why, NO_REQUESTER).slice(0, 200)
       : "";
   } catch {
     return "";

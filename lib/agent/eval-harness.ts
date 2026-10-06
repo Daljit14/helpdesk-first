@@ -7,7 +7,8 @@ import type { AgentToolResult } from "./tools";
 import type { ProposeOutcome } from "./actions";
 import { recordAutonomyOutcome } from "@/lib/autonomy/ladder";
 import { guardModelInput } from "@/lib/autonomy/guardrails/input";
-import { wrapUntrusted, sanitizeForUser } from "./untrusted";
+import { wrapUntrusted } from "./untrusted";
+import { NO_REQUESTER, toUserText } from "./output-guard";
 import { checkUserStep } from "./user-steps";
 
 type HarnessAdmin = Record<string, never>;
@@ -86,6 +87,7 @@ export function createAgentEvalHarness(input: {
   consent?: { approvalRequestId: string; decision: "approve" | "decline" };
   confirm?: "yes" | "no";
   attachmentIds?: string[];
+  requesterIdentifiers?: string[];
   screenshotText?: string;
   screenshotStatus?: "rejected" | "scanning" | "foreign";
   visionEnabled?: boolean;
@@ -233,6 +235,8 @@ export function createAgentEvalHarness(input: {
         approvedSlugs: new Set(input.approvedSlugs ?? []),
         approvedSoftware: [],
       }),
+    loadRequesterIdentifiers: async () =>
+      input.requesterIdentifiers ?? ["requester@example.test"],
     writeStep,
     updateSession,
     runTool: async (_context, name, input) => {
@@ -404,7 +408,10 @@ export function createAgentEvalHarness(input: {
             attachmentId,
             text: transcribed.text,
           }),
-          userSummary: sanitizeForUser(transcribed.text).slice(0, 240),
+          userSummary: toUserText(
+            transcribed.text,
+            transcriptionDeps.outputGuard ?? NO_REQUESTER
+          ).slice(0, 240),
           sha256: `fixture-${attachmentId}`,
         })),
       };

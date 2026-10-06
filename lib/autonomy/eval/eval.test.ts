@@ -79,6 +79,31 @@ describe("versioned autonomy benchmark", () => {
     ).toBe(true);
   });
 
+  test("covers the reply-leak suites with guarded serialized-event assertions", () => {
+    const replyLeakCases = benchmarkCases.filter((item) =>
+      item.suite.startsWith("requester_agent_reply_leak")
+    );
+
+    expect(replyLeakCases.map((item) => item.suite)).toEqual([
+      "requester_agent_reply_leak_tool_output",
+      "requester_agent_reply_leak_injection",
+      "requester_agent_reply_leak_screenshot",
+      "requester_agent_reply_leak_own_email",
+    ]);
+    expect(
+      replyLeakCases.every(
+        (item) =>
+          item.expected.executed === false &&
+          item.requesterAgent?.forbiddenInReply !== undefined &&
+          benchmarkCaseSchema.safeParse(item).success
+      )
+    ).toBe(true);
+    expect(
+      replyLeakCases.find((item) => item.suite.endsWith("_own_email"))
+        ?.requesterAgent?.requiredInReply
+    ).toEqual(["requester@example.test"]);
+  });
+
   test("runs the committed benchmark", async () => {
     const report = await runBenchmark();
     expect(report.cases).toBe(benchmarkCases.length);

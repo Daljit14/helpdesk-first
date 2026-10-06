@@ -1,7 +1,12 @@
 import { PRIVATE_BUCKET } from "@/lib/attachments/constants";
 import { writeAttachmentEvent } from "@/app/actions/attachments";
 import { guardModelInput } from "@/lib/autonomy/guardrails/input";
-import { sanitizeForUser, wrapUntrusted } from "./untrusted";
+import { wrapUntrusted } from "./untrusted";
+import {
+  NO_REQUESTER,
+  toUserText,
+  type OutputGuardContext,
+} from "./output-guard";
 import type { AgentSession } from "./types";
 import type { ScreenshotTranscriber } from "./model";
 
@@ -77,6 +82,7 @@ export async function intakeScreenshots(
   deps: {
     transcribe: ScreenshotTranscriber;
     signal: AbortSignal;
+    outputGuard?: OutputGuardContext;
   }
 ): Promise<ScreenshotIntakeResult> {
   const items: ScreenshotIntake[] = [];
@@ -184,7 +190,10 @@ export async function intakeScreenshots(
           attachmentId: row.id,
           text,
         }),
-        userSummary: sanitizeForUser(text).slice(0, 200),
+        userSummary: toUserText(text, deps.outputGuard ?? NO_REQUESTER).slice(
+          0,
+          200
+        ),
         sha256: row.sha256,
       });
     } catch {

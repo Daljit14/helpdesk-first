@@ -1,5 +1,6 @@
 import type { createAdminClient } from "@/lib/supabase/admin";
 import type { UserStepCard } from "./user-steps";
+import type { OutputGuardContext } from "./output-guard";
 
 export type ConsentCard = {
   approvalRequestId: string;
@@ -117,4 +118,5 @@ export type AgentContext = {
   platform?: string;
   signal: AbortSignal;
   emit: (event: AgentEvent) => void;
+  outputGuard: OutputGuardContext;
 };

@@ -4,6 +4,7 @@ import {
   hasServiceIncident,
   updateSession,
   writeStep,
+  loadRequesterIdentifiers,
 } from "./session";
 import { runAgentTurn, type AgentLoopDeps } from "./loop";
 import {
@@ -30,7 +31,11 @@ import {
   type ScreenshotTranscriber,
 } from "./model";
 import { intakeScreenshots } from "./screenshots";
-import { sanitizeForUser } from "./untrusted";
+import {
+  guardAgentEvent,
+  toUserText,
+  type OutputGuardContext,
+} from "./output-guard";
 import { alertSecurityEvent } from "@/lib/autonomy/alerts";
 
 type Admin = ReturnType<typeof createAdminClient>;
@@ -41,9 +46,10 @@ export type AgentTurnDeps = Partial<AgentLoopDeps> & {
   confirmOutcome?: typeof defaultConfirmOutcome;
   transcribe?: ScreenshotTranscriber;
   intakeScreenshots?: typeof intakeScreenshots;
+  loadRequesterIdentifiers?: typeof loadRequesterIdentifiers;
 };
 
-export async function handleAgentRequest(input: {
+type HandleAgentRequestInput = {
   admin: Admin;
   session: AgentSession;
   message: string;
@@ -60,13 +66,55 @@ export async function handleAgentRequest(input: {
   emit: (event: AgentEvent) => void;
   signal: AbortSignal;
   deps?: AgentTurnDeps;
-}): Promise<void> {
+};
+
+export async function handleAgentRequest(
+  input: HandleAgentRequestInput
+): Promise<void> {
+  const { admin, session, deps } = input;
+  const outputGuard: OutputGuardContext = {
+    requesterIdentifiers: [],
+    redactions: [],
+  };
+  const emit = (event: AgentEvent) =>
+    input.emit(guardAgentEvent(event, outputGuard));
+  try {
+    try {
+      outputGuard.requesterIdentifiers = await (
+        deps?.loadRequesterIdentifiers ?? loadRequesterIdentifiers
+      )(admin, session);
+    } catch {
+      outputGuard.requesterIdentifiers = [];
+    }
+    await handleAgentRequestBody(input, outputGuard, emit);
+  } finally {
+    const redactions = outputGuard.redactions ?? [];
+    if (redactions.length > 0) {
+      const kinds = [
+        ...new Set(redactions.map((redaction) => redaction.kind)),
+      ].sort();
+      try {
+        await (deps?.writeStep ?? writeStep)(admin, session, {
+          kind: "reply_redacted",
+          resultSummary: JSON.stringify({ kinds, count: redactions.length }),
+        });
+      } catch {
+        // A missing migration must not interrupt an agent reply.
+      }
+    }
+  }
+}
+
+async function handleAgentRequestBody(
+  input: HandleAgentRequestInput,
+  outputGuard: OutputGuardContext,
+  emit: (event: AgentEvent) => void
+): Promise<void> {
   const {
     admin,
     session,
     message,
     platform,
-    emit,
     signal,
     deps,
     attachmentIds = [],
@@ -134,6 +182,7 @@ export async function handleAgentRequest(input: {
       platform,
       emit,
       signal,
+      outputGuard,
       userMessage,
       trustedSystemEvent: true,
       ...(input.userStep.outcome === "didnt_work"
@@ -175,6 +224,7 @@ export async function handleAgentRequest(input: {
       {
         transcribe: deps?.transcribe ?? createScreenshotTranscriber(),
         signal,
+        outputGuard,
       }
     );
     if (!intake.ok) {
@@ -205,7 +255,7 @@ export async function handleAgentRequest(input: {
       });
       emit({
         type: "error",
-        message: sanitizeForUser(intake.message),
+        message: toUserText(intake.message, outputGuard),
         recoverable: true,
       });
       if (!input.humanRequested) return;
@@ -309,6 +359,7 @@ export async function handleAgentRequest(input: {
         platform,
         emit,
         signal,
+        outputGuard,
         userMessage:
           result === "declined"
             ? `User declined \`${capabilityId}\``
@@ -368,6 +419,7 @@ export async function handleAgentRequest(input: {
         platform,
         emit,
         signal,
+        outputGuard,
         userMessage: `Still broken after \`${capabilityId}\``,
         routing: {
           ...(screenshotAttached ? { screenshotAttached: true } : {}),
@@ -432,6 +484,7 @@ export async function handleAgentRequest(input: {
     platform,
     emit,
     signal,
+    outputGuard,
     userMessage,
     ...(screenshotAttached ? { routing: { screenshotAttached: true } } : {}),
     deps: loopDeps,

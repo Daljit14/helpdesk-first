@@ -44,6 +44,7 @@ const context = {
   organizationId: "org",
   signal: new AbortController().signal,
   emit: vi.fn(),
+  outputGuard: { requesterIdentifiers: [], redactions: [] },
 };
 
 afterEach(() => {

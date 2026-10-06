@@ -2,7 +2,6 @@ import { createHash } from "node:crypto";
 import { getAiModel, getAiProviderKind } from "@/lib/ai/config";
 import { getProviderTimeoutMs } from "@/lib/ai/safety-policy";
 import type { ModelUsage } from "@/lib/ai/pricing";
-import { sanitizeForUser } from "./untrusted";
 import {
   isAgentUserStepsEnabled,
   isAgentPromptCacheEnabled,
@@ -370,9 +369,11 @@ export class AnthropicAgentModel implements AgentModel {
         model: this.model,
       };
     }
-    const text = sanitizeForUser(
+    const text = (
       body.content?.find((item) => item.type === "text")?.text ?? ""
-    ).slice(0, 1200);
+    )
+      .trim()
+      .slice(0, 1200);
     if (!text)
       return {
         kind: "invalid",

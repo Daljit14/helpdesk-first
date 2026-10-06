@@ -294,6 +294,7 @@ describe("requester agent turn dispatch", () => {
         emit: () => {},
         signal: new AbortController().signal,
         deps: {
+          loadRequesterIdentifiers: async () => [],
           writeStep: async (_admin, _session, step) => {
             written.push(step);
             return null;
@@ -448,5 +449,107 @@ describe("requester agent turn dispatch", () => {
         recoverable: true,
       })
     );
+  });
+
+  test("records a kind-only reply_redacted step for guarded output", async () => {
+    const apiKey = "sk-live_abcdef1234567890";
+    const events: AgentEvent[] = [];
+    const written: Array<{ kind: string; resultSummary?: string }> = [];
+
+    await handleAgentRequest({
+      admin: {} as never,
+      session: turnSession(),
+      message: "Can you help?",
+      emit: (event) => events.push(event),
+      signal: new AbortController().signal,
+      deps: {
+        loadRequesterIdentifiers: async () => [],
+        runAgentTurn: async ({ emit }) => {
+          emit({
+            type: "final_answer",
+            text: `Use this credential: ${apiKey}`,
+            confidence: 0.95,
+            evidence: [],
+          });
+        },
+        writeStep: async (_admin, _session, step) => {
+          written.push(step);
+          return null;
+        },
+      },
+    });
+
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        type: "final_answer",
+        text: "Use this credential: [removed: credential]",
+      })
+    );
+    expect(written).toHaveLength(1);
+    expect(written[0]).toEqual({
+      kind: "reply_redacted",
+      resultSummary: JSON.stringify({ kinds: ["api_key"], count: 1 }),
+    });
+    expect(JSON.stringify(written)).not.toContain(apiKey);
+  });
+
+  test("does not fail a turn when the redaction audit write throws", async () => {
+    const events: AgentEvent[] = [];
+    await expect(
+      handleAgentRequest({
+        admin: {} as never,
+        session: turnSession(),
+        message: "Can you help?",
+        emit: (event) => events.push(event),
+        signal: new AbortController().signal,
+        deps: {
+          loadRequesterIdentifiers: async () => [],
+          runAgentTurn: async ({ emit }) => {
+            emit({
+              type: "final_answer",
+              text: "Use token: ghp_abcdefghijklmnopqrstuv",
+              confidence: 0.95,
+              evidence: [],
+            });
+          },
+          writeStep: async () => {
+            throw new Error("migration unavailable");
+          },
+        },
+      })
+    ).resolves.toBeUndefined();
+
+    expect(events).toContainEqual(
+      expect.objectContaining({ type: "final_answer" })
+    );
+  });
+
+  test("screenshot intake emits screenshot_received without blocking the turn", async () => {
+    const harness = createAgentEvalHarness({
+      outputs: [
+        {
+          kind: "final",
+          text: "Your screenshot shows Password: Hunter2!Secret",
+          confidence: 0.9,
+          summary: "Screenshot reviewed.",
+        },
+      ],
+      attachmentIds: ["00000000-0000-4000-8000-000000000015"],
+      screenshotText: "Sign in\nPassword: Hunter2!Secret",
+      visionEnabled: true,
+      requesterIdentifiers: ["requester@example.test"],
+    });
+
+    await harness.run();
+
+    expect(harness.events).toContainEqual(
+      expect.objectContaining({
+        type: "screenshot_received",
+        attachmentId: "00000000-0000-4000-8000-000000000015",
+        summary: expect.stringContaining("[removed: credential]"),
+      })
+    );
+    expect(JSON.stringify(harness.events)).not.toContain("Hunter2!Secret");
+    expect(harness.model.calls).toBe(1);
   });
 });

@@ -3,6 +3,7 @@ import { createAgentEvalHarness } from "./eval-harness";
 import { runAgentTurn, type AgentLoopDeps } from "./loop";
 import type { AgentModel, AgentModelOutput } from "./model";
 import type { AgentEvent, AgentSession } from "./types";
+import { selectAgentRoute } from "./routing";
 
 const use = (id: string, name = "search_guides", input: unknown = {}) => ({
   kind: "tool_use" as const,
@@ -615,6 +616,39 @@ describe("requester agent loop", () => {
     });
 
     expect(selections).toEqual(["claude-haiku-4-5-20251001"]);
+  });
+
+  test("uses the injected route selector and its planner model", async () => {
+    const selections: string[] = [];
+    const selectRoute = vi.fn((signals) =>
+      selectAgentRoute(
+        { ...signals, failedVerification: true },
+        {
+          enabled: true,
+          plannerModel: "mock-planner",
+          defaultModel: "mock-default",
+        }
+      )
+    );
+    const { deps } = directLoopDeps({
+      selectRoute,
+      createModel: (_message, modelId) => {
+        if (modelId !== undefined) selections.push(modelId);
+        return {
+          next: async () => ({
+            kind: "final",
+            text: "Here is a safe answer.",
+            confidence: 0.9,
+            summary: "Answer",
+          }),
+        };
+      },
+    });
+
+    await runDirectLoop({ deps });
+
+    expect(selectRoute).toHaveBeenCalledOnce();
+    expect(selections).toEqual(["mock-planner"]);
   });
 
   test("leaves token and cost fields, org budget, and telemetry untouched when tracking is off", async () => {

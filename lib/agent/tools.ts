@@ -21,6 +21,8 @@ import {
 import { getServiceHealth, matchIncidents } from "@/lib/service-health";
 import { loadConfirmedOrgEnvironment } from "@/lib/org-environment/profile";
 import type { AccountStatus } from "@/lib/autonomy/connectors/types";
+import type { ServiceHealthSnapshot } from "@/lib/service-health/types";
+import type { OrgEnvironmentProfile } from "@/lib/org-environment/types";
 
 const querySchema = z
   .object({
@@ -297,6 +299,37 @@ export function similarOrgIssuesValue(
   };
 }
 
+export function serviceHealthValue(
+  symptom: string,
+  snapshot: ServiceHealthSnapshot
+) {
+  const matched = matchIncidents(symptom, snapshot.incidents);
+  return {
+    checked: true,
+    matched,
+    otherActive: Math.max(0, snapshot.incidents.length - matched.length),
+    sources: snapshot.sources.map(({ source, ok }) => ({ source, ok })),
+    checkedAt: snapshot.checkedAt,
+  };
+}
+
+export function orgEnvironmentValue(profile: OrgEnvironmentProfile | null) {
+  return profile
+    ? {
+        available: true,
+        vpnClient: profile.vpnClient,
+        mdmProvider: profile.mdmProvider,
+        emailStack: profile.emailStack,
+        chatStack: profile.chatStack,
+        ssoProvider: profile.ssoProvider,
+        standardPlatforms: profile.standardPlatforms,
+        standardOsVersions: profile.standardOsVersions,
+        printerFleet: profile.printerFleet,
+        approvedSoftware: profile.approvedSoftware,
+      }
+    : { available: false, reason: "not_confirmed" };
+}
+
 export function toolModelText(name: string, value: unknown): string {
   return wrapUntrusted(`tool:${name}`, minimizeToolOutput(value)).slice(
     0,
@@ -493,33 +526,13 @@ export async function runTool(
         ctx.organizationId,
         ctx.signal
       );
-      const matched = matchIncidents(args.symptom, snapshot.incidents);
-      value = {
-        checked: true,
-        matched,
-        otherActive: Math.max(0, snapshot.incidents.length - matched.length),
-        sources: snapshot.sources.map(({ source, ok }) => ({ source, ok })),
-        checkedAt: snapshot.checkedAt,
-      };
+      value = serviceHealthValue(args.symptom, snapshot);
     } else if (name === "get_org_environment") {
       const profile = await loadConfirmedOrgEnvironment(
         ctx.admin,
         ctx.organizationId
       );
-      value = profile
-        ? {
-            available: true,
-            vpnClient: profile.vpnClient,
-            mdmProvider: profile.mdmProvider,
-            emailStack: profile.emailStack,
-            chatStack: profile.chatStack,
-            ssoProvider: profile.ssoProvider,
-            standardPlatforms: profile.standardPlatforms,
-            standardOsVersions: profile.standardOsVersions,
-            printerFleet: profile.printerFleet,
-            approvedSoftware: profile.approvedSoftware,
-          }
-        : { available: false, reason: "not_confirmed" };
+      value = orgEnvironmentValue(profile);
     } else {
       const args = parsed.data as z.infer<typeof historySchema>;
       const client = await createClient();

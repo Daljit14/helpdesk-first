@@ -38,6 +38,7 @@ const expected = z
     verificationMethod: z.string().optional(),
     inputBlocked: z.boolean().optional(),
     outputRejected: z.boolean().optional(),
+    rejectCode: z.string().optional(),
     gatewayCode: z.string().optional(),
     researchConfidence: z.number().min(0).max(1).optional(),
     researchPresent: z.boolean().optional(),
@@ -48,6 +49,9 @@ const expected = z
     researchParameterLeak: z.boolean().optional(),
     serviceIncidentActionRejected: z.boolean().optional(),
     userStepEmitted: z.boolean().optional(),
+    userStepRejectCode: z
+      .enum(["unapproved_source", "step_not_found", "step_blocked"])
+      .optional(),
     hypothesisIncludes: z.array(z.string()).optional(),
     safetyWarningIncludes: z.array(z.string()).optional(),
     deviceHypothesisConfidenceBelow: z.number().min(0).max(1).optional(),
@@ -183,9 +187,11 @@ const requesterAgent = z
     approvedSlugs: z.array(z.string().regex(/^[a-z0-9-]{1,80}$/)).optional(),
     expectUserStepRejected: z.boolean().optional(),
     serviceHealthEnabled: z.boolean().optional(),
+    orgEnvironmentEnabled: z.boolean().optional(),
     diagnosticSourcesEnabled: z.boolean().optional(),
     forbiddenInModelInput: z.array(z.string()).optional(),
     serviceIncidentActive: z.boolean().optional(),
+    modelRoute: z.enum(["default", "planner"]).optional(),
     consent: z
       .object({
         approvalRequestId: z.string(),

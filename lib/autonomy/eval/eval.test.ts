@@ -64,6 +64,7 @@ describe("versioned autonomy benchmark", () => {
       "requester_agent_user_step_unapproved",
       "requester_agent_user_step_withheld",
       "requester_agent_user_step_injection",
+      ...Array(12).fill("requester_agent_user_step_redteam"),
     ]);
     expect(
       userStepCases.every(

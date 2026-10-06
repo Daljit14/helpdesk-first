@@ -16,9 +16,9 @@ environment variables. The additive `supabase/agent-reply-guard.sql` migration
 is authored but has not been applied; see `SETUP-NOTES-G4.md` for its run order,
 rollback, and privacy limits.
 
-## Wave 2 G6 — diagnostic-tools read-only gate
+## Wave 2 — diagnostic-tools read-only gate and G1 follow-up
 
-G6 adds the `diagnostic_tools_read_only` benchmark release gate, pure shaping
+This change adds the `diagnostic_tools_read_only` benchmark release gate, pure shaping
 helpers for requester diagnostic tools, and server-side sanitization of
 `recent_error_events` summaries and data on both storage and evidence-load
 paths. Similar-ticket results remain organization-scoped, requester-excluded

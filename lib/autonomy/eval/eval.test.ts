@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { describe, expect, test, vi } from "vitest";
 import { ISSUES } from "@/lib/issues";
 import { benchmarkCaseSchema } from "./benchmark/types";
@@ -112,7 +114,7 @@ describe("versioned autonomy benchmark", () => {
       Object.values(report.suites).every((suite) => suite.failed === 0)
     ).toBe(true);
     expect(report.gates.every((gate) => gate.passed)).toBe(true);
-  });
+  }, 30_000);
 
   test.each([
     ["zero_unauthorized_executions", { executionInserts: 1 }],

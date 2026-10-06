@@ -7,6 +7,15 @@ capability/global kill switches, append-only trip events, organization alerts,
 and a platform-admin clearing panel. Apply `supabase/blast-radius.sql` before
 production rollout and follow `SETUP-NOTES-G1.md`.
 
+## Wave 2 G3 — tamper-evident audit chain
+
+G3 adds fixed-payload SHA-256 chains and append-only anchors for resolution
+events, agent steps, and capability-autonomy transitions. A daily
+service-role-only verifier and organization-admin JSONL export are included.
+The scheduled check remains disabled by default; `supabase/audit-chain.sql`
+is authored but has not been applied. See `SETUP-NOTES-G3.md` for migration
+order, verification, anchoring, and future-column coverage.
+
 ## Wave 2 G4 — requester-agent reply and data-leak filter
 
 G4 adds shared secret patterns, requester-output redaction, minimized tool

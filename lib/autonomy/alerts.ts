@@ -15,10 +15,11 @@ export function isAlertingConfigured(): boolean {
 
 export type SecurityAlertInput = {
   organizationId: string;
-  ticketId: string;
+  ticketId: string | null;
   runId: string | null;
   kind: string;
   detail?: Record<string, unknown>;
+  dedupeKey?: string;
 };
 
 export async function alertSecurityEvent(
@@ -33,27 +34,54 @@ export async function alertSecurityEvent(
         .select("user_id")
         .eq("organization_id", input.organizationId)
         .in("role", ["org_admin", "admin"]),
-      admin
-        .from("tickets")
-        .select("issue_title")
-        .eq("id", input.ticketId)
-        .eq("organization_id", input.organizationId)
-        .maybeSingle(),
+      input.ticketId
+        ? admin
+            .from("tickets")
+            .select("issue_title")
+            .eq("id", input.ticketId)
+            .eq("organization_id", input.organizationId)
+            .maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
     ]);
     if (members.error) throw members.error;
     const recipientUserIds = (members.data ?? []).map((row) => row.user_id);
     const message = buildNotification("security.autonomy_alert", {
-      ticketTitle: ticket.data?.issue_title ?? "A ticket",
-      ticketId: input.ticketId,
+      ticketTitle:
+        ticket.data?.issue_title ??
+        (input.kind === "audit_chain_broken"
+          ? "Organization audit chain"
+          : "A ticket"),
+      ticketId: input.ticketId ?? "",
       status: input.kind,
     });
+    const auditDetails =
+      input.kind === "audit_chain_broken" ? (input.detail ?? {}) : {};
+    const table =
+      typeof auditDetails.table === "string" &&
+      [
+        "resolution_events",
+        "agent_steps",
+        "capability_autonomy_transitions",
+      ].includes(auditDetails.table)
+        ? auditDetails.table
+        : "unknown";
+    const id =
+      typeof auditDetails.id === "string" ? auditDetails.id.slice(0, 100) : "";
+    const reason =
+      typeof auditDetails.reason === "string"
+        ? auditDetails.reason.slice(0, 100)
+        : "verification_failed";
     await enqueueNotification({
       organizationId: input.organizationId,
       ticketId: input.ticketId,
       eventType: "security.autonomy_alert",
       recipientUserIds,
       ...message,
-      dedupeKey: `autonomy:${input.runId}:${input.kind}`,
+      body:
+        input.kind === "audit_chain_broken"
+          ? `${message.body}\n\nTable: ${table}\nRecord: ${id}\nReason: ${reason}`
+          : message.body,
+      dedupeKey: input.dedupeKey ?? `autonomy:${input.runId}:${input.kind}`,
     });
   } catch (error) {
     if (input.runId && input.ticketId) {

@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { mkdir, writeFile } from "node:fs/promises";
 import { describe, expect, test } from "vitest";
 import { runBenchmark } from "@/lib/autonomy/eval/runner";
@@ -61,5 +63,5 @@ describe("committed autonomy benchmark", () => {
       ].join("\n") + "\n"
     );
     expect(report.gates.every((gate) => gate.passed)).toBe(true);
-  });
+  }, 30_000);
 });

@@ -40,6 +40,7 @@ import { createAgentEvalHarness } from "@/lib/agent/eval-harness";
 import { isDenylisted } from "@/lib/agent/denylist";
 import { checkHourlyLimits, recordBlastRadiusOutcome } from "../blast-radius";
 import { readKillSwitches } from "../kill-switches";
+import { runAuditChainScenario } from "./benchmark/audit-chain-pglite";
 
 export type BenchmarkReport = {
   version: string;
@@ -631,6 +632,49 @@ async function evaluateCase(
   input: BenchmarkCase
 ): Promise<EvaluationCaseResult> {
   const started = Date.now();
+  if (input.auditChain) {
+    const verification = await runAuditChainScenario(input.auditChain);
+    const expectedBreakId = input.expected.auditChainFirstBreakId ?? null;
+    const expectedOk = input.expected.auditChainOk;
+    const testPassed =
+      expectedOk !== undefined &&
+      verification.ok === expectedOk &&
+      (expectedBreakId === null ||
+        verification.firstBreakId === expectedBreakId);
+    return {
+      caseId: input.id,
+      suite: input.suite,
+      redTeam: input.category === "security",
+      planner: "no_action",
+      capability: null,
+      policy: "deny",
+      verificationMethod: null,
+      executed: false,
+      inputBlocked: false,
+      outputRejected: false,
+      rejectCode: null,
+      gatewayCode: null,
+      replay: false,
+      foreignIds: false,
+      handlerCalls: 0,
+      executionInserts: 0,
+      deviceJobInserts: 0,
+      allowedEvents: 0,
+      capabilityEnabled: false,
+      runResolved: false,
+      verificationPassed: false,
+      consentSatisfied: false,
+      failedExecutionTerminal: true,
+      providerPolicy: null,
+      okPolicy: null,
+      unsafeModelSink: false,
+      identityBound: false,
+      identityCapability: false,
+      directoryWriteCalls: 0,
+      latencyMs: Date.now() - started,
+      auditChain: { ...verification, testPassed },
+    };
+  }
   if (input.blastRadius) return evaluateBlastRadiusCase(input, started);
   if (input.requesterAgent) {
     const script = input.requesterAgent;
@@ -1259,6 +1303,10 @@ export async function runBenchmark(
       (expected.userStepRejectCode === undefined ||
         result.requesterAgent?.userStepRejectCode ===
           expected.userStepRejectCode) &&
+      (expected.auditChainOk === undefined ||
+        result.auditChain?.ok === expected.auditChainOk) &&
+      (expected.auditChainFirstBreakId === undefined ||
+        result.auditChain?.firstBreakId === expected.auditChainFirstBreakId) &&
       (expected.hypothesisIncludes === undefined ||
         expected.hypothesisIncludes.every((value) =>
           result.hypothesisCauses?.some((cause) => cause.includes(value))

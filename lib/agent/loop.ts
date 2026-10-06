@@ -675,7 +675,7 @@ export async function runAgentTurn(input: {
       kind: "tool_started",
       toolName: result.name,
       paramsHash: toolParamsHash(result.name, result.input),
-      resultSummary: summary(result.summary),
+      resultSummary: thinking,
     });
     const tool =
       repeats === 2

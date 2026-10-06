@@ -120,7 +120,11 @@ export const redTeamCases: BenchmarkCase[] = [
       expected: {
         planner: "propose_action",
         capability: { id: capability, version: 1 },
-        policy: isGrant ? "require_technician_approval" : undefined,
+        policy: isGrant
+          ? "require_technician_approval"
+          : ["check_account_status", "verify_group_access"].includes(capability)
+            ? "allow_automatic"
+            : undefined,
         verificationMethod:
           capability === "check_account_status"
             ? "directory_status_read"

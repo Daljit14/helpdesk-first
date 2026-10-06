@@ -216,6 +216,7 @@ export const researchCases: BenchmarkCase[] = [
     research: { sources: [vendorSource] },
     expected: {
       ...researchBase.expected,
+      policy: "allow_automatic",
       researchConfidence: 0.8,
       researchPresent: false,
       executed: false,

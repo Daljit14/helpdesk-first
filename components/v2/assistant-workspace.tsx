@@ -69,15 +69,40 @@ export function AssistantWorkspace({
     autoStart,
   });
   const [attachmentName, setAttachmentName] = useState<string | null>(null);
-  const [outcomes, setOutcomes] = useState<Record<string, StepOutcome>>(() => {
-    if (typeof window === "undefined") return {};
-    try {
-      const saved = window.sessionStorage.getItem("hf-v2-outcomes");
-      return saved ? (JSON.parse(saved) as Record<string, StepOutcome>) : {};
-    } catch {
-      return {};
+  const [outcomes, setOutcomes] = useState<Record<string, StepOutcome>>({});
+  const [outcomeScope, setOutcomeScope] = useState(() =>
+    autoStart && initialProblem ? initialProblem.trim() : ""
+  );
+  const [outcomesLoaded, setOutcomesLoaded] = useState(false);
+  const outcomesDirty = useRef(false);
+
+  useEffect(() => {
+    let restored: Record<string, StepOutcome> | undefined;
+    if (autoStart && initialProblem) {
+      try {
+        const saved = sessionStorage.getItem("hf-v2-outcomes");
+        const value = saved
+          ? (JSON.parse(saved) as {
+              scope?: unknown;
+              outcomes?: unknown;
+            } | null)
+          : null;
+        if (
+          value?.scope === initialProblem.trim() &&
+          value.outcomes !== null &&
+          typeof value.outcomes === "object" &&
+          !Array.isArray(value.outcomes)
+        ) {
+          restored = value.outcomes as Record<string, StepOutcome>;
+        }
+      } catch {}
     }
-  });
+    queueMicrotask(() => {
+      if (!outcomesDirty.current && restored) setOutcomes(restored);
+      setOutcomesLoaded(true);
+    });
+  }, [autoStart, initialProblem]);
+
   const [ticketId, setTicketId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionPending, setActionPending] = useState(false);
@@ -92,10 +117,15 @@ export function AssistantWorkspace({
   const ticketIntent = intent === "ticket" || intent === "human";
 
   useEffect(() => {
+    if (!outcomesLoaded || !outcomesDirty.current) return;
     try {
-      sessionStorage.setItem("hf-v2-outcomes", JSON.stringify(outcomes));
+      sessionStorage.setItem(
+        "hf-v2-outcomes",
+        JSON.stringify({ scope: outcomeScope, outcomes })
+      );
+      outcomesDirty.current = false;
     } catch {}
-  }, [outcomes]);
+  }, [outcomeScope, outcomes, outcomesLoaded]);
 
   useEffect(() => {
     if (!attach) return;
@@ -196,6 +226,9 @@ export function AssistantWorkspace({
       ...current,
       { id: `u-${current.length}`, role: "user", text },
     ]);
+    outcomesDirty.current = true;
+    setOutcomes({});
+    setOutcomeScope(text);
     intake.handleStart(text);
   };
 
@@ -347,6 +380,7 @@ export function AssistantWorkspace({
   const handleOutcome = async (stepIndex: number, outcome: StepOutcome) => {
     if (!matchedIssue) return;
     const key = `${matchedIssue.id}:${stepIndex}`;
+    outcomesDirty.current = true;
     setOutcomes((current) => ({ ...current, [key]: outcome }));
     setActionError(null);
     if (!ticketId) return;

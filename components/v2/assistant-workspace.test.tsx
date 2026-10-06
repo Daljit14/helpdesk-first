@@ -1,10 +1,14 @@
 import {
+  act,
   cleanup,
   fireEvent,
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
+import { hydrateRoot } from "react-dom/client";
+import { renderToString } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AssistantWorkspace } from "./assistant-workspace";
 
@@ -134,11 +138,173 @@ describe("AssistantWorkspace", () => {
     });
     expect(screen.getByText("Already tried")).toBeInTheDocument();
     expect(screen.getByText(/Outcome: Did not work/)).toBeInTheDocument();
-    expect(
-      JSON.parse(sessionStorage.getItem("hf-v2-outcomes") ?? "{}")
-    ).toEqual({
-      "wifi-keeps-dropping:0": "failed",
+    await waitFor(() => {
+      expect(
+        JSON.parse(sessionStorage.getItem("hf-v2-outcomes") ?? "{}")
+      ).toEqual({
+        scope: "wifi keeps dropping",
+        outcomes: { "wifi-keeps-dropping:0": "failed" },
+      });
     });
+  });
+
+  it("does not restore outcomes from a different conversation", async () => {
+    sessionStorage.setItem(
+      "hf-v2-outcomes",
+      JSON.stringify({
+        scope: "printer is offline",
+        outcomes: { "wifi-keeps-dropping:0": "failed" },
+      })
+    );
+    render(
+      <AssistantWorkspace
+        initialProblem="wifi keeps dropping"
+        initialPlatform="Mac"
+        autoStart
+      />
+    );
+
+    await act(async () => {
+      await new Promise<void>((resolve) => queueMicrotask(resolve));
+    });
+    expect(screen.getByText("Suggested steps")).toBeInTheDocument();
+    expect(screen.getByText("Restart the network adapter")).toBeInTheDocument();
+    expect(screen.queryByText("Already tried")).not.toBeInTheDocument();
+  });
+
+  it("ignores legacy flat outcome storage", async () => {
+    sessionStorage.setItem(
+      "hf-v2-outcomes",
+      JSON.stringify({ "wifi-keeps-dropping:0": "failed" })
+    );
+    render(
+      <AssistantWorkspace
+        initialProblem="wifi keeps dropping"
+        initialPlatform="Mac"
+        autoStart
+      />
+    );
+
+    await act(async () => {
+      await new Promise<void>((resolve) => queueMicrotask(resolve));
+    });
+    expect(screen.getByText("Suggested steps")).toBeInTheDocument();
+    expect(screen.getByText("Restart the network adapter")).toBeInTheDocument();
+    expect(screen.queryByText("Already tried")).not.toBeInTheDocument();
+  });
+
+  it("restores outcomes for the same deep-linked conversation", async () => {
+    sessionStorage.setItem(
+      "hf-v2-outcomes",
+      JSON.stringify({
+        scope: "wifi keeps dropping",
+        outcomes: { "wifi-keeps-dropping:0": "failed" },
+      })
+    );
+    render(
+      <AssistantWorkspace
+        initialProblem="wifi keeps dropping"
+        initialPlatform="Mac"
+        autoStart
+      />
+    );
+
+    expect(await screen.findByText("Already tried")).toBeInTheDocument();
+    expect(screen.queryByText("Suggested steps")).not.toBeInTheDocument();
+    expect(screen.getByText(/Outcome: Did not work/)).toBeInTheDocument();
+  });
+
+  it("clears outcomes when starting a new intake in the same chat", async () => {
+    mocks.recordStepOutcome.mockResolvedValue({ success: true });
+    const props = {
+      initialProblem: "wifi keeps dropping",
+      initialPlatform: "Mac" as const,
+      autoStart: true,
+    };
+    const { rerender } = render(<AssistantWorkspace {...props} />);
+    fireEvent.click(screen.getByRole("button", { name: "Did not work" }));
+
+    await waitFor(() => {
+      expect(
+        JSON.parse(sessionStorage.getItem("hf-v2-outcomes") ?? "{}")
+      ).toEqual({
+        scope: "wifi keeps dropping",
+        outcomes: { "wifi-keeps-dropping:0": "failed" },
+      });
+    });
+
+    mocks.setProblem.mockImplementation((value: string) => {
+      mocks.problem = value;
+    });
+    fireEvent.change(screen.getByLabelText("Describe your IT problem"), {
+      target: { value: " wifi keeps dropping " },
+    });
+    rerender(<AssistantWorkspace {...props} />);
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(mocks.handleStart).toHaveBeenCalledWith("wifi keeps dropping");
+    await waitFor(() => {
+      expect(screen.getByText("Suggested steps")).toBeInTheDocument();
+      expect(
+        screen.getByText("Restart the network adapter")
+      ).toBeInTheDocument();
+      expect(screen.queryByText("Already tried")).not.toBeInTheDocument();
+      expect(
+        JSON.parse(sessionStorage.getItem("hf-v2-outcomes") ?? "{}")
+      ).toEqual({
+        scope: "wifi keeps dropping",
+        outcomes: {},
+      });
+    });
+  });
+
+  it("hydrates before restoring persisted outcomes", async () => {
+    sessionStorage.removeItem("hf-v2-outcomes");
+    const element = (
+      <AssistantWorkspace
+        initialProblem="wifi keeps dropping"
+        initialPlatform="Mac"
+        autoStart
+      />
+    );
+    const serverHtml = renderToString(element);
+    expect(serverHtml).toContain("Suggested steps");
+    expect(serverHtml).not.toContain("Already tried");
+
+    sessionStorage.setItem(
+      "hf-v2-outcomes",
+      JSON.stringify({
+        scope: "wifi keeps dropping",
+        outcomes: { "wifi-keeps-dropping:0": "failed" },
+      })
+    );
+    const container = document.createElement("div");
+    container.innerHTML = serverHtml;
+    document.body.appendChild(container);
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    let root: ReturnType<typeof hydrateRoot> | null = null;
+
+    try {
+      await act(async () => {
+        root = hydrateRoot(container, element);
+      });
+      await waitFor(() =>
+        expect(within(container).getByText("Already tried")).toBeInTheDocument()
+      );
+      expect(
+        consoleError.mock.calls
+          .map((args) => args.map(String).join(" "))
+          .filter((message) =>
+            /hydration|did not match|server rendered HTML/i.test(message)
+          )
+      ).toEqual([]);
+    } finally {
+      if (root) await act(async () => root?.unmount());
+      consoleError.mockRestore();
+      container.remove();
+    }
   });
 
   it("renders support action errors and re-enables the action", async () => {

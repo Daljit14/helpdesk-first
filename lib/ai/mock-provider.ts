@@ -461,7 +461,7 @@ export class MockAiProvider implements AiProvider {
     }
 
     const detectedPlatform = input.platform ?? detectPlatform(combined);
-    const scored = scoreIssues(combined, detectedPlatform);
+    const scored = scoreIssues(buildScoringText(input), detectedPlatform);
     const sorted = scored
       .filter((s) => s.score > 0)
       .sort((a, b) => b.score - a.score);
@@ -628,6 +628,17 @@ function buildCombinedText(input: AiIntakeInput): string {
     parts.push(answer.answer);
   }
   return parts.join(" ").toLowerCase();
+}
+
+function buildScoringText(input: AiIntakeInput): string {
+  return [
+    input.message,
+    ...(input.previousAnswers ?? [])
+      .filter((answer) => answer.questionId !== "when-started")
+      .map((answer) => answer.answer),
+  ]
+    .join(" ")
+    .toLowerCase();
 }
 
 type ScoredIssue = {

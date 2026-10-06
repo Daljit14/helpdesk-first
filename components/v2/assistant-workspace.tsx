@@ -23,6 +23,11 @@ import {
 import { type Platform } from "@/lib/helpdesk-data";
 import type { AiIntakeOutput } from "@/lib/ai/types";
 import { diagnosticQuestions } from "@/lib/ai/types";
+import {
+  MAX_ANSWER_LENGTH,
+  MAX_CUMULATIVE_TEXT_LENGTH,
+  MAX_MESSAGE_LENGTH,
+} from "@/lib/ai/validation";
 import { recordStepOutcome } from "@/app/actions/tickets";
 import { useAssistantIntake } from "@/components/ai-assistant-logic";
 import { SAFE_USE_WARNING } from "@/lib/ui-copy";
@@ -75,6 +80,7 @@ export function AssistantWorkspace({
   );
   const [outcomesLoaded, setOutcomesLoaded] = useState(false);
   const outcomesDirty = useRef(false);
+  const focusComposerAfterLoad = useRef(false);
 
   useEffect(() => {
     let restored: Record<string, StepOutcome> | undefined;
@@ -114,7 +120,9 @@ export function AssistantWorkspace({
     .filter((turn) => turn.role === "user")
     .map((turn) => turn.text);
   const autoStarted = useRef(false);
-  const ticketIntent = intent === "ticket" || intent === "human";
+  const ticketIntent =
+    (intent === "ticket" || intent === "human") &&
+    Boolean(initialProblem.trim());
 
   useEffect(() => {
     if (!outcomesLoaded || !outcomesDirty.current) return;
@@ -145,6 +153,12 @@ export function AssistantWorkspace({
   }, [attach]);
 
   useEffect(() => {
+    if (intake.loading || !focusComposerAfterLoad.current) return;
+    document.getElementById("assistant-input")?.focus();
+    focusComposerAfterLoad.current = false;
+  }, [intake.loading]);
+
+  useEffect(() => {
     if (autoStart && initialProblem && !ticketIntent && !autoStarted.current) {
       autoStarted.current = true;
       // Screen the linked problem the same way as typed input: greetings,
@@ -172,6 +186,11 @@ export function AssistantWorkspace({
   const sendToSupport = async (messageOverride?: string) => {
     setActionError(null);
     const message = messageOverride ?? ticketMessage ?? intake.problem;
+    if (!message.trim()) {
+      setActionError("Describe your problem first, then send it to a person.");
+      document.getElementById("assistant-input")?.focus();
+      return;
+    }
     const quality = classifyInput(message);
     if (quality.kind === "sensitive") {
       intake.setProblem("");
@@ -215,6 +234,13 @@ export function AssistantWorkspace({
     if (intake.loading) return;
     const text = raw.trim();
     if (!text) return;
+    if (text.length > MAX_MESSAGE_LENGTH) {
+      pushNotice({
+        kind: "off_topic",
+        text: "That's a lot of detail. Please describe the problem in under 1,000 characters.",
+      });
+      return;
+    }
     const notice = preflightNotice(text);
     if (notice) {
       intake.setProblem("");
@@ -229,6 +255,7 @@ export function AssistantWorkspace({
     outcomesDirty.current = true;
     setOutcomes({});
     setOutcomeScope(text);
+    focusComposerAfterLoad.current = true;
     intake.handleStart(text);
   };
 
@@ -240,6 +267,27 @@ export function AssistantWorkspace({
     }
     const text = intake.diagnosticAnswer;
     if (!text.trim()) return;
+    const cumulativeTextLength =
+      intake.problem.length +
+      intake.previousAnswers.reduce(
+        (total, answer) => total + answer.answer.length,
+        0
+      ) +
+      text.length;
+    if (
+      text.length > MAX_ANSWER_LENGTH ||
+      cumulativeTextLength > MAX_CUMULATIVE_TEXT_LENGTH
+    ) {
+      pushNotice(
+        {
+          kind: "off_topic",
+          text: "That answer is too long. Please keep it under 500 characters.",
+        },
+        undefined,
+        true
+      );
+      return;
+    }
     const quality = classifyInput(text, { mode: "answer" });
     if (quality.kind === "sensitive" || quality.kind === "gibberish") {
       intake.setDiagnosticAnswer("");
@@ -263,7 +311,10 @@ export function AssistantWorkspace({
       { id: `u-${current.length}`, role: "user", text: text.trim() },
     ]);
     const questionId = output.diagnosticQuestionIds?.[0];
-    if (questionId) intake.handleSubmitAnswer(questionId, text);
+    if (questionId) {
+      focusComposerAfterLoad.current = true;
+      intake.handleSubmitAnswer(questionId, text);
+    }
   };
 
   const rephrase = (text: string) => {
@@ -283,7 +334,8 @@ export function AssistantWorkspace({
 
   // Add each new clarifying question to the transcript exactly once.
   useEffect(() => {
-    if (!questionKey || output?.decision !== "clarify") return;
+    if (intake.loading || !questionKey || output?.decision !== "clarify")
+      return;
     const text = clarificationText(output);
     queueMicrotask(() =>
       setTranscript((current) =>
@@ -292,7 +344,7 @@ export function AssistantWorkspace({
           : [...current, { id: questionKey, role: "assistant", text }]
       )
     );
-  }, [questionKey, output]);
+  }, [questionKey, output, intake.loading]);
   const matchedIssue = output?.matchedIssueSlug
     ? getIssueBySlug(output.matchedIssueSlug)
     : null;
@@ -329,7 +381,7 @@ export function AssistantWorkspace({
           )
           .join("\n")}`
       : undefined;
-  const loginHref = loginLink(intake.problem, intake.platform, intent);
+  const loginHref = loginLink(intake.problem, intake.platform);
   const composerHint = liveHint(
     intake.loading
       ? ""
@@ -438,11 +490,13 @@ export function AssistantWorkspace({
             ? 3
             : output?.decision === "escalate"
               ? 2
-              : lastTurnIsNotice && !intake.loading
+              : intake.error && !intake.loading && !output
                 ? 0
-                : userTurns.length > 0 || intake.loading
-                  ? 1
-                  : 0
+                : lastTurnIsNotice && !intake.loading
+                  ? 0
+                  : userTurns.length > 0 || intake.loading
+                    ? 1
+                    : 0
         }
       />
 
@@ -474,7 +528,7 @@ export function AssistantWorkspace({
                       platform={intake.platform}
                       signedIn={signedIn}
                       workflowEnabled={workflowEnabled}
-                      pending={actionPending}
+                      pending={actionPending || intake.loading}
                       onSend={sendToSupport}
                     />
                   ) : undefined
@@ -506,16 +560,19 @@ export function AssistantWorkspace({
               </p>
               {workflowEnabled && signedIn ? (
                 <Button
-                  className="mt-4"
                   onClick={() => void sendToSupport()}
-                  disabled={actionPending}
+                  disabled={actionPending || intake.loading}
+                  className="mt-4 h-auto max-w-full whitespace-normal"
                 >
                   Send to a support person
                 </Button>
               ) : workflowEnabled ? (
                 <Link
                   href={loginHref}
-                  className={cn(buttonVariants({ variant: "default" }), "mt-4")}
+                  className={cn(
+                    buttonVariants({ variant: "default" }),
+                    "mt-4 h-auto max-w-full whitespace-normal"
+                  )}
                 >
                   Log in to send this to a support person
                 </Link>
@@ -539,7 +596,7 @@ export function AssistantWorkspace({
                 searchHref={intake.searchHref()}
                 loginHref={loginHref}
                 actionError={actionError}
-                actionPending={actionPending}
+                actionPending={actionPending || intake.loading}
                 closest={closestGuides(output, intake.problem)}
                 platform={intake.platform}
               />
@@ -555,7 +612,7 @@ export function AssistantWorkspace({
                 withheld={withheld}
                 stepPolicyEnabled={stepPolicyEnabled}
                 actionError={actionError}
-                actionPending={actionPending}
+                actionPending={actionPending || intake.loading}
                 allStepsFailed={allStepsFailed}
                 onOutcome={handleOutcome}
                 onStartGuide={handleStartGuide}
@@ -639,6 +696,11 @@ export function AssistantWorkspace({
             }
             onSend={submitCurrentInput}
             disabled={intake.loading}
+            sendDisabled={
+              !(output?.decision === "clarify"
+                ? intake.diagnosticAnswer.trim()
+                : intake.problem.trim())
+            }
             hint={composerHint.text}
             hintTone={composerHint.tone}
             placeholder={
@@ -654,7 +716,7 @@ export function AssistantWorkspace({
                 variant="outline"
                 className="shrink-0"
                 onClick={() => void sendToSupport()}
-                disabled={actionPending}
+                disabled={actionPending || intake.loading}
               >
                 I want a person
               </Button>
@@ -1126,7 +1188,11 @@ function Escalation({
       )}
       <div className="mt-4 flex flex-wrap gap-3">
         {workflowEnabled && signedIn ? (
-          <Button onClick={() => void onSend()} disabled={actionPending}>
+          <Button
+            className="h-auto max-w-full whitespace-normal"
+            onClick={() => void onSend()}
+            disabled={actionPending}
+          >
             {prominent
               ? "Create a support ticket with this history"
               : "Send to a support person"}
@@ -1134,7 +1200,10 @@ function Escalation({
         ) : workflowEnabled ? (
           <Link
             href={loginHref}
-            className={cn(buttonVariants({ variant: "default" }))}
+            className={cn(
+              buttonVariants({ variant: "default" }),
+              "h-auto max-w-full whitespace-normal"
+            )}
           >
             Log in to send this to a support person
           </Link>
@@ -1159,12 +1228,8 @@ function ActionError({ error }: { error: string }) {
   );
 }
 
-function loginLink(
-  problem: string,
-  platform: Platform | null,
-  intent: string | undefined
-) {
-  const next = new URLSearchParams({ intent: intent ?? "human" });
+function loginLink(problem: string, platform: Platform | null) {
+  const next = new URLSearchParams({ intent: "human" });
   const shareable = shareableProblem(problem);
   if (shareable) next.set("q", shareable);
   if (platform) next.set("platform", platformSlug(platform));

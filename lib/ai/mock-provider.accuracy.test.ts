@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { createAiProvider } from "./mock-provider";
 import type { Platform } from "@/lib/helpdesk-data";
+import { EXAMPLE_PROBLEMS } from "@/lib/assistant/replies";
 
 const provider = createAiProvider();
 
@@ -199,6 +200,47 @@ describe("MockAiProvider accuracy", () => {
       }
     }
   );
+
+  test("keeps Outlook app-open matching stable through diagnostic answers", async () => {
+    const message = EXAMPLE_PROBLEMS.find((example) =>
+      example.startsWith("Outlook")
+    )!;
+    const answers = [
+      "Windows",
+      "Desktop Outlook app",
+      "Since this morning, every time",
+    ];
+    const questionIds: string[] = [];
+    let platform: Platform | null = null;
+    let previousAnswers: { questionId: string; answer: string }[] = [];
+    let result = await provider.classify({ message, platform });
+
+    for (const answer of answers) {
+      expect(result.decision).toBe("clarify");
+      if (result.decision !== "clarify") return;
+      const questionId = result.diagnosticQuestionIds?.[0];
+      expect(questionId).toBeTruthy();
+      if (!questionId) return;
+      questionIds.push(questionId);
+      previousAnswers = [...previousAnswers, { questionId, answer }];
+      if (questionId === "which-platform") platform = "Windows";
+      result = await provider.classify({
+        message,
+        platform,
+        previousAnswers,
+      });
+    }
+
+    expect(questionIds).toEqual([
+      "which-platform",
+      "where-happens",
+      "when-started",
+    ]);
+    expect(result).toMatchObject({
+      decision: "match",
+      matchedIssueSlug: "app-wont-open",
+    });
+  });
 
   test("matches confidently for at least 90% of realistic phrasings", async () => {
     let matched = 0;

@@ -162,25 +162,32 @@ async function actionStep(
 }
 
 function taintSourceLabel(item: TaintedParam): string {
-  if (item.source === "screenshot") return "a screenshot";
-  if (item.source === "earlier reply") return "an earlier reply";
-  if (item.source === "get_service_health") return "a service status page";
-  if (item.source === "search_web")
-    return item.trust === "community" ? "a community post" : "a web page";
-  if (
-    item.source === "search_guides" ||
-    item.source === "get_org_environment" ||
-    item.trust === "org_approved"
-  )
-    return "your organization's guides";
-  if (
-    item.source.includes("device") ||
-    item.source.includes("diagnostic") ||
-    item.source.includes("error") ||
-    item.source.includes("sign_in")
-  )
-    return "your device's diagnostics";
-  return item.trust === "community" ? "a community post" : "a web page";
+  switch (item.source) {
+    case "screenshot":
+      return "a screenshot";
+    case "earlier reply":
+      return "an earlier reply";
+    case "get_device_diagnostics":
+      return "your device's diagnostics";
+    case "get_recent_sign_in_failures":
+      return "sign-in records";
+    case "count_similar_org_issues":
+      return "other tickets in your organization";
+    case "get_ticket_history":
+      return "your ticket history";
+    case "get_account_status":
+      return "your organization's directory";
+    case "search_guides":
+      return "your organization's guides";
+    case "get_org_environment":
+      return "your organization's settings";
+    case "get_service_health":
+      return "a service status page";
+    case "search_web":
+      return item.trust === "community" ? "a community post" : "a web page";
+    default:
+      return "a tool result";
+  }
 }
 
 export async function ensureBackingRun(

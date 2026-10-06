@@ -23,17 +23,12 @@ export function wrapUntrusted(source: string, value: unknown): string {
   const raw = JSON.stringify(value ?? null);
   const guarded = guardModelInput([{ source: "event", text: raw }]);
   if (guarded.blocked) throw new Error("injection_in_tool_output");
-  let shaped: unknown = guarded.fields[0]?.text ?? "";
-  try {
-    shaped = JSON.parse(String(shaped)) as unknown;
-  } catch {
-    return `<untrusted_data source="${source}">${JSON.stringify(
-      guarded.fields[0]?.text ?? ""
-    )}</untrusted_data>`;
-  }
-  shaped = withholdInstructions(shaped);
+  const withheld = withholdInstructions(value ?? null);
+  const guarded2 = guardModelInput([
+    { source: "event", text: JSON.stringify(withheld) },
+  ]);
   return `<untrusted_data source="${source}">${JSON.stringify(
-    JSON.stringify(shaped)
+    guarded2.fields[0]?.text ?? ""
   )}</untrusted_data>`;
 }
 

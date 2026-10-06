@@ -141,6 +141,27 @@ describe("taint provenance", () => {
     ]);
   });
 
+  test("treats a truncated screenshot block as untrusted", () => {
+    const block = `<untrusted_data source="screenshot">${JSON.stringify(
+      JSON.stringify({ attachmentId: "attachment-1", text: "PC-7ABCDE" })
+    )}`;
+    const result = splitUserTurn(`Please inspect this. ${block}`);
+
+    expect(result.userText).toBe("Please inspect this.");
+    expect(result.untrusted[0]).toMatchObject({
+      source: "screenshot",
+      trust: "external_untrusted",
+    });
+    expect(result.untrusted[0]?.text).toContain("PC-7ABCDE");
+    expect(
+      findTaintedParams(
+        { hostname: "PC-7ABCDE" },
+        {},
+        { userTexts: [result.userText], items: result.untrusted }
+      )
+    ).toHaveLength(1);
+  });
+
   test("chooses the most severe source and keeps web source trust per item", () => {
     const items = provenanceFromTool("search_web", "ev-2", {
       sources: [

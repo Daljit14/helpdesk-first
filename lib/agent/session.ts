@@ -242,10 +242,10 @@ export async function loadSessionProvenance(
     .select("kind,tool_name,result_summary,seq")
     .eq("session_id", session.id)
     .in("kind", ["user_message", "tool_result", "final"])
-    .order("seq", { ascending: true })
-    .limit(50);
+    .order("seq", { ascending: false })
+    .limit(200);
   const provenance: SessionProvenance = { userTexts: [], items: [] };
-  for (const step of result.data ?? []) {
+  for (const step of [...(result.data ?? [])].reverse()) {
     const summary = await decryptAgentText(
       admin,
       session.organization_id,

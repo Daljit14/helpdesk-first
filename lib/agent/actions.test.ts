@@ -665,6 +665,94 @@ describe("requester action proposals", () => {
     );
   });
 
+  test.each([
+    [
+      "get_device_diagnostics",
+      "external_untrusted",
+      "your device's diagnostics",
+    ],
+    ["get_recent_sign_in_failures", "external_untrusted", "sign-in records"],
+    [
+      "count_similar_org_issues",
+      "external_untrusted",
+      "other tickets in your organization",
+    ],
+    ["get_ticket_history", "external_untrusted", "your ticket history"],
+    ["get_account_status", "org_approved", "your organization's directory"],
+    ["search_guides", "org_approved", "your organization's guides"],
+    ["get_org_environment", "org_approved", "your organization's settings"],
+    ["get_service_health", "vendor", "a service status page"],
+    ["search_web", "community", "a community post"],
+    ["search_web", "vendor", "a web page"],
+    ["screenshot", "external_untrusted", "a screenshot"],
+    ["earlier reply", "external_untrusted", "an earlier reply"],
+    ["unknown_tool", "community", "a tool result"],
+  ] as const)(
+    "labels tainted values from %s",
+    async (source, trust, sourceLabel) => {
+      mocks.readTier.mockResolvedValue("autorun");
+      mocks.executePlan.mockResolvedValue({ status: "awaiting_consent" });
+      mocks.writeStep.mockResolvedValue("step-1");
+      vi.stubEnv("HELP_DESK_IDENTITY_ASSURANCE_ENABLED", "true");
+      const admin = actionAdmin({
+        approval: {
+          id: "approval-tainted",
+          run_id: "run-1",
+          step_id: "plan-step-1",
+          capability_id: "send_password_reset_link",
+          parameter_hash: "hash-1",
+          expires_at: new Date(Date.now() + 60_000).toISOString(),
+        },
+      });
+      const result = await proposeAction(
+        admin as never,
+        proposalSession(),
+        {
+          capabilityId: "send_password_reset_link",
+          params: { ticketId: "PC-7ABCDE" },
+          hypothesisId: "ev-1",
+          rationale: "Ask about the reported device.",
+        },
+        {
+          actor: "requester_agent:session-1",
+          evidence: [{ id: "ev-1", tool: "get_device_diagnostics" }],
+          provenance: {
+            userTexts: [],
+            items: [
+              {
+                evidenceId: "ev-1",
+                source,
+                trust,
+                text: "The value is PC-7ABCDE.",
+              },
+            ],
+          },
+          assurance: {
+            level: "A3",
+            method: "supabase_mfa",
+            authAt: new Date().toISOString(),
+            expiresAt: new Date(Date.now() + 60_000).toISOString(),
+          },
+        }
+      );
+
+      expect(result).toMatchObject({
+        kind: "consent_required",
+        card: {
+          requiresReconfirm: true,
+          tainted: [
+            {
+              param: "ticketId",
+              value: "PC-7ABCDE",
+              source: sourceLabel,
+              trust,
+            },
+          ],
+        },
+      });
+    }
+  );
+
   test("escalates when tainted consent could not be recorded", async () => {
     mocks.readTier.mockResolvedValue("autorun");
     mocks.executePlan.mockResolvedValue({ status: "awaiting_consent" });

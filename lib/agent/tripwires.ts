@@ -40,9 +40,9 @@ export type InstructionContentKind =
   | "hidden_text";
 
 const ignorePreviousPattern =
-  /\b(?:ignore|disregard|forget)\b[\s\S]{0,60}\b(?:previous|prior|above|earlier|all)\b[\s\S]{0,60}\b(?:instructions?|rules?|prompts?|messages?)\b/i;
+  /\b(?:ignore|disregard|forget)\b[^.\n]{0,25}\b(?:previous|prior|above|earlier|all)\b[^.\n]{0,25}\b(?:instructions?|rules?|prompts?|messages?)\b/i;
 const rolePlayPattern =
-  /\b(?:you are now\b|pretend to (?:be|you are)\b|act as (?:a|an|the|my)\s|from now on you\b|role-?play\b)/i;
+  /\byou are now (?:an?|the|my) (?:\w+ ){0,2}(?:assistant|admin|administrator|agent|ai|bot|developer|operator)\b|\bact as (?:an?|the|my)? ?(?:\w+ ){0,2}(?:assistant|admin|administrator|agent|ai|bot|developer|operator|system)\b|\bfrom now on,? you (?:are|will act|must ignore|will ignore|must obey|will obey|have no)\b|\bpretend (?:to be|you are)\b|\brole-?play\b/i;
 const hiddenTextPattern =
   /[\u200B-\u200F\u202A-\u202E\u2060-\u2064\uFEFF\u{E0000}-\u{E007F}]/u;
 const roleMarkerPattern =

@@ -22,6 +22,10 @@ describe("detectInstructionContent", () => {
     "user: alex reported the issue in this log",
     "Open Settings, then select the network section.",
     "The assistant appeared after the user clicked Continue.",
+    "You are now connected to Wi-Fi",
+    "Your laptop can act as a hotspot",
+    "From now on you will need MFA to sign in",
+    "You can ignore the warning. All messages will sync later",
   ])("does not withhold benign content: %s", (text) => {
     expect(detectInstructionContent(text)).toBeNull();
   });

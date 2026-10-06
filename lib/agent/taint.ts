@@ -121,7 +121,7 @@ export function splitUserTurn(text: string): {
   const untrusted: ProvenanceItem[] = [];
   const userText = text
     .replace(
-      /<untrusted_data source="screenshot">([\s\S]*?)<\/untrusted_data>/g,
+      /<untrusted_data source="screenshot">([\s\S]*?)(?:<\/untrusted_data>|$)/g,
       (_block, content: string) => {
         screenshotIndex += 1;
         untrusted.push({

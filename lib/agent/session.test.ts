@@ -166,7 +166,7 @@ function makeAdmin(
   const admin = {
     from: vi.fn((table: string) => queries[table] ?? makeQuery(table)),
   };
-  return { admin, insertedActions, insertedSteps };
+  return { admin, insertedActions, insertedSteps, queries };
 }
 
 afterEach(() => {
@@ -425,13 +425,13 @@ describe("loadSessionProvenance", () => {
     );
     const screenshot =
       '<untrusted_data source="screenshot">{"text":"PC-7ABCDE"}</untrusted_data>';
-    const { admin } = makeAdmin({
+    const { admin, queries } = makeAdmin({
       provenanceRows: [
         {
-          kind: "user_message",
+          kind: "final",
           tool_name: null,
-          result_summary: `Use host PC-7ABCDE. ${screenshot}`,
-          seq: 1,
+          result_summary: "Earlier reply mentioned PC-7ABCDE.",
+          seq: 3,
         },
         {
           kind: "tool_result",
@@ -440,10 +440,10 @@ describe("loadSessionProvenance", () => {
           seq: 2,
         },
         {
-          kind: "final",
+          kind: "user_message",
           tool_name: null,
-          result_summary: "Earlier reply mentioned PC-7ABCDE.",
-          seq: 3,
+          result_summary: `Use host PC-7ABCDE. ${screenshot}`,
+          seq: 1,
         },
       ],
     });
@@ -473,6 +473,37 @@ describe("loadSessionProvenance", () => {
         },
       ],
     });
+    expect(admin.from).toHaveBeenCalledWith("agent_steps");
+    expect(queries.agent_steps.order).toHaveBeenCalledWith("seq", {
+      ascending: false,
+    });
+    expect(queries.agent_steps.limit).toHaveBeenCalledWith(200);
+  });
+
+  test("loads the latest 200 provenance steps in sequence order", async () => {
+    mocks.decryptAgentText.mockImplementation(
+      async (_admin, _org, _table, _column, value) => value
+    );
+    const provenanceRows = Array.from({ length: 200 }, (_, index) => {
+      const seq = 205 - index;
+      return {
+        kind: "user_message",
+        tool_name: null,
+        result_summary: `Requester turn ${seq}`,
+        seq,
+      };
+    });
+    const { admin, queries } = makeAdmin({ provenanceRows });
+
+    const result = await loadSessionProvenance(admin as never, session);
+
+    expect(result.userTexts).toHaveLength(200);
+    expect(result.userTexts[0]).toBe("Requester turn 6");
+    expect(result.userTexts[199]).toBe("Requester turn 205");
+    expect(queries.agent_steps.order).toHaveBeenCalledWith("seq", {
+      ascending: false,
+    });
+    expect(queries.agent_steps.limit).toHaveBeenCalledWith(200);
   });
 });
 

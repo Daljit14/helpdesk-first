@@ -127,6 +127,20 @@ export async function fetchAuditChainRows(
   }));
 }
 
+export async function findAuditChainStartSeq(
+  admin: Admin,
+  organizationId: string,
+  table: AuditChainTable,
+  since: string | Date
+): Promise<number | null> {
+  const [firstRow] = await fetchAuditChainRows(admin, organizationId, table, {
+    since,
+    afterSeq: 0,
+    limit: 1,
+  });
+  return firstRow?.chain_seq ?? null;
+}
+
 export async function verifyChain(
   admin: Admin,
   organizationId: string,
@@ -137,7 +151,20 @@ export async function verifyChain(
   checked: number;
   firstBreak?: AuditChainBreak;
 }> {
-  let afterSeq = 0;
+  const startSeq =
+    options.since === undefined
+      ? null
+      : await findAuditChainStartSeq(
+          admin,
+          organizationId,
+          table,
+          options.since
+        );
+  if (options.since !== undefined && startSeq === null) {
+    return { ok: true, checked: 0 };
+  }
+
+  let afterSeq = startSeq === null ? 0 : startSeq - 1;
   let previousSeq: number | null = null;
   let previousHash: string | null = null;
   let checked = 0;
@@ -145,7 +172,6 @@ export async function verifyChain(
 
   while (true) {
     const rows = await fetchAuditChainRows(admin, organizationId, table, {
-      since: options.since,
       afterSeq,
       limit: pageSize,
     });
@@ -177,7 +203,7 @@ export async function verifyChain(
             },
           };
         }
-      } else if (!options.since) {
+      } else if (options.since === undefined) {
         if (row.chain_seq !== 1) {
           return {
             ok: false,

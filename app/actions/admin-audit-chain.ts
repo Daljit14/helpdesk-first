@@ -5,6 +5,7 @@ import { getAdminSession } from "@/lib/admin/auth";
 import { getExcludedRecordIds } from "@/lib/admin/record-exclusions";
 import {
   AUDIT_CHAIN_TABLES,
+  findAuditChainStartSeq,
   fetchAuditChainRows,
   type AuditChainTable,
   type AuditChainRow,
@@ -96,27 +97,43 @@ export async function exportAuditChain(input: {
     ]);
     const rowsByTable = new Map<AuditChainTable, AuditChainRow[]>();
     for (const table of AUDIT_CHAIN_TABLES) {
-      const rows: AuditChainRow[] = [];
-      let afterSeq = 0;
+      const startSeq = await findAuditChainStartSeq(
+        admin,
+        session.organizationId,
+        table,
+        from
+      );
+      if (startSeq === null) {
+        rowsByTable.set(table, []);
+        continue;
+      }
+      const tail: AuditChainRow[] = [];
+      let afterSeq = startSeq - 1;
+      let endSeq: number | null = null;
       while (true) {
         const page = await fetchAuditChainRows(
           admin,
           session.organizationId,
           table,
-          {
-            since: from,
-            afterSeq,
+          { afterSeq }
+        );
+        tail.push(...page);
+        for (const row of page) {
+          if (new Date(row.created_at).getTime() < to.getTime()) {
+            endSeq = Math.max(endSeq ?? row.chain_seq, row.chain_seq);
           }
-        );
-        rows.push(
-          ...page.filter(
-            (row) => new Date(row.created_at).getTime() < to.getTime()
-          )
-        );
+        }
         if (page.length < 500) break;
         afterSeq = page[page.length - 1].chain_seq;
       }
-      rowsByTable.set(table, rows);
+      rowsByTable.set(
+        table,
+        endSeq === null
+          ? []
+          : tail.filter(
+              (row) => row.chain_seq >= startSeq && row.chain_seq <= endSeq!
+            )
+      );
     }
 
     const agentStepRows = rowsByTable.get("agent_steps") ?? [];

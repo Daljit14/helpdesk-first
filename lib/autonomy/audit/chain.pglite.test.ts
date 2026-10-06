@@ -260,6 +260,29 @@ describe("audit-chain SQL in PGlite", () => {
     });
   });
 
+  test("verifies every sequence after since despite out-of-order created_at values", async () => {
+    const { db, applyMigration } = await database();
+    await applyMigration();
+    await insertResolutionEvent(db, {
+      id: ids[0],
+      createdAt: "2026-10-06T12:00:00.000000Z",
+    });
+    await insertResolutionEvent(db, {
+      id: ids[1],
+      createdAt: "2026-10-06T02:00:00.000000Z",
+    });
+    await insertResolutionEvent(db, {
+      id: ids[2],
+      createdAt: "2026-10-06T13:00:00.000000Z",
+    });
+
+    await expect(
+      verifyChain(pgliteAdmin(db), organizationId, "resolution_events", {
+        since: "2026-10-06T06:00:00.000000Z",
+      })
+    ).resolves.toEqual({ ok: true, checked: 3 });
+  });
+
   test("defines chains for all fixed audit tables", async () => {
     const { db, applyMigration } = await database();
     await applyMigration();

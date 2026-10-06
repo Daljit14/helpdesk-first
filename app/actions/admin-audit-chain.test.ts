@@ -161,9 +161,15 @@ describe("exportAuditChain", () => {
       capability_autonomy_transitions: [],
     };
     const rpc = vi.fn(async (_name: string, args: Record<string, unknown>) => ({
-      data: records[args.p_table as keyof typeof records].filter(
-        (item) => item.chain_seq > Number(args.p_after_seq)
-      ),
+      data: records[args.p_table as keyof typeof records]
+        .filter(
+          (item) =>
+            item.chain_seq > Number(args.p_after_seq) &&
+            (args.p_since === null ||
+              new Date(item.created_at).getTime() >=
+                new Date(String(args.p_since)).getTime())
+        )
+        .slice(0, Number(args.p_limit)),
       error: null,
     }));
     const sessions = sessionQuery([
@@ -231,6 +237,68 @@ describe("exportAuditChain", () => {
       "organization_id",
       session.organizationId
     );
+  });
+
+  test("exports a contiguous sequence when created_at falls outside both range edges", async () => {
+    const timestamps = [
+      "2026-10-06T12:00:00.000000Z",
+      "2026-10-05T23:59:59.999999Z",
+      "2026-10-07T00:00:00.000000Z",
+      "2026-10-06T23:59:59.999999Z",
+    ];
+    let previousHash: string | null = null;
+    const events = timestamps.map((createdAt, index) => {
+      const id = `boundary-${index + 1}`;
+      const payload = {
+        id,
+        organization_id: session.organizationId,
+        run_id: null,
+        ticket_id: null,
+        created_at: createdAt,
+        chain_seq: index + 1,
+      };
+      const result = row(id, index + 1, previousHash, payload);
+      previousHash = result.row_hash;
+      return result;
+    });
+    const records = {
+      resolution_events: events,
+      agent_steps: [],
+      capability_autonomy_transitions: [],
+    };
+    const rpc = vi.fn(async (_name: string, args: Record<string, unknown>) => ({
+      data: records[args.p_table as keyof typeof records]
+        .filter(
+          (item) =>
+            item.chain_seq > Number(args.p_after_seq) &&
+            (args.p_since === null ||
+              new Date(item.created_at).getTime() >=
+                new Date(String(args.p_since)).getTime())
+        )
+        .slice(0, Number(args.p_limit)),
+      error: null,
+    }));
+    mocks.createAdminClient.mockReturnValue({
+      rpc,
+      from: vi.fn(),
+    });
+
+    const result = await exportAuditChain({
+      from: "2026-10-06",
+      to: "2026-10-06",
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const lines = result.content.trim().split("\n");
+    const parsed = lines.map((line) => JSON.parse(line));
+    expect(
+      parsed
+        .filter(
+          (item) => item.type === "row" && item.table === "resolution_events"
+        )
+        .map((item) => item.id)
+    ).toEqual(["boundary-1", "boundary-2", "boundary-3", "boundary-4"]);
+    expect(verifyExport(lines)).toEqual({ ok: true, checked: 4 });
   });
 
   test("returns a friendly message when the audit-chain RPC is unapplied", async () => {

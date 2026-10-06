@@ -21,6 +21,7 @@ describe("requester agent SQL contracts", () => {
       "model-routing.sql",
       "agent-user-steps.sql",
       "identity-assurance.sql",
+      "agent-taint.sql",
     ]
       .map((file) => readFileSync(join(root, "supabase", file), "utf8"))
       .join("\n");

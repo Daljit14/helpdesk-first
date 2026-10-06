@@ -282,8 +282,10 @@ describe("versioned autonomy benchmark", () => {
       "00000000-0000-4000-8000-000000000001"
     );
     vi.stubEnv("HELP_DESK_GUARDRAILS_ENFORCED", "true");
-    const redTeamCases = benchmarkCases.filter((item) =>
-      item.suite.startsWith("redteam_")
+    const redTeamCases = benchmarkCases.filter(
+      (item) =>
+        item.suite.startsWith("redteam_") &&
+        item.expected.gatewayCode !== undefined
     );
     try {
       expect(redTeamCases.length).toBeGreaterThan(0);

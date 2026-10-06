@@ -13,6 +13,11 @@ import { enqueueNotification } from "@/lib/notifications/enqueue";
 import { getIssueBySlug } from "@/lib/search";
 import { getIssueStepPolicies } from "@/lib/investigation/policy";
 import { NO_REQUESTER, toUserText } from "./output-guard";
+import {
+  provenanceFromTool,
+  splitUserTurn,
+  type SessionProvenance,
+} from "./taint";
 
 type Admin = ReturnType<
   typeof import("@/lib/supabase/admin").createAdminClient
@@ -224,6 +229,56 @@ export async function loadSessionEvidence(
   return entries.filter(
     (value): value is { id: string; tool: string } => value !== null
   );
+}
+
+export async function loadSessionProvenance(
+  admin: Admin,
+  session: AgentSession
+): Promise<SessionProvenance> {
+  if (!admin || typeof admin.from !== "function")
+    return { userTexts: [], items: [] };
+  const result = await admin
+    .from("agent_steps")
+    .select("kind,tool_name,result_summary,seq")
+    .eq("session_id", session.id)
+    .in("kind", ["user_message", "tool_result", "final"])
+    .order("seq", { ascending: true })
+    .limit(50);
+  const provenance: SessionProvenance = { userTexts: [], items: [] };
+  for (const step of result.data ?? []) {
+    const summary = await decryptAgentText(
+      admin,
+      session.organization_id,
+      "agent_steps",
+      "result_summary",
+      step.result_summary
+    );
+    if (typeof summary !== "string" || summary.length === 0) continue;
+    if (step.kind === "user_message") {
+      const split = splitUserTurn(summary);
+      if (split.userText) provenance.userTexts.push(split.userText);
+      provenance.items.push(...split.untrusted);
+    } else if (step.kind === "tool_result" && step.tool_name) {
+      const evidenceId = summary.match(/\[evidence id: (ev-\d+)\]/)?.[1];
+      if (evidenceId) {
+        provenance.items.push(
+          ...provenanceFromTool(
+            step.tool_name,
+            evidenceId,
+            summary.replace(/^\[evidence id: ev-\d+\]\s*/, "")
+          )
+        );
+      }
+    } else if (step.kind === "final") {
+      provenance.items.push({
+        evidenceId: `final-${step.seq ?? provenance.items.length + 1}`,
+        source: "earlier reply",
+        trust: "external_untrusted",
+        text: summary,
+      });
+    }
+  }
+  return provenance;
 }
 
 export async function hasServiceIncident(

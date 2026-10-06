@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   getCurrentUser: vi.fn(),
   resolveOrganizationForUser: vi.fn(),
   isRequesterAgentEnabled: vi.fn(),
+  isRequesterAgentActionsEnabled: vi.fn(),
   isRequesterAgentEnabledForOrg: vi.fn(),
   isRequesterAgentVisionEnabledForOrg: vi.fn(),
   isAgentUserStepsEnabled: vi.fn(),
@@ -29,6 +30,7 @@ vi.mock("@/lib/org/membership", () => ({
 vi.mock("@/lib/admin/flags", () => ({
   getIdentityAssuranceFreshMinutes: vi.fn(() => 10),
   isIdentityAssuranceEnabled: mocks.isIdentityAssuranceEnabled,
+  isRequesterAgentActionsEnabled: mocks.isRequesterAgentActionsEnabled,
   isRequesterAgentEnabled: mocks.isRequesterAgentEnabled,
   isRequesterAgentEnabledForOrg: mocks.isRequesterAgentEnabledForOrg,
   isRequesterAgentVisionEnabledForOrg:
@@ -86,6 +88,7 @@ beforeEach(() => {
   mocks.getCurrentUser.mockResolvedValue({ id: "user" });
   mocks.resolveOrganizationForUser.mockResolvedValue({ organizationId: "org" });
   mocks.isRequesterAgentEnabled.mockReturnValue(true);
+  mocks.isRequesterAgentActionsEnabled.mockReturnValue(true);
   mocks.isRequesterAgentEnabledForOrg.mockReturnValue(true);
   mocks.isRequesterAgentVisionEnabledForOrg.mockReturnValue(true);
   mocks.isAgentUserStepsEnabled.mockReturnValue(false);
@@ -165,6 +168,30 @@ describe("requester agent route", () => {
         userStep: {
           stepId: "00000000-0000-4000-8000-000000000010",
           outcome: "done",
+        },
+      })
+    );
+  });
+
+  test("passes taint reconfirmation through consent requests", async () => {
+    const response = await POST(
+      request({
+        sessionId: session.id,
+        consent: {
+          approvalRequestId: "00000000-0000-4000-8000-000000000011",
+          decision: "approve",
+          reconfirmTainted: true,
+        },
+      })
+    );
+    await response.text();
+    expect(response.status).toBe(200);
+    expect(mocks.handleAgentRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        consent: {
+          approvalRequestId: "00000000-0000-4000-8000-000000000011",
+          decision: "approve",
+          reconfirmTainted: true,
         },
       })
     );

@@ -25,12 +25,15 @@ import {
 } from "./user-steps";
 import { detectTripwire } from "./tripwires";
 import { isDenylisted } from "./denylist";
+import { INSTRUCTION_WITHHELD } from "./untrusted";
+import { provenanceFromTool, splitUserTurn } from "./taint";
 import { toUserText, type OutputGuardContext } from "./output-guard";
 import {
   escalate,
   halt,
   loadSessionContext,
   loadSessionEvidence,
+  loadSessionProvenance,
   hasServiceIncident,
   updateSession,
   writeStep,
@@ -92,6 +95,7 @@ export type AgentLoopDeps = {
   alert: typeof alertSecurityEvent;
   loadContext: typeof loadSessionContext;
   loadEvidence: typeof loadSessionEvidence;
+  loadProvenance: typeof loadSessionProvenance;
   proposeAction: typeof proposeAction;
   hasServiceIncident: typeof hasServiceIncident;
   serviceHealthEnabled?: boolean;
@@ -124,6 +128,7 @@ const defaultDeps: AgentLoopDeps = {
   alert: alertSecurityEvent,
   loadContext: loadSessionContext,
   loadEvidence: loadSessionEvidence,
+  loadProvenance: loadSessionProvenance,
   proposeAction,
   hasServiceIncident,
 };
@@ -182,6 +187,11 @@ export async function runAgentTurn(input: {
     emit({ type: "halted", reason, ticketId });
     return;
   }
+
+  const provenance = await deps.loadProvenance(admin, session);
+  const currentTurn = splitUserTurn(userMessage);
+  if (currentTurn.userText) provenance.userTexts.push(currentTurn.userText);
+  provenance.items.push(...currentTurn.untrusted);
 
   await deps.writeStep(admin, session, {
     kind: "user_message",
@@ -569,6 +579,7 @@ export async function runAgentTurn(input: {
             },
             {
               evidence,
+              provenance,
               actor: `requester_agent:${session.id}`,
               platform,
               emit,
@@ -743,6 +754,15 @@ export async function runAgentTurn(input: {
     const persistedSummary = evidenceId
       ? `[evidence id: ${evidenceId}] ${toolSummary}`
       : toolSummary;
+    if (tool.ok && evidenceId)
+      provenance.items.push(
+        ...provenanceFromTool(result.name, evidenceId, tool.value)
+      );
+    if (tool.ok && tool.modelText.includes(INSTRUCTION_WITHHELD))
+      await deps.writeStep(admin, session, {
+        kind: "tripwire_instruction_content",
+        toolName: result.name,
+      });
     await deps.writeStep(admin, session, {
       kind: tool.ok ? "tool_result" : "tool_rejected",
       toolName: result.name,

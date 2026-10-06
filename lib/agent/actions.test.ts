@@ -129,11 +129,13 @@ function actionAdmin(options: { approval?: Record<string, unknown> } = {}) {
       data:
         table === "approval_requests"
           ? (options.approval ?? null)
-          : table === "tickets"
-            ? { platform: "Windows", user_id: "user-1" }
-            : table === "devices_public"
-              ? { hostname: "laptop-1" }
-              : null,
+          : table === "agent_steps"
+            ? { policy_decision: "clean" }
+            : table === "tickets"
+              ? { platform: "Windows", user_id: "user-1" }
+              : table === "devices_public"
+                ? { hostname: "laptop-1" }
+                : null,
       error: null,
     });
     chain.then = ((resolve: (value: unknown) => unknown) =>
@@ -209,6 +211,7 @@ describe("requester action proposals", () => {
       {
         actor: "requester_agent:session-1",
         evidence: [{ id: "ev-1", tool: "get_ticket_history" }],
+        provenance: { userTexts: [], items: [] },
         assurance: {
           level: "A3",
           method: "supabase_mfa",
@@ -252,6 +255,7 @@ describe("requester action proposals", () => {
       {
         actor: "requester_agent:session-1",
         evidence: [{ id: "ev-1", tool: "get_ticket_history" }],
+        provenance: { userTexts: [], items: [] },
         assurance: {
           level: "A1",
           method: "session",
@@ -300,6 +304,7 @@ describe("requester action proposals", () => {
       {
         actor: "requester_agent:session-1",
         evidence: [{ id: "ev-1", tool: "get_org_environment" }],
+        provenance: { userTexts: [], items: [] },
       }
     );
     expect(result).toMatchObject({
@@ -323,6 +328,7 @@ describe("requester action proposals", () => {
       {
         actor: "requester_agent:session-1",
         evidence: [{ id: "ev-1", tool: "count_similar_org_issues" }],
+        provenance: { userTexts: [], items: [] },
       }
     );
     expect(result).toMatchObject({
@@ -346,6 +352,7 @@ describe("requester action proposals", () => {
       {
         actor: "requester_agent:session-1",
         evidence: [{ id: "ev-1", tool: "search_web" }],
+        provenance: { userTexts: [], items: [] },
       }
     );
     expect(result).toMatchObject({
@@ -375,6 +382,7 @@ describe("requester action proposals", () => {
       {
         actor: "requester_agent:session-1",
         evidence: [{ id: "ev-1", tool: "get_device_status" }],
+        provenance: { userTexts: [], items: [] },
         signal: signal.signal,
       }
     );
@@ -454,6 +462,7 @@ describe("requester action proposals", () => {
       {
         actor: "requester_agent:session-1",
         evidence: [{ id: "ev-1", tool: "get_device_status" }],
+        provenance: { userTexts: [], items: [] },
       }
     );
 
@@ -486,6 +495,7 @@ describe("requester action proposals", () => {
         {
           actor: "requester_agent:session-1",
           evidence: [{ id: "ev-1", tool: "get_device_status" }],
+          provenance: { userTexts: [], items: [] },
         }
       );
 
@@ -528,6 +538,7 @@ describe("requester action proposals", () => {
       {
         actor: "requester_agent:session-1",
         evidence: [{ id: "ev-1", tool: "get_device_status" }],
+        provenance: { userTexts: [], items: [] },
       }
     );
 
@@ -539,11 +550,178 @@ describe("requester action proposals", () => {
     );
   });
 
+  test("rejects a proposal whose parameter came from external diagnostics", async () => {
+    const admin = actionAdmin();
+    const result = await proposeAction(
+      admin as never,
+      proposalSession(),
+      {
+        capabilityId: "device_flush_dns",
+        params: { hostname: "PC-7ABCDE" },
+        hypothesisId: "ev-1",
+        rationale: "The device has a DNS failure.",
+      },
+      {
+        actor: "requester_agent:session-1",
+        evidence: [{ id: "ev-1", tool: "get_device_diagnostics" }],
+        provenance: {
+          userTexts: [],
+          items: [
+            {
+              evidenceId: "ev-1",
+              source: "get_device_diagnostics",
+              trust: "external_untrusted",
+              text: "DNS failure reported for PC-7ABCDE.",
+            },
+          ],
+        },
+      }
+    );
+
+    expect(result).toEqual({
+      kind: "rejected",
+      code: "tainted_parameter",
+      message:
+        "That value came from content you didn't type, so I can't use it in a fix.",
+    });
+    expect(mocks.writeStep).toHaveBeenCalledWith(
+      admin,
+      expect.anything(),
+      expect.objectContaining({
+        kind: "action_rejected",
+        resultSummary: expect.stringContaining("tainted_parameter"),
+      })
+    );
+    expect(mocks.startRun).not.toHaveBeenCalled();
+    expect(mocks.executePlan).not.toHaveBeenCalled();
+  });
+
+  test("requires reconfirmation for tainted autorun and discloses the value", async () => {
+    mocks.readTier.mockResolvedValue("autorun");
+    mocks.executePlan.mockResolvedValue({ status: "awaiting_consent" });
+    mocks.writeStep.mockResolvedValue("step-1");
+    const approval = {
+      id: "approval-tainted",
+      run_id: "run-1",
+      step_id: "plan-step-1",
+      capability_id: "device_flush_dns",
+      parameter_hash: "hash-1",
+      expires_at: new Date(Date.now() + 60_000).toISOString(),
+    };
+    const admin = actionAdmin({ approval });
+    const result = await proposeAction(
+      admin as never,
+      proposalSession(),
+      {
+        capabilityId: "device_flush_dns",
+        params: { hostname: "PC-7ABCDE" },
+        hypothesisId: "ev-1",
+        rationale: "The device has a DNS failure.",
+      },
+      {
+        actor: "requester_agent:session-1",
+        evidence: [{ id: "ev-1", tool: "get_service_health" }],
+        provenance: {
+          userTexts: [],
+          items: [
+            {
+              evidenceId: "ev-1",
+              source: "get_service_health",
+              trust: "vendor",
+              text: "DNS outage for PC-7ABCDE.",
+            },
+          ],
+        },
+      }
+    );
+
+    expect(result).toMatchObject({
+      kind: "consent_required",
+      approvalRequestId: "approval-tainted",
+      card: {
+        requiresReconfirm: true,
+        tainted: [
+          {
+            param: "hostname",
+            value: "PC-7ABCDE",
+            source: "a service status page",
+            trust: "vendor",
+          },
+        ],
+      },
+    });
+    expect(mocks.executePlan.mock.calls[0][3]).toMatchObject({
+      forceUserConsent: true,
+    });
+    expect(mocks.executePlan.mock.calls[0][3].sessionConsent).toBeUndefined();
+    expect(mocks.writeStep).toHaveBeenCalledWith(
+      admin,
+      expect.anything(),
+      expect.objectContaining({
+        kind: "consent_required",
+        consentId: "approval-tainted",
+        policyDecision: "reconfirm",
+      })
+    );
+  });
+
+  test("escalates when tainted consent could not be recorded", async () => {
+    mocks.readTier.mockResolvedValue("autorun");
+    mocks.executePlan.mockResolvedValue({ status: "awaiting_consent" });
+    const admin = actionAdmin({
+      approval: {
+        id: "approval-tainted",
+        run_id: "run-1",
+        step_id: "plan-step-1",
+        capability_id: "device_flush_dns",
+        parameter_hash: "hash-1",
+        expires_at: new Date(Date.now() + 60_000).toISOString(),
+      },
+    });
+    const result = await proposeAction(
+      admin as never,
+      proposalSession(),
+      {
+        capabilityId: "device_flush_dns",
+        params: { hostname: "PC-7ABCDE" },
+        hypothesisId: "ev-1",
+        rationale: "The device has a DNS failure.",
+      },
+      {
+        actor: "requester_agent:session-1",
+        evidence: [{ id: "ev-1", tool: "get_service_health" }],
+        provenance: {
+          userTexts: [],
+          items: [
+            {
+              evidenceId: "ev-1",
+              source: "get_service_health",
+              trust: "vendor",
+              text: "DNS outage for PC-7ABCDE.",
+            },
+          ],
+        },
+      }
+    );
+
+    expect(result).toEqual({
+      kind: "escalate",
+      reason: "taint_record_failed",
+    });
+    expect(mocks.escalate).toHaveBeenCalledWith(
+      admin,
+      expect.anything(),
+      "taint_record_failed",
+      expect.any(String)
+    );
+  });
+
   test("rejects top-level and nested target fields before execution", async () => {
     const admin = {} as never;
     const context = {
       actor: "requester_agent:session-1",
       evidence: [],
+      provenance: { userTexts: [], items: [] },
     };
     const topLevel = await proposeAction(
       admin,
@@ -651,9 +829,11 @@ describe("requester action proposals", () => {
     const admin = {
       from: (table: string) =>
         query(
-          table === "approval_requests"
-            ? approval
-            : { id: "run-1", status: "awaiting_consent" }
+          table === "agent_steps"
+            ? { policy_decision: "clean" }
+            : table === "approval_requests"
+              ? approval
+              : { id: "run-1", status: "awaiting_consent" }
         ),
     } as never;
     mocks.consumeAiConsent.mockResolvedValue({ ok: true, request: approval });
@@ -721,7 +901,8 @@ describe("requester action proposals", () => {
       return chain;
     };
     const admin = {
-      from: () => query(null),
+      from: (table: string) =>
+        query(table === "agent_steps" ? { policy_decision: "clean" } : null),
     } as never;
 
     const result = await decideConsent(
@@ -745,6 +926,133 @@ describe("requester action proposals", () => {
         resultSummary: "Consent request expired or invalid.",
       })
     );
+  });
+
+  test("does not consume approval when tainted consent lacks reconfirmation", async () => {
+    const target: AgentSession = {
+      ...session,
+      resolution_run_id: "run-1",
+      pending_approval_id: "approval-tainted",
+    };
+    const approval = {
+      id: "approval-tainted",
+      run_id: "run-1",
+      step_id: "step-1",
+      capability_id: "device_flush_dns",
+      parameter_hash: "hash-1",
+      status: "requested",
+      expires_at: new Date(Date.now() + 60_000).toISOString(),
+    };
+    const admin = {
+      from: (table: string) => {
+        const chain = {
+          select: () => chain,
+          eq: () => chain,
+          order: () => chain,
+          limit: () => chain,
+          maybeSingle: async () => ({
+            data:
+              table === "agent_steps"
+                ? { policy_decision: "reconfirm" }
+                : approval,
+            error: null,
+          }),
+        };
+        return chain;
+      },
+    } as never;
+
+    const result = await decideConsent(
+      admin,
+      target,
+      {
+        approvalRequestId: "approval-tainted",
+        decision: "approve",
+        userId: "user-1",
+      },
+      vi.fn(),
+      new AbortController().signal
+    );
+
+    expect(result).toBe("invalid");
+    expect(mocks.consumeAiConsent).not.toHaveBeenCalled();
+    expect(mocks.resumeAfterApproval).not.toHaveBeenCalled();
+    expect(mocks.writeStep).toHaveBeenCalledWith(
+      admin,
+      target,
+      expect.objectContaining({
+        kind: "action_rejected",
+        consentId: "approval-tainted",
+        resultSummary: "Re-confirm required.",
+      })
+    );
+  });
+
+  test("consumes tainted approval only after explicit reconfirmation", async () => {
+    const target: AgentSession = {
+      ...session,
+      resolution_run_id: "run-1",
+      pending_approval_id: "approval-tainted",
+    };
+    const approval = {
+      id: "approval-tainted",
+      run_id: "run-1",
+      step_id: "step-1",
+      capability_id: "device_flush_dns",
+      parameter_hash: "hash-1",
+      status: "requested",
+      expires_at: new Date(Date.now() + 60_000).toISOString(),
+    };
+    const admin = {
+      from: (table: string) => {
+        const chain = {
+          select: () => chain,
+          eq: () => chain,
+          order: () => chain,
+          limit: () => chain,
+          maybeSingle: async () => ({
+            data:
+              table === "agent_steps"
+                ? { policy_decision: "reconfirm" }
+                : table === "approval_requests"
+                  ? approval
+                  : { id: "run-1", status: "awaiting_consent" },
+            error: null,
+          }),
+        };
+        return chain;
+      },
+    } as never;
+    mocks.consumeAiConsent.mockResolvedValue({
+      ok: true,
+      request: approval,
+    });
+    mocks.resumeAfterApproval.mockResolvedValue({
+      ...run,
+      status: "escalated",
+      escalation_reason: "execution_denied",
+    });
+
+    await decideConsent(
+      admin,
+      target,
+      {
+        approvalRequestId: "approval-tainted",
+        decision: "approve",
+        userId: "user-1",
+        reconfirmTainted: true,
+      },
+      vi.fn(),
+      new AbortController().signal
+    );
+
+    expect(mocks.consumeAiConsent).toHaveBeenCalledWith(
+      admin,
+      "approval-tainted",
+      "user-1",
+      "grant"
+    );
+    expect(mocks.resumeAfterApproval).toHaveBeenCalledTimes(1);
   });
 
   test("leaves a pending approval unconsumed when consent needs step-up", async () => {

@@ -677,7 +677,9 @@ async function evaluateCase(
       screenshotStatus: script.screenshotStatus,
       visionEnabled: script.visionEnabled,
       serviceHealthEnabled: script.serviceHealthEnabled,
+      orgEnvironmentEnabled: script.orgEnvironmentEnabled,
       diagnosticSourcesEnabled: script.diagnosticSourcesEnabled,
+      modelRoute: script.modelRoute,
       serviceIncidentActive: script.serviceIncidentActive,
       userStepsEnabled: script.userStepsEnabled,
       approvedSlugs: script.approvedSlugs,
@@ -788,6 +790,16 @@ async function evaluateCase(
           (harness.sideEffectCalls > 0 ||
             harness.executePlanCalls > 0 ||
             harness.proposeActionCalls > 0),
+        routeMismatch:
+          script.modelRoute !== undefined &&
+          (harness.modelIds.length === 0 ||
+            harness.modelIds.some(
+              (id) =>
+                id !==
+                (script.modelRoute === "planner"
+                  ? "mock-planner"
+                  : "mock-default")
+            )),
         diagnosticActionAttempted:
           input.suite.startsWith("requester_agent_diagnostic_sources") &&
           (harness.sideEffectCalls > 0 ||

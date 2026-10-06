@@ -100,6 +100,7 @@ export type AgentLoopDeps = {
     stepIndex: number;
     why: string;
   }) => Promise<UserStepCheck>;
+  selectRoute?: typeof selectAgentRoute;
 };
 
 const defaultDeps: AgentLoopDeps = {
@@ -270,7 +271,7 @@ export async function runAgentTurn(input: {
       emit({ type: "escalated", ticketId, reason: "budget:org_cost" });
       return;
     }
-    const route = selectAgentRoute({
+    const route = (deps.selectRoute ?? selectAgentRoute)({
       evidenceSources: countEvidenceSources(evidence),
       failedVerification:
         Boolean(input.routing?.failedVerification) ||

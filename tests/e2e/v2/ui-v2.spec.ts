@@ -362,6 +362,19 @@ test("axe accessibility checks include color contrast on v2 public surfaces", as
 }) => {
   for (const url of ["/", "/assistant", "/browse"]) {
     await page.goto(url);
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    if (url === "/") {
+      await page.getByRole("heading", { name: "Quick tip" }).hover();
+    }
+    await page.waitForFunction(() =>
+      document
+        .getAnimations()
+        .every(
+          (animation) =>
+            animation.playState !== "running" ||
+            animation.effect?.getComputedTiming().iterations === Infinity
+        )
+    );
     const results = await new AxeBuilder({ page })
       .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
       .analyze();

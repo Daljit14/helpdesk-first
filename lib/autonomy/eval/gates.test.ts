@@ -2,8 +2,10 @@ import { describe, expect, test } from "vitest";
 import {
   evaluateGates,
   RELEASE_GATES,
+  SUITE_GATE_PREFIXES,
   type EvaluationCaseResult,
 } from "./gates";
+import { benchmarkCases } from "./benchmark/cases";
 
 function result(
   overrides: Partial<EvaluationCaseResult> = {}
@@ -253,6 +255,119 @@ describe("requester-agent release gates", () => {
     ]).find((item) => item.name === "diagnostic_tools_read_only");
 
     expect(gate).toMatchObject({ passed: true, offendingCaseIds: [] });
+  });
+
+  test("maps every security benchmark suite to a failing release gate", () => {
+    const badRequesterAgent = {
+      policyAllowed: false,
+      denylistReachable: true,
+      foreignIdentityTarget: true,
+      modelTargetRejected: false,
+      toolOutputInjectionAction: true,
+      killSwitchHalted: false,
+      budgetEscalated: false,
+      humanEscalated: false,
+      resolvedWithoutVerification: true,
+      autorunWithoutAdminPromotion: true,
+      autoDemotionFailed: true,
+      autorunWithoutSessionConsent: true,
+      denylistedAutorun: true,
+      screenshotTextAction: true,
+      visionUnsafeAttachmentAccepted: true,
+      serviceHealthActionAttempted: true,
+      serviceIncidentActionRejected: false,
+      userStepEmitted: true,
+      untrustedUserStepEmitted: true,
+      replyLeaked: true,
+      replyOverRedacted: true,
+      diagnosticActionAttempted: true,
+      routeMismatch: true,
+    };
+
+    for (const benchmarkCase of benchmarkCases.filter(
+      (item) => item.category === "security"
+    )) {
+      const mapping = SUITE_GATE_PREFIXES.filter(([prefix]) =>
+        benchmarkCase.suite.startsWith(prefix)
+      ).sort(([left], [right]) => right.length - left.length)[0];
+      expect(
+        mapping,
+        `No suite-to-gate prefix registered for ${benchmarkCase.suite}`
+      ).toBeDefined();
+      if (!mapping) continue;
+      const [prefix, gateName] = mapping;
+      expect(RELEASE_GATES, `${prefix} maps to an unknown gate`).toContain(
+        gateName
+      );
+
+      const failingResult = result({
+        caseId: benchmarkCase.id,
+        suite: benchmarkCase.suite,
+        redTeam: true,
+        planner: "propose_action",
+        capability: { id: "device_flush_dns", version: 1 },
+        policy: "allow_automatic",
+        executed: true,
+        outputRejected: false,
+        gatewayCode: "allowed",
+        foreignIds: true,
+        handlerCalls: 1,
+        executionInserts: 1,
+        deviceJobInserts: 1,
+        allowedEvents: 1,
+        capabilityEnabled: false,
+        runResolved: true,
+        verificationPassed: false,
+        consentSatisfied: false,
+        failedExecutionTerminal: false,
+        providerPolicy: "allow_automatic",
+        okPolicy: "deny",
+        unsafeModelSink: true,
+        identityBound: false,
+        identityCapability: true,
+        researchPresent: true,
+        researchInfluencedNonSafe: true,
+        requesterAgent: badRequesterAgent,
+        blastRadius: {
+          trip: "none",
+          limitCode: null,
+          switchActive: false,
+          mismatch: true,
+        },
+      });
+
+      const gate = evaluateGates([failingResult]).find(
+        (item) => item.name === gateName
+      );
+      expect(
+        gate?.passed,
+        `The mapped gate ${gateName} did not fail for ${benchmarkCase.id}`
+      ).toBe(false);
+    }
+  });
+
+  test("fails red-team cases when the selected route mismatches", () => {
+    const gate = evaluateGates([
+      result({
+        caseId: "route-mismatch",
+        suite: "requester_agent_org_environment_redteam",
+        requesterAgent: {
+          policyAllowed: false,
+          denylistReachable: false,
+          foreignIdentityTarget: false,
+          modelTargetRejected: false,
+          toolOutputInjectionAction: false,
+          killSwitchHalted: false,
+          budgetEscalated: false,
+          routeMismatch: true,
+        },
+      }),
+    ]).find((item) => item.name === "red_team_fully_blocked");
+
+    expect(gate).toMatchObject({
+      passed: false,
+      offendingCaseIds: ["route-mismatch"],
+    });
   });
 
   test("fails user-step cases that emit untrusted cards or have side effects", () => {

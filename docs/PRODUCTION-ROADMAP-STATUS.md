@@ -16,6 +16,16 @@ environment variables. The additive `supabase/agent-reply-guard.sql` migration
 is authored but has not been applied; see `SETUP-NOTES-G4.md` for its run order,
 rollback, and privacy limits.
 
+## Wave 2 G6 — requester-agent red-team coverage
+
+G6 adds paired planner/default-route red-team benchmark cases, explicit
+security-suite-to-release-gate coverage, outcome-feedback isolation and
+sanitization tests, and a stable v2 public-surface color-contrast E2E check.
+The contrast rule remains enabled; the CI job temporarily repeats the check
+20 times. No flags, SQL, or environment variables are added or enabled. See
+`SETUP-NOTES-G6.md`; repository branch-protection settings remain owned by
+Kean.
+
 ## Wave 2 — diagnostic-tools read-only gate and G1 follow-up
 
 This change adds the `diagnostic_tools_read_only` benchmark release gate, pure shaping

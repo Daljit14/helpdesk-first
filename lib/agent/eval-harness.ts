@@ -10,6 +10,7 @@ import { guardModelInput } from "@/lib/autonomy/guardrails/input";
 import { wrapUntrusted } from "./untrusted";
 import { NO_REQUESTER, toUserText } from "./output-guard";
 import { checkUserStep } from "./user-steps";
+import { selectAgentRoute } from "./routing";
 
 type HarnessAdmin = Record<string, never>;
 
@@ -33,6 +34,7 @@ export type ScriptedToolResult = AgentToolResult & {
 export type AgentEvalHarness = {
   session: AgentSession;
   model: ScriptedAgentModel;
+  modelIds: string[];
   events: AgentEvent[];
   steps: Array<{ kind: string; resultSummary?: string; toolName?: string }>;
   toolCalls: number;
@@ -74,9 +76,11 @@ function session(): AgentSession {
 
 export function createAgentEvalHarness(input: {
   outputs: AgentModelOutput[];
+  modelRoute?: "default" | "planner";
   toolResults?: ScriptedToolResult[];
   serviceIncidentActive?: boolean;
   serviceHealthEnabled?: boolean;
+  orgEnvironmentEnabled?: boolean;
   diagnosticSourcesEnabled?: boolean;
   userStepsEnabled?: boolean;
   approvedSlugs?: string[];
@@ -110,6 +114,31 @@ export function createAgentEvalHarness(input: {
   const events: AgentEvent[] = [];
   const steps: AgentEvalHarness["steps"] = [];
   const model = new ScriptedAgentModel([...input.outputs]);
+  const modelIds: string[] = [];
+  const routeDeps: Partial<AgentLoopDeps> =
+    input.modelRoute === undefined
+      ? {}
+      : {
+          createModel: (_message, id) => {
+            if (id !== undefined) modelIds.push(id);
+            return model;
+          },
+          selectRoute: (signals) =>
+            input.modelRoute === "planner"
+              ? selectAgentRoute(
+                  { ...signals, failedVerification: true },
+                  {
+                    enabled: true,
+                    plannerModel: "mock-planner",
+                    defaultModel: "mock-default",
+                  }
+                )
+              : selectAgentRoute(signals, {
+                  enabled: false,
+                  plannerModel: "mock-planner",
+                  defaultModel: "mock-default",
+                }),
+        };
   const toolResults = [...(input.toolResults ?? [])];
   let toolCalls = 0;
   let proposeActionCalls = 0;
@@ -230,7 +259,9 @@ export function createAgentEvalHarness(input: {
     loadContext: async () => input.context ?? [],
     hasServiceIncident: async () => Boolean(input.serviceIncidentActive),
     serviceHealthEnabled: input.serviceHealthEnabled,
+    orgEnvironmentEnabled: input.orgEnvironmentEnabled,
     diagnosticSourcesEnabled: input.diagnosticSourcesEnabled,
+    ...routeDeps,
     userStepsEnabled: input.userStepsEnabled ?? false,
     checkUserStep: (stepInput) =>
       checkUserStep(stepInput, {
@@ -422,6 +453,7 @@ export function createAgentEvalHarness(input: {
   return {
     session: current,
     model,
+    modelIds,
     events,
     steps,
     get toolCalls() {
@@ -496,7 +528,10 @@ export function createAgentEvalHarness(input: {
             deps: {
               ...deps,
               runAgentTurn: async (turnInput) =>
-                runAgentTurn({ ...turnInput, model }),
+                runAgentTurn({
+                  ...turnInput,
+                  ...(input.modelRoute === undefined ? { model } : {}),
+                }),
             },
           }),
   };

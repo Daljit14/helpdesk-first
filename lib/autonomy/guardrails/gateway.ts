@@ -20,6 +20,7 @@ import { parameterHash } from "./hash";
 import { verifyConsent } from "./consent";
 import { getIdentityBinding } from "../connectors/binding";
 import { loadDirectoryForOrganization } from "../connectors";
+import { checkHourlyLimits, recordBlastRadiusOutcome } from "../blast-radius";
 
 export type GatewayRequest = {
   run: ResolutionRun;
@@ -181,6 +182,14 @@ export async function executeThroughGateway(
       pilot.code,
       rateLimited ? "guardrail.rate_limited" : "guardrail.policy_denied"
     );
+  }
+  const hourly = await checkHourlyLimits(admin, {
+    organizationId: req.run.organization_id,
+    capabilityId: req.capability.id,
+    capabilityVersion: req.capability.version,
+  });
+  if (!hourly.ok) {
+    return deny(admin, req, "blast_radius_limit", "guardrail.rate_limited");
   }
   const ticket = await admin
     .from("tickets")
@@ -496,6 +505,13 @@ export async function executeThroughGateway(
     .eq("organization_id", req.run.organization_id)
     .select("id")
     .maybeSingle();
+  if (status !== "succeeded") {
+    await recordBlastRadiusOutcome(admin, {
+      run: req.run,
+      capabilityId: req.capability.id,
+      ...(executionId ? { executionId } : {}),
+    });
+  }
   const nextRun = await admin
     .from("resolution_runs")
     .update({

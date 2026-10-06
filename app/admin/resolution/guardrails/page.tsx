@@ -9,9 +9,14 @@ import {
   XCircle,
 } from "lucide-react";
 import { ResolutionTabs } from "@/components/admin/resolution/resolution-tabs";
+import { clearBlastRadiusStopFormAction } from "@/app/actions/admin-blast-radius";
 import { requireAdminPage } from "@/lib/admin/auth";
 import { isResolutionCenterEnabled } from "@/lib/admin/flags";
-import { getGuardrailOverview } from "@/lib/admin/resolution-center";
+import {
+  getBlastRadiusStops,
+  getGuardrailOverview,
+} from "@/lib/admin/resolution-center";
+import { Button } from "@/components/ui/button";
 import {
   AdminHero,
   AdminPage,
@@ -32,7 +37,10 @@ export const metadata: Metadata = {
 export default async function GuardrailsPage() {
   if (!isResolutionCenterEnabled()) notFound();
   const session = await requireAdminPage("/admin/resolution/guardrails");
-  const overview = await getGuardrailOverview(session);
+  const [overview, blastRadiusStops] = await Promise.all([
+    getGuardrailOverview(session),
+    getBlastRadiusStops(session),
+  ]);
   const metrics = [
     ["Allowed", overview.allowed],
     ["Blocked", overview.blocked],
@@ -103,6 +111,61 @@ export default async function GuardrailsPage() {
           hint="consent + approval pending"
         />
       </StatGrid>
+
+      <Panel
+        title="Automatic safety stops"
+        description="Blast-radius limits pause unsafe capability activity automatically."
+        icon={ShieldCheck}
+        delay={0.08}
+      >
+        {blastRadiusStops.length === 0 ? (
+          <EmptyState
+            icon={CheckCircle2}
+            title="No automatic stops"
+            body="No blast-radius safety stop is currently active."
+          />
+        ) : (
+          <div className="space-y-3">
+            {blastRadiusStops.map((stop) => (
+              <div
+                className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-muted/40 p-4"
+                key={`${stop.scope}:${stop.scopeId ?? "global"}`}
+              >
+                <div className="min-w-0">
+                  <p className="font-extrabold">
+                    {stop.scope === "global"
+                      ? "Global"
+                      : `Capability: ${stop.scopeId}`}
+                  </p>
+                  <p className="mt-1 break-words text-sm text-muted-foreground">
+                    {stop.reason}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Set {stop.setAt}
+                  </p>
+                </div>
+                {session.isPlatformAdmin ? (
+                  <form action={clearBlastRadiusStopFormAction}>
+                    <input type="hidden" name="scope" value={stop.scope} />
+                    <input
+                      type="hidden"
+                      name="scopeId"
+                      value={stop.scopeId ?? ""}
+                    />
+                    <Button type="submit" variant="outline" size="sm">
+                      Clear stop
+                    </Button>
+                  </form>
+                ) : (
+                  <p className="text-sm font-semibold text-muted-foreground">
+                    A platform admin must clear this
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </Panel>
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)]">
         <Panel title="Guardrail signals" icon={ShieldCheck} delay={0.1}>

@@ -8,6 +8,7 @@ vi.mock("@/lib/supabase/admin", () => ({
 import {
   computeResolutionMetrics,
   getGuardrailAggregate,
+  getBlastRadiusStops,
   getResolutionCenterOverview,
   getResolutionRunDetail,
   getShadowAggregate,
@@ -163,6 +164,51 @@ describe("computeResolutionMetrics", () => {
         []
       )
     ).toMatchObject({ userAssisted: 1, autoResolved: 0 });
+  });
+});
+
+describe("getBlastRadiusStops", () => {
+  test("returns only enabled automatic capability and global stops", async () => {
+    supabaseMocks.createAdminClient.mockReturnValue({
+      from: () =>
+        createQuery([
+          {
+            scope: "capability",
+            scope_id: "cap-a",
+            enabled: true,
+            reason: "blast_radius:threshold",
+            set_at: "2026-01-01T00:00:00.000Z",
+          },
+          {
+            scope: "global",
+            scope_id: null,
+            enabled: true,
+            reason: "blast_radius:global",
+            set_at: "2026-01-01T00:00:01.000Z",
+          },
+          {
+            scope: "capability",
+            scope_id: "cap-b",
+            enabled: true,
+            reason: "manual_stop",
+            set_at: "2026-01-01T00:00:02.000Z",
+          },
+        ]),
+    });
+    await expect(getBlastRadiusStops({} as never)).resolves.toEqual([
+      {
+        scope: "capability",
+        scopeId: "cap-a",
+        reason: "blast_radius:threshold",
+        setAt: "2026-01-01T00:00:00.000Z",
+      },
+      {
+        scope: "global",
+        scopeId: null,
+        reason: "blast_radius:global",
+        setAt: "2026-01-01T00:00:01.000Z",
+      },
+    ]);
   });
 });
 

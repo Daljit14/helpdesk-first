@@ -9,6 +9,7 @@ import { rollbackExecution } from "../rollback";
 import { getVerifier } from "./verifiers";
 import { createPilotReview } from "../pilot-review";
 import { isAutonomousExecutionEnabled } from "../config";
+import { recordBlastRadiusOutcome } from "../blast-radius";
 import type {
   VerificationOutcome,
   VerifierAdmin,
@@ -109,6 +110,12 @@ async function recordVerification(
       evidence: result.evidence,
     },
   });
+  if (result.outcome === "failed") {
+    await recordBlastRadiusOutcome(admin, {
+      run,
+      ...(executionId ? { executionId } : {}),
+    });
+  }
 }
 
 async function readTicket(

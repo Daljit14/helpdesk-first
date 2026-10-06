@@ -9,6 +9,13 @@ import { getExcludedRecordIds, withoutExcluded } from "./record-exclusions";
 
 type JsonRecord = Record<string, unknown>;
 
+export type BlastRadiusStop = {
+  scope: "capability" | "global";
+  scopeId: string | null;
+  reason: string;
+  setAt: string;
+};
+
 export type RunSummary = {
   id: string;
   ticketId: string;
@@ -997,6 +1004,32 @@ export async function getGuardrailOverview(
       detail: row.detail,
     })),
   };
+}
+
+export async function getBlastRadiusStops(
+  session: AdminSession
+): Promise<BlastRadiusStop[]> {
+  void session;
+  const result = await createAdminClient()
+    .from("ai_kill_switches")
+    .select("scope,scope_id,reason,set_at")
+    .eq("enabled", true)
+    .order("set_at", { ascending: false })
+    .limit(100);
+  if (result.error) return [];
+  return ((result.data ?? []) as Record<string, unknown>[])
+    .filter(
+      (row) =>
+        (row.scope === "capability" || row.scope === "global") &&
+        typeof row.reason === "string" &&
+        row.reason.startsWith("blast_radius:")
+    )
+    .map((row) => ({
+      scope: row.scope as "capability" | "global",
+      scopeId: typeof row.scope_id === "string" ? row.scope_id : null,
+      reason: row.reason as string,
+      setAt: String(row.set_at),
+    }));
 }
 
 export async function getGuardrailAggregate(

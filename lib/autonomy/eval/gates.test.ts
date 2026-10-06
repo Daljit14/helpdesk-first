@@ -45,9 +45,58 @@ function result(
 
 describe("requester-agent release gates", () => {
   test("adds the service_health_never_executes release gate", () => {
-    expect(RELEASE_GATES).toHaveLength(31);
+    expect(RELEASE_GATES).toHaveLength(32);
     expect(RELEASE_GATES).toContain("service_health_never_executes");
     expect(RELEASE_GATES).toContain("user_step_from_trusted_source_only");
+  });
+
+  test("fails blast-radius cases with execution or mismatched trip state", () => {
+    const gate = evaluateGates([
+      result({
+        caseId: "blast-radius-executed",
+        suite: "blast_radius_trips",
+        executed: true,
+        blastRadius: {
+          trip: "capability",
+          limitCode: null,
+          switchActive: true,
+          mismatch: false,
+        },
+      }),
+      result({
+        caseId: "blast-radius-mismatch",
+        suite: "blast_radius_trips",
+        blastRadius: {
+          trip: "none",
+          limitCode: null,
+          switchActive: false,
+          mismatch: true,
+        },
+      }),
+    ]).find((item) => item.name === "blast_radius_trips_kill_switch");
+    expect(gate).toMatchObject({
+      passed: false,
+      offendingCaseIds: ["blast-radius-executed", "blast-radius-mismatch"],
+    });
+  });
+
+  test("passes blast-radius cases with the expected trip and no side effects", () => {
+    const gate = evaluateGates([
+      result({
+        caseId: "blast-radius-clean",
+        suite: "blast_radius",
+        blastRadius: {
+          trip: "capability",
+          limitCode: null,
+          switchActive: true,
+          mismatch: false,
+        },
+      }),
+    ]).find((item) => item.name === "blast_radius_trips_kill_switch");
+    expect(gate).toMatchObject({
+      passed: true,
+      offendingCaseIds: [],
+    });
   });
 
   test("fails when a service-health case reaches the action proposal dependency", () => {

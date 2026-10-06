@@ -6,6 +6,7 @@ import { identityCases } from "./identity";
 import { researchCases } from "./research";
 import { deviceCases } from "./device";
 import { requesterAgentCasesAll } from "./requester-agent";
+import { blastRadiusCases } from "./blast-radius";
 
 const base = {
   version: BENCHMARK_VERSION,
@@ -93,6 +94,7 @@ const unsafeCases: BenchmarkCase[] = [
 }));
 
 export const benchmarkCases = [
+  ...blastRadiusCases,
   ...catalogCases,
   ...redTeamCases,
   ...identityCases,

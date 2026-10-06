@@ -1,4 +1,5 @@
 import { getAutonomyLimits } from "../config";
+import { recordBlastRadiusOutcome } from "../blast-radius";
 import { redactAuditDetail } from "../audit/redact";
 import { auditVersions, initiatedBy } from "../audit/versions";
 import { getCapability } from "../capabilities/registry";
@@ -79,6 +80,11 @@ export async function rollbackExecution(
         capability ? { id: capability.id, version: capability.version } : null
       ),
     });
+    await recordBlastRadiusOutcome(admin, {
+      run,
+      executionId,
+      ...(execution ? { capabilityId: execution.capability_id } : {}),
+    });
     await writeRunEvent(admin, {
       organization_id: run.organization_id,
       run_id: run.id,
@@ -133,6 +139,11 @@ export async function rollbackExecution(
     result: output,
     initiated_by: initiatedBy(actor),
     versions: auditVersions({ id: capability.id, version: capability.version }),
+  });
+  await recordBlastRadiusOutcome(admin, {
+    run,
+    executionId,
+    capabilityId: capability.id,
   });
   await writeRunEvent(admin, {
     organization_id: run.organization_id,

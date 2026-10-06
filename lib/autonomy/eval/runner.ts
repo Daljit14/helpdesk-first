@@ -9,12 +9,14 @@ import { getDeviceAction } from "@/lib/device-agent/catalog";
 import { guardModelInput, type UntrustedField } from "../guardrails/input";
 import { validatePlannerOutput } from "../guardrails/planner-output";
 import { executeThroughGateway } from "../guardrails/gateway";
+import { getAutonomyLimits } from "../config";
 import { buildIdempotencyKey } from "../idempotency";
 import { parameterHash } from "../guardrails/hash";
 import { buildPolicyInput } from "../policy/build-input";
 import { decidePolicy } from "../policy/engine";
 import type { PolicyDecision, PolicyDecisionValue } from "../policy/types";
 import {
+  capabilityEnvFlag,
   capabilityStatus,
   getCapability,
   inputSchemaJson,
@@ -28,6 +30,8 @@ import { benchmarkCaseSchema, type BenchmarkCase } from "./benchmark/types";
 import { benchmarkCases } from "./benchmark/cases";
 import { BENCHMARK_VERSION } from "./benchmark/version";
 import { createBenchmarkHarness, type BenchmarkHarness } from "./harness";
+import { computeAssurance } from "@/lib/identity/assurance";
+import { sealSecret } from "@/lib/security/secret-box";
 import { FakeResearchProvider } from "@/lib/research/fake";
 import { runResearch } from "@/lib/research";
 import type { JudgedSource, ResearchSource } from "@/lib/research/types";
@@ -628,10 +632,202 @@ async function evaluateBlastRadiusCase(
   };
 }
 
+function assuranceGatewayResult(
+  input: BenchmarkCase,
+  harness: BenchmarkHarness,
+  assuranceLevel: "A0" | "A1" | "A2" | "A3",
+  definition: NonNullable<ReturnType<typeof getCapability>>,
+  gatewayCode: string,
+  started: number
+): EvaluationCaseResult {
+  return {
+    caseId: input.id,
+    suite: input.suite,
+    redTeam: false,
+    planner: "propose_action",
+    capability: { id: definition.id, version: definition.version },
+    policy: "allow_automatic",
+    verificationMethod: definition.verification,
+    executed: harness.admin.executionInserts > 0,
+    inputBlocked: false,
+    outputRejected: false,
+    rejectCode: null,
+    gatewayCode,
+    replay: false,
+    foreignIds: false,
+    handlerCalls: harness.handlerCalls,
+    executionInserts: harness.admin.executionInserts,
+    deviceJobInserts: harness.admin.deviceJobInserts,
+    allowedEvents: harness.admin.allowedEvents,
+    capabilityEnabled: true,
+    runResolved: false,
+    verificationPassed: false,
+    consentSatisfied: false,
+    failedExecutionTerminal: true,
+    providerPolicy: null,
+    okPolicy: null,
+    unsafeModelSink: false,
+    identityBound: harness.identityBound,
+    identityCapability: definition.requiresIdentityBinding === true,
+    directoryWriteCalls: 0,
+    assuranceLevel,
+    latencyMs: Date.now() - started,
+  };
+}
+
 async function evaluateCase(
   input: BenchmarkCase
 ): Promise<EvaluationCaseResult> {
   const started = Date.now();
+  if (input.identityAssurance) {
+    const scenario = input.identityAssurance;
+    const now = new Date();
+    const assurance = computeAssurance({
+      channel: scenario.channel,
+      hasVerifiedSession: scenario.level !== "A0",
+      aal: scenario.level === "A3" ? "aal2" : "aal1",
+      amr:
+        scenario.level === "A1"
+          ? ["password"]
+          : scenario.level === "A2"
+            ? [{ method: "password", timestamp: now.getTime() / 1000 }]
+            : scenario.level === "A3"
+              ? [
+                  { method: "password", timestamp: now.getTime() / 1000 },
+                  { method: "totp", timestamp: now.getTime() / 1000 },
+                ]
+              : [],
+      providers: [],
+      org: {
+        idpEnforcesMfa: false,
+        ssoProvider: null,
+        profileConfirmed: false,
+      },
+      freshMinutes: 10,
+      now,
+    });
+    const facts = scenario.expired
+      ? { ...assurance, expiresAt: new Date(now.getTime() - 1).toISOString() }
+      : assurance;
+    if (scenario.mode === "channel") {
+      return {
+        caseId: input.id,
+        suite: input.suite,
+        redTeam: false,
+        planner: "no_action",
+        capability: null,
+        policy: "deny",
+        verificationMethod: null,
+        executed: false,
+        inputBlocked: false,
+        outputRejected: false,
+        rejectCode: null,
+        gatewayCode: "not_reached",
+        replay: false,
+        foreignIds: false,
+        handlerCalls: 0,
+        executionInserts: 0,
+        deviceJobInserts: 0,
+        allowedEvents: 0,
+        capabilityEnabled: false,
+        runResolved: false,
+        verificationPassed: false,
+        consentSatisfied: false,
+        failedExecutionTerminal: true,
+        providerPolicy: null,
+        okPolicy: null,
+        unsafeModelSink: false,
+        identityBound: false,
+        identityCapability: false,
+        directoryWriteCalls: 0,
+        assuranceLevel: facts.level,
+        latencyMs: Date.now() - started,
+      };
+    }
+
+    const harness = createBenchmarkHarness(input);
+    const definition = scenario.capabilityId
+      ? getCapability(scenario.capabilityId, 1)
+      : null;
+    if (!definition) throw new Error(`Unknown E1a capability for ${input.id}`);
+    const parameters: Record<string, string | number | boolean | null> = {
+      ticketId: harness.ticketId,
+      ...(definition.id === "grant_group_access"
+        ? { groupId: "approved-group" }
+        : {}),
+      ...(scenario.invalidParameters ? { userId: "other-requester" } : {}),
+    };
+    const connectorKey = Buffer.alloc(32, 1);
+    const previousKey = process.env.HELP_DESK_CONNECTOR_KEY;
+    process.env.HELP_DESK_CONNECTOR_KEY = connectorKey.toString("base64");
+    if (definition.id === "grant_group_access") {
+      harness.rows.set("organization_connectors", [
+        {
+          organization_id: harness.organizationId,
+          provider: "entra",
+          config: {},
+          secret_ciphertext: sealSecret("benchmark", connectorKey),
+          allowed_group_ids: ["approved-group"],
+          reset_url: null,
+          status: "active",
+        },
+      ]);
+    }
+    const plan = {
+      ticketId: harness.ticketId,
+      diagnosis: {
+        summary: "Verified account change request",
+        confidence: 0.9,
+        evidenceIds: ["assurance-evidence"],
+      },
+      decision: "propose_action" as const,
+      capability: {
+        id: definition.id,
+        version: definition.version,
+        parameters,
+      },
+      verificationMethod: definition.verification,
+    };
+    try {
+      const result = await executeThroughGateway(harness.admin, {
+        run: {
+          ...runRecord(harness, input),
+          attempts: getAutonomyLimits().maxAttempts,
+        },
+        plan,
+        capability: definition,
+        policy: {
+          decision: "allow_automatic",
+          reasons: [],
+          policyVersion: "benchmark",
+          auditLabel: "benchmark",
+          userLabel: "benchmark",
+        },
+        actor: "ai",
+        idempotencyKey: buildIdempotencyKey({
+          runId: harness.runId,
+          stepId: harness.stepId,
+          capabilityId: definition.id,
+          capabilityVersion: definition.version,
+          parameters,
+        }),
+        stepId: harness.stepId,
+        assurance: facts,
+        verify: async () => ({ outcome: "pending" }),
+      });
+      return assuranceGatewayResult(
+        input,
+        harness,
+        facts.level,
+        definition,
+        result.ok ? "allowed" : result.code,
+        started
+      );
+    } finally {
+      if (previousKey === undefined) delete process.env.HELP_DESK_CONNECTOR_KEY;
+      else process.env.HELP_DESK_CONNECTOR_KEY = previousKey;
+    }
+  }
   if (input.auditChain) {
     const verification = await runAuditChainScenario(input.auditChain);
     const expectedBreakId = input.expected.auditChainFirstBreakId ?? null;
@@ -1308,10 +1504,60 @@ export async function runBenchmark(
   cases: BenchmarkCase[] = benchmarkCases
 ): Promise<BenchmarkReport> {
   const previousAllowlist = process.env.HELP_DESK_AUTONOMY_ORG_ALLOWLIST;
+  const previousAssuranceFlag =
+    process.env.HELP_DESK_IDENTITY_ASSURANCE_ENABLED;
+  const assuranceCapabilityFlags = [
+    "send_password_reset_link",
+    "revoke_user_sessions",
+    "grant_group_access",
+  ].map(capabilityEnvFlag);
+  const previousSpecialCaseFlags = new Map(
+    [
+      "HELP_DESK_AUTONOMY_ENABLED",
+      "HELP_DESK_AUTONOMOUS_EXECUTION_ENABLED",
+      "HELP_DESK_GUARDRAILS_ENFORCED",
+      "HELP_DESK_CAPABILITY_REGISTRY_ENABLED",
+      "HELP_DESK_PILOT_CAPABILITY_ALLOWLIST",
+      ...assuranceCapabilityFlags,
+    ].map((name) => [name, process.env[name]])
+  );
   process.env.HELP_DESK_AUTONOMY_ORG_ALLOWLIST =
     "00000000-0000-4000-8000-000000000001";
   const parsed = cases.map((item) => benchmarkCaseSchema.parse(item));
-  const results = await Promise.all(parsed.map((item) => evaluateCase(item)));
+  const results = new Array<EvaluationCaseResult>(parsed.length);
+  await Promise.all(
+    parsed.map(async (item, index) => {
+      if (!item.identityAssurance) {
+        results[index] = await evaluateCase(item);
+      }
+    })
+  );
+  try {
+    process.env.HELP_DESK_AUTONOMY_ENABLED = "true";
+    process.env.HELP_DESK_AUTONOMOUS_EXECUTION_ENABLED = "true";
+    process.env.HELP_DESK_GUARDRAILS_ENFORCED = "true";
+    process.env.HELP_DESK_CAPABILITY_REGISTRY_ENABLED = "true";
+    for (const name of assuranceCapabilityFlags) process.env[name] = "true";
+    for (const [index, item] of parsed.entries()) {
+      if (!item.identityAssurance) continue;
+      process.env.HELP_DESK_PILOT_CAPABILITY_ALLOWLIST =
+        item.identityAssurance.capabilityId ?? "";
+      process.env.HELP_DESK_IDENTITY_ASSURANCE_ENABLED = item.identityAssurance
+        .flagEnabled
+        ? "true"
+        : "false";
+      results[index] = await evaluateCase(item);
+    }
+  } finally {
+    for (const [name, value] of previousSpecialCaseFlags) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+    if (previousAssuranceFlag === undefined)
+      delete process.env.HELP_DESK_IDENTITY_ASSURANCE_ENABLED;
+    else
+      process.env.HELP_DESK_IDENTITY_ASSURANCE_ENABLED = previousAssuranceFlag;
+  }
   for (const item of parsed.filter(
     (value) => value.suite === "provider_failure"
   )) {
@@ -1404,7 +1650,9 @@ export async function runBenchmark(
       (expected.gatewayCode === undefined ||
         result.gatewayCode === expected.gatewayCode ||
         (result.gatewayCode === "execution_disabled" &&
-          expected.gatewayCode !== "not_reached"));
+          expected.gatewayCode !== "not_reached")) &&
+      (expected.assuranceLevel === undefined ||
+        result.assuranceLevel === expected.assuranceLevel);
     const suite = (suites[input.suite] ??= {
       total: 0,
       passed: 0,

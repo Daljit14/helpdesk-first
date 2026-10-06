@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 import {
   defaultPlatform,
   loadConfirmedOrgEnvironment,
+  loadIdpMfaAttestation,
   profileAnswers,
 } from "./profile";
 import type { OrgEnvironmentProfile } from "./types";
@@ -141,5 +142,50 @@ describe("organization environment profile helpers", () => {
     await expect(
       loadConfirmedOrgEnvironment(client as never, "org-1")
     ).resolves.toBeNull();
+  });
+
+  test("loads MFA attestation only from a confirmed profile", async () => {
+    const confirmed = adminFor({
+      data: {
+        sso_provider: "entra",
+        idp_enforces_mfa: true,
+        status: "confirmed",
+      },
+      error: null,
+    });
+    await expect(
+      loadIdpMfaAttestation(confirmed.client as never, "org-1")
+    ).resolves.toEqual({
+      idpEnforcesMfa: true,
+      ssoProvider: "entra",
+      profileConfirmed: true,
+    });
+
+    const draft = adminFor({
+      data: {
+        sso_provider: "entra",
+        idp_enforces_mfa: true,
+        status: "draft",
+      },
+      error: null,
+    });
+    await expect(
+      loadIdpMfaAttestation(draft.client as never, "org-1")
+    ).resolves.toMatchObject({
+      idpEnforcesMfa: true,
+      profileConfirmed: false,
+    });
+
+    const missingColumn = adminFor({
+      data: null,
+      error: { message: "column idp_enforces_mfa does not exist" },
+    });
+    await expect(
+      loadIdpMfaAttestation(missingColumn.client as never, "org-1")
+    ).resolves.toEqual({
+      idpEnforcesMfa: false,
+      ssoProvider: null,
+      profileConfirmed: false,
+    });
   });
 });

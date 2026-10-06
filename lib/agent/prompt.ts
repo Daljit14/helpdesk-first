@@ -5,6 +5,7 @@ import {
   isOrgEnvironmentEnabled,
   isServiceHealthEnabled,
 } from "@/lib/admin/flags";
+import type { AssuranceLevel } from "@/lib/identity/assurance";
 
 export const AGENT_SYSTEM_PROMPT = [
   "You are an AI support assistant. Identify yourself as AI in your first response.",
@@ -20,9 +21,12 @@ export function requesterAgentActionPrompt(
   orgEnvironmentEnabled = isOrgEnvironmentEnabled(),
   diagnosticSourcesEnabled = isAgentDiagnosticSourcesEnabled(),
   userStepsEnabled = isAgentUserStepsEnabled(),
-  webSearchEnabled = isAgentWebSearchEnabled()
+  webSearchEnabled = isAgentWebSearchEnabled(),
+  assuranceLevel?: AssuranceLevel
 ): string {
   const instructions = [AGENT_SYSTEM_PROMPT];
+  if (assuranceLevel)
+    instructions.push(`Requester identity assurance: ${assuranceLevel}.`);
   if (enabled)
     instructions.push(
       "When action tools are available, cite an ev-* first-party evidence id, propose one action at a time, never claim the issue is fixed, and wait for verification and explicit requester confirmation."

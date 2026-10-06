@@ -67,6 +67,20 @@ describe("approved capability registry", () => {
     expect(validateRegistry(CAPABILITIES)).toEqual([]);
   });
 
+  test("annotates every capability with explicit assurance", () => {
+    expect(CAPABILITIES.every((definition) => definition.minAssurance)).toBe(
+      true
+    );
+    for (const definition of CAPABILITIES) {
+      if (
+        definition.requiresIdentityBinding &&
+        definition.sideEffects !== "read_only"
+      ) {
+        expect(definition.minAssurance).toBe("A3");
+      }
+    }
+  });
+
   test("requires every input schema to reject unknown keys", () => {
     for (const definition of CAPABILITIES) {
       const input = validInput(definition.id);

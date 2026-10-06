@@ -39,5 +39,6 @@ export function deviceCapabilityDefinitions(): CapabilityDefinition[] {
     reviewDate: action.reviewDate,
     sideEffects:
       action.sideEffects === "read_only" ? "read_only" : "external_write",
+    minAssurance: action.sideEffects === "read_only" ? "A1" : "A2",
   }));
 }

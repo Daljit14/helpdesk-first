@@ -32,12 +32,17 @@ export default async function EnvironmentPage() {
   if (!isOrgEnvironmentEnabled() || session.role !== "org_admin") notFound();
 
   const admin = createAdminClient();
-  const [profileResult, suggestions] = await Promise.all([
+  const [profileResult, assuranceResult, suggestions] = await Promise.all([
     admin
       .from("org_environment_profile")
       .select(
         "vpn_client,mdm_provider,email_stack,chat_stack,sso_provider,standard_platforms,standard_os_versions,printer_fleet,approved_software,status,confirmed_by,confirmed_at"
       )
+      .eq("organization_id", session.organizationId)
+      .maybeSingle(),
+    admin
+      .from("org_environment_profile")
+      .select("idp_enforces_mfa")
       .eq("organization_id", session.organizationId)
       .maybeSingle(),
     loadInventorySuggestions(admin, session.organizationId),
@@ -125,6 +130,7 @@ export default async function EnvironmentPage() {
         <OrgEnvironmentPanel
           profile={profile}
           confirmedBy={confirmedBy}
+          idpEnforcesMfa={assuranceResult.data?.idp_enforces_mfa === true}
           suggestions={suggestions}
         />
       </Panel>

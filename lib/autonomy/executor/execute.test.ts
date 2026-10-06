@@ -13,6 +13,8 @@ const mocks = vi.hoisted(() => ({
   getHandler: vi.fn(),
   snapshotEvidence: vi.fn(),
   isEvidenceEngineEnabled: vi.fn(),
+  isIdentityAssuranceEnabled: vi.fn(() => false),
+  getIdentityAssuranceFreshMinutes: vi.fn(() => 10),
 }));
 
 vi.mock("../orchestrator", () => ({
@@ -39,6 +41,8 @@ vi.mock("@/lib/evidence/snapshot", () => ({
 }));
 vi.mock("@/lib/admin/flags", () => ({
   isEvidenceEngineEnabled: mocks.isEvidenceEngineEnabled,
+  isIdentityAssuranceEnabled: mocks.isIdentityAssuranceEnabled,
+  getIdentityAssuranceFreshMinutes: mocks.getIdentityAssuranceFreshMinutes,
 }));
 
 import { executePlan, verifyExecution } from "./execute";

@@ -6,6 +6,50 @@ import { orgEnvironmentInputSchema, type OrgEnvironmentProfile } from "./types";
 
 type Admin = ReturnType<typeof createAdminClient>;
 
+export async function loadIdpMfaAttestation(
+  admin: Admin,
+  organizationId: string
+): Promise<{
+  idpEnforcesMfa: boolean;
+  ssoProvider: "entra" | "google" | "okta" | "none" | "other" | null;
+  profileConfirmed: boolean;
+}> {
+  try {
+    const result = await admin
+      .from("org_environment_profile")
+      .select("sso_provider,idp_enforces_mfa,status")
+      .eq("organization_id", organizationId)
+      .maybeSingle();
+    if (result.error) {
+      return {
+        idpEnforcesMfa: false,
+        ssoProvider: null,
+        profileConfirmed: false,
+      };
+    }
+    const row = result.data as {
+      idp_enforces_mfa?: unknown;
+      sso_provider?: unknown;
+      status?: unknown;
+    } | null;
+    const providers = new Set(["entra", "google", "okta", "none", "other"]);
+    return {
+      idpEnforcesMfa: row?.idp_enforces_mfa === true,
+      ssoProvider:
+        typeof row?.sso_provider === "string" && providers.has(row.sso_provider)
+          ? (row.sso_provider as "entra" | "google" | "okta" | "none" | "other")
+          : null,
+      profileConfirmed: row?.status === "confirmed",
+    };
+  } catch {
+    return {
+      idpEnforcesMfa: false,
+      ssoProvider: null,
+      profileConfirmed: false,
+    };
+  }
+}
+
 export async function loadConfirmedOrgEnvironment(
   admin: Admin,
   organizationId: string

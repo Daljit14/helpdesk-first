@@ -57,6 +57,7 @@ function createFormData(): FormData {
   form.set("standardOsVersions", "Windows 11\nmacOS 15\nWindows 11");
   form.set("printerFleet", "Office printer, Warehouse printer");
   form.set("approvedSoftware", "Browser");
+  form.set("idpEnforcesMfa", "on");
   return form;
 }
 
@@ -105,6 +106,7 @@ describe("organization environment actions", () => {
         updated_by: "user-1",
         confirmed_by: null,
         confirmed_at: null,
+        idp_enforces_mfa: true,
       }),
       { onConflict: "organization_id" }
     );
@@ -114,6 +116,39 @@ describe("organization environment actions", () => {
       "org-1"
     );
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/environment");
+  });
+
+  test("retries saves without the optional MFA column when migration is missing", async () => {
+    mocks.upsert
+      .mockResolvedValueOnce({
+        error: {
+          code: "42703",
+          message: "column idp_enforces_mfa does not exist",
+        },
+      })
+      .mockResolvedValueOnce({ error: null });
+
+    await expect(
+      saveOrgEnvironmentAction(null, createFormData())
+    ).resolves.toEqual({ success: true });
+    expect(mocks.upsert).toHaveBeenCalledTimes(2);
+    expect(mocks.upsert.mock.calls[1][0]).not.toHaveProperty(
+      "idp_enforces_mfa"
+    );
+  });
+
+  test("does not retry when a different profile column is missing", async () => {
+    mocks.upsert.mockResolvedValue({
+      error: {
+        code: "42703",
+        message: "column printer_fleet does not exist",
+      },
+    });
+
+    await expect(
+      saveOrgEnvironmentAction(null, createFormData())
+    ).resolves.toEqual({ error: "Environment profile could not be saved." });
+    expect(mocks.upsert).toHaveBeenCalledTimes(1);
   });
 
   test("rejects non-admins, disabled state, invalid input, and rate-limited requests", async () => {

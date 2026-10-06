@@ -10,10 +10,12 @@ import {
   MIN_RUNTIME_MS,
   type CapabilityDefinition,
 } from "./types";
+import type { AssuranceLevel } from "@/lib/identity/assurance";
 
 const APPROVED_RISKS = new Set(["safe", "caution", "approval"]);
 const CONSENTS = new Set(["none", "user", "technician"]);
 const SIDE_EFFECTS = new Set(["read_only", "internal_write", "external_write"]);
+const ASSURANCE_LEVELS = new Set<AssuranceLevel>(["A0", "A1", "A2", "A3"]);
 
 function canonical(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
@@ -86,6 +88,8 @@ export function validateRegistry(
       errors.push(`${tag}: invalid consent "${def.consent}"`);
     if (!SIDE_EFFECTS.has(def.sideEffects))
       errors.push(`${tag}: invalid sideEffects "${def.sideEffects}"`);
+    if (!def.minAssurance || !ASSURANCE_LEVELS.has(def.minAssurance))
+      errors.push(`${tag}: minAssurance must be A0, A1, A2, or A3`);
     if (!ADMIN_DEPARTMENTS.includes(def.department))
       errors.push(`${tag}: unknown department "${def.department}"`);
     if (
@@ -132,6 +136,12 @@ export const CAPABILITIES: readonly CapabilityDefinition[] =
 
 export function listCapabilities(): CapabilityDefinition[] {
   return [...CAPABILITIES];
+}
+
+export function requiredAssurance(
+  definition: CapabilityDefinition
+): AssuranceLevel {
+  return definition.minAssurance ?? "A3";
 }
 
 export function getCapability(

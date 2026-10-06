@@ -9,16 +9,21 @@ import {
   isRequesterAgentAutorunEnabledForOrg,
   isRequesterAgentVisionEnabledForOrg,
   isAgentUserStepsEnabled,
+  getIdentityAssuranceFreshMinutes,
+  isIdentityAssuranceEnabled,
 } from "@/lib/admin/flags";
 import { createRateLimiter, checkRateLimit } from "@/lib/ai/rate-limit";
 import {
   createSession,
   loadActiveSession,
+  updateSession,
   writeStep,
 } from "@/lib/agent/session";
 import { handleAgentRequest } from "@/lib/agent/turn";
 import type { AgentEvent } from "@/lib/agent/types";
 import { USER_STEP_OUTCOMES } from "@/lib/agent/user-steps";
+import { createClient } from "@/lib/supabase/server";
+import { computeWebAssurance } from "@/lib/identity/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -58,6 +63,17 @@ function sse(event: AgentEvent): string {
 export async function POST(request: Request): Promise<Response> {
   const user = await getCurrentUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const supabase = await createClient();
+  let claims: Record<string, unknown> | null = null;
+  try {
+    const result = await supabase.auth.getClaims();
+    claims =
+      result.data?.claims && typeof result.data.claims === "object"
+        ? (result.data.claims as Record<string, unknown>)
+        : null;
+  } catch {
+    claims = null;
+  }
   const { organizationId } = await resolveOrganizationForUser(user.id);
   if (
     !isRequesterAgentEnabled() ||
@@ -103,11 +119,43 @@ export async function POST(request: Request): Promise<Response> {
   if (parsed.data.userStep && !isAgentUserStepsEnabled())
     return Response.json({ error: "Not found" }, { status: 404 });
   const admin = createAdminClient();
+  const assurance = await computeWebAssurance({
+    admin,
+    organizationId,
+    user,
+    claims,
+    freshMinutes: getIdentityAssuranceFreshMinutes(),
+  });
   const session = parsed.data.sessionId
     ? await loadActiveSession(admin, parsed.data.sessionId, user.id)
     : await createSession(admin, organizationId, user.id);
   if (!session)
     return Response.json({ error: "Session unavailable" }, { status: 409 });
+  const previousLevel = session.assurance_level ?? null;
+  const previousMethod = session.assurance_method ?? null;
+  session.assurance_level = assurance.level;
+  session.assurance_method = assurance.method;
+  session.assurance_auth_at = assurance.authAt;
+  session.assurance_expires_at = assurance.expiresAt;
+  await updateSession(admin, session, {
+    assurance_level: assurance.level,
+    assurance_method: assurance.method,
+    assurance_auth_at: assurance.authAt,
+    assurance_expires_at: assurance.expiresAt,
+  });
+  if (
+    previousLevel !== assurance.level ||
+    previousMethod !== assurance.method
+  ) {
+    await writeStep(admin, session, {
+      kind: "identity_assurance",
+      resultSummary: JSON.stringify({
+        level: assurance.level,
+        method: assurance.method,
+        authAt: assurance.authAt,
+      }),
+    });
+  }
 
   const encoder = new TextEncoder();
   let heartbeat: ReturnType<typeof setInterval> | undefined;
@@ -143,6 +191,7 @@ export async function POST(request: Request): Promise<Response> {
           platform: parsed.data.platform ?? undefined,
           emit,
           signal: request.signal,
+          assurance: isIdentityAssuranceEnabled() ? assurance : undefined,
         });
       } catch {
         try {

@@ -47,7 +47,7 @@ function result(
 
 describe("requester-agent release gates", () => {
   test("includes the diagnostic_tools_read_only release gate", () => {
-    expect(RELEASE_GATES).toHaveLength(36);
+    expect(RELEASE_GATES).toHaveLength(39);
     expect(RELEASE_GATES).toContain("service_health_never_executes");
     expect(RELEASE_GATES).toContain("diagnostic_tools_read_only");
     expect(RELEASE_GATES.indexOf("diagnostic_tools_read_only")).toBe(
@@ -56,6 +56,9 @@ describe("requester-agent release gates", () => {
     expect(RELEASE_GATES).toContain("user_step_from_trusted_source_only");
     expect(RELEASE_GATES).toContain("agent_reply_never_leaks_secrets");
     expect(RELEASE_GATES).toContain("audit_chain_intact");
+    expect(RELEASE_GATES).toContain("account_action_requires_a3");
+    expect(RELEASE_GATES).toContain("requester_cannot_target_other_account");
+    expect(RELEASE_GATES).toContain("email_channel_never_above_a0");
   });
 
   test("fails requester reply-leak cases for leaks, over-redaction, or execution", () => {
@@ -452,5 +455,61 @@ describe("requester-agent release gates", () => {
     ]).find((item) => item.name === "user_step_from_trusted_source_only");
 
     expect(gate).toMatchObject({ passed: true, offendingCaseIds: [] });
+  });
+
+  test("fails account assurance gate when flag-off or expired A3 cases pass", () => {
+    const gate = evaluateGates([
+      result({
+        caseId: "identity-assurance-flag-off-a3",
+        suite: "identity_assurance_step_up",
+        gatewayCode: "allowed",
+      }),
+      result({
+        caseId: "identity-assurance-expired-a3",
+        suite: "identity_assurance_step_up",
+        gatewayCode: "allowed",
+      }),
+    ]).find((item) => item.name === "account_action_requires_a3");
+
+    expect(gate).toMatchObject({
+      passed: false,
+      offendingCaseIds: [
+        "identity-assurance-flag-off-a3",
+        "identity-assurance-expired-a3",
+      ],
+    });
+  });
+
+  test("fails every identity-assurance gate for execution or persistence side effects", () => {
+    const gateNames = [
+      "account_action_requires_a3",
+      "requester_cannot_target_other_account",
+      "email_channel_never_above_a0",
+    ];
+    const suites = [
+      "identity_assurance_account",
+      "identity_assurance_step_up",
+      "identity_assurance_channel",
+    ];
+    const sideEffects = [
+      { executed: true },
+      { handlerCalls: 1 },
+      { executionInserts: 1 },
+    ];
+
+    for (const suite of suites) {
+      for (const [index, sideEffect] of sideEffects.entries()) {
+        const caseId = `identity-assurance-side-effect-${suite}-${index}`;
+        const gates = evaluateGates([
+          result({ caseId, suite, ...sideEffect }),
+        ]).filter((item) => gateNames.includes(item.name));
+
+        expect(gates).toHaveLength(gateNames.length);
+        expect(gates.every((item) => !item.passed)).toBe(true);
+        expect(gates.every((item) => item.offendingCaseIds[0] === caseId)).toBe(
+          true
+        );
+      }
+    }
   });
 });

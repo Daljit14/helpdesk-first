@@ -65,6 +65,78 @@ describe("AgentChat", () => {
     expect(screen.queryByText("Screenshot")).not.toBeInTheDocument();
   });
 
+  test.each([true, false])(
+    "offers step-up in a new tab and continues %s pending approval",
+    async (hasPendingApproval) => {
+      const approvalRequestId = "approval-1";
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(
+          streamResponse([
+            ...(hasPendingApproval
+              ? [
+                  {
+                    type: "consent_required" as const,
+                    card: {
+                      approvalRequestId,
+                      capabilityId: "send_password_reset_link",
+                      title: "Reset password",
+                      whatHappens: "A password reset link will be sent.",
+                      target: {
+                        kind: "account" as const,
+                        label: "your account",
+                      },
+                      reversible: false,
+                      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+                    },
+                  },
+                ]
+              : []),
+            {
+              type: "step_up_required",
+              card: {
+                capabilityId: "send_password_reset_link",
+                requiredLevel: "A3",
+                currentLevel: "A1",
+                stepUpUrl: "/auth/step-up?next=/chat",
+              },
+            },
+          ])
+        )
+        .mockResolvedValueOnce(streamResponse([]));
+      vi.stubGlobal("fetch", fetchMock);
+      render(<AgentChat initialProblem="Reset my password" />);
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "Ask the assistant" })
+      );
+      const card = await screen.findByRole("region", {
+        name: "Confirm it's you",
+      });
+      expect(card).toBeInTheDocument();
+      expect(
+        screen.getByRole("link", { name: "Confirm it's you" })
+      ).toHaveAttribute("target", "_blank");
+      expect(
+        screen.getByRole("link", { name: "Confirm it's you" })
+      ).toHaveAttribute("rel", "noopener");
+      fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+      await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+      const body = JSON.parse(fetchMock.mock.calls[1][1].body);
+      expect(body).toMatchObject(
+        hasPendingApproval
+          ? {
+              consent: {
+                approvalRequestId,
+                decision: "approve",
+              },
+            }
+          : { message: "continue" }
+      );
+    }
+  );
+
   test.each([
     ["Done", "done"],
     ["Didn't work", "didnt_work"],

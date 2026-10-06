@@ -37,6 +37,7 @@ import {
   type OutputGuardContext,
 } from "./output-guard";
 import { alertSecurityEvent } from "@/lib/autonomy/alerts";
+import type { AssuranceFacts } from "@/lib/identity/assurance";
 
 type Admin = ReturnType<typeof createAdminClient>;
 
@@ -66,6 +67,7 @@ type HandleAgentRequestInput = {
   emit: (event: AgentEvent) => void;
   signal: AbortSignal;
   deps?: AgentTurnDeps;
+  assurance?: AssuranceFacts;
 };
 
 export async function handleAgentRequest(
@@ -189,6 +191,7 @@ async function handleAgentRequestBody(
         ? { routing: { failedVerification: true } }
         : {}),
       deps: loopDeps,
+      assurance: input.assurance,
     });
     return;
   }
@@ -329,7 +332,9 @@ async function handleAgentRequestBody(
       }
     }
     let capabilityId = "the requested action";
+    let stepUpEmitted = false;
     const dispatchEmit = (event: AgentEvent) => {
+      if (event.type === "step_up_required") stepUpEmitted = true;
       if (
         event.type === "consent_declined" ||
         event.type === "action_executing"
@@ -340,11 +345,15 @@ async function handleAgentRequestBody(
     const result = await (deps?.decideConsent ?? defaultDecideConsent)(
       admin,
       session,
-      { ...input.consent, userId: session.requester_id },
+      {
+        ...input.consent,
+        userId: session.requester_id,
+        assurance: input.assurance,
+      },
       dispatchEmit,
       signal
     );
-    if (result === "invalid")
+    if (result === "invalid" && !stepUpEmitted)
       emit({
         type: "error",
         message: "That consent request is no longer available.",
@@ -360,6 +369,7 @@ async function handleAgentRequestBody(
         emit,
         signal,
         outputGuard,
+        assurance: input.assurance,
         userMessage:
           result === "declined"
             ? `User declined \`${capabilityId}\``
@@ -426,6 +436,7 @@ async function handleAgentRequestBody(
           failedVerification: true,
         },
         deps: loopDeps,
+        assurance: input.assurance,
       });
     }
     return;
@@ -488,5 +499,6 @@ async function handleAgentRequestBody(
     userMessage,
     ...(screenshotAttached ? { routing: { screenshotAttached: true } } : {}),
     deps: loopDeps,
+    assurance: input.assurance,
   });
 }

@@ -299,6 +299,8 @@ export function guardAgentEvent(
           })),
         },
       };
+    case "step_up_required":
+      return event;
     case "error":
       return { ...event, message: toUserText(event.message, ctx) };
     default: {

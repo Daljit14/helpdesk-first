@@ -141,7 +141,8 @@ export function AgentChat({
     if (
       event.type !== "session_consent_offer" &&
       event.type !== "session_consent" &&
-      event.type !== "session"
+      event.type !== "session" &&
+      event.type !== "step_up_required"
     ) {
       current.forEach((item) => {
         if (
@@ -492,6 +493,63 @@ export function AgentChat({
                     </Button>
                   </div>
                 </div>
+              );
+            }
+            if (event.type === "step_up_required") {
+              const pendingApproval = [...items]
+                .reverse()
+                .find(
+                  (
+                    item
+                  ): item is Extract<
+                    TimelineItem,
+                    { type: "consent_required" }
+                  > =>
+                    item.type === "consent_required" && !answeredCards[item.id]
+                );
+              return (
+                <section
+                  key={event.id}
+                  aria-label="Confirm it's you"
+                  className="hf-rise rounded-2xl border border-primary/30 bg-primary/5 p-4"
+                >
+                  <p className="font-medium">Confirm it&apos;s you</p>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Confirm your identity in a new tab, then continue here.
+                  </p>
+                  <div className="mt-3 flex gap-2">
+                    <a
+                      className="inline-flex h-9 items-center rounded-md border border-input bg-background px-3 text-sm font-medium underline underline-offset-4"
+                      href={event.card.stepUpUrl}
+                      rel="noopener"
+                      target="_blank"
+                    >
+                      Confirm it&apos;s you
+                    </a>
+                    <Button
+                      size="sm"
+                      disabled={pending}
+                      onClick={() => {
+                        answerCard(event.id);
+                        void send(
+                          false,
+                          pendingApproval
+                            ? {
+                                consent: {
+                                  approvalRequestId:
+                                    pendingApproval.card.approvalRequestId,
+                                  decision: "approve",
+                                },
+                              }
+                            : undefined,
+                          pendingApproval ? undefined : "continue"
+                        );
+                      }}
+                    >
+                      Continue
+                    </Button>
+                  </div>
+                </section>
               );
             }
             if (event.type === "user_step") {

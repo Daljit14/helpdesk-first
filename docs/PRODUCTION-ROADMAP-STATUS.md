@@ -10,15 +10,26 @@
 8. `supabase/agent-reply-guard.sql` (G4 #145) — after 1–6 and before requester-agent enablement; rewrites the `agent_steps` kind list.
 9. `supabase/agent-web-search.sql` (PR15 #150) — after `research.sql` and `requester-agent.sql`.
 10. `supabase/org-research-vendor-domains.sql` (7a #151) — after `research.sql`, `admin-dashboard.sql`, and `wave-3-organizations.sql`.
-11. `supabase/audit-chain.sql` (G3 #149) — always last, in a quiet window.
+11. `supabase/identity-assurance.sql` (E1a) — after `requester-agent.sql`, `org-environment-profile.sql`, and `agent-reply-guard.sql`.
+12. `supabase/audit-chain.sql` (G3 #149) — always last, in a quiet window.
 
-Prerequisite migrations listed in each SETUP-NOTES file must already be applied; none of these 11 has run on production.
+Prerequisite migrations listed in each SETUP-NOTES file must already be applied; none of these 12 has run on production.
 
 ## Phase E — E0 small follow-ups
 
-Implemented on this branch. E0 filters the stored `tool_started` note and marks the 18 verified read-only
+Implemented in E0 (#152). E0 filters the stored `tool_started` note and marks the 18 verified read-only
 `allow_automatic` benchmark cases explicitly. Version `2026-10-06.8` reports
 312 cases, zero false allows, and all 36 release gates passing.
+
+## Phase E — E1a identity assurance and step-up
+
+Implemented on this branch behind the default-off identity-assurance flag.
+Requesters receive A0–A3 assurance facts from verified Supabase claims and
+confirmed organization IdP-MFA attestations; account writes require A3.
+Insufficient assurance prompts a step-up flow without consuming pending
+consent. `supabase/identity-assurance.sql` is authored but has not been
+applied. Enrolled-device binding remains a follow-up. See
+`SETUP-NOTES-E1a.md`.
 
 ## Wave 2 G1 — blast-radius limits and automatic safety stops
 

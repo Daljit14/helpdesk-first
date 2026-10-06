@@ -37,6 +37,7 @@ export const searchApprovedKnowledge: CapabilityDefinition = {
   verification: "none",
   rollback: "none",
   sideEffects: "read_only",
+  minAssurance: "A0",
 };
 
 export const askDiagnosticQuestion: CapabilityDefinition = {
@@ -60,6 +61,7 @@ export const askDiagnosticQuestion: CapabilityDefinition = {
   verification: "diagnostic_answer_recorded",
   rollback: "none",
   sideEffects: "internal_write",
+  minAssurance: "A0",
 };
 
 export const collectPlatformContext: CapabilityDefinition = {
@@ -80,6 +82,7 @@ export const collectPlatformContext: CapabilityDefinition = {
   verification: "investigation_context_present",
   rollback: "none",
   sideEffects: "internal_write",
+  minAssurance: "A0",
 };
 
 export const checkHelpdeskServiceStatus: CapabilityDefinition = {
@@ -98,6 +101,7 @@ export const checkHelpdeskServiceStatus: CapabilityDefinition = {
   verification: "status_response_captured",
   rollback: "none",
   sideEffects: "read_only",
+  minAssurance: "A0",
 };
 
 export const resendTicketNotification: CapabilityDefinition = {
@@ -121,6 +125,7 @@ export const resendTicketNotification: CapabilityDefinition = {
   verification: "outbox_sent_and_user_confirms",
   rollback: "none",
   sideEffects: "external_write",
+  minAssurance: "A0",
 };
 
 export const retryFailedNotification: CapabilityDefinition = {
@@ -144,6 +149,7 @@ export const retryFailedNotification: CapabilityDefinition = {
   verification: "outbox_status_sent",
   rollback: "none",
   sideEffects: "external_write",
+  minAssurance: "A0",
 };
 
 export const validateAttachmentScanStatus: CapabilityDefinition = {
@@ -167,6 +173,7 @@ export const validateAttachmentScanStatus: CapabilityDefinition = {
   verification: "attachment_status_read",
   rollback: "none",
   sideEffects: "read_only",
+  minAssurance: "A0",
 };
 
 export const generateDiagnosisPackage: CapabilityDefinition = {
@@ -190,6 +197,7 @@ export const generateDiagnosisPackage: CapabilityDefinition = {
   verification: "escalation_package_present",
   rollback: "none",
   sideEffects: "internal_write",
+  minAssurance: "A0",
 };
 
 export const requestUserVerification: CapabilityDefinition = {
@@ -213,6 +221,7 @@ export const requestUserVerification: CapabilityDefinition = {
   verification: "user_verification_answer",
   rollback: "none",
   sideEffects: "internal_write",
+  minAssurance: "A0",
 };
 
 export const routeToDepartment: CapabilityDefinition = {
@@ -236,6 +245,7 @@ export const routeToDepartment: CapabilityDefinition = {
   verification: "assignment_updated",
   rollback: "compensating",
   sideEffects: "internal_write",
+  minAssurance: "A0",
 };
 
 export const escalateWithEvidence: CapabilityDefinition = {
@@ -259,6 +269,7 @@ export const escalateWithEvidence: CapabilityDefinition = {
   verification: "needs_human_with_package",
   rollback: "none",
   sideEffects: "internal_write",
+  minAssurance: "A0",
 };
 
 const identityCommon = {
@@ -287,6 +298,7 @@ export const checkAccountStatus: CapabilityDefinition = {
   verification: "directory_status_read",
   rollback: "none",
   sideEffects: "read_only",
+  minAssurance: "A1",
 };
 
 export const sendPasswordResetLink: CapabilityDefinition = {
@@ -303,6 +315,7 @@ export const sendPasswordResetLink: CapabilityDefinition = {
   verification: "outbox_status_sent",
   rollback: "none",
   sideEffects: "external_write",
+  minAssurance: "A3",
 };
 
 export const revokeUserSessions: CapabilityDefinition = {
@@ -319,6 +332,7 @@ export const revokeUserSessions: CapabilityDefinition = {
   verification: "directory_signin_after_action",
   rollback: "none",
   sideEffects: "external_write",
+  minAssurance: "A3",
 };
 
 const groupSchema = closed({ ticketId: uuid(), groupId: boundedString(128) });
@@ -337,6 +351,7 @@ export const verifyGroupAccess: CapabilityDefinition = {
   verification: "directory_group_membership",
   rollback: "none",
   sideEffects: "read_only",
+  minAssurance: "A1",
 };
 
 export const grantGroupAccess: CapabilityDefinition = {
@@ -353,6 +368,7 @@ export const grantGroupAccess: CapabilityDefinition = {
   verification: "directory_group_membership",
   rollback: "handler:remove_group_access",
   sideEffects: "external_write",
+  minAssurance: "A3",
 };
 
 export const checkSsoHealth: CapabilityDefinition = {
@@ -369,6 +385,7 @@ export const checkSsoHealth: CapabilityDefinition = {
   verification: "directory_status_read",
   rollback: "none",
   sideEffects: "read_only",
+  minAssurance: "A1",
 };
 
 export const CAPABILITY_DEFINITIONS: readonly CapabilityDefinition[] =

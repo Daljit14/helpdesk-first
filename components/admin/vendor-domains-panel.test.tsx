@@ -1,7 +1,10 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vitest";
 
-const reactMocks = vi.hoisted(() => ({ states: [] as unknown[] }));
+const reactMocks = vi.hoisted(() => ({
+  states: [] as unknown[],
+  calls: 0,
+}));
 
 vi.mock("@/app/actions/admin-vendor-domains", () => ({
   addOrgVendorDomainAction: vi.fn(),
@@ -11,11 +14,10 @@ vi.mock("react", async () => {
   const actual = await vi.importActual<typeof import("react")>("react");
   return {
     ...actual,
-    useActionState: vi.fn(() => [
-      reactMocks.states.shift() ?? null,
-      vi.fn(),
-      false,
-    ]),
+    useActionState: vi.fn(() => {
+      const index = reactMocks.calls++ % 2;
+      return [reactMocks.states[index] ?? null, vi.fn(), false];
+    }),
   };
 });
 
@@ -24,6 +26,7 @@ import { VendorDomainsPanel } from "./vendor-domains-panel";
 afterEach(() => {
   cleanup();
   reactMocks.states = [];
+  reactMocks.calls = 0;
 });
 
 describe("VendorDomainsPanel", () => {
@@ -72,8 +75,50 @@ describe("VendorDomainsPanel", () => {
   test("renders action errors in an alert region", () => {
     reactMocks.states.push({ error: "This domain is not allowed." });
     render(<VendorDomainsPanel domains={[]} />);
+    const addForm = screen
+      .getByRole("button", { name: "Add domain" })
+      .closest("form");
+    expect(addForm).not.toBeNull();
+    fireEvent.submit(addForm!);
     expect(screen.getByRole("alert")).toHaveTextContent(
       "This domain is not allowed."
     );
+  });
+
+  test("shows only the message from the most recently submitted form", () => {
+    reactMocks.states.push(
+      { error: "That domain is already on the list." },
+      { success: true, message: "Domain removed." }
+    );
+    render(
+      <VendorDomainsPanel
+        domains={[
+          {
+            id: "domain-id",
+            domain: "support.contoso-vpn.com",
+            addedByName: "Casey Admin",
+            createdAt: "2026-10-01T12:00:00.000Z",
+          },
+        ]}
+      />
+    );
+
+    const addForm = screen
+      .getByRole("button", { name: "Add domain" })
+      .closest("form");
+    expect(addForm).not.toBeNull();
+    fireEvent.submit(addForm!);
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "That domain is already on the list."
+    );
+
+    const removeForm = screen
+      .getByRole("button", { name: "Remove support.contoso-vpn.com" })
+      .closest("form");
+    expect(removeForm).not.toBeNull();
+    fireEvent.submit(removeForm!);
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Domain removed.");
   });
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import {
   addOrgVendorDomainAction,
   removeOrgVendorDomainAction,
@@ -39,6 +39,7 @@ export function VendorDomainsPanel({
     VendorDomainsActionState | null,
     FormData
   >(removeOrgVendorDomainAction, null);
+  const [lastAction, setLastAction] = useState<"add" | "remove" | null>(null);
 
   return (
     <div className="space-y-6">
@@ -49,7 +50,11 @@ export function VendorDomainsPanel({
         <h2 id="add-vendor-domain-heading" className="text-lg font-bold">
           Add an approved vendor domain
         </h2>
-        <form action={addAction} className="flex flex-wrap items-end gap-3">
+        <form
+          action={addAction}
+          onSubmit={() => setLastAction("add")}
+          className="flex flex-wrap items-end gap-3"
+        >
           <label className="min-w-64 flex-1 space-y-1 text-sm font-semibold">
             <span>Vendor documentation domain</span>
             <input
@@ -70,12 +75,15 @@ export function VendorDomainsPanel({
             {adding ? "Adding…" : "Add domain"}
           </button>
         </form>
-        {addState && "success" in addState && addState.success && (
-          <p role="status" className="text-sm font-semibold text-primary">
-            {addState.message ?? "Domain added."}
-          </p>
-        )}
-        {addState && "error" in addState && (
+        {lastAction === "add" &&
+          addState &&
+          "success" in addState &&
+          addState.success && (
+            <p role="status" className="text-sm font-semibold text-primary">
+              {addState.message ?? "Domain added."}
+            </p>
+          )}
+        {lastAction === "add" && addState && "error" in addState && (
           <p role="alert" className="text-sm font-semibold text-destructive">
             {addState.error}
           </p>
@@ -114,7 +122,10 @@ export function VendorDomainsPanel({
                     </time>
                   </p>
                 </div>
-                <form action={removeAction}>
+                <form
+                  action={removeAction}
+                  onSubmit={() => setLastAction("remove")}
+                >
                   <input type="hidden" name="id" value={domain.id} />
                   <button
                     className="rounded-lg border border-border px-3 py-2 text-sm font-semibold hover:bg-muted disabled:opacity-60"
@@ -129,12 +140,15 @@ export function VendorDomainsPanel({
             ))}
           </ul>
         )}
-        {removeState && "success" in removeState && removeState.success && (
-          <p role="status" className="text-sm font-semibold text-primary">
-            {removeState.message ?? "Domain removed."}
-          </p>
-        )}
-        {removeState && "error" in removeState && (
+        {lastAction === "remove" &&
+          removeState &&
+          "success" in removeState &&
+          removeState.success && (
+            <p role="status" className="text-sm font-semibold text-primary">
+              {removeState.message ?? "Domain removed."}
+            </p>
+          )}
+        {lastAction === "remove" && removeState && "error" in removeState && (
           <p role="alert" className="text-sm font-semibold text-destructive">
             {removeState.error}
           </p>

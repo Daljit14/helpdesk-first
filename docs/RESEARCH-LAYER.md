@@ -20,6 +20,19 @@ queries, while organization-scoped cache entries expire according to
 `HELP_DESK_RESEARCH_CACHE_TTL_HOURS`. Provider and judge failures skip research and
 leave the autonomy run on its existing fail-safe path.
 
+## Org-approved vendor domains
+
+Organizations can approve up to 25 exact vendor documentation domains with
+`HELP_DESK_ORG_VENDOR_DOMAINS_ENABLED=true`; the flag defaults to false and the
+additive `supabase/org-research-vendor-domains.sql` migration must be applied
+first. Stored rows are revalidated before use, including HTTPS-only URL parsing,
+IP, wildcard, public-suffix, blocked-host, and fixed-official-domain checks.
+Organization-specific trust is assigned after cached provider output is read,
+so changes to an organization's list take effect on cache hits without storing
+tenant-specific trust in `research_cache`. These sources remain citations only:
+they do not authorize actions, and user steps must still come from approved
+guide content.
+
 ## Requester-agent web search
 
 PR15 adds a separately gated requester-agent search tool. It requires both

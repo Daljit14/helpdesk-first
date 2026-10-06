@@ -87,8 +87,8 @@ describe("requester agent tools", () => {
   test("searches only sanitized requester text and keeps summaries snippet-free", async () => {
     const { admin, rows } = createEvalResearchStore();
     const source: ResearchSource = {
-      url: "https://learn.microsoft.com/en-us/microsoftteams/troubleshoot",
-      domain: "learn.microsoft.com",
+      url: "https://support.contoso-vpn.com/kb/troubleshoot",
+      domain: "support.contoso-vpn.com",
       title: "Troubleshoot Teams audio",
       snippet: "Official steps for resolving Teams audio issues.",
       trust: "community",
@@ -104,6 +104,9 @@ describe("requester agent tools", () => {
         return fake.search();
       },
     };
+    const loadVendorDomains = vi
+      .fn()
+      .mockResolvedValue(["support.contoso-vpn.com"]);
     const result = await runSearchWebTool(
       {
         ...context,
@@ -131,12 +134,17 @@ describe("requester agent tools", () => {
           heuristicJudge(sources, hypotheses),
         configOverride: { enabled: true, orgDailyBudget: 50 },
         loadNameTerms: async () => ["Jane Doe"],
+        loadVendorDomains,
       }
     );
 
     expect(result.ok).toBe(true);
     expect(observed).toEqual(["teams keeps crashing after update"]);
-    expect(result.userSummary).toContain("learn.microsoft.com");
+    expect(loadVendorDomains).toHaveBeenCalledWith(
+      "00000000-0000-4000-8000-000000000001"
+    );
+    expect(result.userSummary).toContain("support.contoso-vpn.com");
+    expect(result.userSummary).toContain("Official docs");
     expect(result.userSummary).not.toContain("Official steps");
     expect(result.userSummary).not.toContain(source.url);
     expect(result.ok && result.modelText).toContain(source.snippet);

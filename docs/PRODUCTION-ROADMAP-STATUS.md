@@ -70,6 +70,15 @@ implemented on this branch behind the default-off
 `supabase/org-environment-profile.sql` migration is authored but has not been
 applied. See `SETUP-NOTES-D5.md` for setup and safety details.
 
+## PR 7a — organization-approved vendor documentation domains
+
+PR 7a adds organization-scoped, validated vendor documentation sources for
+research citations only. The feature remains disabled by default with
+`HELP_DESK_ORG_VENDOR_DOMAINS_ENABLED=false`;
+`supabase/org-research-vendor-domains.sql` is authored but has not been
+applied. Organization domains do not authorize actions. See
+`SETUP-NOTES-PR15.md` for migration and rollout notes.
+
 ## PR 14 — additional read-only diagnostic sources
 
 PR 14 adds a shadow-mode, organization-enabled `device_recent_error_events`

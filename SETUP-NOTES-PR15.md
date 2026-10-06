@@ -19,10 +19,23 @@ For a local or approved deployment, apply these migrations in order:
 1. `supabase/research.sql`
 2. `supabase/requester-agent.sql`
 3. `supabase/agent-web-search.sql`
+4. `supabase/org-research-vendor-domains.sql` after `research.sql`,
+   `admin-dashboard.sql`, and `wave-3-organizations.sql`
 
 The PR15 migration preserves the existing research-table RLS, grants, and
 append-only triggers while adding agent-session ownership. It has not been run
 on production.
+
+## Organization-approved vendor documentation
+
+PR 7a adds optional organization-specific vendor documentation domains. The
+feature is disabled by default with
+`HELP_DESK_ORG_VENDOR_DOMAINS_ENABLED=false`. Apply
+`supabase/org-research-vendor-domains.sql` only in the approved environment;
+it must follow `research.sql`, `admin-dashboard.sql`, and
+`wave-3-organizations.sql`. Domains are revalidated before trust is assigned,
+including on cache hits. They can appear as research citations only and never
+authorize an action or replace approved guide content for requester steps.
 
 ## Search and trust limits
 

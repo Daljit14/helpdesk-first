@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { getAgentTools, runTool } from "./tools";
+import {
+  getAgentTools,
+  recentSignInFailuresValue,
+  runTool,
+  similarOrgIssuesValue,
+} from "./tools";
 
 const mocks = vi.hoisted(() => ({
   getApprovedSlugs: vi.fn(),
@@ -53,6 +58,36 @@ afterEach(() => {
 });
 
 describe("requester agent tools", () => {
+  test("shapes sign-in failures and similar issue counts without identifiers", () => {
+    const now = Date.parse("2026-10-04T12:00:00.000Z");
+    expect(
+      recentSignInFailuresValue(
+        "entra",
+        [
+          { at: "2026-10-04T11:00:00.000Z", code: "50126" },
+          { at: "2026-10-02T11:00:00.000Z", code: "50055" },
+        ],
+        now
+      )
+    ).toMatchObject({
+      available: true,
+      provider: "entra",
+      windowHours: 24,
+      failures: [{ at: "2026-10-04T11:00:00.000Z", reason: "wrong_password" }],
+      counts: { wrong_password: 1, password_expired: 0 },
+    });
+    expect(recentSignInFailuresValue("google", [], now)).toEqual({
+      available: false,
+      reason: "unsupported_provider",
+    });
+    expect(similarOrgIssuesValue("wifi", 5, 7)).toEqual({
+      issueSlug: "wifi",
+      threshold: 3,
+      lastHour: 5,
+      last24h: 7,
+    });
+  });
+
   test("returns full model text and a bounded guide summary", async () => {
     mocks.getApprovedSlugs.mockResolvedValue(["wifi"]);
     mocks.suggestIssues.mockReturnValue([
@@ -626,6 +661,77 @@ describe("requester agent tools", () => {
       expect(result.ok && result.modelText).toContain("<untrusted_data");
     }
   );
+
+  test("returns only similar-issue counts when query rows contain identities", async () => {
+    vi.stubEnv("HELP_DESK_AGENT_DIAGNOSTIC_SOURCES_ENABLED", "true");
+    mocks.getApprovedSlugs.mockResolvedValue(["wifi"]);
+    mocks.readKillSwitches.mockResolvedValue({});
+    const queries: Array<{
+      table: string;
+      calls: Array<[string, ...unknown[]]>;
+    }> = [];
+    const admin = {
+      from: (table: string) => {
+        const query = { table, calls: [] as Array<[string, ...unknown[]]> };
+        queries.push(query);
+        const chain: Record<string, unknown> = {};
+        const method =
+          (name: string) =>
+          (...args: unknown[]) => {
+            query.calls.push([name, ...args]);
+            return chain;
+          };
+        Object.assign(chain, {
+          select: method("select"),
+          eq: method("eq"),
+          neq: method("neq"),
+          or: method("or"),
+          gte: method("gte"),
+          then: (resolve: (result: unknown) => unknown) =>
+            Promise.resolve({
+              data: [
+                {
+                  user_id: "u2",
+                  email: "alice@corp.test",
+                  name: "Alice",
+                },
+              ],
+              count: 5,
+              error: null,
+            }).then(resolve),
+        });
+        return chain as never;
+      },
+    };
+
+    const result = await runTool(
+      { ...context, admin: admin as never },
+      "count_similar_org_issues",
+      { issueSlug: "wifi" }
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value).toEqual({
+      issueSlug: "wifi",
+      threshold: 3,
+      lastHour: 5,
+      last24h: 5,
+    });
+    expect(result.modelText).not.toContain("alice");
+    expect(result.modelText).not.toContain("Alice");
+    expect(queries).toHaveLength(2);
+    for (const query of queries) {
+      expect(query.table).toBe("tickets");
+      expect(query.calls).toContainEqual([
+        "select",
+        "id",
+        { count: "exact", head: true },
+      ]);
+      expect(query.calls).toContainEqual(["eq", "organization_id", "org"]);
+      expect(query.calls).toContainEqual(["neq", "user_id", "requester"]);
+    }
+  });
 
   test("rejects unapproved issue slugs before querying tickets", async () => {
     vi.stubEnv("HELP_DESK_AGENT_DIAGNOSTIC_SOURCES_ENABLED", "true");

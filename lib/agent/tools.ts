@@ -249,6 +249,61 @@ const SIGN_IN_FAILURE_LABELS: Record<SignInFailureReason, string> = {
   other: "Other",
 };
 
+export function recentSignInFailuresValue(
+  provider: string,
+  errors: { at: string; code: string }[],
+  now: number
+) {
+  if (provider !== "entra")
+    return { available: false as const, reason: "unsupported_provider" };
+
+  const start = now - 24 * 60 * 60 * 1000;
+  const recent = errors
+    .filter((failure) => {
+      const at = Date.parse(failure.at);
+      return (
+        failure.code !== "0" && Number.isFinite(at) && at >= start && at <= now
+      );
+    })
+    .sort((left, right) => Date.parse(right.at) - Date.parse(left.at));
+  const counts = Object.fromEntries(
+    SIGN_IN_FAILURE_REASONS.map((reason) => [reason, 0])
+  ) as Record<SignInFailureReason, number>;
+  for (const failure of recent)
+    counts[mapSignInFailureReason(failure.code)] += 1;
+
+  return {
+    available: true as const,
+    provider: "entra" as const,
+    windowHours: 24,
+    failures: recent.slice(0, 5).map((failure) => ({
+      at: failure.at,
+      reason: mapSignInFailureReason(failure.code),
+    })),
+    counts,
+  };
+}
+
+export function similarOrgIssuesValue(
+  issueSlug: string,
+  hourCount: number,
+  dayCount: number
+) {
+  return {
+    issueSlug,
+    threshold: 3,
+    lastHour: hourCount >= 3 ? hourCount : null,
+    last24h: dayCount >= 3 ? dayCount : null,
+  };
+}
+
+export function toolModelText(name: string, value: unknown): string {
+  return wrapUntrusted(`tool:${name}`, minimizeToolOutput(value)).slice(
+    0,
+    6000
+  );
+}
+
 export async function runTool(
   ctx: AgentContext,
   name: string,
@@ -388,48 +443,18 @@ export async function runTool(
         return {
           ok: true,
           value: { available: false, reason: "no_connector" },
-          modelText: wrapUntrusted(
-            "tool:get_recent_sign_in_failures",
-            minimizeToolOutput({
-              available: false,
-              reason: "no_connector",
-            })
-          ).slice(0, 6000),
+          modelText: toolModelText("get_recent_sign_in_failures", {
+            available: false,
+            reason: "no_connector",
+          }),
           userSummary,
         };
       }
-      if (lookup.provider !== "entra") {
-        value = { available: false, reason: "unsupported_provider" };
-      } else {
-        const now = Date.now();
-        const start = now - 24 * 60 * 60 * 1000;
-        const recent = lookup.account.recentSignInErrors
-          .filter((failure) => {
-            const at = Date.parse(failure.at);
-            return (
-              failure.code !== "0" &&
-              Number.isFinite(at) &&
-              at >= start &&
-              at <= now
-            );
-          })
-          .sort((left, right) => Date.parse(right.at) - Date.parse(left.at));
-        const counts = Object.fromEntries(
-          SIGN_IN_FAILURE_REASONS.map((reason) => [reason, 0])
-        ) as Record<SignInFailureReason, number>;
-        for (const failure of recent)
-          counts[mapSignInFailureReason(failure.code)] += 1;
-        value = {
-          available: true,
-          provider: "entra",
-          windowHours: 24,
-          failures: recent.slice(0, 5).map((failure) => ({
-            at: failure.at,
-            reason: mapSignInFailureReason(failure.code),
-          })),
-          counts,
-        };
-      }
+      value = recentSignInFailuresValue(
+        lookup.provider,
+        lookup.account.recentSignInErrors,
+        Date.now()
+      );
     } else if (name === "count_similar_org_issues") {
       const args = parsed.data as z.infer<typeof similarIssuesSchema>;
       const approved = new Set(await getApprovedSlugs(ctx.organizationId));
@@ -460,12 +485,7 @@ export async function runTool(
         countSince(60 * 60 * 1000),
         countSince(24 * 60 * 60 * 1000),
       ]);
-      value = {
-        issueSlug: args.issueSlug,
-        threshold: 3,
-        lastHour: hourCount >= 3 ? hourCount : null,
-        last24h: dayCount >= 3 ? dayCount : null,
-      };
+      value = similarOrgIssuesValue(args.issueSlug, hourCount, dayCount);
     } else if (name === "get_service_health") {
       const args = parsed.data as z.infer<typeof serviceHealthSchema>;
       const snapshot = await getServiceHealth(
@@ -534,8 +554,7 @@ export async function runTool(
       );
     }
     const minimizedValue = minimizeToolOutput(value);
-    const wrapped = wrapUntrusted(`tool:${name}`, minimizedValue);
-    const modelText = wrapped.slice(0, 6000);
+    const modelText = toolModelText(name, value);
     const userSummary = toolUserSummary(name, minimizedValue, ctx.outputGuard);
     return {
       ok: true,

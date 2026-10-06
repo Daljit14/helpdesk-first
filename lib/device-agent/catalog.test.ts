@@ -3,6 +3,7 @@ import {
   DEVICE_CATALOG_VERSION,
   DEVICE_ACTIONS,
   getDeviceAction,
+  publicCatalog,
   validateDeviceCatalog,
 } from "./catalog";
 
@@ -26,6 +27,22 @@ describe("device-agent catalog", () => {
       expect(action?.sideEffects).toBe("read_only");
       expect(action?.snapshotSpec).toEqual([]);
     }
+    const recentErrors = getDeviceAction("device_recent_error_events", 1);
+    expect(recentErrors).toMatchObject({
+      sideEffects: "read_only",
+      riskLevel: "safe",
+      irreversible: false,
+    });
+    expect(recentErrors?.inputSchema.parse({})).toEqual({});
+    const publicRecentErrors = publicCatalog().find(
+      (action) => action.id === "device_recent_error_events"
+    );
+    expect(publicRecentErrors).toMatchObject({
+      sideEffects: "read_only",
+      riskLevel: "safe",
+      irreversible: false,
+    });
+    expect(publicRecentErrors).not.toHaveProperty("inputSchema");
     expect(
       getDeviceAction("device_cleanup_temp_files", 1)?.snapshotSpec
     ).toEqual(["temp_inventory"]);

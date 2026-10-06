@@ -193,6 +193,32 @@ export function createBenchmarkHarness(
   const ticketId = "00000000-0000-4000-8000-000000000002";
   const runId = "00000000-0000-4000-8000-000000000003";
   const stepId = "00000000-0000-4000-8000-000000000004";
+  const blastOrganizationIds = {
+    1: "00000000-0000-4000-8000-000000000001",
+    2: "00000000-0000-4000-8000-000000000010",
+    3: "00000000-0000-4000-8000-000000000011",
+  };
+  const blastRunIds = {
+    1: runId,
+    2: "00000000-0000-4000-8000-000000000012",
+    3: "00000000-0000-4000-8000-000000000013",
+  };
+  const blastTicketIds = {
+    1: ticketId,
+    2: "00000000-0000-4000-8000-000000000022",
+    3: "00000000-0000-4000-8000-000000000023",
+  };
+  const blastRadiusRows = benchmarkCase.blastRadius?.seed ?? [];
+  const blastExecutionRows = blastRadiusRows.map((row, index) => ({
+    id: `blast-execution-${index + 1}`,
+    organization_id: blastOrganizationIds[row.org],
+    run_id: blastRunIds[row.org],
+    capability_id: row.capabilityId,
+    capability_version: 1,
+    status: row.status,
+    duration_ms: 1_000,
+    created_at: new Date(Date.now() - row.minutesAgo * 60_000).toISOString(),
+  }));
   const identityBound = benchmarkCase.identity?.bound === true;
   const directory = benchmarkCase.identity?.directory
     ? new FakeDirectory({
@@ -208,6 +234,9 @@ export function createBenchmarkHarness(
       })
     : null;
   const capabilities = listCapabilities();
+  const blastOrganizations = [
+    ...new Set(blastRadiusRows.map((row) => row.org)),
+  ];
   const capabilityRows =
     benchmarkCase.pilot === "capability_removed"
       ? capabilities
@@ -236,6 +265,14 @@ export function createBenchmarkHarness(
               : organizationId,
           user_id: "requester-1",
         },
+        ...blastOrganizations
+          .filter((org) => org !== 1)
+          .map((org) => ({
+            id: blastTicketIds[org],
+            organization_id: blastOrganizationIds[org],
+            user_id: "requester-1",
+            issue_title: "A ticket",
+          })),
       ],
     ],
     [
@@ -262,6 +299,14 @@ export function createBenchmarkHarness(
               },
             ]
           : []),
+        ...blastOrganizations
+          .filter((org) => org !== 1)
+          .map((org) => ({
+            id: blastRunIds[org],
+            organization_id: blastOrganizationIds[org],
+            ticket_id: blastTicketIds[org],
+            status: "failed",
+          })),
       ],
     ],
     [
@@ -288,27 +333,39 @@ export function createBenchmarkHarness(
     ],
     [
       "ai_kill_switches",
-      benchmarkCase.killSwitch
-        ? [
-            {
-              organization_id:
-                benchmarkCase.killSwitch === "organization"
-                  ? organizationId
-                  : null,
-              scope: benchmarkCase.killSwitch,
-              scope_id:
-                benchmarkCase.killSwitch === "organization"
-                  ? organizationId
-                  : benchmarkCase.killSwitch === "capability"
-                    ? "search_approved_knowledge"
-                    : benchmarkCase.killSwitch === "provider"
-                      ? "deterministic"
-                      : null,
-              enabled: true,
-              reason: `${benchmarkCase.killSwitch} benchmark switch`,
-            },
-          ]
-        : [],
+      [
+        ...(benchmarkCase.killSwitch
+          ? [
+              {
+                organization_id:
+                  benchmarkCase.killSwitch === "organization"
+                    ? organizationId
+                    : null,
+                scope: benchmarkCase.killSwitch,
+                scope_id:
+                  benchmarkCase.killSwitch === "organization"
+                    ? organizationId
+                    : benchmarkCase.killSwitch === "capability"
+                      ? "search_approved_knowledge"
+                      : benchmarkCase.killSwitch === "provider"
+                        ? "deterministic"
+                        : null,
+                enabled: true,
+                reason: `${benchmarkCase.killSwitch} benchmark switch`,
+              },
+            ]
+          : []),
+        ...(benchmarkCase.blastRadius?.alreadyTripped ?? []).map(
+          (capabilityId) => ({
+            scope: "capability",
+            scope_id: capabilityId,
+            organization_id: null,
+            enabled: true,
+            reason: "blast_radius:prior trip",
+            set_at: new Date().toISOString(),
+          })
+        ),
+      ],
     ],
     [
       "capability_breakers",
@@ -337,8 +394,9 @@ export function createBenchmarkHarness(
               parameters: {},
               status: "failed",
             },
+            ...blastExecutionRows,
           ]
-        : [],
+        : blastExecutionRows,
     ],
     ["resolution_events", []],
     [
@@ -360,8 +418,25 @@ export function createBenchmarkHarness(
           ]
         : [],
     ],
-    ["verification_results", []],
-    ["rollback_runs", []],
+    [
+      "verification_results",
+      blastRadiusRows.flatMap((row, index) =>
+        row.verificationFailed
+          ? [
+              {
+                execution_id: `blast-execution-${index + 1}`,
+                outcome: "failed",
+              },
+            ]
+          : []
+      ),
+    ],
+    [
+      "rollback_runs",
+      blastRadiusRows.flatMap((row, index) =>
+        row.rolledBack ? [{ execution_id: `blast-execution-${index + 1}` }] : []
+      ),
+    ],
   ]);
   const admin = {
     rows,

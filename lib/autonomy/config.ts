@@ -71,6 +71,55 @@ export function getPilotLimits(): { globalDaily: number; orgDaily: number } {
   };
 }
 
+export function isBlastRadiusEnabled(): boolean {
+  return process.env.HELP_DESK_BLAST_RADIUS_ENABLED === "true";
+}
+
+export type BlastRadiusLimits = {
+  failures: number;
+  failureRate: number;
+  minRuns: number;
+  windowMs: number;
+};
+
+export function getBlastRadiusLimits(): BlastRadiusLimits {
+  const failureRate = Number.parseFloat(
+    process.env.HELP_DESK_BLAST_RADIUS_FAILURE_RATE ?? ""
+  );
+  return {
+    failures: boundedNumber("HELP_DESK_BLAST_RADIUS_FAILURES", 5, 1, 1_000),
+    failureRate:
+      Number.isFinite(failureRate) && failureRate > 0 && failureRate <= 1
+        ? failureRate
+        : 0.3,
+    minRuns: 5,
+    windowMs:
+      boundedNumber("HELP_DESK_BLAST_RADIUS_WINDOW_MINUTES", 30, 1, 1_440) *
+      60_000,
+  };
+}
+
+export function getHourlyExecutionLimits(): {
+  orgHourly: number | null;
+  capabilityDevicesPerHour: number | null;
+} {
+  const configured = (name: string, fallback: number): number | null => {
+    const value = process.env[name];
+    return value?.trim()
+      ? boundedNumber(name, fallback, 1, 10_000)
+      : isBlastRadiusEnabled()
+        ? fallback
+        : null;
+  };
+  return {
+    orgHourly: configured("HELP_DESK_AUTONOMY_ORG_HOURLY_EXECUTION_LIMIT", 20),
+    capabilityDevicesPerHour: configured(
+      "HELP_DESK_AUTONOMY_CAPABILITY_DEVICES_PER_HOUR",
+      10
+    ),
+  };
+}
+
 export function isPolicyEngineEnabled(): boolean {
   return process.env.HELP_DESK_POLICY_ENGINE_ENABLED === "true";
 }

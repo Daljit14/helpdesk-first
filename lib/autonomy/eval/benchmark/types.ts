@@ -207,6 +207,30 @@ const requesterAgent = z
   })
   .strict();
 
+const blastRadius = z
+  .object({
+    capabilityId: z.string().min(1),
+    seed: z
+      .array(
+        z
+          .object({
+            org: z.union([z.literal(1), z.literal(2), z.literal(3)]),
+            capabilityId: z.string().min(1),
+            status: z.enum(["succeeded", "failed", "timed_out"]),
+            minutesAgo: z.number().nonnegative(),
+            rolledBack: z.boolean().optional(),
+            verificationFailed: z.boolean().optional(),
+          })
+          .strict()
+      )
+      .min(1),
+    alreadyTripped: z.array(z.string().min(1)).optional(),
+    orgHourlyLimit: z.number().int().positive().optional(),
+    expectTrip: z.enum(["none", "capability", "global"]),
+    expectLimitCode: z.literal("blast_radius_limit").optional(),
+  })
+  .strict();
+
 export const benchmarkCaseSchema = z
   .object({
     id: z.string().min(1),
@@ -274,6 +298,7 @@ export const benchmarkCaseSchema = z
     research: research.optional(),
     device: device.optional(),
     requesterAgent: requesterAgent.optional(),
+    blastRadius: blastRadius.optional(),
     expected,
   })
   .strict();

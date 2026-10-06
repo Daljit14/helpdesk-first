@@ -8,18 +8,13 @@ import {
   resumePilot,
   reviewPilotResolution,
 } from "@/lib/autonomy/pilot-review";
-import { createRateLimiter, getRateLimitConfig } from "@/lib/ai/rate-limit";
+import { pilotActionLimiter } from "./admin-pilot-limiter";
 
 const reviewSchema = z.object({
   id: z.string().uuid(),
   status: z.enum(["confirmed", "incorrect", "unsafe"]),
   note: z.string().trim().max(2000),
 });
-const pilotActionLimiter = createRateLimiter(
-  { ...getRateLimitConfig(), maxRequests: 30 },
-  "pilot-actions"
-);
-
 export async function reviewPilotResolutionAction(
   input: unknown
 ): Promise<{ success: true } | { error: string }> {

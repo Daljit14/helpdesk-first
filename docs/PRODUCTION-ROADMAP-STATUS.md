@@ -1,3 +1,12 @@
+## Wave 2 G1 — blast-radius limits and automatic safety stops
+
+Implemented on this branch and marked **merged-pending**. The automatic
+blast-radius trip flag remains off by default. G1 adds bounded hourly
+organization/device limits, recent failure-rate evaluation, automatic
+capability/global kill switches, append-only trip events, organization alerts,
+and a platform-admin clearing panel. Apply `supabase/blast-radius.sql` before
+production rollout and follow `SETUP-NOTES-G1.md`.
+
 ## Admin Database page
 
 The admin Database page provides a tenant-scoped view of important stored data and a live activity tracker. Users are loaded through the service-role-only `public.admin_auth_users` projection; apply `supabase/admin-database.sql` before the Users section can show data.

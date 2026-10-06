@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => ({
   getHandler: vi.fn(),
   verifyConsent: vi.fn(),
   transitionRun: vi.fn(),
+  checkHourlyLimits: vi.fn(),
+  recordBlastRadiusOutcome: vi.fn(),
 }));
 
 vi.mock("../alerts", () => ({ alertSecurityEvent: mocks.alertSecurityEvent }));
@@ -28,6 +30,10 @@ vi.mock("../capabilities/enablement", () => ({
 vi.mock("../executor/handlers", () => ({ getHandler: mocks.getHandler }));
 vi.mock("./consent", () => ({ verifyConsent: mocks.verifyConsent }));
 vi.mock("../orchestrator", () => ({ transitionRun: mocks.transitionRun }));
+vi.mock("../blast-radius", () => ({
+  checkHourlyLimits: mocks.checkHourlyLimits,
+  recordBlastRadiusOutcome: mocks.recordBlastRadiusOutcome,
+}));
 
 import type { HandlerAdmin } from "../executor/handlers/types";
 import type { ResolutionRun } from "../orchestrator";
@@ -246,6 +252,7 @@ describe("executeThroughGateway", () => {
     mocks.readBreakerState.mockResolvedValue({ open: false });
     mocks.isCapabilityEnabled.mockResolvedValue(true);
     mocks.verifyConsent.mockResolvedValue({ ok: true, id: "approval-1" });
+    mocks.checkHourlyLimits.mockResolvedValue({ ok: true });
     mocks.transitionRun.mockImplementation(
       async (_admin: unknown, value: ResolutionRun, status: string) => ({
         ...value,
@@ -263,6 +270,19 @@ describe("executeThroughGateway", () => {
     const result = await executeThroughGateway(admin, request());
     expect(result).toMatchObject({ ok: false, code });
     expect(handler.run).not.toHaveBeenCalled();
+  });
+
+  test("denies the hourly blast-radius cap before inserting an execution", async () => {
+    mocks.checkHourlyLimits.mockResolvedValue({
+      ok: false,
+      code: "blast_radius_limit",
+      scope: "organization",
+    });
+    const { admin, handler, inserts } = makeAdmin();
+    const result = await executeThroughGateway(admin, request());
+    expect(result).toMatchObject({ ok: false, code: "blast_radius_limit" });
+    expect(handler.run).not.toHaveBeenCalled();
+    expect(inserts.some((row) => "idempotency_key" in row)).toBe(false);
   });
 
   test("denies kill switches, breaker, tenant, capability, policy, parameters, and state", async () => {

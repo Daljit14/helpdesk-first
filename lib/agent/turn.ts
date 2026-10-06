@@ -360,7 +360,14 @@ async function handleAgentRequestBody(
       dispatchEmit,
       signal
     );
-    if (result === "invalid" && !stepUpEmitted)
+    if (result === "reconfirm_required")
+      emit({
+        type: "error",
+        message:
+          "Please tick “I checked these values and want to continue” and approve again.",
+        recoverable: true,
+      });
+    else if (result === "invalid" && !stepUpEmitted)
       emit({
         type: "error",
         message: "That consent request is no longer available.",

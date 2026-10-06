@@ -28,8 +28,10 @@ and requires explicit reconfirmation for organization-approved/vendor sources.
 The portal cannot approve a non-clean requester-agent consent step; approve
 those actions in chat after checking every disclosed value. Missing or failed
 consent-step lookup also refuses portal approval, while no matching step
-preserves existing ticket-run approval behavior. Values in the disclosure are
-truncated to 120 characters.
+preserves existing ticket-run approval behavior. A tainted value is eligible
+for reconfirmation only if it is at most 120 characters and remains unchanged
+after requester-safe sanitization and G4 redaction; otherwise the proposal is
+rejected.
 
 Instruction-shaped strings are withheld from model context after the existing
 input safety guard. Withholding is recorded as `tripwire_instruction_content`;

@@ -115,6 +115,24 @@ describe("requester agent turn dispatch", () => {
     expect(harness.gatewayCalls).toBe(0);
   });
 
+  test("asks the requester to reconfirm tainted values", async () => {
+    const harness = createAgentEvalHarness({
+      consent: { approvalRequestId: "approval-1", decision: "approve" },
+      decideConsentResult: "reconfirm_required",
+      outputs: [],
+    });
+
+    await harness.run();
+
+    expect(harness.events).toContainEqual({
+      type: "error",
+      message:
+        "Please tick “I checked these values and want to continue” and approve again.",
+      recoverable: true,
+    });
+    expect(harness.model.calls).toBe(0);
+  });
+
   test("continues with a synthetic turn after a failed verification", async () => {
     const harness = createAgentEvalHarness({
       outputs: [

@@ -48,6 +48,7 @@ import {
   type SessionProvenance,
   type TaintedParam,
 } from "./taint";
+import { NO_REQUESTER, toUserText } from "./output-guard";
 
 type Admin = ReturnType<
   typeof import("@/lib/supabase/admin").createAdminClient
@@ -583,6 +584,26 @@ export async function proposeAction(
       "That value came from content you didn't type, so I can't use it in a fix."
     );
   }
+  if (
+    taintPolicy === "reconfirm" &&
+    tainted.some(
+      ({ value }) =>
+        value.length > 120 ||
+        toUserText(value, { ...NO_REQUESTER, redactions: [] }) !== value
+    )
+  ) {
+    await writeStep(admin, session, {
+      kind: "action_rejected",
+      toolName: "propose_action",
+      capabilityId: capability.id,
+      paramsHash,
+      resultSummary: "tainted_parameter_undisplayable",
+    });
+    return reject(
+      "tainted_parameter",
+      "That value came from content you didn't type and can't be shown to you safely, so I can't use it in a fix."
+    );
+  }
   const existing = await admin
     .from("agent_steps")
     .select("capability_id,params_hash")
@@ -800,7 +821,7 @@ export async function proposeAction(
           ? {
               tainted: tainted.map((item) => ({
                 param: item.param,
-                value: item.value.slice(0, 120),
+                value: item.value,
                 source: taintSourceLabel(item),
                 trust: item.trust,
               })),
@@ -839,6 +860,7 @@ export async function decideConsent(
   | "executed_verified_passed"
   | "executed_verified_failed"
   | "declined"
+  | "reconfirm_required"
   | "invalid"
   | "escalated"
 > {
@@ -878,7 +900,7 @@ export async function decideConsent(
         consentId: input.approvalRequestId,
         resultSummary: "Re-confirm required.",
       });
-      return "invalid";
+      return "reconfirm_required";
     }
   }
   const approval = await admin

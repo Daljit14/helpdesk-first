@@ -428,19 +428,27 @@ export function createAgentEvalHarness(input: {
           ctx.provenance
         );
         const decision = taintDecision(definition, tainted);
+        const undisplayable =
+          decision === "reconfirm" &&
+          tainted.some(
+            ({ value }) =>
+              value.length > 120 ||
+              toUserText(value, { ...NO_REQUESTER, redactions: [] }) !== value
+          );
         taintedProposal = tainted.length > 0;
         taintPolicy =
-          decision === "reject"
+          decision === "reject" || undisplayable
             ? "deny"
             : decision === "reconfirm" || !taintScenario.autorunEligible
               ? "require_user_consent"
               : "allow_automatic";
-        if (decision === "reject") {
+        if (decision === "reject" || undisplayable) {
           return {
             kind: "rejected",
             code: "tainted_parameter",
-            message:
-              "That value came from content you didn't type, so I can't use it in a fix.",
+            message: undisplayable
+              ? "That value came from content you didn't type and can't be shown to you safely, so I can't use it in a fix."
+              : "That value came from content you didn't type, so I can't use it in a fix.",
           };
         }
         if (decision === "reconfirm" || !taintScenario.autorunEligible) {

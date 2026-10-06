@@ -614,7 +614,7 @@ describe("requester action proposals", () => {
       proposalSession(),
       {
         capabilityId: "device_flush_dns",
-        params: { hostname: "PC-7ABCDE" },
+        params: { hostname: "Contoso-Secure-5G" },
         hypothesisId: "ev-1",
         rationale: "The device has a DNS failure.",
       },
@@ -628,7 +628,7 @@ describe("requester action proposals", () => {
               evidenceId: "ev-1",
               source: "get_service_health",
               trust: "vendor",
-              text: "DNS outage for PC-7ABCDE.",
+              text: "DNS outage for Contoso-Secure-5G.",
             },
           ],
         },
@@ -643,7 +643,7 @@ describe("requester action proposals", () => {
         tainted: [
           {
             param: "hostname",
-            value: "PC-7ABCDE",
+            value: "Contoso-Secure-5G",
             source: "a service status page",
             trust: "vendor",
           },
@@ -664,6 +664,60 @@ describe("requester action proposals", () => {
       })
     );
   });
+
+  test.each([
+    ["HTML", "<img src=x onerror=alert(1)>"],
+    ["URL", "https://evil.example/login"],
+    ["overlong", "x".repeat(121)],
+    ["G4 secret", "sk-live_abcdef1234567890"],
+  ])(
+    "rejects tainted %s values that cannot be shown unchanged",
+    async (_label, value) => {
+      const admin = actionAdmin();
+      const result = await proposeAction(
+        admin as never,
+        proposalSession(),
+        {
+          capabilityId: "device_flush_dns",
+          params: { hostname: value },
+          hypothesisId: "ev-1",
+          rationale: "The device has a DNS failure.",
+        },
+        {
+          actor: "requester_agent:session-1",
+          evidence: [{ id: "ev-1", tool: "get_service_health" }],
+          provenance: {
+            userTexts: [],
+            items: [
+              {
+                evidenceId: "ev-1",
+                source: "get_service_health",
+                trust: "vendor",
+                text: `DNS outage for ${value}.`,
+              },
+            ],
+          },
+        }
+      );
+
+      expect(result).toEqual({
+        kind: "rejected",
+        code: "tainted_parameter",
+        message:
+          "That value came from content you didn't type and can't be shown to you safely, so I can't use it in a fix.",
+      });
+      expect(mocks.writeStep).toHaveBeenCalledWith(
+        admin,
+        expect.anything(),
+        expect.objectContaining({
+          kind: "action_rejected",
+          resultSummary: "tainted_parameter_undisplayable",
+        })
+      );
+      expect(mocks.startRun).not.toHaveBeenCalled();
+      expect(mocks.executePlan).not.toHaveBeenCalled();
+    }
+  );
 
   test.each([
     [
@@ -709,7 +763,7 @@ describe("requester action proposals", () => {
         proposalSession(),
         {
           capabilityId: "send_password_reset_link",
-          params: { ticketId: "PC-7ABCDE" },
+          params: { ticketId: "Contoso-Secure-5G" },
           hypothesisId: "ev-1",
           rationale: "Ask about the reported device.",
         },
@@ -723,7 +777,7 @@ describe("requester action proposals", () => {
                 evidenceId: "ev-1",
                 source,
                 trust,
-                text: "The value is PC-7ABCDE.",
+                text: "The value is Contoso-Secure-5G.",
               },
             ],
           },
@@ -743,7 +797,7 @@ describe("requester action proposals", () => {
           tainted: [
             {
               param: "ticketId",
-              value: "PC-7ABCDE",
+              value: "Contoso-Secure-5G",
               source: sourceLabel,
               trust,
             },
@@ -771,7 +825,7 @@ describe("requester action proposals", () => {
       proposalSession(),
       {
         capabilityId: "device_flush_dns",
-        params: { hostname: "PC-7ABCDE" },
+        params: { hostname: "Contoso-Secure-5G" },
         hypothesisId: "ev-1",
         rationale: "The device has a DNS failure.",
       },
@@ -785,7 +839,7 @@ describe("requester action proposals", () => {
               evidenceId: "ev-1",
               source: "get_service_health",
               trust: "vendor",
-              text: "DNS outage for PC-7ABCDE.",
+              text: "DNS outage for Contoso-Secure-5G.",
             },
           ],
         },
@@ -1062,7 +1116,7 @@ describe("requester action proposals", () => {
       new AbortController().signal
     );
 
-    expect(result).toBe("invalid");
+    expect(result).toBe("reconfirm_required");
     expect(mocks.consumeAiConsent).not.toHaveBeenCalled();
     expect(mocks.resumeAfterApproval).not.toHaveBeenCalled();
     expect(mocks.writeStep).toHaveBeenCalledWith(

@@ -39,6 +39,37 @@ describe("environment profile department", () => {
   });
 });
 
+describe("trusted vendor docs department", () => {
+  test("is available only to org admins when enabled", () => {
+    const orgAdmin = buildDepartments(
+      { role: "org_admin", isPlatformAdmin: false },
+      { ...flags, orgVendorDomainsEnabled: true }
+    );
+    expect(orgAdmin).toContainEqual(
+      expect.objectContaining({
+        id: "vendor-domains",
+        label: "Trusted vendor docs",
+        href: "/admin/vendor-domains",
+        icon: "settings",
+        group: "Configure",
+        keywords: ["vendor", "docs", "domains", "research", "trusted"],
+      })
+    );
+
+    const supportAgent = buildDepartments(
+      { role: "support_agent", isPlatformAdmin: false },
+      { ...flags, orgVendorDomainsEnabled: true }
+    );
+    expect(supportAgent.map(({ id }) => id)).not.toContain("vendor-domains");
+
+    const disabled = buildDepartments(
+      { role: "org_admin", isPlatformAdmin: false },
+      flags
+    );
+    expect(disabled.map(({ id }) => id)).not.toContain("vendor-domains");
+  });
+});
+
 describe("users and logins department", () => {
   test("is available to org admins and platform admins", () => {
     const orgAdmin = buildDepartments(

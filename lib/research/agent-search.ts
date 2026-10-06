@@ -16,6 +16,7 @@ import {
 } from "@/lib/agent/output-guard";
 import { guardSource } from "./guard";
 import { trustTierFor } from "./allowlist";
+import { loadOrgVendorDomains } from "./vendor-domains";
 import { checkAndConsumeOrgResearchBudget } from "./budget";
 import { getCached, hashResearchQuery, putCached } from "./cache";
 import { judgeSources } from "./judge";
@@ -124,6 +125,7 @@ export async function runAgentWebSearch(
     signal: AbortSignal;
     provider?: ResearchProvider;
     judge?: typeof judgeSources;
+    loadVendorDomains?: (organizationId: string) => Promise<readonly string[]>;
     configOverride?: Partial<ResearchConfig>;
   }
 ): Promise<AgentWebSearchOutcome> {
@@ -141,6 +143,16 @@ export async function runAgentWebSearch(
     return { status: "skipped", reason: "provider_failed" };
   if ((sessionQueries.count ?? 0) >= AGENT_WEB_SEARCH_SESSION_CAP)
     return { status: "skipped", reason: "session_cap" };
+
+  let orgDomains: readonly string[] = [];
+  try {
+    orgDomains = await (
+      input.loadVendorDomains ??
+      ((organizationId) => loadOrgVendorDomains(admin, organizationId))
+    )(input.organizationId);
+  } catch {
+    orgDomains = [];
+  }
 
   const provider = input.provider ?? researchProviderFor(config.provider);
   const queryHash = await hashResearchQuery(query);
@@ -200,7 +212,7 @@ export async function runAgentWebSearch(
 
   const guardedSources: ResearchSource[] = [];
   for (const source of sources) {
-    const trust = trustTierFor(source.url);
+    const trust = trustTierFor(source.url, orgDomains);
     if (!trust) continue;
     const guarded = await guardSource({ ...source, trust });
     if (guarded.ok) guardedSources.push(guarded.source);

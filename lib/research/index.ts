@@ -6,6 +6,7 @@ import { buildResearchQueries } from "./query";
 import { createBraveProvider } from "./providers/brave";
 import { createTavilyProvider } from "./providers/tavily";
 import { trustTierFor } from "./allowlist";
+import { loadOrgVendorDomains } from "./vendor-domains";
 import { guardSource } from "./guard";
 import { judgeSources } from "./judge";
 import { checkAndConsumeOrgResearchBudget } from "./budget";
@@ -49,6 +50,7 @@ export async function runResearch(
     signal: AbortSignal;
     provider?: ResearchProvider;
     judge?: ResearchJudge;
+    loadVendorDomains?: (organizationId: string) => Promise<readonly string[]>;
     configOverride?: Partial<ResearchConfig>;
     writeEvent: (
       kind: "research.consulted" | "research.skipped",
@@ -89,6 +91,15 @@ export async function runResearch(
     guideTitles,
   }).slice(0, config.maxQueriesPerRun);
   if (queries.length === 0) return skip("no_queries");
+  let orgDomains: readonly string[] = [];
+  try {
+    orgDomains = await (
+      input.loadVendorDomains ??
+      ((organizationId) => loadOrgVendorDomains(admin, organizationId))
+    )(input.organizationId);
+  } catch {
+    orgDomains = [];
+  }
   const provider = input.provider ?? researchProviderFor(config.provider);
   const collectedSources: CollectedSource[] = [];
   let dropped = 0;
@@ -139,7 +150,7 @@ export async function runResearch(
       continue;
     }
     for (const source of sources) {
-      const trusted = trustTierFor(source.url);
+      const trusted = trustTierFor(source.url, orgDomains);
       if (!trusted) {
         dropped += 1;
         continue;

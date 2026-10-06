@@ -90,6 +90,7 @@ export function createAgentEvalHarness(input: {
   webSearch?: {
     sources: ResearchSource[];
     requesterNameTerms?: string[];
+    vendorDomains?: string[];
   };
   realEvidenceCheck?: boolean;
   toolResults?: ScriptedToolResult[];
@@ -331,6 +332,10 @@ export function createAgentEvalHarness(input: {
             configOverride: { enabled: true },
             loadNameTerms: async () =>
               input.webSearch?.requesterNameTerms ?? [],
+            loadVendorDomains: async (organizationId) =>
+              organizationId === current.organization_id
+                ? (input.webSearch?.vendorDomains ?? [])
+                : [],
           }
         );
         if (result.ok) {

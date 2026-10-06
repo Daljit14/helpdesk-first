@@ -175,6 +175,33 @@ describe("Supabase RLS coverage", () => {
     );
   });
 
+  test("restricts trusted vendor domains to org members and admins", async () => {
+    const source = await readFile(
+      join(process.cwd(), "supabase/org-research-vendor-domains.sql"),
+      "utf8"
+    );
+    expect(source).toMatch(
+      /alter table public\.org_research_vendor_domains enable row level security/i
+    );
+    expect(source).toMatch(
+      /create policy org_research_vendor_domains_member_select[\s\S]*?for select[\s\S]*?using \(public\.is_org_member\(organization_id\)\)/i
+    );
+    expect(source).toMatch(
+      /create policy org_research_vendor_domains_admin_insert[\s\S]*?for insert[\s\S]*?with check \([\s\S]*?public\.is_org_admin\(organization_id\)[\s\S]*?added_by = auth\.uid\(\)/i
+    );
+    expect(source).toMatch(
+      /create policy org_research_vendor_domains_admin_delete[\s\S]*?for delete[\s\S]*?using \(public\.is_org_admin\(organization_id\)\)/i
+    );
+    const policies = source.match(/create policy[\s\S]*?;/gi)?.join("\n") ?? "";
+    expect(policies).not.toMatch(/for update/i);
+    expect(source).toMatch(
+      /grant select, insert, delete on public\.org_research_vendor_domains to authenticated;/i
+    );
+    expect(source).toMatch(
+      /grant all on public\.org_research_vendor_domains to service_role;/i
+    );
+  });
+
   test("restricts organization model-cost RPC execution to service role", async () => {
     const source = await readFile(
       join(process.cwd(), "supabase/model-routing.sql"),

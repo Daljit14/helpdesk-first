@@ -157,6 +157,42 @@ describe("runAgentWebSearch", () => {
     expect(rows.research_queries[0]).toMatchObject({ cached: true });
   });
 
+  test("reclassifies cached sources using the current organization's vendor domains", async () => {
+    const { admin, rows } = createEvalResearchStore();
+    const query = "Microsoft Teams audio stops after update";
+    const vendorSource = source({
+      url: "https://support.contoso-vpn.com/kb/audio",
+      domain: "support.contoso-vpn.com",
+    });
+    const { provider, fake } = recordingProvider([vendorSource]);
+    const loadVendorDomains = vi
+      .fn()
+      .mockResolvedValueOnce(["support.contoso-vpn.com"])
+      .mockResolvedValueOnce([]);
+
+    const trusted = await search(admin, {
+      provider,
+      query,
+      loadVendorDomains,
+    });
+    const removed = await search(admin, {
+      provider,
+      query,
+      loadVendorDomains,
+    });
+
+    expect(loadVendorDomains).toHaveBeenNthCalledWith(1, organizationId);
+    expect(loadVendorDomains).toHaveBeenNthCalledWith(2, organizationId);
+    expect(trusted.status).toBe("ran");
+    if (trusted.status === "ran")
+      expect(trusted.sources[0]?.trust).toBe("vendor");
+    expect(removed.status).toBe("ran");
+    if (removed.status === "ran")
+      expect(removed.sources[0]?.trust).toBe("community");
+    expect(fake.calls).toBe(1);
+    expect(rows.research_cache[0]?.response).toEqual([vendorSource]);
+  });
+
   test("stops on an exhausted organization budget without calling the provider", async () => {
     const { admin } = createEvalResearchStore();
     const { provider, fake } = recordingProvider([source()]);

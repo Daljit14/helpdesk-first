@@ -215,6 +215,7 @@ const requesterAgent = z
       .object({
         sources: z.array(webSearchSource),
         requesterNameTerms: z.array(z.string()).optional(),
+        vendorDomains: z.array(z.string()).optional(),
       })
       .strict()
       .optional(),

@@ -411,6 +411,7 @@ export async function runSearchWebTool(
     judge?: typeof judgeSources;
     configOverride?: Partial<ResearchConfig>;
     loadNameTerms?: () => Promise<string[]>;
+    loadVendorDomains?: (organizationId: string) => Promise<readonly string[]>;
   } = {}
 ): Promise<AgentToolResult> {
   try {
@@ -433,6 +434,9 @@ export async function runSearchWebTool(
       signal: ctx.signal,
       ...(deps.provider ? { provider: deps.provider } : {}),
       ...(deps.judge ? { judge: deps.judge } : {}),
+      ...(deps.loadVendorDomains
+        ? { loadVendorDomains: deps.loadVendorDomains }
+        : {}),
       configOverride: deps.configOverride,
     });
     const value = webSearchToolValue(outcome);

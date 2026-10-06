@@ -21,6 +21,7 @@ export type DepartmentFlags = {
   resolutionCenterEnabled: boolean;
   deviceAgentEnabled?: boolean;
   orgEnvironmentEnabled?: boolean;
+  orgVendorDomainsEnabled?: boolean;
 };
 
 export const DEPARTMENT_GROUPS = [
@@ -214,6 +215,16 @@ export function buildDepartments(
         available: true,
         group: "Configure",
         keywords: ["environment", "vpn", "mdm", "printers", "sso", "software"],
+      },
+    orgAdmin &&
+      Boolean(flags.orgVendorDomainsEnabled) && {
+        id: "vendor-domains",
+        label: "Trusted vendor docs",
+        href: "/admin/vendor-domains",
+        icon: "settings",
+        available: true,
+        group: "Configure",
+        keywords: ["vendor", "docs", "domains", "research", "trusted"],
       },
     orgAdmin && {
       id: "settings",

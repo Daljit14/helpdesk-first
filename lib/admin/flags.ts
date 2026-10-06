@@ -124,6 +124,10 @@ export function isOrgEnvironmentEnabled(): boolean {
   return process.env.HELP_DESK_ORG_ENVIRONMENT_ENABLED === "true";
 }
 
+export function isOrgVendorDomainsEnabled(): boolean {
+  return process.env.HELP_DESK_ORG_VENDOR_DOMAINS_ENABLED === "true";
+}
+
 export function isAgentDiagnosticSourcesEnabled(): boolean {
   return process.env.HELP_DESK_AGENT_DIAGNOSTIC_SOURCES_ENABLED === "true";
 }

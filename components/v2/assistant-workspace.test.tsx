@@ -524,6 +524,33 @@ describe("AssistantWorkspace", () => {
     ).toBeTruthy();
   });
 
+  it("does not append another clarification after an answer fails", async () => {
+    mocks.currentOutput = {
+      decision: "clarify",
+      matchedIssueSlug: undefined,
+      explanation: undefined,
+      diagnosticQuestionIds: ["which-platform"],
+    };
+    mocks.diagnosticAnswer = "Windows";
+    const props = { initialProblem: "wifi keeps dropping" };
+    const { rerender } = render(<AssistantWorkspace {...props} />);
+
+    expect(await screen.findByText(platformQuestionText)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    mocks.loading = true;
+    mocks.previousAnswers = [
+      { questionId: "which-platform", answer: "Windows" },
+    ];
+    rerender(<AssistantWorkspace {...props} />);
+
+    mocks.loading = false;
+    mocks.error = "The support assistant is not responding.";
+    rerender(<AssistantWorkspace {...props} />);
+
+    expect(screen.getAllByText(platformQuestionText)).toHaveLength(1);
+  });
+
   it("returns focus to the composer after a chip intake finishes", () => {
     mocks.currentOutput = null;
     const { rerender } = render(<AssistantWorkspace />);
@@ -688,6 +715,26 @@ describe("AssistantWorkspace", () => {
       "Describe your problem first, then send it to a person."
     );
     expect(screen.getByLabelText("Describe your IT problem")).toHaveFocus();
+  });
+
+  it("clears the blank-person error when a problem is submitted", () => {
+    mocks.problem = "";
+    mocks.currentOutput = null;
+    const props = { intent: "human", workflowEnabled: true, signedIn: true };
+    const { rerender } = render(<AssistantWorkspace {...props} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "I want a person" }));
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Describe your problem first, then send it to a person."
+    );
+
+    mocks.problem = "wifi keeps dropping";
+    rerender(<AssistantWorkspace {...props} />);
+    expect(screen.getByRole("textbox")).toHaveValue("wifi keeps dropping");
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(mocks.handleStart).toHaveBeenCalledWith("wifi keeps dropping");
   });
 
   it("keeps human intent and the problem in the signed-out login return URL", () => {

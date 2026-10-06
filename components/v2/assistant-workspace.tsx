@@ -232,6 +232,7 @@ export function AssistantWorkspace({
   /** Start a brand-new problem (typed, or an example chip). */
   const startProblem = (raw: string) => {
     if (intake.loading) return;
+    setActionError(null);
     const text = raw.trim();
     if (!text) return;
     if (text.length > MAX_MESSAGE_LENGTH) {
@@ -261,6 +262,7 @@ export function AssistantWorkspace({
 
   const submitCurrentInput = () => {
     if (intake.loading) return;
+    setActionError(null);
     if (output?.decision !== "clarify" || lastTurnIsNotice) {
       startProblem(intake.problem);
       return;
@@ -334,7 +336,12 @@ export function AssistantWorkspace({
 
   // Add each new clarifying question to the transcript exactly once.
   useEffect(() => {
-    if (intake.loading || !questionKey || output?.decision !== "clarify")
+    if (
+      intake.loading ||
+      intake.error ||
+      !questionKey ||
+      output?.decision !== "clarify"
+    )
       return;
     const text = clarificationText(output);
     queueMicrotask(() =>
@@ -344,7 +351,7 @@ export function AssistantWorkspace({
           : [...current, { id: questionKey, role: "assistant", text }]
       )
     );
-  }, [questionKey, output, intake.loading]);
+  }, [questionKey, output, intake.loading, intake.error]);
   const matchedIssue = output?.matchedIssueSlug
     ? getIssueBySlug(output.matchedIssueSlug)
     : null;

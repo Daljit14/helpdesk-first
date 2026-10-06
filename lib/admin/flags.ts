@@ -77,6 +77,13 @@ export function isResearchEnabled(): boolean {
   return process.env.HELP_DESK_RESEARCH_ENABLED === "true";
 }
 
+export function isAgentWebSearchEnabled(): boolean {
+  return (
+    process.env.HELP_DESK_AGENT_WEB_SEARCH_ENABLED === "true" &&
+    isResearchEnabled()
+  );
+}
+
 export function isOrgEncryptionEnabled(): boolean {
   return process.env.HELP_DESK_ORG_ENCRYPTION_ENABLED === "true";
 }

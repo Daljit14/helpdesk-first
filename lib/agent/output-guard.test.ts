@@ -3,6 +3,7 @@ import { getAllIssueSlugs, getIssueBySlug } from "@/lib/search";
 import { getIssueStepPolicies, isOfferable } from "@/lib/investigation/policy";
 import {
   guardAgentEvent,
+  NO_REQUESTER,
   guardAgentOutput,
   minimizeToolOutput,
   toUserText,
@@ -146,6 +147,13 @@ describe("requester-agent output guard", () => {
             title: "Wi-Fi 192.168.1.1",
             url: "https://example.test/wifi",
           },
+          citation: {
+            kind: "web" as const,
+            trust: "vendor" as const,
+            title: "Docs for DESKTOP-ABC1234",
+            domain: "192.168.1.1",
+            url: "https://learn.microsoft.com/support",
+          },
         },
       },
       {
@@ -184,6 +192,11 @@ describe("requester-agent output guard", () => {
           title: "Wi-Fi [removed: device or network detail]",
           url: "https://example.test/wifi",
         },
+        citation: {
+          title: "Docs for [removed: device or network detail]",
+          domain: "[removed: device or network detail]",
+          url: "https://learn.microsoft.com/support",
+        },
       },
     });
     expect(guarded[2]).toMatchObject({
@@ -200,6 +213,40 @@ describe("requester-agent output guard", () => {
       type: "tool_result_summary",
       tool: "get_device_diagnostics",
       summary: "Found [removed: device or network detail].",
+    });
+  });
+
+  test("guards web-source text and drops non-HTTPS links", () => {
+    const guarded = guardAgentEvent(
+      {
+        type: "web_sources",
+        sources: [
+          {
+            title: "Support for DESKTOP-ABC1234",
+            domain: "learn.microsoft.com",
+            url: "https://learn.microsoft.com/support",
+            trust: "vendor",
+          },
+          {
+            title: "Unsafe source",
+            domain: "reddit.com",
+            url: "http://reddit.com/r/support",
+            trust: "community",
+          },
+        ],
+      },
+      context()
+    );
+    expect(guarded).toEqual({
+      type: "web_sources",
+      sources: [
+        {
+          title: "Support for [removed: device or network detail]",
+          domain: "learn.microsoft.com",
+          url: "https://learn.microsoft.com/support",
+          trust: "vendor",
+        },
+      ],
     });
   });
 
@@ -254,5 +301,36 @@ describe("requester-agent output guard", () => {
     }
 
     expect(checkedSteps).toBeGreaterThan(0);
+  });
+
+  test("drops a user-step citation whose url is not https", () => {
+    const guarded = guardAgentEvent(
+      {
+        type: "user_step",
+        card: {
+          stepId: "step-1",
+          instruction: "Restart the app.",
+          why: "It clears a stuck session.",
+          source: {
+            kind: "guide",
+            guideSlug: "wifi",
+            stepIndex: 0,
+            title: "Wi-Fi",
+            url: "/issues/wifi/guide",
+          },
+          citation: {
+            kind: "web",
+            trust: "vendor",
+            domain: "learn.microsoft.com",
+            title: "Docs",
+            url: "javascript:alert(1)",
+          },
+        },
+      },
+      NO_REQUESTER
+    );
+    expect(guarded.type === "user_step" && guarded.card.citation).toBe(
+      undefined
+    );
   });
 });

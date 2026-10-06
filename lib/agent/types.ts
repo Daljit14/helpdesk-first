@@ -1,6 +1,7 @@
 import type { createAdminClient } from "@/lib/supabase/admin";
 import type { UserStepCard } from "./user-steps";
 import type { OutputGuardContext } from "./output-guard";
+import type { TrustTier } from "@/lib/research/types";
 
 export type ConsentCard = {
   approvalRequestId: string;
@@ -45,6 +46,15 @@ export type AgentEvent =
       }>;
     }
   | { type: "user_step"; card: UserStepCard }
+  | {
+      type: "web_sources";
+      sources: Array<{
+        title: string;
+        domain: string;
+        url: string;
+        trust: TrustTier;
+      }>;
+    }
   | { type: "action_proposed"; capabilityId: string; text: string }
   | { type: "consent_required"; card: ConsentCard }
   | { type: "session_consent_offer"; card: SessionConsentCard }

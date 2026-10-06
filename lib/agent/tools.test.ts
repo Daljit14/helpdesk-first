@@ -1,10 +1,16 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import {
   getAgentTools,
+  loadRequesterNameTerms,
   recentSignInFailuresValue,
+  runSearchWebTool,
   runTool,
   similarOrgIssuesValue,
 } from "./tools";
+import { createEvalResearchStore } from "./eval-research-store";
+import { FakeResearchProvider } from "@/lib/research/fake";
+import { heuristicJudge } from "@/lib/research/judge";
+import type { ResearchProvider, ResearchSource } from "@/lib/research/types";
 
 const mocks = vi.hoisted(() => ({
   getApprovedSlugs: vi.fn(),
@@ -58,6 +64,117 @@ afterEach(() => {
 });
 
 describe("requester agent tools", () => {
+  test("exposes web search only when both feature flags are enabled", async () => {
+    vi.stubEnv("HELP_DESK_RESEARCH_ENABLED", "true");
+    vi.stubEnv("HELP_DESK_AGENT_WEB_SEARCH_ENABLED", "false");
+    expect(
+      getAgentTools(false, false, false, false, false).map((tool) => tool.name)
+    ).not.toContain("search_web");
+    await expect(
+      runTool(context, "search_web", { query: "Teams audio issue" })
+    ).resolves.toMatchObject({ ok: false, code: "tool_rejected" });
+
+    vi.stubEnv("HELP_DESK_AGENT_WEB_SEARCH_ENABLED", "true");
+    expect(
+      getAgentTools(false, false, false, false, false).map((tool) => tool.name)
+    ).toContain("search_web");
+    vi.stubEnv("HELP_DESK_RESEARCH_ENABLED", "false");
+    expect(
+      getAgentTools(false, false, false, false, false).map((tool) => tool.name)
+    ).not.toContain("search_web");
+  });
+
+  test("searches only sanitized requester text and keeps summaries snippet-free", async () => {
+    const { admin, rows } = createEvalResearchStore();
+    const source: ResearchSource = {
+      url: "https://learn.microsoft.com/en-us/microsoftteams/troubleshoot",
+      domain: "learn.microsoft.com",
+      title: "Troubleshoot Teams audio",
+      snippet: "Official steps for resolving Teams audio issues.",
+      trust: "community",
+      contentHash: "content-hash",
+      fetchedAt: "2026-10-06T00:00:00.000Z",
+    };
+    const fake = new FakeResearchProvider([source]);
+    const observed: string[] = [];
+    const provider: ResearchProvider = {
+      id: "tavily",
+      async search(query) {
+        observed.push(query);
+        return fake.search();
+      },
+    };
+    const result = await runSearchWebTool(
+      {
+        ...context,
+        admin: admin as never,
+        session: {
+          id: "00000000-0000-4000-8000-000000000002",
+          organization_id: "00000000-0000-4000-8000-000000000001",
+          requester_id: "requester",
+          backing_ticket_id: null,
+          resolution_run_id: null,
+        } as never,
+        organizationId: "00000000-0000-4000-8000-000000000001",
+        outputGuard: {
+          requesterIdentifiers: ["jane.doe@contoso.com", "DESKTOP-AB12CDE"],
+          redactions: [],
+        },
+      },
+      {
+        query:
+          "jane.doe@contoso.com Jane Doe DESKTOP-AB12CDE 10.0.0.12 teams keeps crashing after update",
+      },
+      {
+        provider,
+        judge: async (sources, hypotheses) =>
+          heuristicJudge(sources, hypotheses),
+        configOverride: { enabled: true, orgDailyBudget: 50 },
+        loadNameTerms: async () => ["Jane Doe"],
+      }
+    );
+
+    expect(result.ok).toBe(true);
+    expect(observed).toEqual(["teams keeps crashing after update"]);
+    expect(result.userSummary).toContain("learn.microsoft.com");
+    expect(result.userSummary).not.toContain("Official steps");
+    expect(result.userSummary).not.toContain(source.url);
+    expect(result.ok && result.modelText).toContain(source.snippet);
+    expect(rows.research_queries).toMatchObject([
+      {
+        organization_id: "00000000-0000-4000-8000-000000000001",
+        agent_session_id: "00000000-0000-4000-8000-000000000002",
+        query: "teams keeps crashing after update",
+      },
+    ]);
+  });
+
+  test("loads only name terms from requester metadata and fails closed to an empty list", async () => {
+    const getUserById = vi.fn().mockResolvedValue({
+      data: {
+        user: {
+          user_metadata: {
+            full_name: "Jane Doe",
+            name: "Jane",
+            given_name: "Jane",
+            family_name: "Doe",
+            unrelated: "not included",
+          },
+        },
+      },
+      error: null,
+    });
+    const admin = { auth: { admin: { getUserById } } };
+    await expect(
+      loadRequesterNameTerms(admin as never, "requester")
+    ).resolves.toEqual(["Jane Doe", "Jane", "Jane", "Doe"]);
+
+    getUserById.mockRejectedValue(new Error("auth unavailable"));
+    await expect(
+      loadRequesterNameTerms(admin as never, "requester")
+    ).resolves.toEqual([]);
+  });
+
   test("shapes sign-in failures and similar issue counts without identifiers", () => {
     const now = Date.parse("2026-10-04T12:00:00.000Z");
     expect(

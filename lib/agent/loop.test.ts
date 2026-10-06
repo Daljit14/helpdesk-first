@@ -5,7 +5,7 @@ import type { AgentModel, AgentModelOutput } from "./model";
 import type { AgentEvent, AgentSession } from "./types";
 import { selectAgentRoute } from "./routing";
 
-const use = (id: string, name = "search_guides", input: unknown = {}) => ({
+const toolUse = (id: string, name = "search_guides", input: unknown = {}) => ({
   kind: "tool_use" as const,
   id,
   name,
@@ -254,7 +254,7 @@ describe("requester agent loop", () => {
     const harness = createAgentEvalHarness({
       message: "Wi-Fi keeps dropping.",
       outputs: [
-        use("guides"),
+        toolUse("guides"),
         { kind: "final", text: "Try this.", confidence: 0.9, summary: "Done" },
       ],
       toolResults: [result],
@@ -296,7 +296,7 @@ describe("requester agent loop", () => {
 
   test("caches the second duplicate and escalates on the third", async () => {
     const harness = createAgentEvalHarness({
-      outputs: [use("one"), use("two"), use("three")],
+      outputs: [toolUse("one"), toolUse("two"), toolUse("three")],
       toolResults: [result, result],
     });
     await harness.run();
@@ -355,7 +355,7 @@ describe("requester agent loop", () => {
 
   test("halts injection and does not call a later tool", async () => {
     const harness = createAgentEvalHarness({
-      outputs: [use("injection"), use("later")],
+      outputs: [toolUse("injection"), toolUse("later")],
       toolResults: [
         {
           ok: false,
@@ -462,7 +462,7 @@ describe("requester agent loop", () => {
     vi.stubEnv("HELP_DESK_SERVICE_HEALTH_ENABLED", "true");
     const harness = createAgentEvalHarness({
       outputs: [
-        use("health", "get_service_health", {
+        toolUse("health", "get_service_health", {
           symptom: "Outlook email is unavailable",
         }),
         propose(),
@@ -940,6 +940,159 @@ describe("requester agent loop", () => {
     expect(modelCalls).toBe(1);
     expect(actionCalls).toBe(0);
     expect(session.tool_call_count).toBe(1);
+  });
+
+  test("emits guarded HTTPS web sources after a successful search", async () => {
+    vi.stubEnv("HELP_DESK_RESEARCH_ENABLED", "true");
+    vi.stubEnv("HELP_DESK_AGENT_WEB_SEARCH_ENABLED", "true");
+    const events: AgentEvent[] = [];
+    const requests: Array<{ tools: Array<{ name: string }>; system: string }> =
+      [];
+    let calls = 0;
+    const model: AgentModel = {
+      next: async (request) => {
+        requests.push({ tools: request.tools, system: request.system });
+        calls += 1;
+        return calls === 1
+          ? toolUse("web-search", "search_web", { query: "Teams audio issue" })
+          : {
+              kind: "final",
+              text: "I found official documentation.",
+              confidence: 0.9,
+              summary: "Answer.",
+            };
+      },
+    };
+    const deps = directLoopDeps({
+      createModel: () => model,
+      runTool: async () => ({
+        ok: true,
+        value: {
+          sources: [
+            {
+              title: "Teams audio troubleshooting",
+              domain: "learn.microsoft.com",
+              url: "https://learn.microsoft.com/teams/audio",
+              trust: "vendor",
+            },
+            {
+              title: "Unsafe HTTP source",
+              domain: "reddit.com",
+              url: "http://reddit.com/r/teams",
+              trust: "community",
+            },
+          ],
+        },
+        modelText: "Wrapped web results.",
+        userSummary: "Found 1 web source.",
+      }),
+    });
+
+    await runDirectLoop({ deps: deps.deps, events });
+
+    expect(requests[0]?.tools.map((tool) => tool.name)).toContain("search_web");
+    expect(requests[0]?.system).toContain(
+      "Use search_web only when approved guides do not cover the problem."
+    );
+    expect(events).toContainEqual({
+      type: "web_sources",
+      sources: [
+        {
+          title: "Teams audio troubleshooting",
+          domain: "learn.microsoft.com",
+          url: "https://learn.microsoft.com/teams/audio",
+          trust: "vendor",
+        },
+      ],
+    });
+    expect(
+      events.findIndex((event) => event.type === "web_sources")
+    ).toBeLessThan(
+      events.findIndex((event) => event.type === "tool_result_summary")
+    );
+  });
+
+  test("persists the approved citation id and attaches only the checked citation", async () => {
+    const events: AgentEvent[] = [];
+    const steps: Array<{ kind: string; resultSummary?: string }> = [];
+    const citationSourceId = "00000000-0000-4000-8000-000000000101";
+    const model: AgentModel = {
+      next: async () => ({
+        kind: "tool_use",
+        id: "user-step-citation",
+        name: "give_user_step",
+        input: {
+          issueSlug: "wifi-disconnecting",
+          stepIndex: 0,
+          why: "Official documentation agrees with this safe guide step.",
+          citationSourceId,
+        },
+        summary: "Offer a documented step.",
+      }),
+    };
+    const deps = directLoopDeps({
+      createModel: () => model,
+      userStepsEnabled: true,
+      checkUserStep: async () => ({
+        ok: true,
+        instruction: "Restart your router and reconnect.",
+        why: "Official documentation agrees with this safe guide step.",
+        source: {
+          kind: "guide",
+          guideSlug: "wifi-disconnecting",
+          stepIndex: 0,
+          title: "Wi-Fi keeps disconnecting",
+          url: "/issues/wifi-disconnecting/guide",
+        },
+        citation: {
+          kind: "web",
+          trust: "vendor",
+          title: "Official Teams guide",
+          domain: "learn.microsoft.com",
+          url: "https://learn.microsoft.com/teams",
+        },
+      }),
+      writeStep: async (_admin, _session, step) => {
+        steps.push(step);
+        return step.kind === "user_step_offered" ? "step-row-id" : null;
+      },
+    });
+
+    await runDirectLoop({ deps: deps.deps, events });
+
+    expect(events).toContainEqual({
+      type: "user_step",
+      card: {
+        stepId: "step-row-id",
+        instruction: "Restart your router and reconnect.",
+        why: "Official documentation agrees with this safe guide step.",
+        source: {
+          kind: "guide",
+          guideSlug: "wifi-disconnecting",
+          stepIndex: 0,
+          title: "Wi-Fi keeps disconnecting",
+          url: "/issues/wifi-disconnecting/guide",
+        },
+        citation: {
+          kind: "web",
+          trust: "vendor",
+          title: "Official Teams guide",
+          domain: "learn.microsoft.com",
+          url: "https://learn.microsoft.com/teams",
+        },
+      },
+    });
+    const savedSummary = JSON.parse(
+      steps.find((step) => step.kind === "user_step_offered")?.resultSummary ??
+        "{}"
+    ) as Record<string, unknown>;
+    expect(savedSummary).toMatchObject({
+      citationSourceId,
+      citation: {
+        title: "Official Teams guide",
+        domain: "learn.microsoft.com",
+      },
+    });
   });
 
   test("records rejected user steps and returns the tool result to the model", async () => {

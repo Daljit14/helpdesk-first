@@ -405,6 +405,38 @@ export function AgentChat({
                   )}
                 </div>
               );
+            if (event.type === "web_sources")
+              return (
+                <section
+                  key={event.id}
+                  aria-label="Sources from the web"
+                  className="rounded-2xl border border-border bg-card/60 p-3"
+                >
+                  <p className="text-xs font-semibold uppercase tracking-wide">
+                    Sources from the web
+                  </p>
+                  <ul className="mt-2 space-y-1.5 text-sm">
+                    {event.sources.map((source, index) => (
+                      <li key={`${source.url}-${index}`}>
+                        <a
+                          href={source.url}
+                          target="_blank"
+                          rel="noopener noreferrer nofollow"
+                          className="font-medium underline underline-offset-4"
+                        >
+                          {source.title}
+                        </a>
+                        <span className="ml-2 text-xs text-muted-foreground">
+                          {source.domain} ·{" "}
+                          {source.trust === "vendor"
+                            ? "Official docs"
+                            : "Community post"}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              );
             if (event.type === "consent_required") {
               const expiresAt = new Date(event.card.expiresAt).getTime();
               const remaining = Math.max(0, expiresAt - now);
@@ -484,6 +516,19 @@ export function AgentChat({
                       {event.card.source.title}
                     </Link>
                   </p>
+                  {event.card.citation && (
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Official docs:{" "}
+                      <a
+                        href={event.card.citation.url}
+                        target="_blank"
+                        rel="noopener noreferrer nofollow"
+                        className="underline underline-offset-4"
+                      >
+                        {event.card.citation.domain}
+                      </a>
+                    </p>
+                  )}
                   <div className="mt-3 flex flex-wrap gap-2">
                     <Button
                       size="sm"

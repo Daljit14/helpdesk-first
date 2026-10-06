@@ -68,6 +68,7 @@ import {
 import { loadEscalationInputs } from "@/lib/investigation/escalation-load";
 import { EscalationPackageCard } from "@/components/escalation-package";
 import { formatHandoffReason } from "@/lib/tickets/routing";
+import { NO_REQUESTER, toUserText } from "@/lib/agent/output-guard";
 import { isUiV2Enabled } from "@/lib/ui-v2";
 import { AdminBreadcrumbs } from "@/components/admin/v2/breadcrumbs";
 import {
@@ -551,6 +552,12 @@ export default async function AdminTicketPage({
       result_summary: string | null;
       created_at: string;
     }>;
+    webSources: Array<{
+      title: string;
+      domain: string;
+      url: string;
+      trust: "vendor" | "community";
+    }>;
   } | null = null;
   try {
     const agentResult = await admin
@@ -566,8 +573,55 @@ export default async function AdminTicketPage({
         .eq("organization_id", session.organizationId)
         .eq("session_id", agentResult.data.id)
         .order("seq", { ascending: true });
+      let webSources: Array<{
+        title: string;
+        domain: string;
+        url: string;
+        trust: "vendor" | "community";
+      }> = [];
+      try {
+        const sourcesResult = await admin
+          .from("research_sources")
+          .select("url,domain,title,trust,judgement")
+          .eq("organization_id", session.organizationId)
+          .eq("agent_session_id", agentResult.data.id);
+        if (!sourcesResult.error) {
+          webSources = (
+            (sourcesResult.data ?? []) as Array<{
+              url: string;
+              domain: string;
+              title: string;
+              trust: string;
+            }>
+          ).flatMap((source) => {
+            if (
+              typeof source.url !== "string" ||
+              typeof source.domain !== "string" ||
+              typeof source.title !== "string" ||
+              (source.trust !== "vendor" && source.trust !== "community")
+            )
+              return [];
+            try {
+              if (new URL(source.url).protocol !== "https:") return [];
+            } catch {
+              return [];
+            }
+            return [
+              {
+                title: toUserText(source.title, NO_REQUESTER),
+                domain: toUserText(source.domain, NO_REQUESTER),
+                url: source.url,
+                trust: source.trust,
+              },
+            ];
+          });
+        }
+      } catch {
+        webSources = [];
+      }
       agentSession = {
         id: agentResult.data.id,
+        webSources,
         steps: await Promise.all(
           (stepsResult.data ?? []).map(async (step) => ({
             ...step,
@@ -994,6 +1048,33 @@ export default async function AdminTicketPage({
                     </>
                   }
                 >
+                  {agentSession.webSources.length > 0 && (
+                    <section className="mb-4 rounded-2xl border border-border bg-card/60 p-3">
+                      <p className="text-sm font-semibold">
+                        Web sources the assistant used
+                      </p>
+                      <ul className="mt-2 space-y-1.5 text-sm">
+                        {agentSession.webSources.map((source, index) => (
+                          <li key={`${source.url}-${index}`}>
+                            <a
+                              href={source.url}
+                              target="_blank"
+                              rel="noopener noreferrer nofollow"
+                              className="font-medium underline underline-offset-4"
+                            >
+                              {source.title}
+                            </a>
+                            <span className="ml-2 text-xs text-muted-foreground">
+                              {source.domain} ·{" "}
+                              {source.trust === "vendor"
+                                ? "Vendor docs"
+                                : "Community — unverified"}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </section>
+                  )}
                   <TimelineList
                     empty="No agent steps recorded."
                     items={agentSession.steps.map((step, index) => ({

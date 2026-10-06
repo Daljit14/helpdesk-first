@@ -19,3 +19,16 @@ provider key, and explicitly select families with
 queries, while organization-scoped cache entries expire according to
 `HELP_DESK_RESEARCH_CACHE_TTL_HOURS`. Provider and judge failures skip research and
 leave the autonomy run on its existing fail-safe path.
+
+## Requester-agent web search
+
+PR15 adds a separately gated requester-agent search tool. It requires both
+`HELP_DESK_AGENT_WEB_SEARCH_ENABLED=true` and
+`HELP_DESK_RESEARCH_ENABLED=true`, plus a configured provider. Searches reuse
+the research cache and organization budget, are capped at three per agent
+session, and persist sources with session ownership. Queries are sanitized
+before provider calls. Vendor sources are ordered first and may be cited only
+when they agree with an approved guide step; community sources are untrusted
+context and cannot authorize actions or user steps. Requesters see safe source
+titles, domains, and HTTPS links, never snippets. The feature remains off by
+default; see `SETUP-NOTES-PR15.md`.

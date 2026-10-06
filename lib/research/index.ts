@@ -9,7 +9,7 @@ import { trustTierFor } from "./allowlist";
 import { guardSource } from "./guard";
 import { judgeSources } from "./judge";
 import { checkAndConsumeOrgResearchBudget } from "./budget";
-import { getCached, putCached } from "./cache";
+import { getCached, hashResearchQuery, putCached } from "./cache";
 import type { EvidenceRecord } from "@/lib/evidence/types";
 import type { EvidenceHypothesis, Fact } from "@/lib/evidence/types";
 import type {
@@ -21,17 +21,7 @@ import type {
 
 type ResearchAdmin = ReturnType<typeof createAdminClient>;
 
-async function hash(value: string): Promise<string> {
-  const data = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(value)
-  );
-  return [...new Uint8Array(data)]
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
-}
-
-function providerFor(provider: string): ResearchProvider {
+export function researchProviderFor(provider: string): ResearchProvider {
   return provider === "brave" ? createBraveProvider() : createTavilyProvider();
 }
 
@@ -99,12 +89,12 @@ export async function runResearch(
     guideTitles,
   }).slice(0, config.maxQueriesPerRun);
   if (queries.length === 0) return skip("no_queries");
-  const provider = input.provider ?? providerFor(config.provider);
+  const provider = input.provider ?? researchProviderFor(config.provider);
   const collectedSources: CollectedSource[] = [];
   let dropped = 0;
   let cachedCount = 0;
   for (const query of queries) {
-    const queryHash = await hash(query);
+    const queryHash = await hashResearchQuery(query);
     const cachedSources = await getCached(
       admin,
       input.organizationId,

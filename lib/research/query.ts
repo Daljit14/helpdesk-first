@@ -1,12 +1,12 @@
 import type { EvidenceHypothesis } from "@/lib/evidence/types";
 
-function words(value: string): string[] {
+export function queryWords(value: string, maxWords = 8): string[] {
   return value
     .toLowerCase()
     .replace(/[^a-z0-9\s-]/g, " ")
     .split(/\s+/)
     .filter((word) => word.length > 2)
-    .slice(0, 8);
+    .slice(0, maxWords);
 }
 
 export function buildResearchQueries(input: {
@@ -15,8 +15,8 @@ export function buildResearchQueries(input: {
   hypotheses: EvidenceHypothesis[];
   guideTitles: string[];
 }): string[] {
-  const category = words(input.category ?? "").join(" ");
-  const platform = words(input.platform ?? "").join(" ");
+  const category = queryWords(input.category ?? "").join(" ");
+  const platform = queryWords(input.platform ?? "").join(" ");
   const candidates = [
     ...input.hypotheses.slice(0, 3).map((hypothesis) => {
       const title = input.guideTitles.find(
@@ -25,8 +25,8 @@ export function buildResearchQueries(input: {
       return [
         platform,
         category,
-        ...words(hypothesis.cause),
-        ...words(title ?? ""),
+        ...queryWords(hypothesis.cause),
+        ...queryWords(title ?? ""),
       ]
         .filter(Boolean)
         .join(" ");
@@ -34,7 +34,7 @@ export function buildResearchQueries(input: {
     ...input.guideTitles
       .slice(0, 2)
       .map((title) =>
-        [platform, category, ...words(title)].filter(Boolean).join(" ")
+        [platform, category, ...queryWords(title)].filter(Boolean).join(" ")
       ),
   ];
   return [...new Set(candidates)]

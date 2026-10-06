@@ -7,6 +7,16 @@ import type {
 
 type CacheRow = { response: ResearchSource[]; expires_at: string };
 
+export async function hashResearchQuery(value: string): Promise<string> {
+  const data = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(value)
+  );
+  return [...new Uint8Array(data)]
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
+
 export async function getCached(
   admin: ReturnType<typeof createAdminClient>,
   organizationId: string,

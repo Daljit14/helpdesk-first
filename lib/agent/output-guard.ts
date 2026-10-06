@@ -249,28 +249,30 @@ export function guardAgentEvent(
           ];
         }),
       };
-    case "user_step":
+    case "user_step": {
+      const { citation, ...card } = event.card;
       return {
         ...event,
         card: {
-          ...event.card,
+          ...card,
           instruction: toUserText(event.card.instruction, ctx),
           why: toUserText(event.card.why, ctx),
           source: {
             ...event.card.source,
             title: toUserText(event.card.source.title, ctx),
           },
-          ...(event.card.citation && isHttpsUrl(event.card.citation.url)
+          ...(citation && isHttpsUrl(citation.url)
             ? {
                 citation: {
-                  ...event.card.citation,
-                  title: toUserText(event.card.citation.title, ctx),
-                  domain: toUserText(event.card.citation.domain, ctx),
+                  ...citation,
+                  title: toUserText(citation.title, ctx),
+                  domain: toUserText(citation.domain, ctx),
                 },
               }
             : {}),
         },
       };
+    }
     case "consent_required":
       return {
         ...event,

@@ -3,6 +3,7 @@ import { getAllIssueSlugs, getIssueBySlug } from "@/lib/search";
 import { getIssueStepPolicies, isOfferable } from "@/lib/investigation/policy";
 import {
   guardAgentEvent,
+  NO_REQUESTER,
   guardAgentOutput,
   minimizeToolOutput,
   toUserText,
@@ -300,5 +301,36 @@ describe("requester-agent output guard", () => {
     }
 
     expect(checkedSteps).toBeGreaterThan(0);
+  });
+
+  test("drops a user-step citation whose url is not https", () => {
+    const guarded = guardAgentEvent(
+      {
+        type: "user_step",
+        card: {
+          stepId: "step-1",
+          instruction: "Restart the app.",
+          why: "It clears a stuck session.",
+          source: {
+            kind: "guide",
+            guideSlug: "wifi",
+            stepIndex: 0,
+            title: "Wi-Fi",
+            url: "/issues/wifi/guide",
+          },
+          citation: {
+            kind: "web",
+            trust: "vendor",
+            domain: "learn.microsoft.com",
+            title: "Docs",
+            url: "javascript:alert(1)",
+          },
+        },
+      },
+      NO_REQUESTER
+    );
+    expect(guarded.type === "user_step" && guarded.card.citation).toBe(
+      undefined
+    );
   });
 });

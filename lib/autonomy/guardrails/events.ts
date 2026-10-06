@@ -19,6 +19,7 @@ export const GUARDRAIL_EVENT_KINDS = [
   "guardrail.breaker_open",
   "guardrail.verification_missing",
   "guardrail.execution_disabled",
+  "guardrail.assurance_insufficient",
   "guardrail.execution_allowed",
 ] as const;
 

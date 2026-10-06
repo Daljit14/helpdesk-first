@@ -21,6 +21,16 @@ import { verifyConsent } from "./consent";
 import { getIdentityBinding } from "../connectors/binding";
 import { loadDirectoryForOrganization } from "../connectors";
 import { checkHourlyLimits, recordBlastRadiusOutcome } from "../blast-radius";
+import {
+  compareAssurance,
+  computeAssurance,
+  type AssuranceFacts,
+} from "@/lib/identity/assurance";
+import {
+  getIdentityAssuranceFreshMinutes,
+  isIdentityAssuranceEnabled,
+} from "@/lib/admin/flags";
+import { requiredAssurance } from "../capabilities/registry";
 
 export type GatewayRequest = {
   run: ResolutionRun;
@@ -33,6 +43,7 @@ export type GatewayRequest = {
   actor: string;
   idempotencyKey: string;
   stepId: string;
+  assurance?: AssuranceFacts;
   verify: (input: {
     admin: HandlerAdmin;
     run: ResolutionRun;
@@ -224,6 +235,58 @@ export async function executeThroughGateway(
     ) {
       return deny(admin, req, "identity_unbound", "guardrail.identity_unbound");
     }
+  }
+  const fallbackAssurance = ticket.data.user_id
+    ? computeAssurance({
+        channel: "ticket_owner_web",
+        hasVerifiedSession: true,
+        aal: null,
+        amr: null,
+        providers: [],
+        org: {
+          idpEnforcesMfa: false,
+          ssoProvider: null,
+          profileConfirmed: false,
+        },
+        freshMinutes: getIdentityAssuranceFreshMinutes(),
+        now: new Date(),
+      })
+    : {
+        level: "A0" as const,
+        method: "unauthenticated",
+        authAt: null,
+        expiresAt: null,
+      };
+  const suppliedAssurance = req.assurance ?? fallbackAssurance;
+  const expiresAt = suppliedAssurance.expiresAt
+    ? new Date(suppliedAssurance.expiresAt).getTime()
+    : null;
+  const effectiveAssurance =
+    expiresAt !== null &&
+    Number.isFinite(expiresAt) &&
+    expiresAt < Date.now() &&
+    compareAssurance(suppliedAssurance.level, "A1") > 0
+      ? { ...suppliedAssurance, level: "A1" as const, method: "session" }
+      : suppliedAssurance;
+  const required = requiredAssurance(req.capability);
+  if (!isIdentityAssuranceEnabled() && required === "A3") {
+    return deny(
+      admin,
+      req,
+      "assurance_disabled",
+      "guardrail.assurance_insufficient"
+    );
+  }
+  if (
+    isIdentityAssuranceEnabled() &&
+    compareAssurance(effectiveAssurance.level, required) < 0
+  ) {
+    return deny(
+      admin,
+      req,
+      "assurance_insufficient",
+      "guardrail.assurance_insufficient"
+    );
   }
   if (
     req.capability.id === "verify_group_access" ||

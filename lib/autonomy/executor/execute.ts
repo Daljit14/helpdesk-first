@@ -38,6 +38,7 @@ import { parameterHash } from "../guardrails/hash";
 import { readBoundConsent } from "../guardrails/consent";
 import { getDeviceAction } from "@/lib/device-agent/catalog";
 import { findDeviceForTicket } from "@/lib/device-agent/server/jobs";
+import type { AssuranceFacts } from "@/lib/identity/assurance";
 
 type PlanStep = { id: string; detail?: Record<string, unknown> };
 
@@ -61,6 +62,7 @@ export type ExecutePlanDeps = {
     grantedAt: string;
     capabilityIds: string[];
   };
+  assurance?: AssuranceFacts;
 };
 
 export async function verifyExecution(input: {
@@ -346,6 +348,7 @@ async function executeHandler(
       parameters: params,
     }),
     stepId,
+    assurance: deps.assurance,
     verify: deps.verify ?? verifyExecution,
   });
   if (!result.ok) return escalate(admin, run, result.code, deps);

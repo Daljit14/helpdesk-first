@@ -26,6 +26,16 @@ export function isAuditChainCheckEnabled(): boolean {
   return process.env.HELP_DESK_AUDIT_CHAIN_CHECK_ENABLED === "true";
 }
 
+export function isIdentityAssuranceEnabled(): boolean {
+  return process.env.HELP_DESK_IDENTITY_ASSURANCE_ENABLED === "true";
+}
+
+export function getIdentityAssuranceFreshMinutes(): number {
+  const parsed = Number(process.env.HELP_DESK_IDENTITY_ASSURANCE_FRESH_MINUTES);
+  if (!Number.isFinite(parsed)) return 10;
+  return Math.min(60, Math.max(1, Math.trunc(parsed)));
+}
+
 export function isSecureAttachmentsEnabled(): boolean {
   return process.env.HELP_DESK_SECURE_ATTACHMENTS_ENABLED === "true";
 }

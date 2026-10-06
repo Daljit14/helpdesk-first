@@ -18,6 +18,16 @@ import { createRateLimiter, getRateLimitConfig } from "@/lib/ai/rate-limit";
 import { encryptTicketForWrite } from "@/lib/security/ticket-crypto";
 import { resolveOrganizationForUser } from "@/lib/org/membership";
 import { isOrgEncryptionEnabled } from "@/lib/security/data-protection-config";
+import {
+  getIdentityAssuranceFreshMinutes,
+  isIdentityAssuranceEnabled,
+} from "@/lib/admin/flags";
+import { computeWebAssurance } from "@/lib/identity/server";
+import { compareAssurance } from "@/lib/identity/assurance";
+import {
+  getCapability,
+  requiredAssurance,
+} from "@/lib/autonomy/capabilities/registry";
 
 type ResolutionActionResult = { error: string };
 const consentLimiter = createRateLimiter(
@@ -102,16 +112,66 @@ export async function respondToAiConsent(
   const admin = createAdminClient();
   const request = await admin
     .from("approval_requests")
-    .select("id,organization_id,run_id,ticket_id,type,status,expires_at")
+    .select(
+      "id,organization_id,run_id,ticket_id,type,status,expires_at,capability_id"
+    )
     .eq("id", requestId)
     .maybeSingle();
   if (request.error || !request.data || request.data.type !== "user_consent")
     return { error: "Consent request not found." };
+  const ticket = await admin
+    .from("tickets")
+    .select("user_id,organization_id")
+    .eq("id", request.data.ticket_id)
+    .eq("organization_id", request.data.organization_id)
+    .maybeSingle();
+  if (
+    ticket.error ||
+    ticket.data?.user_id !== user.id ||
+    ticket.data.organization_id !== request.data.organization_id
+  )
+    return { error: "Consent request not found." };
+  if (
+    request.data.expires_at &&
+    new Date(request.data.expires_at).getTime() <= Date.now()
+  )
+    return { error: "This consent request has expired." };
+  if (request.data.status !== "requested")
+    return { error: "Consent request is no longer available." };
   const rate = await consentLimiter.check(
     `org:${request.data.organization_id}:user:${user.id}`
   );
   if (!rate.allowed)
     return { error: "Too many consent attempts. Try again later." };
+  const supabase = await createClient();
+  let claims: Record<string, unknown> | null = null;
+  try {
+    const result = await supabase.auth.getClaims();
+    claims =
+      result.data?.claims && typeof result.data.claims === "object"
+        ? (result.data.claims as Record<string, unknown>)
+        : null;
+  } catch {
+    claims = null;
+  }
+  const assurance = await computeWebAssurance({
+    admin,
+    organizationId: request.data.organization_id,
+    user,
+    claims,
+    freshMinutes: getIdentityAssuranceFreshMinutes(),
+  });
+  if (decision === "grant") {
+    const capability = getCapability(request.data.capability_id ?? "", 1);
+    if (!capability) return { error: "Consent request could not be verified." };
+    const required = requiredAssurance(capability);
+    if (
+      (!isIdentityAssuranceEnabled() && required === "A3") ||
+      (isIdentityAssuranceEnabled() &&
+        compareAssurance(assurance.level, required) < 0)
+    )
+      return { error: "Please confirm it's you before approving this action." };
+  }
   const consumed = await consumeAiConsent(admin, requestId, user.id, decision);
   if (!consumed.ok)
     return {
@@ -129,7 +189,12 @@ export async function respondToAiConsent(
     .eq("organization_id", request.data.organization_id)
     .eq("ticket_id", request.data.ticket_id)
     .maybeSingle();
-  if (run.data) await resumeAfterApproval(admin, run.data, { actor: user.id });
+  if (run.data) {
+    await resumeAfterApproval(admin, run.data, {
+      actor: user.id,
+      assurance,
+    });
+  }
   revalidatePath(`/tickets/${request.data.ticket_id}`);
   return { success: true };
 }

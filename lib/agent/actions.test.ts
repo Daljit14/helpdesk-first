@@ -163,6 +163,7 @@ function proposalSession(overrides: Partial<AgentSession> = {}): AgentSession {
 describe("requester action proposals", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubEnv("HELP_DESK_IDENTITY_ASSURANCE_ENABLED", "false");
     mocks.readKillSwitches.mockResolvedValue({
       anyActive: false,
       global: false,
@@ -192,6 +193,97 @@ describe("requester action proposals", () => {
         status: ResolutionRun["status"]
       ) => ({ ...current, status, previous_status: current.status })
     );
+  });
+
+  test("rejects account changes while identity assurance is disabled", async () => {
+    const admin = actionAdmin();
+    const result = await proposeAction(
+      admin as never,
+      proposalSession(),
+      {
+        capabilityId: "send_password_reset_link",
+        params: {},
+        hypothesisId: "ev-1",
+        rationale: "Reset the account password.",
+      },
+      {
+        actor: "requester_agent:session-1",
+        evidence: [{ id: "ev-1", tool: "get_ticket_history" }],
+        assurance: {
+          level: "A3",
+          method: "supabase_mfa",
+          authAt: null,
+          expiresAt: null,
+        },
+      }
+    );
+
+    expect(result).toEqual({
+      kind: "rejected",
+      code: "assurance_disabled",
+      message:
+        "Account changes aren't available in chat yet; a technician can help.",
+    });
+    expect(mocks.writeStep).toHaveBeenCalledWith(
+      admin,
+      expect.anything(),
+      expect.objectContaining({
+        kind: "action_rejected",
+        resultSummary: expect.stringContaining("assurance_disabled"),
+      })
+    );
+    expect(mocks.startRun).not.toHaveBeenCalled();
+    expect(mocks.executePlan).not.toHaveBeenCalled();
+  });
+
+  test("requests step-up for insufficient account assurance without escalating", async () => {
+    vi.stubEnv("HELP_DESK_IDENTITY_ASSURANCE_ENABLED", "true");
+    const admin = actionAdmin();
+    const events: unknown[] = [];
+    const result = await proposeAction(
+      admin as never,
+      proposalSession(),
+      {
+        capabilityId: "send_password_reset_link",
+        params: {},
+        hypothesisId: "ev-1",
+        rationale: "Reset the account password.",
+      },
+      {
+        actor: "requester_agent:session-1",
+        evidence: [{ id: "ev-1", tool: "get_ticket_history" }],
+        assurance: {
+          level: "A1",
+          method: "session",
+          authAt: null,
+          expiresAt: null,
+        },
+        emit: (event) => events.push(event),
+      }
+    );
+
+    expect(result).toMatchObject({
+      kind: "rejected",
+      code: "assurance_required",
+    });
+    expect(events).toEqual([
+      {
+        type: "step_up_required",
+        card: {
+          capabilityId: "send_password_reset_link",
+          requiredLevel: "A3",
+          currentLevel: "A1",
+          stepUpUrl: "/auth/step-up?next=/chat",
+        },
+      },
+    ]);
+    expect(mocks.writeStep).toHaveBeenCalledWith(
+      admin,
+      expect.anything(),
+      expect.objectContaining({ kind: "step_up_required" })
+    );
+    expect(mocks.escalate).not.toHaveBeenCalled();
+    expect(mocks.startRun).not.toHaveBeenCalled();
   });
 
   test("does not let organization environment evidence authorize an action", async () => {
@@ -652,6 +744,59 @@ describe("requester action proposals", () => {
         kind: "action_rejected",
         resultSummary: "Consent request expired or invalid.",
       })
+    );
+  });
+
+  test("leaves a pending approval unconsumed when consent needs step-up", async () => {
+    vi.stubEnv("HELP_DESK_IDENTITY_ASSURANCE_ENABLED", "true");
+    const target: AgentSession = {
+      ...session,
+      resolution_run_id: "run-1",
+      pending_approval_id: "approval-1",
+    };
+    const admin = actionAdmin({
+      approval: {
+        id: "approval-1",
+        run_id: "run-1",
+        capability_id: "send_password_reset_link",
+        status: "requested",
+      },
+    });
+    const events: unknown[] = [];
+
+    const result = await decideConsent(
+      admin as never,
+      target,
+      {
+        approvalRequestId: "approval-1",
+        decision: "approve",
+        userId: "user-1",
+        assurance: {
+          level: "A1",
+          method: "session",
+          authAt: null,
+          expiresAt: null,
+        },
+      },
+      (event) => events.push(event),
+      new AbortController().signal
+    );
+
+    expect(result).toBe("invalid");
+    expect(mocks.consumeAiConsent).not.toHaveBeenCalled();
+    expect(events).toContainEqual({
+      type: "step_up_required",
+      card: {
+        capabilityId: "send_password_reset_link",
+        requiredLevel: "A3",
+        currentLevel: "A1",
+        stepUpUrl: "/auth/step-up?next=/chat",
+      },
+    });
+    expect(mocks.writeStep).toHaveBeenCalledWith(
+      admin,
+      target,
+      expect.objectContaining({ kind: "step_up_required" })
     );
   });
 });

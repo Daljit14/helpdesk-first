@@ -57,12 +57,15 @@ const SSO_OPTIONS = [
 export function OrgEnvironmentPanel({
   profile,
   confirmedBy,
+  idpEnforcesMfa,
   suggestions,
 }: {
   profile: OrgEnvironmentProfile | null;
   confirmedBy: string | null;
+  idpEnforcesMfa: boolean;
   suggestions: InventorySuggestions;
 }) {
+  const [mfaRequired, setMfaRequired] = useState(idpEnforcesMfa);
   const [formState, setFormState] = useState<OrgEnvironmentInput>(
     () => profile ?? EMPTY_PROFILE
   );
@@ -141,6 +144,16 @@ export function OrgEnvironmentPanel({
       </section>
 
       <form action={saveAction} className="space-y-5">
+        <label className="flex items-start gap-3 text-sm font-semibold">
+          <input
+            checked={mfaRequired}
+            className="mt-0.5"
+            name="idpEnforcesMfa"
+            onChange={(event) => setMfaRequired(event.currentTarget.checked)}
+            type="checkbox"
+          />
+          <span>Our identity provider requires MFA for every sign-in</span>
+        </label>
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="space-y-1 text-sm font-semibold">
             <span>VPN client</span>

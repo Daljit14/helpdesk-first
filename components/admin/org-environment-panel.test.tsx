@@ -33,6 +33,7 @@ describe("OrgEnvironmentPanel", () => {
       <OrgEnvironmentPanel
         profile={null}
         confirmedBy={null}
+        idpEnforcesMfa={false}
         suggestions={suggestions}
       />
     );
@@ -75,6 +76,7 @@ describe("OrgEnvironmentPanel", () => {
           confirmedAt: null,
         }}
         confirmedBy={null}
+        idpEnforcesMfa={false}
         suggestions={{ ...suggestions, printers: [] }}
       />
     );
@@ -90,5 +92,10 @@ describe("OrgEnvironmentPanel", () => {
     expect(
       screen.getByRole("button", { name: "Confirm profile" })
     ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText(
+        "Our identity provider requires MFA for every sign-in"
+      )
+    ).not.toBeChecked();
   });
 });

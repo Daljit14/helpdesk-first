@@ -22,7 +22,10 @@ import { resumeAfterApproval } from "@/lib/autonomy/executor/resume";
 import { verifyRun } from "@/lib/autonomy/verification/engine";
 import type { AgentEvent, AgentSession, ConsentCard } from "./types";
 import { writeStep, updateSession, escalate } from "./session";
-import { isRequesterAgentAutorunEnabledForOrg } from "@/lib/admin/flags";
+import {
+  isIdentityAssuranceEnabled,
+  isRequesterAgentAutorunEnabledForOrg,
+} from "@/lib/admin/flags";
 import {
   isSnapshotReversible,
   readTier,
@@ -30,6 +33,11 @@ import {
   type AutonomyTier,
 } from "@/lib/autonomy/ladder";
 import { sessionConsentActive } from "./session-consent";
+import {
+  compareAssurance,
+  type AssuranceFacts,
+} from "@/lib/identity/assurance";
+import { requiredAssurance } from "@/lib/autonomy/capabilities/registry";
 
 type Admin = ReturnType<
   typeof import("@/lib/supabase/admin").createAdminClient
@@ -61,7 +69,9 @@ export type ProposeOutcome =
         | "read_only_capability"
         | "tier_disabled"
         | "tier_shadow"
-        | "service_incident_active";
+        | "service_incident_active"
+        | "assurance_disabled"
+        | "assurance_required";
       message: string;
     }
   | { kind: "escalate"; reason: string }
@@ -401,6 +411,7 @@ export async function proposeAction(
     platform?: string;
     emit?: (event: AgentEvent) => void;
     signal?: AbortSignal;
+    assurance?: AssuranceFacts;
   }
 ): Promise<ProposeOutcome> {
   const paramsHash = hashParams(input.params);
@@ -452,6 +463,48 @@ export async function proposeAction(
       outcome: "security_incident",
     });
     return { kind: "escalate", reason: "denylisted" };
+  }
+  const required = requiredAssurance(capability);
+  if (!isIdentityAssuranceEnabled() && required === "A3") {
+    await actionStep(
+      admin,
+      session,
+      "action_rejected",
+      input.capabilityId,
+      paramsHash,
+      "assurance_disabled"
+    );
+    return reject(
+      "assurance_disabled",
+      "Account changes aren't available in chat yet; a technician can help."
+    );
+  }
+  if (
+    isIdentityAssuranceEnabled() &&
+    (!ctx.assurance || compareAssurance(ctx.assurance.level, required) < 0)
+  ) {
+    const currentLevel = ctx.assurance?.level ?? "A0";
+    await actionStep(
+      admin,
+      session,
+      "step_up_required",
+      input.capabilityId,
+      paramsHash,
+      `${currentLevel}->${required}`
+    );
+    ctx.emit?.({
+      type: "step_up_required",
+      card: {
+        capabilityId: input.capabilityId,
+        requiredLevel: required,
+        currentLevel,
+        stepUpUrl: "/auth/step-up?next=/chat",
+      },
+    });
+    return reject(
+      "assurance_required",
+      "Please confirm it's you before continuing."
+    );
   }
   if (capability.sideEffects === "read_only")
     return reject(
@@ -601,6 +654,7 @@ export async function proposeAction(
       await verifyRun(executionAdmin, executionRun);
       return { outcome: "pending" };
     },
+    assurance: ctx.assurance,
   });
   if (!result) return { kind: "escalate", reason: "execution_unavailable" };
   if (
@@ -690,6 +744,7 @@ export async function decideConsent(
     approvalRequestId: string;
     decision: "approve" | "decline";
     userId: string;
+    assurance?: AssuranceFacts;
   },
   emit: (event: AgentEvent) => void,
   signal: AbortSignal
@@ -725,6 +780,31 @@ export async function decideConsent(
     approval.data.run_id !== session.resolution_run_id
   )
     return rejectConsent();
+  const capability = getCapability(approval.data.capability_id ?? "", 1);
+  if (capability && input.decision === "approve") {
+    const required = requiredAssurance(capability);
+    const current = input.assurance?.level ?? "A0";
+    const insufficient =
+      (!isIdentityAssuranceEnabled() && required === "A3") ||
+      (isIdentityAssuranceEnabled() && compareAssurance(current, required) < 0);
+    if (insufficient) {
+      await writeStep(admin, session, {
+        kind: "step_up_required",
+        capabilityId: capability.id,
+        resultSummary: `${current}->${required}`,
+      });
+      emit({
+        type: "step_up_required",
+        card: {
+          capabilityId: capability.id,
+          requiredLevel: required,
+          currentLevel: current,
+          stepUpUrl: "/auth/step-up?next=/chat",
+        },
+      });
+      return "invalid";
+    }
+  }
   const runResult = await admin
     .from("resolution_runs")
     .select("*")
@@ -787,6 +867,7 @@ export async function decideConsent(
   const resumed = await resumeAfterApproval(admin, run, {
     actor: `requester_agent:${session.id}`,
     consent: { type: "user_consent", userId: input.userId },
+    assurance: input.assurance,
   });
   if (!resumed || resumed.status === "escalated") {
     const reason = resumed?.escalation_reason ?? "execution_denied";

@@ -2,6 +2,7 @@ import type { createAdminClient } from "@/lib/supabase/admin";
 import type { UserStepCard } from "./user-steps";
 import type { OutputGuardContext } from "./output-guard";
 import type { TrustTier } from "@/lib/research/types";
+import type { AssuranceLevel } from "@/lib/identity/assurance";
 
 export type ConsentCard = {
   approvalRequestId: string;
@@ -57,6 +58,15 @@ export type AgentEvent =
     }
   | { type: "action_proposed"; capabilityId: string; text: string }
   | { type: "consent_required"; card: ConsentCard }
+  | {
+      type: "step_up_required";
+      card: {
+        capabilityId: string;
+        requiredLevel: AssuranceLevel;
+        currentLevel: AssuranceLevel;
+        stepUpUrl: string;
+      };
+    }
   | { type: "session_consent_offer"; card: SessionConsentCard }
   | {
       type: "session_consent";
@@ -118,6 +128,10 @@ export type AgentSession = {
   autorun_consent_expires_at?: string | null;
   autorun_consent_capabilities?: string[];
   updated_at: string;
+  assurance_level?: AssuranceLevel | null;
+  assurance_method?: string | null;
+  assurance_auth_at?: string | null;
+  assurance_expires_at?: string | null;
 };
 
 export type AgentContext = {

@@ -12,6 +12,8 @@ const mocks = vi.hoisted(() => ({
   createAdminClient: vi.fn(),
   isResolutionTrackingEnabled: vi.fn(),
   isTicketWorkflowEnabled: vi.fn(),
+  isIdentityAssuranceEnabled: vi.fn(),
+  getIdentityAssuranceFreshMinutes: vi.fn(() => 10),
   recordAnalyticsEvent: vi.fn(),
   completeUserHandoff: vi.fn(),
   createWorkflowTicket: vi.fn(),
@@ -30,6 +32,8 @@ vi.mock("@/lib/supabase/admin", () => ({
 vi.mock("@/lib/admin/flags", () => ({
   isResolutionTrackingEnabled: mocks.isResolutionTrackingEnabled,
   isTicketWorkflowEnabled: mocks.isTicketWorkflowEnabled,
+  isIdentityAssuranceEnabled: mocks.isIdentityAssuranceEnabled,
+  getIdentityAssuranceFreshMinutes: mocks.getIdentityAssuranceFreshMinutes,
 }));
 vi.mock("@/lib/analytics/events", () => ({
   recordAnalyticsEvent: mocks.recordAnalyticsEvent,
@@ -50,6 +54,9 @@ const originalWorkflowEnv = process.env.HELP_DESK_TICKET_WORKFLOW_ENABLED;
 afterEach(() => {
   vi.clearAllMocks();
   mocks.isTicketWorkflowEnabled.mockReturnValue(false);
+  mocks.isIdentityAssuranceEnabled.mockReturnValue(false);
+  mocks.getIdentityAssuranceFreshMinutes.mockReturnValue(10);
+  mocks.createClient.mockReset();
   if (originalWorkflowEnv === undefined) {
     delete process.env.HELP_DESK_TICKET_WORKFLOW_ENABLED;
   } else {
@@ -67,12 +74,16 @@ function consentAdmin(
     run?: Record<string, unknown> | null;
   } = {}
 ) {
+  let updates = 0;
   const from = vi.fn((table: string) => {
     const chain: Record<string, (...args: unknown[]) => unknown> = {};
     let updated = false;
     for (const method of ["select", "eq", "update"]) {
       chain[method] = () => {
-        if (method === "update") updated = true;
+        if (method === "update") {
+          updated = true;
+          updates += 1;
+        }
         return chain;
       };
     }
@@ -88,7 +99,12 @@ function consentAdmin(
     };
     return chain;
   });
-  return { from };
+  return {
+    from,
+    get updates() {
+      return updates;
+    },
+  };
 }
 
 describe("resolution actions", () => {
@@ -151,6 +167,7 @@ describe("resolution actions", () => {
         run_id: "run-1",
         ticket_id: ticketId,
         type: "user_consent",
+        capability_id: "retry_failed_notification",
         status: "requested",
         expires_at: new Date(Date.now() + 60_000).toISOString(),
       },
@@ -164,7 +181,10 @@ describe("resolution actions", () => {
     expect(mocks.resumeAfterApproval).toHaveBeenCalledWith(
       admin,
       { id: "run-1", status: "awaiting_consent" },
-      { actor: user.id }
+      expect.objectContaining({
+        actor: user.id,
+        assurance: expect.objectContaining({ level: "A0" }),
+      })
     );
   });
 
@@ -177,6 +197,7 @@ describe("resolution actions", () => {
         run_id: "run-1",
         ticket_id: ticketId,
         type: "user_consent",
+        capability_id: "retry_failed_notification",
         status: "requested",
         expires_at: new Date(Date.now() + 60_000).toISOString(),
       },
@@ -188,6 +209,44 @@ describe("resolution actions", () => {
       success: true,
     });
     expect(mocks.resumeAfterApproval).toHaveBeenCalledTimes(1);
+  });
+
+  test("leaves account consent pending when identity assurance is disabled", async () => {
+    mocks.getCurrentUser.mockResolvedValue(user);
+    const admin = consentAdmin({
+      request: {
+        id: "request-1",
+        organization_id: "org-1",
+        run_id: "run-1",
+        ticket_id: ticketId,
+        type: "user_consent",
+        capability_id: "send_password_reset_link",
+        status: "requested",
+        expires_at: new Date(Date.now() + 60_000).toISOString(),
+      },
+      ticket: { user_id: user.id, organization_id: "org-1" },
+      run: { id: "run-1", status: "awaiting_consent" },
+    });
+    mocks.createAdminClient.mockReturnValue(admin);
+    mocks.createClient.mockResolvedValue({
+      auth: {
+        getClaims: vi.fn(async () => ({
+          data: {
+            claims: {
+              sub: "user-1",
+              aal: "aal1",
+              amr: [{ method: "password", timestamp: Date.now() / 1000 }],
+            },
+          },
+        })),
+      },
+    });
+
+    await expect(respondToAiConsent("request-1", "grant")).resolves.toEqual({
+      error: "Please confirm it's you before approving this action.",
+    });
+    expect(admin.updates).toBe(0);
+    expect(mocks.resumeAfterApproval).not.toHaveBeenCalled();
   });
 
   test("rejects when the flag is off", async () => {

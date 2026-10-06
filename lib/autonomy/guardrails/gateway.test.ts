@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { z } from "zod";
 
 const mocks = vi.hoisted(() => ({
@@ -201,6 +201,7 @@ function baseCapability(): CapabilityDefinition {
     owner: "test",
     reviewDate: "2099-01-01",
     sideEffects: "read_only",
+    minAssurance: "A0",
   };
 }
 
@@ -236,6 +237,10 @@ function request(
 }
 
 describe("executeThroughGateway", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubEnv("HELP_DESK_AUTONOMOUS_EXECUTION_ENABLED", "true");
@@ -269,6 +274,54 @@ describe("executeThroughGateway", () => {
     const { admin, handler } = makeAdmin();
     const result = await executeThroughGateway(admin, request());
     expect(result).toMatchObject({ ok: false, code });
+    expect(handler.run).not.toHaveBeenCalled();
+  });
+
+  test("denies A3 capabilities when assurance is disabled after identity binding", async () => {
+    vi.stubEnv("HELP_DESK_IDENTITY_ASSURANCE_ENABLED", "false");
+    const capability = {
+      ...baseCapability(),
+      minAssurance: "A3" as const,
+      requiresIdentityBinding: false,
+    };
+    const { admin, handler } = makeAdmin();
+    const result = await executeThroughGateway(
+      admin,
+      request({
+        capability,
+        assurance: {
+          level: "A3",
+          method: "test",
+          authAt: null,
+          expiresAt: null,
+        },
+      })
+    );
+    expect(result).toMatchObject({ ok: false, code: "assurance_disabled" });
+    expect(handler.run).not.toHaveBeenCalled();
+  });
+
+  test("preserves identity-unbound priority over assurance denial", async () => {
+    vi.stubEnv("HELP_DESK_IDENTITY_ASSURANCE_ENABLED", "true");
+    const capability = {
+      ...baseCapability(),
+      minAssurance: "A3" as const,
+      requiresIdentityBinding: true,
+    };
+    const { admin, handler } = makeAdmin();
+    const result = await executeThroughGateway(
+      admin,
+      request({
+        capability,
+        assurance: {
+          level: "A0",
+          method: "test",
+          authAt: null,
+          expiresAt: null,
+        },
+      })
+    );
+    expect(result).toMatchObject({ ok: false, code: "identity_unbound" });
     expect(handler.run).not.toHaveBeenCalled();
   });
 

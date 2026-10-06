@@ -40,6 +40,7 @@ const expected = z
     outputRejected: z.boolean().optional(),
     rejectCode: z.string().optional(),
     gatewayCode: z.string().optional(),
+    assuranceLevel: z.enum(["A0", "A1", "A2", "A3"]).optional(),
     researchConfidence: z.number().min(0).max(1).optional(),
     researchPresent: z.boolean().optional(),
     researchInfluencedNonSafe: z.boolean().optional(),
@@ -80,6 +81,18 @@ const identity = z
       .strict()
       .optional(),
     allowedGroupIds: z.array(z.string()).default([]),
+  })
+  .strict();
+
+const identityAssurance = z
+  .object({
+    mode: z.enum(["gateway", "channel"]),
+    level: z.enum(["A0", "A1", "A2", "A3"]),
+    channel: z.enum(["web", "email", "api", "ticket_owner_web"]).default("web"),
+    flagEnabled: z.boolean().default(true),
+    capabilityId: z.string().optional(),
+    expired: z.boolean().default(false),
+    invalidParameters: z.boolean().default(false),
   })
   .strict();
 
@@ -339,6 +352,7 @@ export const benchmarkCaseSchema = z
       .enum(["attempts_exhausted", "budget_exhausted", "repeated_failure"])
       .optional(),
     identity: identity.optional(),
+    identityAssurance: identityAssurance.optional(),
     research: research.optional(),
     device: device.optional(),
     requesterAgent: requesterAgent.optional(),

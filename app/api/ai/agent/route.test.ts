@@ -7,12 +7,15 @@ const mocks = vi.hoisted(() => ({
   isRequesterAgentEnabledForOrg: vi.fn(),
   isRequesterAgentVisionEnabledForOrg: vi.fn(),
   isAgentUserStepsEnabled: vi.fn(),
+  isIdentityAssuranceEnabled: vi.fn(),
   checkRateLimit: vi.fn(),
   createRateLimiter: vi.fn(() => ({})),
   createAdminClient: vi.fn(),
   createSession: vi.fn(),
   loadActiveSession: vi.fn(),
+  updateSession: vi.fn(),
   writeStep: vi.fn(),
+  createClient: vi.fn(),
   handleAgentRequest: vi.fn(),
   escalate: vi.fn(),
 }));
@@ -24,6 +27,8 @@ vi.mock("@/lib/org/membership", () => ({
   resolveOrganizationForUser: mocks.resolveOrganizationForUser,
 }));
 vi.mock("@/lib/admin/flags", () => ({
+  getIdentityAssuranceFreshMinutes: vi.fn(() => 10),
+  isIdentityAssuranceEnabled: mocks.isIdentityAssuranceEnabled,
   isRequesterAgentEnabled: mocks.isRequesterAgentEnabled,
   isRequesterAgentEnabledForOrg: mocks.isRequesterAgentEnabledForOrg,
   isRequesterAgentVisionEnabledForOrg:
@@ -40,8 +45,12 @@ vi.mock("@/lib/supabase/admin", () => ({
 vi.mock("@/lib/agent/session", () => ({
   createSession: mocks.createSession,
   loadActiveSession: mocks.loadActiveSession,
+  updateSession: mocks.updateSession,
   writeStep: mocks.writeStep,
   escalate: mocks.escalate,
+}));
+vi.mock("@/lib/supabase/server", () => ({
+  createClient: mocks.createClient,
 }));
 vi.mock("@/lib/agent/turn", () => ({
   handleAgentRequest: mocks.handleAgentRequest,
@@ -54,6 +63,10 @@ const session = {
   organization_id: "org",
   requester_id: "user",
   status: "active",
+  assurance_level: null as string | null,
+  assurance_method: null as string | null,
+  assurance_auth_at: null as string | null,
+  assurance_expires_at: null as string | null,
 };
 
 function request(body: unknown): Request {
@@ -66,15 +79,28 @@ function request(body: unknown): Request {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  session.assurance_level = null;
+  session.assurance_method = null;
+  session.assurance_auth_at = null;
+  session.assurance_expires_at = null;
   mocks.getCurrentUser.mockResolvedValue({ id: "user" });
   mocks.resolveOrganizationForUser.mockResolvedValue({ organizationId: "org" });
   mocks.isRequesterAgentEnabled.mockReturnValue(true);
   mocks.isRequesterAgentEnabledForOrg.mockReturnValue(true);
   mocks.isRequesterAgentVisionEnabledForOrg.mockReturnValue(true);
   mocks.isAgentUserStepsEnabled.mockReturnValue(false);
+  mocks.isIdentityAssuranceEnabled.mockReturnValue(false);
   mocks.checkRateLimit.mockResolvedValue({ allowed: true });
   mocks.createSession.mockResolvedValue(session);
   mocks.loadActiveSession.mockResolvedValue(session);
+  mocks.updateSession.mockResolvedValue(session);
+  mocks.createClient.mockResolvedValue({
+    auth: {
+      getClaims: vi.fn(async () => ({
+        data: { claims: { sub: "user", amr: [{ method: "pwd" }] } },
+      })),
+    },
+  });
   mocks.createAdminClient.mockReturnValue({});
   mocks.handleAgentRequest.mockResolvedValue(undefined);
   mocks.escalate.mockResolvedValue("ticket-id");
@@ -203,5 +229,57 @@ describe("requester agent route", () => {
       type: "session",
       sessionId: session.id,
     });
+  });
+
+  test("computes and persists only verified assurance facts when enabled", async () => {
+    mocks.isIdentityAssuranceEnabled.mockReturnValue(true);
+    mocks.createClient.mockResolvedValue({
+      auth: {
+        getClaims: vi.fn(async () => ({
+          data: {
+            claims: {
+              sub: "user",
+              aal: "aal1",
+              amr: [{ method: "password", timestamp: Date.now() / 1000 }],
+              access_token: "must-not-be-forwarded",
+            },
+          },
+        })),
+      },
+    });
+
+    const response = await POST(request({ message: "hello" }));
+    await response.text();
+
+    expect(mocks.updateSession).toHaveBeenCalledWith(
+      {},
+      session,
+      expect.objectContaining({
+        assurance_level: "A2",
+        assurance_method: "password",
+        assurance_auth_at: expect.any(String),
+        assurance_expires_at: expect.any(String),
+      })
+    );
+    expect(mocks.writeStep).toHaveBeenCalledWith(
+      {},
+      session,
+      expect.objectContaining({
+        kind: "identity_assurance",
+        resultSummary: expect.stringContaining('"level":"A2"'),
+      })
+    );
+    expect(mocks.handleAgentRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        assurance: {
+          level: "A2",
+          method: "password",
+          authAt: expect.any(String),
+          expiresAt: expect.any(String),
+        },
+      })
+    );
+    const args = mocks.handleAgentRequest.mock.calls[0][0];
+    expect(JSON.stringify(args)).not.toContain("must-not-be-forwarded");
   });
 });

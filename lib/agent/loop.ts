@@ -1,4 +1,5 @@
 import { alertSecurityEvent } from "@/lib/autonomy/alerts";
+import { isIdentityAssuranceEnabled } from "@/lib/admin/flags";
 import { checkUserMessageSafety } from "@/lib/ai/safety-policy";
 import { guardModelInput } from "@/lib/autonomy/guardrails/input";
 import { readKillSwitches } from "@/lib/autonomy/kill-switches";
@@ -54,6 +55,7 @@ import {
 import { sanitizeServiceText } from "@/lib/service-health/url";
 import type { AgentEvent, AgentSession } from "./types";
 import type { createAdminClient } from "@/lib/supabase/admin";
+import type { AssuranceFacts } from "@/lib/identity/assurance";
 
 type Admin = ReturnType<typeof createAdminClient>;
 
@@ -97,6 +99,7 @@ export type AgentLoopDeps = {
   orgEnvironmentEnabled?: boolean;
   userStepsEnabled?: boolean;
   webSearchEnabled?: boolean;
+  assurance?: AssuranceFacts;
   checkUserStep?: (input: {
     issueSlug: string;
     stepIndex: number;
@@ -132,6 +135,7 @@ export async function runAgentTurn(input: {
   trustedSystemEvent?: boolean;
   model?: AgentModel;
   platform?: string;
+  assurance?: AssuranceFacts;
   routing?: { screenshotAttached?: boolean; failedVerification?: boolean };
   outputGuard?: OutputGuardContext;
   emit: (event: AgentEvent) => void;
@@ -310,7 +314,8 @@ export async function runAgentTurn(input: {
         orgEnvironmentEnabled,
         diagnosticSourcesEnabled,
         userStepsEnabled,
-        webSearchEnabled
+        webSearchEnabled,
+        isIdentityAssuranceEnabled() ? input.assurance?.level : undefined
       ),
       messages,
       tools: getAgentTools(
@@ -568,6 +573,7 @@ export async function runAgentTurn(input: {
               platform,
               emit,
               signal,
+              assurance: input.assurance,
             }
           );
       if (action.kind === "consent_required") {

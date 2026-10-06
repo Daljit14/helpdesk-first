@@ -1,5 +1,6 @@
 import type { z } from "zod";
 import type { StepRisk } from "@/lib/investigation/policy";
+import type { AssuranceLevel } from "@/lib/identity/assurance";
 
 export const CAPABILITY_PLATFORMS = [
   "Windows",
@@ -58,6 +59,7 @@ export type CapabilityDefinition<S extends z.ZodTypeAny = z.ZodTypeAny> = {
   owner: string;
   reviewDate: string;
   sideEffects: CapabilitySideEffects;
+  minAssurance?: AssuranceLevel;
   requiresIdentityBinding?: boolean;
   estimatedCostCents?: number;
 };

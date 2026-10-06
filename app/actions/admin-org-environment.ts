@@ -76,28 +76,38 @@ export async function saveOrgEnvironmentAction(
 
   try {
     const now = new Date().toISOString();
-    const result = await createAdminClient()
+    const admin = createAdminClient();
+    const profile = {
+      organization_id: session.organizationId,
+      vpn_client: parsed.data.vpnClient,
+      mdm_provider: parsed.data.mdmProvider,
+      email_stack: parsed.data.emailStack,
+      chat_stack: parsed.data.chatStack,
+      sso_provider: parsed.data.ssoProvider,
+      standard_platforms: parsed.data.standardPlatforms,
+      standard_os_versions: parsed.data.standardOsVersions,
+      printer_fleet: parsed.data.printerFleet,
+      approved_software: parsed.data.approvedSoftware,
+      status: "draft",
+      updated_by: session.userId,
+      updated_at: now,
+      confirmed_by: null,
+      confirmed_at: null,
+      idp_enforces_mfa: formData.get("idpEnforcesMfa") === "on",
+    };
+    let result = await admin
       .from("org_environment_profile")
-      .upsert(
-        {
-          organization_id: session.organizationId,
-          vpn_client: parsed.data.vpnClient,
-          mdm_provider: parsed.data.mdmProvider,
-          email_stack: parsed.data.emailStack,
-          chat_stack: parsed.data.chatStack,
-          sso_provider: parsed.data.ssoProvider,
-          standard_platforms: parsed.data.standardPlatforms,
-          standard_os_versions: parsed.data.standardOsVersions,
-          printer_fleet: parsed.data.printerFleet,
-          approved_software: parsed.data.approvedSoftware,
-          status: "draft",
-          updated_by: session.userId,
-          updated_at: now,
-          confirmed_by: null,
-          confirmed_at: null,
-        },
-        { onConflict: "organization_id" }
-      );
+      .upsert(profile, { onConflict: "organization_id" });
+    if (
+      result.error &&
+      (result.error.code === "42703" || result.error.code === "PGRST204") &&
+      /idp_enforces_mfa/i.test(result.error.message)
+    ) {
+      const { idp_enforces_mfa: _unsupported, ...legacyProfile } = profile;
+      result = await admin
+        .from("org_environment_profile")
+        .upsert(legacyProfile, { onConflict: "organization_id" });
+    }
     if (result.error)
       return { error: "Environment profile could not be saved." };
 

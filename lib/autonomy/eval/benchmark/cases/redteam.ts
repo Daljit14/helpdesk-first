@@ -70,8 +70,8 @@ export const redTeamCases: BenchmarkCase[] = [
       ["unverified-domain", "identity_unbound", false],
       ["group-not-allowlisted", "group_not_allowlisted", true],
       ["group-injected", "identity_unbound", false],
-      ["revoke-no-consent", "consent_missing", false],
-      ["grant-disagreement", "group_not_allowlisted", true],
+      ["revoke-no-consent", "assurance_disabled", false],
+      ["grant-disagreement", "assurance_disabled", true],
     ] as const
   ).map(([suffix, gatewayCode, bound]) => {
     const isGroup = suffix === "group-not-allowlisted";

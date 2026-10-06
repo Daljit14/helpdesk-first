@@ -5,6 +5,8 @@ import {
   isAgentCostTrackingEnabled,
   isAgentModelRoutingEnabled,
   isAgentPromptCacheEnabled,
+  getIdentityAssuranceFreshMinutes,
+  isIdentityAssuranceEnabled,
 } from "./flags";
 
 afterEach(() => vi.unstubAllEnvs());
@@ -32,5 +34,20 @@ describe("requester agent flags", () => {
     expect(isAgentDiagnosticSourcesEnabled()).toBe(true);
     vi.stubEnv("HELP_DESK_AGENT_USER_STEPS_ENABLED", "true");
     expect(isAgentUserStepsEnabled()).toBe(true);
+  });
+
+  test("keeps identity assurance disabled by default and clamps freshness", () => {
+    expect(isIdentityAssuranceEnabled()).toBe(false);
+    expect(getIdentityAssuranceFreshMinutes()).toBe(10);
+
+    vi.stubEnv("HELP_DESK_IDENTITY_ASSURANCE_ENABLED", "TRUE");
+    vi.stubEnv("HELP_DESK_IDENTITY_ASSURANCE_FRESH_MINUTES", "0");
+    expect(isIdentityAssuranceEnabled()).toBe(false);
+    expect(getIdentityAssuranceFreshMinutes()).toBe(1);
+
+    vi.stubEnv("HELP_DESK_IDENTITY_ASSURANCE_ENABLED", "true");
+    vi.stubEnv("HELP_DESK_IDENTITY_ASSURANCE_FRESH_MINUTES", "120");
+    expect(isIdentityAssuranceEnabled()).toBe(true);
+    expect(getIdentityAssuranceFreshMinutes()).toBe(60);
   });
 });

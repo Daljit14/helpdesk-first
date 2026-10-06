@@ -36,6 +36,19 @@ describe("versioned autonomy benchmark", () => {
     ).toHaveLength(ISSUES.length);
   });
 
+  test("covers identity assurance levels, step-up failures, and A0 channels", () => {
+    const cases = benchmarkCases.filter((item) =>
+      item.suite.startsWith("identity_assurance")
+    );
+    expect(cases).toHaveLength(18);
+    expect(
+      cases.every((item) => benchmarkCaseSchema.safeParse(item).success)
+    ).toBe(true);
+    expect(
+      cases.filter((item) => item.suite === "identity_assurance_account")
+    ).toHaveLength(12);
+  });
+
   test("covers every required suite", () => {
     const suites = new Set(benchmarkCases.map((item) => item.suite));
     expect(

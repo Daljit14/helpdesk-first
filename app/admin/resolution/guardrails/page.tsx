@@ -141,7 +141,7 @@ export default async function GuardrailsPage() {
                     {stop.reason}
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Set {stop.setAt}
+                    Set {new Date(stop.setAt).toLocaleString()}
                   </p>
                 </div>
                 {session.isPlatformAdmin ? (

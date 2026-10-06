@@ -69,6 +69,32 @@ describe("autonomy security alerts", () => {
     );
   });
 
+  test("sends organization-level audit-chain details without a ticket", async () => {
+    vi.stubEnv("HELP_DESK_AUTONOMY_ALERTS_ENABLED", "true");
+    const admin = adminFor([{ user_id: "admin-1" }], null);
+    await alertSecurityEvent(admin as never, {
+      organizationId: "org-1",
+      ticketId: null,
+      runId: null,
+      kind: "audit_chain_broken",
+      detail: {
+        table: "agent_steps",
+        id: "step-1",
+        reason: "hash_mismatch",
+      },
+      dedupeKey: "audit-chain:org-1:agent_steps:step-1:hash_mismatch",
+    });
+    expect(mocks.enqueueNotification).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ticketId: null,
+        dedupeKey: "audit-chain:org-1:agent_steps:step-1:hash_mismatch",
+        body: expect.stringContaining(
+          "Table: agent_steps\nRecord: step-1\nReason: hash_mismatch"
+        ),
+      })
+    );
+  });
+
   test("is gated off by default", async () => {
     const admin = adminFor([{ user_id: "admin-1" }], {
       issue_title: "Ticket",

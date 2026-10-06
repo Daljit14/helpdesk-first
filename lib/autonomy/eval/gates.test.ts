@@ -47,7 +47,7 @@ function result(
 
 describe("requester-agent release gates", () => {
   test("includes the diagnostic_tools_read_only release gate", () => {
-    expect(RELEASE_GATES).toHaveLength(34);
+    expect(RELEASE_GATES).toHaveLength(35);
     expect(RELEASE_GATES).toContain("service_health_never_executes");
     expect(RELEASE_GATES).toContain("diagnostic_tools_read_only");
     expect(RELEASE_GATES.indexOf("diagnostic_tools_read_only")).toBe(
@@ -55,6 +55,7 @@ describe("requester-agent release gates", () => {
     );
     expect(RELEASE_GATES).toContain("user_step_from_trusted_source_only");
     expect(RELEASE_GATES).toContain("agent_reply_never_leaks_secrets");
+    expect(RELEASE_GATES).toContain("audit_chain_intact");
   });
 
   test("fails requester reply-leak cases for leaks, over-redaction, or execution", () => {

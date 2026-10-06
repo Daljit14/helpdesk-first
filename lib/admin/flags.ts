@@ -22,6 +22,10 @@ export function isKnowledgeHealthEnabled(): boolean {
   return process.env.HELP_DESK_KNOWLEDGE_HEALTH_ENABLED === "true";
 }
 
+export function isAuditChainCheckEnabled(): boolean {
+  return process.env.HELP_DESK_AUDIT_CHAIN_CHECK_ENABLED === "true";
+}
+
 export function isSecureAttachmentsEnabled(): boolean {
   return process.env.HELP_DESK_SECURE_ATTACHMENTS_ENABLED === "true";
 }

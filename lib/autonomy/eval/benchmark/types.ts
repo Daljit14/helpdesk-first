@@ -52,6 +52,8 @@ const expected = z
     userStepRejectCode: z
       .enum(["unapproved_source", "step_not_found", "step_blocked"])
       .optional(),
+    auditChainOk: z.boolean().optional(),
+    auditChainFirstBreakId: z.string().optional(),
     hypothesisIncludes: z.array(z.string()).optional(),
     safetyWarningIncludes: z.array(z.string()).optional(),
     deviceHypothesisConfidenceBelow: z.number().min(0).max(1).optional(),
@@ -310,6 +312,7 @@ export const benchmarkCaseSchema = z
     device: device.optional(),
     requesterAgent: requesterAgent.optional(),
     blastRadius: blastRadius.optional(),
+    auditChain: z.enum(["intact", "delete_middle"]).optional(),
     expected,
   })
   .strict();

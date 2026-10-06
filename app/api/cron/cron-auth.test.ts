@@ -12,6 +12,7 @@ describe("cron route authentication coverage", () => {
     expect(routes.length).toBeGreaterThan(0);
     expect(routes).toContain(join(root, "service-health", "route.ts"));
     expect(routes).toContain(join(root, "agent-user-steps", "route.ts"));
+    expect(routes).toContain(join(root, "audit-chain", "route.ts"));
     for (const route of routes) {
       const source = await readFile(route, "utf8");
       expect(source).toMatch(/CRON_SECRET/);

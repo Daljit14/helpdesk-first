@@ -5,6 +5,7 @@ import {
   diagnosticsBatchSchema,
   type DiagnosticsBatch,
 } from "@/lib/device-agent/protocol";
+import { sanitizeDiagnosticRecord } from "@/lib/device-agent/diagnostic-data";
 import type { DeviceRow } from "./auth";
 
 export async function storeDiagnostics(
@@ -33,16 +34,23 @@ export async function storeDiagnostics(
       ticketId = match?.id ?? null;
     }
   }
-  const rows = parsed.records.map((record) => ({
-    organization_id: device.organization_id,
-    device_id: device.id,
-    ticket_id: ticketId,
-    kind: record.kind,
-    ok: record.ok,
-    summary: redactAuditDetail({ summary: record.summary }).summary ?? "",
-    data: redactAuditDetail(record.data),
-    collected_at: record.collectedAt,
-  }));
+  const rows = parsed.records.map((record) => {
+    const sanitized = sanitizeDiagnosticRecord(
+      record.kind,
+      record.summary,
+      record.data
+    );
+    return {
+      organization_id: device.organization_id,
+      device_id: device.id,
+      ticket_id: ticketId,
+      kind: record.kind,
+      ok: record.ok,
+      summary: redactAuditDetail({ summary: sanitized.summary }).summary ?? "",
+      data: redactAuditDetail(sanitized.data),
+      collected_at: record.collectedAt,
+    };
+  });
   const result = await admin.from("device_diagnostics").insert(rows);
   if (result.error) throw result.error;
 }

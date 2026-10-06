@@ -9,7 +9,7 @@ export type CategorizedErrorEvent = {
   app?: string | null;
 };
 
-const APP_DISPLAY_NAMES: Readonly<Record<string, string>> = {
+export const APP_DISPLAY_NAMES: Readonly<Record<string, string>> = {
   outlook: "Outlook",
   olk: "Outlook",
   teams: "Teams",

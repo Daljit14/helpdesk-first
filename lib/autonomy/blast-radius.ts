@@ -122,6 +122,15 @@ type OutcomeOptions = {
   now?: Date;
 };
 
+type BlastRadiusCheckStep =
+  | "load_execution"
+  | "read_switches"
+  | "load_executions"
+  | "load_prior_executions"
+  | "load_outcomes"
+  | "set_capability_switch"
+  | "set_global_switch";
+
 function automaticReason(reason: unknown): reason is string {
   return typeof reason === "string" && reason.startsWith("blast_radius:");
 }
@@ -136,6 +145,27 @@ function clearedAt(row: SwitchRow | null): number | null {
     return null;
   const value = new Date(row.set_at).getTime();
   return Number.isFinite(value) ? value : null;
+}
+
+async function recordCheckFailed(
+  admin: HandlerAdmin,
+  run: ResolutionRun,
+  step: BlastRadiusCheckStep
+): Promise<void> {
+  try {
+    await admin.from("resolution_events").insert({
+      organization_id: run.organization_id,
+      run_id: run.id,
+      ticket_id: run.ticket_id,
+      kind: "blast_radius.check_failed",
+      actor: "orchestrator",
+      initiated_by: "ai",
+      versions: auditVersions(),
+      detail: redactAuditDetail({ step }),
+    });
+  } catch {
+    return;
+  }
 }
 
 async function readSwitch(
@@ -166,25 +196,31 @@ export async function recordBlastRadiusOutcome(
   options: OutcomeOptions = {}
 ): Promise<BlastRadiusVerdict | null> {
   if (!(options.enabled ?? isBlastRadiusEnabled())) return null;
+  let step: BlastRadiusCheckStep = "load_execution";
   try {
     const now = options.now ?? new Date();
     const limits = options.limits ?? getBlastRadiusLimits();
     let capabilityId = input.capabilityId;
     if (!capabilityId && input.executionId) {
+      step = "load_execution";
       const execution = await admin
         .from("capability_executions")
         .select("capability_id")
         .eq("id", input.executionId)
         .eq("organization_id", input.run.organization_id)
         .maybeSingle();
-      if (execution.error || typeof execution.data?.capability_id !== "string")
+      if (execution.error) {
+        await recordCheckFailed(admin, input.run, step);
         return null;
+      }
+      if (typeof execution.data?.capability_id !== "string") return null;
       capabilityId = execution.data.capability_id;
     }
     if (!capabilityId) return null;
 
     const baseStart = now.getTime() - limits.windowMs;
     const runtimeStart = now.getTime() - getAutonomyLimits().runtimeMs;
+    step = "read_switches";
     const [
       globalSwitch,
       capabilitySwitch,
@@ -207,7 +243,10 @@ export async function recordBlastRadiusOutcome(
         .gte("set_at", new Date(baseStart).toISOString())
         .limit(1_000),
     ]);
-    if (capabilitySwitches.error || clearedSwitches.error) return null;
+    if (capabilitySwitches.error || clearedSwitches.error) {
+      await recordCheckFailed(admin, input.run, step);
+      return null;
+    }
     const globalStart = Math.max(
       baseStart,
       clearedAt(globalSwitch) ?? baseStart
@@ -226,6 +265,7 @@ export async function recordBlastRadiusOutcome(
           new Date(row.set_at ?? 0).getTime() >= baseStart
       )
       .map((row) => row.scope_id as string);
+    step = "load_executions";
     const executionsResult = await admin
       .from("capability_executions")
       .select(
@@ -235,7 +275,10 @@ export async function recordBlastRadiusOutcome(
       .gte("created_at", new Date(baseStart).toISOString())
       .order("created_at", { ascending: true })
       .limit(1_000);
-    if (executionsResult.error) return null;
+    if (executionsResult.error) {
+      await recordCheckFailed(admin, input.run, step);
+      return null;
+    }
     const executions = [
       ...((executionsResult.data ?? []) as {
         id: string;
@@ -251,6 +294,7 @@ export async function recordBlastRadiusOutcome(
       (id) => id !== capabilityId
     );
     if (priorCapabilityIds.length > 0) {
+      step = "load_prior_executions";
       const priorExecutions = await admin
         .from("capability_executions")
         .select(
@@ -260,7 +304,10 @@ export async function recordBlastRadiusOutcome(
         .gte("created_at", new Date(baseStart).toISOString())
         .order("created_at", { ascending: true })
         .limit(1_000);
-      if (priorExecutions.error) return null;
+      if (priorExecutions.error) {
+        await recordCheckFailed(admin, input.run, step);
+        return null;
+      }
       const seen = new Set(executions.map((execution) => execution.id));
       for (const execution of (priorExecutions.data ??
         []) as typeof executions) {
@@ -268,6 +315,7 @@ export async function recordBlastRadiusOutcome(
       }
     }
     const executionIds = executions.map((execution) => execution.id);
+    step = "load_outcomes";
     const [verificationResult, rollbackResult] =
       executionIds.length === 0
         ? [
@@ -285,7 +333,10 @@ export async function recordBlastRadiusOutcome(
               .select("execution_id")
               .in("execution_id", executionIds),
           ]);
-    if (verificationResult.error || rollbackResult.error) return null;
+    if (verificationResult.error || rollbackResult.error) {
+      await recordCheckFailed(admin, input.run, step);
+      return null;
+    }
     const failedVerificationIds = new Set(
       ((verificationResult.data ?? []) as { execution_id: string | null }[])
         .map((row) => row.execution_id)
@@ -357,6 +408,7 @@ export async function recordBlastRadiusOutcome(
     const reason = `blast_radius:${verdict.reason}`.slice(0, 200);
     const setBy = "system";
     if (!capabilitySwitch?.enabled) {
+      step = "set_capability_switch";
       const capabilitySet = await setKillSwitch(admin, {
         scope: "capability",
         scopeId: capabilityId,
@@ -365,9 +417,13 @@ export async function recordBlastRadiusOutcome(
         setBy,
         organizationId: null,
       });
-      if (!capabilitySet.ok) return null;
+      if (!capabilitySet.ok) {
+        await recordCheckFailed(admin, input.run, step);
+        return null;
+      }
     }
     if (globalTrip && !globalSwitch?.enabled) {
+      step = "set_global_switch";
       const globalSet = await setKillSwitch(admin, {
         scope: "global",
         scopeId: null,
@@ -376,7 +432,10 @@ export async function recordBlastRadiusOutcome(
         setBy,
         organizationId: null,
       });
-      if (!globalSet.ok) return null;
+      if (!globalSet.ok) {
+        await recordCheckFailed(admin, input.run, step);
+        return null;
+      }
     }
     await admin.from("resolution_events").insert({
       organization_id: input.run.organization_id,
@@ -428,6 +487,7 @@ export async function recordBlastRadiusOutcome(
     }
     return verdict;
   } catch {
+    await recordCheckFailed(admin, input.run, step);
     return null;
   }
 }

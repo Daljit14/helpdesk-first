@@ -183,6 +183,8 @@ const requesterAgent = z
     approvedSlugs: z.array(z.string().regex(/^[a-z0-9-]{1,80}$/)).optional(),
     expectUserStepRejected: z.boolean().optional(),
     serviceHealthEnabled: z.boolean().optional(),
+    diagnosticSourcesEnabled: z.boolean().optional(),
+    forbiddenInModelInput: z.array(z.string()).optional(),
     serviceIncidentActive: z.boolean().optional(),
     consent: z
       .object({

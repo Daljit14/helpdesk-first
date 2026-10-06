@@ -1,6 +1,7 @@
 import { isDeviceAgentEnabled } from "@/lib/admin/flags";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { DiagnosticKind } from "@/lib/device-agent/protocol";
+import { sanitizeDiagnosticRecord } from "@/lib/device-agent/diagnostic-data";
 import type { DeviceEvidence } from "./types";
 
 const DEVICE_WORDS =
@@ -54,12 +55,19 @@ export async function loadDeviceEvidence(
     platform: device.data.platform,
     deviceClass: device.data.device_class,
     collectedAt: latest,
-    diagnostics: latestRows.map((row) => ({
-      kind: row.kind,
-      ok: row.ok,
-      summary: row.summary,
-      data: row.data,
-    })),
+    diagnostics: latestRows.map((row) => {
+      const sanitized = sanitizeDiagnosticRecord(
+        row.kind,
+        row.summary,
+        row.data
+      );
+      return {
+        kind: row.kind,
+        ok: row.ok,
+        summary: sanitized.summary,
+        data: sanitized.data as (typeof row)["data"],
+      };
+    }),
     stale: Date.now() - Date.parse(latest) > 24 * 60 * 60 * 1000,
   };
 }

@@ -40,10 +40,17 @@ function event(
 
 function queryAdmin(
   rows: Record<string, unknown>[] = [],
-  tableRows: Record<string, Record<string, unknown>[]> = {}
+  tableRows: Record<string, Record<string, unknown>[]> = {},
+  options: {
+    queryErrors?: Record<string, { message: string }>;
+    throwOnQueryTable?: string;
+    auditInsertError?: boolean;
+  } = {}
 ) {
   const inserts = new Map<string, Record<string, unknown>[]>();
   const from = vi.fn((table: string) => {
+    if (table === options.throwOnQueryTable)
+      throw new Error("private query failure");
     let data =
       table === "capability_executions" ? rows : (tableRows[table] ?? []);
     const query: Record<string, (...args: unknown[]) => unknown> = {};
@@ -72,8 +79,13 @@ function queryAdmin(
     };
     query.order = () => query;
     query.limit = () => query;
-    query.maybeSingle = async () => ({ data: data[0] ?? null, error: null });
+    query.maybeSingle = async () => ({
+      data: data[0] ?? null,
+      error: options.queryErrors?.[table] ?? null,
+    });
     query.insert = async (payload) => {
+      if (table === "resolution_events" && options.auditInsertError)
+        return { data: null, error: { message: "audit insert failed" } };
       const current = inserts.get(table) ?? [];
       current.push(
         ...(Array.isArray(payload)
@@ -85,9 +97,10 @@ function queryAdmin(
     };
     query.update = () => query;
     query.then = ((resolve: (value: unknown) => unknown) =>
-      Promise.resolve({ data, error: null }).then(resolve)) as unknown as (
-      ...args: unknown[]
-    ) => unknown;
+      Promise.resolve({
+        data,
+        error: options.queryErrors?.[table] ?? null,
+      }).then(resolve)) as unknown as (...args: unknown[]) => unknown;
     return query;
   });
   return { from, inserts };
@@ -223,6 +236,139 @@ describe("blast-radius persistence and hourly limits", () => {
     ).resolves.toBeNull();
     expect(admin.from).not.toHaveBeenCalled();
     expect(mocks.setKillSwitch).not.toHaveBeenCalled();
+  });
+
+  test("records a failed execution query without storing the error", async () => {
+    const admin = queryAdmin(
+      [],
+      {},
+      {
+        queryErrors: { capability_executions: { message: "private db error" } },
+      }
+    );
+    const result = await recordBlastRadiusOutcome(
+      admin as never,
+      {
+        run: {
+          id: "run-1",
+          organization_id: "org-1",
+          ticket_id: "ticket-1",
+        } as never,
+        capabilityId: "cap-a",
+      },
+      { enabled: true }
+    );
+
+    expect(result).toBeNull();
+    const events = admin.inserts.get("resolution_events") ?? [];
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      organization_id: "org-1",
+      run_id: "run-1",
+      ticket_id: "ticket-1",
+      kind: "blast_radius.check_failed",
+      actor: "orchestrator",
+      initiated_by: "ai",
+      detail: { step: "load_executions" },
+    });
+    expect(events[0]?.detail).toEqual({ step: "load_executions" });
+    expect(JSON.stringify(events)).not.toContain("private db error");
+  });
+
+  test("records the active stage when a query throws", async () => {
+    const admin = queryAdmin(
+      [],
+      {},
+      { throwOnQueryTable: "capability_executions" }
+    );
+    const result = await recordBlastRadiusOutcome(
+      admin as never,
+      {
+        run: {
+          id: "run-1",
+          organization_id: "org-1",
+          ticket_id: "ticket-1",
+        } as never,
+        capabilityId: "cap-a",
+      },
+      { enabled: true }
+    );
+
+    expect(result).toBeNull();
+    expect(admin.inserts.get("resolution_events")).toMatchObject([
+      { detail: { step: "load_executions" } },
+    ]);
+    expect(
+      JSON.stringify(admin.inserts.get("resolution_events"))
+    ).not.toContain("private query failure");
+  });
+
+  test("does not throw when recording a failed check also fails", async () => {
+    const admin = queryAdmin(
+      [],
+      {},
+      {
+        queryErrors: { capability_executions: { message: "private db error" } },
+        auditInsertError: true,
+      }
+    );
+
+    await expect(
+      recordBlastRadiusOutcome(
+        admin as never,
+        {
+          run: {
+            id: "run-1",
+            organization_id: "org-1",
+            ticket_id: "ticket-1",
+          } as never,
+          capabilityId: "cap-a",
+        },
+        { enabled: true }
+      )
+    ).resolves.toBeNull();
+  });
+
+  test("records a failed capability-switch update", async () => {
+    const now = new Date("2026-01-01T00:00:00.000Z");
+    mocks.setKillSwitch.mockResolvedValue({ ok: false });
+    const admin = queryAdmin([
+      {
+        id: "execution-1",
+        organization_id: "org-1",
+        run_id: "run-1",
+        capability_id: "cap-a",
+        status: "failed",
+        created_at: now.toISOString(),
+      },
+    ]);
+
+    const result = await recordBlastRadiusOutcome(
+      admin as never,
+      {
+        run: {
+          id: "run-1",
+          organization_id: "org-1",
+          ticket_id: "ticket-1",
+        } as never,
+        capabilityId: "cap-a",
+      },
+      {
+        enabled: true,
+        now,
+        limits: {
+          failures: 1,
+          failureRate: 1,
+          minRuns: 1,
+          windowMs: 300_000,
+        },
+      }
+    );
+
+    expect(result).toBeNull();
+    expect(admin.inserts.get("resolution_events")).toMatchObject([
+      { detail: { step: "set_capability_switch" } },
+    ]);
   });
 
   test("trips a switch, records an event, and alerts affected organizations", async () => {

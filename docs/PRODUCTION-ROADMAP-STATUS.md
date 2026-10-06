@@ -16,6 +16,16 @@ environment variables. The additive `supabase/agent-reply-guard.sql` migration
 is authored but has not been applied; see `SETUP-NOTES-G4.md` for its run order,
 rollback, and privacy limits.
 
+## Wave 2 G6 — diagnostic-tools read-only gate
+
+G6 adds the `diagnostic_tools_read_only` benchmark release gate, pure shaping
+helpers for requester diagnostic tools, and server-side sanitization of
+`recent_error_events` summaries and data on both storage and evidence-load
+paths. Similar-ticket results remain organization-scoped, requester-excluded
+counts only. No new flag, environment variable, or SQL migration is added;
+the existing diagnostic-source flag remains off by default. G1 check failures
+are best-effort audited with the stage only. See `SETUP-NOTES-DIAG-GATE.md`.
+
 ## Admin Database page
 
 The admin Database page provides a tenant-scoped view of important stored data and a live activity tracker. Users are loaded through the service-role-only `public.admin_auth_users` projection; apply `supabase/admin-database.sql` before the Users section can show data.

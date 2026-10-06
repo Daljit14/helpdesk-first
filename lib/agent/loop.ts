@@ -42,6 +42,7 @@ import {
   isRequesterAgentActionsEnabled,
   isRequesterAgentEnabledForOrg,
   isServiceHealthEnabled,
+  isAgentDiagnosticSourcesEnabled,
 } from "@/lib/admin/flags";
 import { getApprovedSlugs } from "@/lib/knowledge/governance";
 import { loadConfirmedOrgEnvironment } from "@/lib/org-environment/profile";
@@ -91,6 +92,7 @@ export type AgentLoopDeps = {
   proposeAction: typeof proposeAction;
   hasServiceIncident: typeof hasServiceIncident;
   serviceHealthEnabled?: boolean;
+  diagnosticSourcesEnabled?: boolean;
   orgEnvironmentEnabled?: boolean;
   userStepsEnabled?: boolean;
   checkUserStep?: (input: {
@@ -190,6 +192,8 @@ export async function runAgentTurn(input: {
     isRequesterAgentEnabledForOrg(session.organization_id);
   const serviceHealthEnabled =
     deps.serviceHealthEnabled ?? isServiceHealthEnabled();
+  const diagnosticSourcesEnabled =
+    deps.diagnosticSourcesEnabled ?? isAgentDiagnosticSourcesEnabled();
   const orgEnvironmentEnabled =
     deps.orgEnvironmentEnabled ?? isOrgEnvironmentEnabled();
   const userStepsEnabled = deps.userStepsEnabled ?? isAgentUserStepsEnabled();
@@ -288,7 +292,7 @@ export async function runAgentTurn(input: {
         actionToolsEnabled,
         serviceHealthEnabled,
         orgEnvironmentEnabled,
-        undefined,
+        diagnosticSourcesEnabled,
         userStepsEnabled
       ),
       messages,
@@ -296,7 +300,7 @@ export async function runAgentTurn(input: {
         actionToolsEnabled,
         serviceHealthEnabled,
         orgEnvironmentEnabled,
-        undefined,
+        diagnosticSourcesEnabled,
         userStepsEnabled
       ).map((tool) => ({
         name: tool.name,

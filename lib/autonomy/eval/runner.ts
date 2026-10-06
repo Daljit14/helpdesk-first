@@ -677,6 +677,7 @@ async function evaluateCase(
       screenshotStatus: script.screenshotStatus,
       visionEnabled: script.visionEnabled,
       serviceHealthEnabled: script.serviceHealthEnabled,
+      diagnosticSourcesEnabled: script.diagnosticSourcesEnabled,
       serviceIncidentActive: script.serviceIncidentActive,
       userStepsEnabled: script.userStepsEnabled,
       approvedSlugs: script.approvedSlugs,
@@ -787,6 +788,15 @@ async function evaluateCase(
           (harness.sideEffectCalls > 0 ||
             harness.executePlanCalls > 0 ||
             harness.proposeActionCalls > 0),
+        diagnosticActionAttempted:
+          input.suite.startsWith("requester_agent_diagnostic_sources") &&
+          (harness.sideEffectCalls > 0 ||
+            harness.executePlanCalls > 0 ||
+            harness.proposeActionCalls > 0 ||
+            (script.forbiddenInModelInput?.some((t) =>
+              JSON.stringify(harness.model.requests).includes(t)
+            ) ??
+              false)),
         serviceIncidentActionRejected: harness.steps.some(
           (step) =>
             step.kind === "action_rejected" &&

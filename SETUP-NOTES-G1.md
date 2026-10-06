@@ -9,6 +9,8 @@ Set `HELP_DESK_BLAST_RADIUS_ENABLED=true` to enable the default five-failure,
 window, organization hourly limit, or device limit with the six G1 environment
 variables in `.env.example`. Apply `supabase/blast-radius.sql` after reviewing
 the indexes; this SQL adds no tables and is not applied automatically.
+Hourly caps count reservations before execution begins; simultaneous runs may
+exceed a configured cap by one at pilot scale, which is accepted.
 
 ## Preview
 
@@ -25,6 +27,9 @@ After two failed capability executions in five minutes, G1 sets a
 sends a `blast_radius_tripped` alert for affected organizations. The active
 stop appears in **Admin → Resolution Center → Guardrails**. Platform admins can
 clear it there; the clear action records `blast_radius_cleared`.
+If a blast-radius check cannot complete because of a query error or failed
+switch update, it best-effort records a `blast_radius.check_failed` event with
+the failed check stage only; the underlying error is not stored.
 
 To roll back the rollout, set `HELP_DESK_BLAST_RADIUS_ENABLED=false` and restart
 the application. Explicit hourly limits remain enforced when configured; clear

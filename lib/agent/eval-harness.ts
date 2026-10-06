@@ -77,6 +77,7 @@ export function createAgentEvalHarness(input: {
   toolResults?: ScriptedToolResult[];
   serviceIncidentActive?: boolean;
   serviceHealthEnabled?: boolean;
+  diagnosticSourcesEnabled?: boolean;
   userStepsEnabled?: boolean;
   approvedSlugs?: string[];
   killSwitchAfterTool?: boolean;
@@ -229,6 +230,7 @@ export function createAgentEvalHarness(input: {
     loadContext: async () => input.context ?? [],
     hasServiceIncident: async () => Boolean(input.serviceIncidentActive),
     serviceHealthEnabled: input.serviceHealthEnabled,
+    diagnosticSourcesEnabled: input.diagnosticSourcesEnabled,
     userStepsEnabled: input.userStepsEnabled ?? false,
     checkUserStep: (stepInput) =>
       checkUserStep(stepInput, {

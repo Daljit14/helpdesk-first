@@ -5,6 +5,7 @@ import {
   recordBlastRadiusOutcome,
 } from "./blast-radius";
 import type { BlastRadiusLimits, BlastRadiusEvent } from "./blast-radius";
+import { getAutonomyLimits } from "./config";
 
 const mocks = vi.hoisted(() => ({
   alertSecurityEvent: vi.fn(),
@@ -384,6 +385,88 @@ describe("blast-radius persistence and hourly limits", () => {
       }
     );
     expect(result).toMatchObject({ trip: true, scope: "capability" });
+  });
+
+  test("ignores a recent failed reservation with no duration", async () => {
+    const now = new Date("2026-01-01T00:00:00.000Z");
+    const runtimeMs = getAutonomyLimits().runtimeMs;
+    const admin = queryAdmin([
+      {
+        id: "in-flight",
+        organization_id: "org-1",
+        run_id: "run-1",
+        capability_id: "cap-a",
+        status: "failed",
+        duration_ms: null,
+        created_at: new Date(now.getTime() - runtimeMs + 1).toISOString(),
+      },
+    ]);
+    const result = await recordBlastRadiusOutcome(
+      admin as never,
+      {
+        run: {
+          id: "run-1",
+          organization_id: "org-1",
+          ticket_id: "ticket-1",
+        } as never,
+        capabilityId: "cap-a",
+      },
+      {
+        enabled: true,
+        now,
+        limits: {
+          failures: 1,
+          failureRate: 1,
+          minRuns: 1,
+          windowMs: runtimeMs + 10_000,
+        },
+      }
+    );
+    expect(result).toMatchObject({ trip: false });
+    expect(mocks.setKillSwitch).not.toHaveBeenCalled();
+  });
+
+  test("counts an old failed reservation with no duration as a crash", async () => {
+    const now = new Date("2026-01-01T00:00:00.000Z");
+    const runtimeMs = getAutonomyLimits().runtimeMs;
+    const admin = queryAdmin([
+      {
+        id: "crashed",
+        organization_id: "org-1",
+        run_id: "run-1",
+        capability_id: "cap-a",
+        status: "failed",
+        duration_ms: null,
+        created_at: new Date(now.getTime() - runtimeMs - 1).toISOString(),
+      },
+    ]);
+    mocks.setKillSwitch.mockResolvedValue({ ok: true });
+    const result = await recordBlastRadiusOutcome(
+      admin as never,
+      {
+        run: {
+          id: "run-1",
+          organization_id: "org-1",
+          ticket_id: "ticket-1",
+        } as never,
+        capabilityId: "cap-a",
+      },
+      {
+        enabled: true,
+        now,
+        limits: {
+          failures: 1,
+          failureRate: 1,
+          minRuns: 1,
+          windowMs: runtimeMs + 10_000,
+        },
+      }
+    );
+    expect(result).toMatchObject({ trip: true, scope: "capability" });
+    expect(mocks.setKillSwitch).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ scope: "capability", scopeId: "cap-a" })
+    );
   });
 
   test("does not repeat work for an already-active automatic switch", async () => {

@@ -3,6 +3,7 @@ import { auditVersions } from "./audit/versions";
 import { redactAuditDetail } from "./audit/redact";
 import {
   getBlastRadiusLimits,
+  getAutonomyLimits,
   getHourlyExecutionLimits,
   isBlastRadiusEnabled,
   type BlastRadiusLimits,
@@ -183,6 +184,7 @@ export async function recordBlastRadiusOutcome(
     if (!capabilityId) return null;
 
     const baseStart = now.getTime() - limits.windowMs;
+    const runtimeStart = now.getTime() - getAutonomyLimits().runtimeMs;
     const [
       globalSwitch,
       capabilitySwitch,
@@ -226,7 +228,9 @@ export async function recordBlastRadiusOutcome(
       .map((row) => row.scope_id as string);
     const executionsResult = await admin
       .from("capability_executions")
-      .select("id,organization_id,run_id,status,created_at,capability_id")
+      .select(
+        "id,organization_id,run_id,status,created_at,capability_id,duration_ms"
+      )
       .eq("capability_id", capabilityId)
       .gte("created_at", new Date(baseStart).toISOString())
       .order("created_at", { ascending: true })
@@ -240,6 +244,7 @@ export async function recordBlastRadiusOutcome(
         status: string;
         created_at: string;
         capability_id: string;
+        duration_ms: number | null;
       }[]),
     ];
     const priorCapabilityIds = alreadyTrippedCapabilityIds.filter(
@@ -248,7 +253,9 @@ export async function recordBlastRadiusOutcome(
     if (priorCapabilityIds.length > 0) {
       const priorExecutions = await admin
         .from("capability_executions")
-        .select("id,organization_id,run_id,status,created_at,capability_id")
+        .select(
+          "id,organization_id,run_id,status,created_at,capability_id,duration_ms"
+        )
         .in("capability_id", priorCapabilityIds)
         .gte("created_at", new Date(baseStart).toISOString())
         .order("created_at", { ascending: true })
@@ -304,6 +311,12 @@ export async function recordBlastRadiusOutcome(
     const events = executions
       .filter((execution) => {
         const at = new Date(execution.created_at).getTime();
+        if (
+          execution.status === "failed" &&
+          execution.duration_ms === null &&
+          at > runtimeStart
+        )
+          return false;
         const cutoff = Math.max(
           globalStart,
           Math.max(

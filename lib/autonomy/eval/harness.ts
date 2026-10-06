@@ -216,6 +216,7 @@ export function createBenchmarkHarness(
     capability_id: row.capabilityId,
     capability_version: 1,
     status: row.status,
+    duration_ms: 1_000,
     created_at: new Date(Date.now() - row.minutesAgo * 60_000).toISOString(),
   }));
   const identityBound = benchmarkCase.identity?.bound === true;

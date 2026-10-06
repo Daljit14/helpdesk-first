@@ -273,7 +273,7 @@ describe("requester action proposals", () => {
           capabilityId: "send_password_reset_link",
           requiredLevel: "A3",
           currentLevel: "A1",
-          stepUpUrl: "/auth/step-up?next=/chat",
+          stepUpUrl: "/auth/step-up?next=/assistant",
         },
       },
     ]);
@@ -790,7 +790,7 @@ describe("requester action proposals", () => {
         capabilityId: "send_password_reset_link",
         requiredLevel: "A3",
         currentLevel: "A1",
-        stepUpUrl: "/auth/step-up?next=/chat",
+        stepUpUrl: "/auth/step-up?next=/assistant",
       },
     });
     expect(mocks.writeStep).toHaveBeenCalledWith(

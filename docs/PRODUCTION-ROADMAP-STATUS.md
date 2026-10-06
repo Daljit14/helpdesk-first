@@ -768,8 +768,8 @@ Recorded decisions require legal review before school rollout.
   constraint; new tickets use the 5K vocabulary.
 - Legacy `admin` remains legal for rollback safety; Wave 3 maps it to
   `org_admin` and adds requester/platform-admin membership paths.
-- Every `supabase/*.sql` file ends with a commented rollback block; the
-  migrations in the run-order section above have not been applied to production.
+- Every `supabase/*.sql` file ends with a commented rollback block; all are
+  additive and have been applied to the production Supabase project.
 - Guest single-ticket access links (#28) were deferred because guest
   tickets are not allowed.
 - Scanner mode is `none`; uploads show a "Not virus-scanned" badge until an

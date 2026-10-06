@@ -20,7 +20,7 @@ vi.mock("@/lib/supabase/config", () => ({
 import { NextRequest } from "next/server";
 import { GET } from "./route";
 
-function request(url = "http://localhost/auth/step-up?next=%2Fchat") {
+function request(url = "http://localhost/auth/step-up?next=%2Fassistant") {
   return new NextRequest(url);
 }
 
@@ -110,7 +110,7 @@ describe("step-up route", () => {
       request("http://localhost/auth/step-up?next=%2F%2Fevil.example")
     );
     expect(response.headers.get("location")).toBe(
-      "http://localhost/login?next=%2Fchat"
+      "http://localhost/login?next=%2Fassistant"
     );
     expect(mocks.signInWithOAuth).not.toHaveBeenCalled();
   });

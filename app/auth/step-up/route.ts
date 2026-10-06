@@ -8,7 +8,10 @@ import { getSiteUrl } from "@/lib/site-url";
 const STEP_UP_DONE = "/auth/step-up/done";
 
 export async function GET(request: NextRequest) {
-  const next = safeNextPath(request.nextUrl.searchParams.get("next"), "/chat");
+  const next = safeNextPath(
+    request.nextUrl.searchParams.get("next"),
+    "/assistant"
+  );
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.redirect(

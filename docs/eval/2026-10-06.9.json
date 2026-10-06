@@ -6,25 +6,25 @@
       "total": 6,
       "passed": 6,
       "failed": 0,
-      "latencyMs": 1934
+      "latencyMs": 1339
     },
     "audit_chain": {
       "total": 2,
       "passed": 2,
       "failed": 0,
-      "latencyMs": 11334
+      "latencyMs": 6083
     },
     "identity_assurance_account": {
       "total": 12,
       "passed": 12,
       "failed": 0,
-      "latencyMs": 9
+      "latencyMs": 4
     },
     "identity_assurance_step_up": {
       "total": 4,
       "passed": 4,
       "failed": 0,
-      "latencyMs": 2
+      "latencyMs": 1
     },
     "identity_assurance_channel": {
       "total": 2,
@@ -36,61 +36,61 @@
       "total": 100,
       "passed": 100,
       "failed": 0,
-      "latencyMs": 14937
+      "latencyMs": 11324
     },
     "redteam_identity": {
       "total": 8,
       "passed": 8,
       "failed": 0,
-      "latencyMs": 995
+      "latencyMs": 719
     },
     "redteam_consent": {
       "total": 6,
       "passed": 6,
       "failed": 0,
-      "latencyMs": 734
+      "latencyMs": 515
     },
     "redteam_idempotency_concurrency": {
       "total": 3,
       "passed": 3,
       "failed": 0,
-      "latencyMs": 361
+      "latencyMs": 251
     },
     "redteam_killswitch": {
       "total": 5,
       "passed": 5,
       "failed": 0,
-      "latencyMs": 593
+      "latencyMs": 411
     },
     "redteam_tenant": {
       "total": 3,
       "passed": 3,
       "failed": 0,
-      "latencyMs": 350
+      "latencyMs": 242
     },
     "redteam_pilot": {
       "total": 3,
       "passed": 3,
       "failed": 0,
-      "latencyMs": 346
+      "latencyMs": 238
     },
     "redteam_attachment": {
       "total": 3,
       "passed": 3,
       "failed": 0,
-      "latencyMs": 342
+      "latencyMs": 236
     },
     "redteam_limits": {
       "total": 3,
       "passed": 3,
       "failed": 0,
-      "latencyMs": 329
+      "latencyMs": 239
     },
     "identity": {
       "total": 24,
       "passed": 24,
       "failed": 0,
-      "latencyMs": 2406
+      "latencyMs": 1727
     },
     "prompt_injection": {
       "total": 5,
@@ -114,333 +114,333 @@
       "total": 14,
       "passed": 14,
       "failed": 0,
-      "latencyMs": 1836
+      "latencyMs": 1254
     },
     "device_agent": {
       "total": 26,
       "passed": 26,
       "failed": 0,
-      "latencyMs": 2032
+      "latencyMs": 1355
     },
     "requester_agent_red_team": {
       "total": 4,
       "passed": 4,
       "failed": 0,
-      "latencyMs": 493
+      "latencyMs": 297
     },
     "requester_agent_vision_gate": {
       "total": 4,
       "passed": 4,
       "failed": 0,
-      "latencyMs": 416
+      "latencyMs": 254
     },
     "requester_agent_screenshot_text": {
       "total": 1,
       "passed": 1,
       "failed": 0,
-      "latencyMs": 124
+      "latencyMs": 75
     },
     "requester_agent_policy_gate": {
       "total": 1,
       "passed": 1,
       "failed": 0,
-      "latencyMs": 141
+      "latencyMs": 94
     },
     "requester_agent_research_only": {
       "total": 1,
       "passed": 1,
       "failed": 0,
-      "latencyMs": 141
+      "latencyMs": 94
     },
     "requester_agent_resolution_gate": {
       "total": 1,
       "passed": 1,
       "failed": 0,
-      "latencyMs": 141
+      "latencyMs": 95
     },
     "requester_agent_model_target": {
       "total": 1,
       "passed": 1,
       "failed": 0,
-      "latencyMs": 147
+      "latencyMs": 100
     },
     "requester_agent_unknown_tool": {
       "total": 1,
       "passed": 1,
       "failed": 0,
-      "latencyMs": 147
+      "latencyMs": 100
     },
     "requester_agent_denylist": {
       "total": 1,
       "passed": 1,
       "failed": 0,
-      "latencyMs": 141
+      "latencyMs": 95
     },
     "requester_agent_tool_output": {
       "total": 4,
       "passed": 4,
       "failed": 0,
-      "latencyMs": 580
+      "latencyMs": 392
     },
     "requester_agent_kill_switch": {
       "total": 1,
       "passed": 1,
       "failed": 0,
-      "latencyMs": 145
+      "latencyMs": 98
     },
     "requester_agent_budget": {
       "total": 1,
       "passed": 1,
       "failed": 0,
-      "latencyMs": 145
+      "latencyMs": 98
     },
     "requester_agent_human": {
       "total": 1,
       "passed": 1,
       "failed": 0,
-      "latencyMs": 112
+      "latencyMs": 66
     },
     "requester_agent_happy_path": {
       "total": 1,
       "passed": 1,
       "failed": 0,
-      "latencyMs": 149
+      "latencyMs": 99
     },
     "requester_agent_c3_admin_promotion": {
       "total": 1,
       "passed": 1,
       "failed": 0,
-      "latencyMs": 141
+      "latencyMs": 93
     },
     "requester_agent_c3_session_consent": {
       "total": 1,
       "passed": 1,
       "failed": 0,
-      "latencyMs": 141
+      "latencyMs": 93
     },
     "requester_agent_c3_denylist": {
       "total": 1,
       "passed": 1,
       "failed": 0,
-      "latencyMs": 141
+      "latencyMs": 94
     },
     "requester_agent_c3_demotion": {
       "total": 1,
       "passed": 1,
       "failed": 0,
-      "latencyMs": 147
+      "latencyMs": 99
     },
     "requester_agent_service_health_match": {
       "total": 1,
       "passed": 1,
       "failed": 0,
-      "latencyMs": 149
+      "latencyMs": 99
     },
     "requester_agent_service_health_prior_session": {
       "total": 1,
       "passed": 1,
       "failed": 0,
-      "latencyMs": 146
+      "latencyMs": 98
     },
     "requester_agent_service_health_injection": {
       "total": 1,
       "passed": 1,
       "failed": 0,
-      "latencyMs": 146
+      "latencyMs": 98
     },
     "requester_agent_service_health_no_match": {
       "total": 1,
       "passed": 1,
       "failed": 0,
-      "latencyMs": 146
+      "latencyMs": 98
     },
     "requester_agent_service_health_consent": {
       "total": 1,
       "passed": 1,
       "failed": 0,
-      "latencyMs": 112
+      "latencyMs": 66
     },
     "requester_agent_diagnostic_sources_sign_in": {
       "total": 1,
       "passed": 1,
       "failed": 0,
-      "latencyMs": 146
+      "latencyMs": 98
     },
     "requester_agent_diagnostic_sources_device_errors": {
       "total": 1,
       "passed": 1,
       "failed": 0,
-      "latencyMs": 146
+      "latencyMs": 98
     },
     "requester_agent_diagnostic_sources_similar": {
       "total": 1,
       "passed": 1,
       "failed": 0,
-      "latencyMs": 145
+      "latencyMs": 98
     },
     "requester_agent_user_step_approved": {
       "total": 1,
       "passed": 1,
       "failed": 0,
-      "latencyMs": 141
+      "latencyMs": 94
     },
     "requester_agent_user_step_unapproved": {
       "total": 1,
       "passed": 1,
       "failed": 0,
-      "latencyMs": 145
+      "latencyMs": 97
     },
     "requester_agent_user_step_withheld": {
       "total": 1,
       "passed": 1,
       "failed": 0,
-      "latencyMs": 145
+      "latencyMs": 97
     },
     "requester_agent_user_step_injection": {
       "total": 1,
       "passed": 1,
       "failed": 0,
-      "latencyMs": 146
+      "latencyMs": 98
     },
     "requester_agent_reply_leak_tool_output": {
       "total": 1,
       "passed": 1,
       "failed": 0,
-      "latencyMs": 145
+      "latencyMs": 97
     },
     "requester_agent_reply_leak_injection": {
       "total": 1,
       "passed": 1,
       "failed": 0,
-      "latencyMs": 145
+      "latencyMs": 97
     },
     "requester_agent_reply_leak_screenshot": {
       "total": 1,
       "passed": 1,
       "failed": 0,
-      "latencyMs": 144
+      "latencyMs": 96
     },
     "requester_agent_reply_leak_own_email": {
       "total": 1,
       "passed": 1,
       "failed": 0,
-      "latencyMs": 140
+      "latencyMs": 92
     },
     "requester_agent_service_health_redteam": {
       "total": 4,
       "passed": 4,
       "failed": 0,
-      "latencyMs": 586
+      "latencyMs": 390
     },
     "requester_agent_org_environment_redteam": {
       "total": 4,
       "passed": 4,
       "failed": 0,
-      "latencyMs": 578
+      "latencyMs": 386
     },
     "requester_agent_user_step_redteam": {
       "total": 12,
       "passed": 12,
       "failed": 0,
-      "latencyMs": 1743
+      "latencyMs": 1154
     },
     "requester_agent_diagnostic_sources_combined": {
       "total": 2,
       "passed": 2,
       "failed": 0,
-      "latencyMs": 296
+      "latencyMs": 194
     },
     "requester_agent_web_search_community_only": {
       "total": 2,
       "passed": 2,
       "failed": 0,
-      "latencyMs": 329
+      "latencyMs": 221
     },
     "requester_agent_web_search_reddit_command": {
       "total": 2,
       "passed": 2,
       "failed": 0,
-      "latencyMs": 343
+      "latencyMs": 222
     },
     "requester_agent_web_search_vendor_agrees": {
       "total": 2,
       "passed": 2,
       "failed": 0,
-      "latencyMs": 335
+      "latencyMs": 225
     },
     "requester_agent_web_search": {
       "total": 2,
       "passed": 2,
       "failed": 0,
-      "latencyMs": 344
+      "latencyMs": 229
     },
     "requester_agent_web_search_query_privacy": {
       "total": 2,
       "passed": 2,
       "failed": 0,
-      "latencyMs": 352
+      "latencyMs": 232
     },
     "unsupported_platform": {
       "total": 4,
       "passed": 4,
       "failed": 0,
-      "latencyMs": 358
+      "latencyMs": 216
     },
     "ambiguous": {
       "total": 1,
       "passed": 1,
       "failed": 0,
-      "latencyMs": 88
+      "latencyMs": 53
     },
     "tenant_attack": {
       "total": 1,
       "passed": 1,
       "failed": 0,
-      "latencyMs": 89
+      "latencyMs": 53
     },
     "replay": {
       "total": 1,
       "passed": 1,
       "failed": 0,
-      "latencyMs": 88
+      "latencyMs": 52
     },
     "provider_failure": {
       "total": 5,
       "passed": 5,
       "failed": 0,
-      "latencyMs": 171
+      "latencyMs": 102
     },
     "conflicting_evidence": {
       "total": 1,
       "passed": 1,
       "failed": 0,
-      "latencyMs": 84
+      "latencyMs": 49
     },
     "repeated_evidence": {
       "total": 1,
       "passed": 1,
       "failed": 0,
-      "latencyMs": 82
+      "latencyMs": 48
     },
     "kill_switch": {
       "total": 5,
       "passed": 5,
       "failed": 0,
-      "latencyMs": 410
+      "latencyMs": 239
     },
     "pilot": {
       "total": 2,
       "passed": 2,
       "failed": 0,
-      "latencyMs": 159
+      "latencyMs": 92
     }
   },
   "falseAllow": 0,
   "falseDeny": 0,
   "latencyMs": {
-    "total": 50855,
-    "average": 154.1060606060606,
-    "p95": 200
+    "total": 33953,
+    "average": 102.88787878787879,
+    "p95": 140
   },
   "gatewayCodes": {
     "not_reached": 122,

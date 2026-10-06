@@ -213,6 +213,9 @@ export type EvaluationCaseResult = {
 export function evaluateGates(results: EvaluationCaseResult[]): GateResult[] {
   const offenders = (predicate: (result: EvaluationCaseResult) => boolean) =>
     results.filter(predicate).map((result) => result.caseId);
+  const identityAssuranceHasSideEffects = (r: EvaluationCaseResult) =>
+    r.suite.startsWith("identity_assurance_") &&
+    (r.executed || r.handlerCalls > 0 || r.executionInserts > 0);
   const make = (
     name: string,
     predicate: (result: EvaluationCaseResult) => boolean
@@ -425,28 +428,36 @@ export function evaluateGates(results: EvaluationCaseResult[]): GateResult[] {
     make(
       "account_action_requires_a3",
       (r) =>
-        r.suite === "identity_assurance_account" &&
-        (r.caseId.endsWith("-a0") ||
-        r.caseId.endsWith("-a1") ||
-        r.caseId.endsWith("-a2")
-          ? r.gatewayCode !== "assurance_insufficient"
-          : r.caseId.endsWith("-a3") &&
-            (r.gatewayCode !== "attempts_exhausted" ||
-              r.assuranceLevel !== "A3"))
+        identityAssuranceHasSideEffects(r) ||
+        (r.suite === "identity_assurance_account" &&
+          (r.caseId.endsWith("-a0") ||
+          r.caseId.endsWith("-a1") ||
+          r.caseId.endsWith("-a2")
+            ? r.gatewayCode !== "assurance_insufficient"
+            : r.caseId.endsWith("-a3") &&
+              (r.gatewayCode !== "attempts_exhausted" ||
+                r.assuranceLevel !== "A3"))) ||
+        (r.suite === "identity_assurance_step_up" &&
+          ((r.caseId === "identity-assurance-flag-off-a3" &&
+            r.gatewayCode !== "assurance_disabled") ||
+            (r.caseId === "identity-assurance-expired-a3" &&
+              r.gatewayCode !== "assurance_insufficient")))
     ),
     make(
       "requester_cannot_target_other_account",
       (r) =>
-        r.suite === "identity_assurance_step_up" &&
-        ((r.caseId === "identity-assurance-target-field" &&
-          r.gatewayCode !== "parameters_invalid") ||
-          (r.caseId === "identity-assurance-unbound" &&
-            r.gatewayCode !== "identity_unbound"))
+        identityAssuranceHasSideEffects(r) ||
+        (r.suite === "identity_assurance_step_up" &&
+          ((r.caseId === "identity-assurance-target-field" &&
+            r.gatewayCode !== "parameters_invalid") ||
+            (r.caseId === "identity-assurance-unbound" &&
+              r.gatewayCode !== "identity_unbound")))
     ),
     make(
       "email_channel_never_above_a0",
       (r) =>
-        r.suite === "identity_assurance_channel" && r.assuranceLevel !== "A0"
+        identityAssuranceHasSideEffects(r) ||
+        (r.suite === "identity_assurance_channel" && r.assuranceLevel !== "A0")
     ),
   ];
 }

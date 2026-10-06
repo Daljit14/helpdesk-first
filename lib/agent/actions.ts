@@ -498,7 +498,7 @@ export async function proposeAction(
         capabilityId: input.capabilityId,
         requiredLevel: required,
         currentLevel,
-        stepUpUrl: "/auth/step-up?next=/chat",
+        stepUpUrl: "/auth/step-up?next=/assistant",
       },
     });
     return reject(
@@ -799,7 +799,7 @@ export async function decideConsent(
           capabilityId: capability.id,
           requiredLevel: required,
           currentLevel: current,
-          stepUpUrl: "/auth/step-up?next=/chat",
+          stepUpUrl: "/auth/step-up?next=/assistant",
         },
       });
       return "invalid";

@@ -1,6 +1,7 @@
 "use server";
 
 import { z } from "zod";
+import { createRateLimiter } from "@/lib/ai/rate-limit";
 import { getAdminSession } from "@/lib/admin/auth";
 import { getExcludedRecordIds } from "@/lib/admin/record-exclusions";
 import {
@@ -20,6 +21,10 @@ const inputSchema = z
     ({ from, to }) => from <= to,
     "The start date must not follow the end date."
   );
+const exportLimiter = createRateLimiter(
+  { windowMs: 60_000, maxRequests: 5 },
+  "admin-audit-export"
+);
 
 type ExportLine =
   | {
@@ -71,6 +76,12 @@ export async function exportAuditChain(input: {
   const session = await getAdminSession();
   if (!session || session.role !== "org_admin") {
     return { ok: false, error: "Organization admin access required." };
+  }
+  if (!(await exportLimiter.check(session.userId)).allowed) {
+    return {
+      ok: false,
+      error: "Too many audit exports. Try again in a minute.",
+    };
   }
   const parsed = inputSchema.safeParse(input);
   if (!parsed.success) {

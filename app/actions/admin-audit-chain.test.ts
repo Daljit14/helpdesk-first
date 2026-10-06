@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   getAdminSession: vi.fn(),
   createAdminClient: vi.fn(),
   getExcludedRecordIds: vi.fn(),
+  checkRateLimit: vi.fn(),
 }));
 
 vi.mock("@/lib/admin/auth", () => ({
@@ -18,6 +19,9 @@ vi.mock("@/lib/supabase/admin", () => ({
 }));
 vi.mock("@/lib/admin/record-exclusions", () => ({
   getExcludedRecordIds: mocks.getExcludedRecordIds,
+}));
+vi.mock("@/lib/ai/rate-limit", () => ({
+  createRateLimiter: () => ({ check: mocks.checkRateLimit }),
 }));
 
 import { exportAuditChain } from "./admin-audit-chain";
@@ -70,6 +74,7 @@ function sessionQuery(data: unknown[]) {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.getAdminSession.mockResolvedValue(session);
+  mocks.checkRateLimit.mockResolvedValue({ allowed: true });
   mocks.getExcludedRecordIds.mockImplementation(
     async (_admin, _organization, table) =>
       new Set(
@@ -95,6 +100,21 @@ describe("exportAuditChain", () => {
       error: "Organization admin access required.",
     });
     expect(mocks.createAdminClient).not.toHaveBeenCalled();
+  });
+
+  test("rate limits exports before creating or querying the admin client", async () => {
+    mocks.checkRateLimit.mockResolvedValue({ allowed: false });
+
+    await expect(
+      exportAuditChain({ from: "2026-10-06", to: "2026-10-06" })
+    ).resolves.toEqual({
+      ok: false,
+      error: "Too many audit exports. Try again in a minute.",
+    });
+
+    expect(mocks.checkRateLimit).toHaveBeenCalledWith(session.userId);
+    expect(mocks.createAdminClient).not.toHaveBeenCalled();
+    expect(mocks.getExcludedRecordIds).not.toHaveBeenCalled();
   });
 
   test("scopes rows to the session org and emits excluded records without payloads", async () => {

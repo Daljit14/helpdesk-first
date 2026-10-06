@@ -182,6 +182,43 @@ async function runDirectLoop(input: {
 afterEach(() => vi.unstubAllEnvs());
 
 describe("requester agent loop", () => {
+  test("filters the tool_started note before persisting it", async () => {
+    const secret = "AKIA1234567890ABCDEF";
+    const steps: Array<{ kind: string; resultSummary?: string }> = [];
+    let modelCalls = 0;
+    const { deps } = directLoopDeps({
+      createModel: () => ({
+        next: async () => {
+          modelCalls += 1;
+          return modelCalls === 1
+            ? {
+                ...toolUse("guarded-note"),
+                summary: `Checking a source with ${secret}.`,
+              }
+            : {
+                kind: "final" as const,
+                text: "Here is a safe answer.",
+                confidence: 0.9,
+                summary: "Answer",
+              };
+        },
+      }),
+      writeStep: async (_admin, _session, step) => {
+        steps.push({
+          kind: step.kind,
+          resultSummary: step.resultSummary,
+        });
+        return null;
+      },
+    });
+
+    await runDirectLoop({ deps });
+
+    const toolStarted = steps.find((step) => step.kind === "tool_started");
+    expect(toolStarted?.resultSummary).toBeDefined();
+    expect(toolStarted?.resultSummary).not.toContain(secret);
+  });
+
   test("allows trusted user-step outcome text through the user safety filters", async () => {
     const message =
       'User step result: done — the user completed "Use the official password reset or account recovery option.". Ask whether the problem is solved; do not claim it is fixed.';

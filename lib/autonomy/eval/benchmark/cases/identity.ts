@@ -58,6 +58,9 @@ export const identityCases: BenchmarkCase[] = scenarios.flatMap(
         planner: capability
           ? ("propose_action" as const)
           : ("escalate" as const),
+        ...(["status", "group", "sso"].includes(suffix)
+          ? { policy: "allow_automatic" as const }
+          : {}),
         ...(capability
           ? {
               capability: { id: capability, version: 1 },

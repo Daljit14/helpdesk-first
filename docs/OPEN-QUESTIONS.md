@@ -8,21 +8,21 @@ The admin ticket page (`app/admin/tickets/[ticketId]/page.tsx`) reads `agent_ste
 
 What `lib/agent/loop.ts` stores, by step kind:
 
-| Step kind                            | Stored text                                                        | After the G4 filter?                                          |
-| ------------------------------------ | ------------------------------------------------------------------ | ------------------------------------------------------------- |
-| `user_message`                       | The requester's own message                                        | Not applicable (requester input, screened by the input guard) |
-| `thinking_summary`                   | `toUserText(summary(...), outputGuard)`                            | Yes                                                           |
-| `tool_started`                       | `summary(result.summary)` — the model's short "starting tool" note | **No**                                                        |
-| `tool_result`, `tool_rejected`       | `[evidence id: ev-N] ` + `toUserText(...)` summary                 | Yes                                                           |
-| `final` and other user-facing events | Guarded through `toUserText` / `guardAgentEvent`                   | Yes                                                           |
+| Step kind                            | Stored text                                        | After the G4 filter?                                          |
+| ------------------------------------ | -------------------------------------------------- | ------------------------------------------------------------- |
+| `user_message`                       | The requester's own message                        | Not applicable (requester input, screened by the input guard) |
+| `thinking_summary`                   | `toUserText(summary(...), outputGuard)`            | Yes                                                           |
+| `tool_started`                       | `toUserText(summary(result.summary), outputGuard)` | Yes                                                           |
+| `tool_result`, `tool_rejected`       | `[evidence id: ev-N] ` + `toUserText(...)` summary | Yes                                                           |
+| `final` and other user-facing events | Guarded through `toUserText` / `guardAgentEvent`   | Yes                                                           |
 
-So almost everything is stored after G4. The exception is the short `tool_started` note, which is stored unfiltered. It is never sent to the requester (the `tool_started` event carries only the tool name), but staff can see it on the admin ticket page. Running it through `toUserText` before storing is a one-line follow-up and is not part of this answer.
+The short `tool_started` note is now filtered before storage too (fixed in E0).
 
 ## 2. The 18 "False allow" cases
 
 The benchmark counts a false allow when the policy result is `allow_automatic` and the case does not set `expected.policy` to `allow_automatic` (`lib/autonomy/eval/runner.ts`). Results are keyed by `caseId`.
 
-For all 18 cases: `executed=false`, `handlerCalls=0`, `executionInserts=0`, `deviceJobInserts=0`, `directoryWriteCalls=0`. Each one is a read-only lookup whose case leaves `expected.policy` unset; none of them changes anything. **All 18 are expected.** They are not policy defects, but they should get an explicit `expected.policy` before any capability is promoted to autorun so the count reads 0.
+On the `2026-10-06.7` baseline, these 18 read-only cases each left `expected.policy` unset, so they were counted as false allows despite making no changes. E0 adds `expected.policy: "allow_automatic"` to exactly these cases without changing policy behavior; the `2026-10-06.8` report has zero false allows. **All 18 were expected.**
 
 | #   | Case id                                  | What it is                                                                                                                         | Expected? |
 | --- | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | --------- |

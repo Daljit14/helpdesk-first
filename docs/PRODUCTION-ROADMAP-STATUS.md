@@ -1,3 +1,25 @@
+## Production SQL run order (not yet applied)
+
+1. `supabase/agent-outcome-feedback.sql` (D1 #131) — requester outcome feedback.
+2. `supabase/service-health.sql` (D3 #133) — service-health incidents.
+3. `supabase/model-routing.sql` (D4 #134) — model routing.
+4. `supabase/org-environment-profile.sql` (D5 #135) — organization environment profiles.
+5. `supabase/diagnostic-sources.sql` (PR 14 #136) — diagnostic source records.
+6. `supabase/agent-user-steps.sql` (PR 16 #137) — requester-agent user steps.
+7. `supabase/blast-radius.sql` (G1 #144) — blast-radius limits and safety stops.
+8. `supabase/agent-reply-guard.sql` (G4 #145) — after 1–6 and before requester-agent enablement; rewrites the `agent_steps` kind list.
+9. `supabase/agent-web-search.sql` (PR15 #150) — after `research.sql` and `requester-agent.sql`.
+10. `supabase/org-research-vendor-domains.sql` (7a #151) — after `research.sql`, `admin-dashboard.sql`, and `wave-3-organizations.sql`.
+11. `supabase/audit-chain.sql` (G3 #149) — always last, in a quiet window.
+
+Prerequisite migrations listed in each SETUP-NOTES file must already be applied; none of these 11 has run on production.
+
+## Phase E — E0 small follow-ups
+
+Implemented on this branch. E0 filters the stored `tool_started` note and marks the 18 verified read-only
+`allow_automatic` benchmark cases explicitly. Version `2026-10-06.8` reports
+312 cases, zero false allows, and all 36 release gates passing.
+
 ## Wave 2 G1 — blast-radius limits and automatic safety stops
 
 Implemented on this branch and marked **merged-pending**. The automatic

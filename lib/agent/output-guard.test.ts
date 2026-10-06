@@ -1,4 +1,6 @@
 import { describe, expect, test } from "vitest";
+import { getAllIssueSlugs, getIssueBySlug } from "@/lib/search";
+import { getIssueStepPolicies, isOfferable } from "@/lib/investigation/policy";
 import {
   guardAgentEvent,
   guardAgentOutput,
@@ -21,12 +23,14 @@ describe("requester-agent output guard", () => {
     [`AIza${"A".repeat(35)}`, "api_key"],
     ["AKIA1234567890ABCDEF", "aws_key"],
     ["eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0In0.c2lnbmF0dXJlLXZhbHVl", "jwt"],
-    ["Bearer abc.def/ghi==", "token"],
+    ["Bearer abc.def/ghijklmnop==", "token"],
     [
       "-----BEGIN RSA PRIVATE KEY-----private material-----END RSA PRIVATE KEY-----",
       "private_key",
     ],
     ["password: Hunter2!", "password"],
+    ["Password is Hunter2!", "password"],
+    ["password was p@ss.", "password"],
     ["the password is Hunter2!", "password"],
     ["MFA code: 482913", "mfa_code"],
     ["recovery key = ABCD-1234", "mfa_code"],
@@ -35,6 +39,9 @@ describe("requester-agent output guard", () => {
     ["a.person@contoso.example.onmicrosoft.com", "email"],
     ["192.168.1.24", "ip_address"],
     ["2001:0db8:85a3:0000:0000:8a2e:0370:7334", "ip_address"],
+    ["::1", "ip_address"],
+    ["::ffff:192.0.2.1", "ip_address"],
+    ["fe80::1", "ip_address"],
     ["2001:db8::1", "ip_address"],
     ["AA:BB:CC:DD:EE:FF", "mac_address"],
     ["AA-BB-CC-DD-EE-FF", "mac_address"],
@@ -49,13 +56,16 @@ describe("requester-agent output guard", () => {
   });
 
   test.each([
-    "Your password is expired",
+    "Your password is expired.",
+    "the recovery key is stored.",
     "your password was changed yesterday",
     "ticket #1234",
     "Windows 11 build 10.0.22631.4317",
     "Restart at 10:30",
     "Restart at 10:30:45",
     "::",
+    "Note:: restart",
+    "the bearer of bad news",
     "microsoft.com",
     "4111111111111112",
     "00000000-0000-4000-8000-000000000001",
@@ -119,7 +129,7 @@ describe("requester-agent output guard", () => {
     const events = [
       {
         type: "final_answer" as const,
-        text: "Bearer abc.def/ghi==",
+        text: "Bearer abc.def/ghijklmnop==",
         confidence: 0.9,
         evidence: ["ev-1"],
       },
@@ -224,5 +234,25 @@ describe("requester-agent output guard", () => {
         a: { b: { c: { d: { e: "[truncated]" } } } },
       },
     });
+  });
+
+  test("preserves every requester-offerable issue step", () => {
+    let checkedSteps = 0;
+
+    for (const slug of getAllIssueSlugs()) {
+      const issue = getIssueBySlug(slug);
+      if (!issue) throw new Error(`Issue slug from index is missing: ${slug}`);
+
+      for (const policy of getIssueStepPolicies(issue)) {
+        if (!isOfferable(policy.risk, "requester")) continue;
+        checkedSteps += 1;
+        expect(
+          toUserText(policy.text, { requesterIdentifiers: [] }),
+          `${slug} step ${policy.stepIndex}`
+        ).toBe(policy.text.trim());
+      }
+    }
+
+    expect(checkedSteps).toBeGreaterThan(0);
   });
 });

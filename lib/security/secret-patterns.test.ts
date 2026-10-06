@@ -14,7 +14,7 @@ describe("shared secret patterns", () => {
       "-----BEGIN RSA PRIVATE KEY-----key material-----END RSA PRIVATE KEY-----",
       "private_key",
     ],
-    ["Bearer abc.def/ghi==", "token"],
+    ["Bearer abc.def/ghijklmnop==", "token"],
     ["ghp_abcdefghijklmnopqrstuvwxyz123456", "api_key"],
     ["xoxb-1234567890-abcdefghij", "api_key"],
     [`AIza${"A".repeat(35)}`, "api_key"],
@@ -26,6 +26,18 @@ describe("shared secret patterns", () => {
           new RegExp(secret.pattern.source, secret.pattern.flags).test(value)
       )
     ).toBe(true);
+  });
+
+  test("does not classify bearer prose as a token", () => {
+    expect(
+      SECRET_PATTERNS.some(
+        (secret) =>
+          secret.kind === "token" &&
+          new RegExp(secret.pattern.source, secret.pattern.flags).test(
+            "the bearer of bad news"
+          )
+      )
+    ).toBe(false);
   });
 
   test("validates Luhn card digits", () => {

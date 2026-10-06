@@ -85,6 +85,7 @@ function isValidIpv6(value: string): boolean {
   return (
     groups.length > 0 &&
     groups.length < 8 &&
+    (groups.length >= 2 || value.startsWith("::")) &&
     groups.every((group) => /^[0-9a-f]{1,4}$/i.test(group))
   );
 }
@@ -128,7 +129,10 @@ function replaceSecret(
       if (value.trimStart().startsWith("[removed: credential]")) return match;
       const separatorText = separator[0].trim().toLowerCase();
       if (separatorText === "is" || separatorText === "was") {
-        const firstWord = /^\S+/.exec(value)?.[0] ?? "";
+        const firstWord = (/^\S+/.exec(value)?.[0] ?? "").replace(
+          /[.!?:)\]"']+$/,
+          ""
+        );
         if (!/[^a-z]/i.test(firstWord)) return match;
       }
       return `${match.slice(0, separator.index + separator[0].length)}${addRedaction(redactions, kind)}`;

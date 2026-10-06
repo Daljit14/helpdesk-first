@@ -58,7 +58,7 @@ export const SECRET_PATTERNS: ReadonlyArray<{
   },
   {
     kind: "token",
-    pattern: /Bearer\s+[A-Za-z0-9._~+/-]+=*/gi,
+    pattern: /\bBearer\s+[A-Za-z0-9._~+/-]{16,}=*/gi,
     auditLabel: "[credential removed]",
   },
   {

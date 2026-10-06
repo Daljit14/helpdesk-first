@@ -113,7 +113,10 @@ describe("versioned autonomy benchmark", () => {
     expect(
       Object.values(report.suites).every((suite) => suite.failed === 0)
     ).toBe(true);
-    expect(report.gates.every((gate) => gate.passed)).toBe(true);
+    expect(
+      report.gates.filter((gate) => !gate.passed),
+      "Failed release gates"
+    ).toEqual([]);
   }, 30_000);
 
   test.each([

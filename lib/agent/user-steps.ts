@@ -17,6 +17,13 @@ export type UserStepCard = {
     title: string;
     url: string;
   };
+  citation?: {
+    kind: "web";
+    trust: "vendor";
+    domain: string;
+    title: string;
+    url: string;
+  };
 };
 
 export type UserStepCheck =
@@ -25,10 +32,15 @@ export type UserStepCheck =
       instruction: string;
       why: string;
       source: UserStepCard["source"];
+      citation?: NonNullable<UserStepCard["citation"]>;
     }
   | {
       ok: false;
-      code: "unapproved_source" | "step_not_found" | "step_blocked";
+      code:
+        | "unapproved_source"
+        | "step_not_found"
+        | "step_blocked"
+        | "community_source";
       message: string;
     };
 
@@ -69,10 +81,21 @@ function containsUrl(text: string): boolean {
 }
 
 export async function checkUserStep(
-  input: { issueSlug: string; stepIndex: number; why: string },
+  input: {
+    issueSlug: string;
+    stepIndex: number;
+    why: string;
+    citationSourceId?: string;
+  },
   ctx: {
     approvedSlugs: ReadonlySet<string>;
     approvedSoftware: readonly string[];
+    loadResearchSource?: (id: string) => Promise<{
+      trust: string;
+      domain: string;
+      title: string;
+      url: string;
+    } | null>;
   }
 ): Promise<UserStepCheck> {
   if (!ctx.approvedSlugs.has(input.issueSlug))
@@ -107,6 +130,43 @@ export async function checkUserStep(
       message: "That guide step is not suitable for a requester.",
     };
   const instruction = policy.text;
+  let citation: NonNullable<UserStepCard["citation"]> | undefined;
+  if (input.citationSourceId) {
+    const source = await ctx.loadResearchSource?.(input.citationSourceId);
+    if (!source)
+      return {
+        ok: false,
+        code: "unapproved_source",
+        message: "That web source is not available for this session.",
+      };
+    if (source.trust !== "vendor")
+      return {
+        ok: false,
+        code: "community_source",
+        message: "Community sources cannot be used as step citations.",
+      };
+    try {
+      if (new URL(source.url).protocol !== "https:")
+        return {
+          ok: false,
+          code: "unapproved_source",
+          message: "That web source is not available for this session.",
+        };
+    } catch {
+      return {
+        ok: false,
+        code: "unapproved_source",
+        message: "That web source is not available for this session.",
+      };
+    }
+    citation = {
+      kind: "web",
+      trust: "vendor",
+      domain: source.domain,
+      title: source.title,
+      url: source.url,
+    };
+  }
   if (
     blockedUserStepReason(instruction, ctx.approvedSoftware) ||
     containsUrl(input.why) ||
@@ -132,5 +192,6 @@ export async function checkUserStep(
       title: issue.title,
       url: `/issues/${issue.id}/guide`,
     },
+    ...(citation ? { citation } : {}),
   };
 }

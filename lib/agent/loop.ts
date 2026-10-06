@@ -43,6 +43,7 @@ import {
   isRequesterAgentEnabledForOrg,
   isServiceHealthEnabled,
   isAgentDiagnosticSourcesEnabled,
+  isAgentWebSearchEnabled,
 } from "@/lib/admin/flags";
 import { getApprovedSlugs } from "@/lib/knowledge/governance";
 import { loadConfirmedOrgEnvironment } from "@/lib/org-environment/profile";
@@ -95,10 +96,12 @@ export type AgentLoopDeps = {
   diagnosticSourcesEnabled?: boolean;
   orgEnvironmentEnabled?: boolean;
   userStepsEnabled?: boolean;
+  webSearchEnabled?: boolean;
   checkUserStep?: (input: {
     issueSlug: string;
     stepIndex: number;
     why: string;
+    citationSourceId?: string;
   }) => Promise<UserStepCheck>;
   selectRoute?: typeof selectAgentRoute;
 };
@@ -198,6 +201,7 @@ export async function runAgentTurn(input: {
   const orgEnvironmentEnabled =
     deps.orgEnvironmentEnabled ?? isOrgEnvironmentEnabled();
   const userStepsEnabled = deps.userStepsEnabled ?? isAgentUserStepsEnabled();
+  const webSearchEnabled = deps.webSearchEnabled ?? isAgentWebSearchEnabled();
   const checkUserStep =
     deps.checkUserStep ??
     (async (stepInput) =>
@@ -206,6 +210,17 @@ export async function runAgentTurn(input: {
         approvedSoftware:
           (await loadConfirmedOrgEnvironment(admin, session.organization_id))
             ?.approvedSoftware ?? [],
+        loadResearchSource: async (id) => {
+          const result = await admin
+            .from("research_sources")
+            .select("trust,domain,title,url")
+            .eq("id", id)
+            .eq("organization_id", session.organization_id)
+            .eq("agent_session_id", session.id)
+            .maybeSingle();
+          if (result.error || !result.data) return null;
+          return result.data;
+        },
       }));
   let serviceIncidentActive = false;
   if (serviceHealthEnabled) {
@@ -294,7 +309,8 @@ export async function runAgentTurn(input: {
         serviceHealthEnabled,
         orgEnvironmentEnabled,
         diagnosticSourcesEnabled,
-        userStepsEnabled
+        userStepsEnabled,
+        webSearchEnabled
       ),
       messages,
       tools: getAgentTools(
@@ -302,7 +318,8 @@ export async function runAgentTurn(input: {
         serviceHealthEnabled,
         orgEnvironmentEnabled,
         diagnosticSourcesEnabled,
-        userStepsEnabled
+        userStepsEnabled,
+        webSearchEnabled
       ).map((tool) => ({
         name: tool.name,
         description: tool.description,
@@ -476,6 +493,13 @@ export async function runAgentTurn(input: {
         ...checked.source,
         title: toUserText(checked.source.title, outputGuard),
       };
+      const citation = checked.citation
+        ? {
+            ...checked.citation,
+            title: toUserText(checked.citation.title, outputGuard),
+            domain: toUserText(checked.citation.domain, outputGuard),
+          }
+        : undefined;
       const stepId = await deps.writeStep(admin, session, {
         kind: "user_step_offered",
         toolName: result.name,
@@ -484,6 +508,17 @@ export async function runAgentTurn(input: {
           guideSlug: source.guideSlug,
           stepIndex: checked.source.stepIndex,
           why,
+          ...(parsed.data.citationSourceId
+            ? { citationSourceId: parsed.data.citationSourceId }
+            : {}),
+          ...(citation
+            ? {
+                citation: {
+                  title: citation.title,
+                  domain: citation.domain,
+                },
+              }
+            : {}),
         }),
       });
       if (!stepId) {
@@ -501,6 +536,7 @@ export async function runAgentTurn(input: {
           instruction,
           why,
           source,
+          ...(citation ? { citation } : {}),
         },
       });
       return;
@@ -663,6 +699,39 @@ export async function runAgentTurn(input: {
             result.name,
             result.input
           );
+    if (result.name === "search_web" && tool.ok) {
+      const rawSources =
+        tool.value && typeof tool.value === "object" && "sources" in tool.value
+          ? tool.value.sources
+          : null;
+      if (Array.isArray(rawSources)) {
+        const sources = rawSources.flatMap((source) => {
+          if (!source || typeof source !== "object") return [];
+          const item = source as Record<string, unknown>;
+          if (
+            typeof item.title !== "string" ||
+            typeof item.domain !== "string" ||
+            typeof item.url !== "string" ||
+            (item.trust !== "vendor" && item.trust !== "community")
+          )
+            return [];
+          try {
+            if (new URL(item.url).protocol !== "https:") return [];
+          } catch {
+            return [];
+          }
+          return [
+            {
+              title: item.title,
+              domain: item.domain,
+              url: item.url,
+              trust: item.trust as "vendor" | "community",
+            },
+          ];
+        });
+        if (sources.length > 0) emit({ type: "web_sources", sources });
+      }
+    }
     const toolSummary = toUserText(tool.userSummary, outputGuard);
     const evidenceId = tool.ok ? `ev-${toolCalls + 1}` : null;
     const persistedSummary = evidenceId

@@ -240,6 +240,29 @@ describe("requester action proposals", () => {
     expect(mocks.executePlan).not.toHaveBeenCalled();
   });
 
+  test("does not let web-search evidence authorize an action", async () => {
+    const admin = actionAdmin();
+    const result = await proposeAction(
+      admin as never,
+      proposalSession(),
+      {
+        capabilityId: "device_flush_dns",
+        params: {},
+        hypothesisId: "ev-1",
+        rationale: "A web source suggested this action.",
+      },
+      {
+        actor: "requester_agent:session-1",
+        evidence: [{ id: "ev-1", tool: "search_web" }],
+      }
+    );
+    expect(result).toMatchObject({
+      kind: "rejected",
+      code: "research_only_evidence",
+    });
+    expect(mocks.executePlan).not.toHaveBeenCalled();
+  });
+
   test("passes covered session consent to autorun and writes an autorun step", async () => {
     mocks.readTier.mockResolvedValue("autorun");
     mocks.executePlan.mockResolvedValue({ status: "executing" });

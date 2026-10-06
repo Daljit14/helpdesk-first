@@ -95,7 +95,31 @@ function hasTargetKey(value: unknown): boolean {
 
 type RejectionCode = Extract<ProposeOutcome, { kind: "rejected" }>["code"];
 
-function reject(code: RejectionCode, message: string): ProposeOutcome {
+export const RESEARCH_ONLY_EVIDENCE_TOOLS: ReadonlySet<string> = new Set([
+  "search_guides",
+  "get_ticket_history",
+  "get_org_environment",
+  "count_similar_org_issues",
+  "search_web",
+]);
+
+export function researchOnlyEvidenceRejection(
+  evidence: readonly { id: string; tool: string }[],
+  hypothesisId: string
+): Extract<ProposeOutcome, { kind: "rejected" }> | null {
+  const matching = evidence.find((item) => item.id === hypothesisId);
+  return matching && RESEARCH_ONLY_EVIDENCE_TOOLS.has(matching.tool)
+    ? reject(
+        "research_only_evidence",
+        "Research evidence cannot authorize an action."
+      )
+    : null;
+}
+
+function reject(
+  code: RejectionCode,
+  message: string
+): Extract<ProposeOutcome, { kind: "rejected" }> {
   return { kind: "rejected", code, message };
 }
 
@@ -440,16 +464,11 @@ export async function proposeAction(
       "unknown_hypothesis",
       "That evidence is not available in this session."
     );
-  if (
-    evidence.tool === "search_guides" ||
-    evidence.tool === "get_ticket_history" ||
-    evidence.tool === "get_org_environment" ||
-    evidence.tool === "count_similar_org_issues"
-  )
-    return reject(
-      "research_only_evidence",
-      "Research evidence cannot authorize an action."
-    );
+  const researchRejection = researchOnlyEvidenceRejection(
+    ctx.evidence,
+    input.hypothesisId
+  );
+  if (researchRejection) return researchRejection;
   const existing = await admin
     .from("agent_steps")
     .select("capability_id,params_hash")

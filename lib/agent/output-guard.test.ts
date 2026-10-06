@@ -146,6 +146,13 @@ describe("requester-agent output guard", () => {
             title: "Wi-Fi 192.168.1.1",
             url: "https://example.test/wifi",
           },
+          citation: {
+            kind: "web" as const,
+            trust: "vendor" as const,
+            title: "Docs for DESKTOP-ABC1234",
+            domain: "192.168.1.1",
+            url: "https://learn.microsoft.com/support",
+          },
         },
       },
       {
@@ -184,6 +191,11 @@ describe("requester-agent output guard", () => {
           title: "Wi-Fi [removed: device or network detail]",
           url: "https://example.test/wifi",
         },
+        citation: {
+          title: "Docs for [removed: device or network detail]",
+          domain: "[removed: device or network detail]",
+          url: "https://learn.microsoft.com/support",
+        },
       },
     });
     expect(guarded[2]).toMatchObject({
@@ -200,6 +212,40 @@ describe("requester-agent output guard", () => {
       type: "tool_result_summary",
       tool: "get_device_diagnostics",
       summary: "Found [removed: device or network detail].",
+    });
+  });
+
+  test("guards web-source text and drops non-HTTPS links", () => {
+    const guarded = guardAgentEvent(
+      {
+        type: "web_sources",
+        sources: [
+          {
+            title: "Support for DESKTOP-ABC1234",
+            domain: "learn.microsoft.com",
+            url: "https://learn.microsoft.com/support",
+            trust: "vendor",
+          },
+          {
+            title: "Unsafe source",
+            domain: "reddit.com",
+            url: "http://reddit.com/r/support",
+            trust: "community",
+          },
+        ],
+      },
+      context()
+    );
+    expect(guarded).toEqual({
+      type: "web_sources",
+      sources: [
+        {
+          title: "Support for [removed: device or network detail]",
+          domain: "learn.microsoft.com",
+          url: "https://learn.microsoft.com/support",
+          trust: "vendor",
+        },
+      ],
     });
   });
 

@@ -50,7 +50,12 @@ const expected = z
     serviceIncidentActionRejected: z.boolean().optional(),
     userStepEmitted: z.boolean().optional(),
     userStepRejectCode: z
-      .enum(["unapproved_source", "step_not_found", "step_blocked"])
+      .enum([
+        "unapproved_source",
+        "step_not_found",
+        "step_blocked",
+        "community_source",
+      ])
       .optional(),
     auditChainOk: z.boolean().optional(),
     auditChainFirstBreakId: z.string().optional(),
@@ -97,6 +102,18 @@ const research = z
     enabled: z.boolean().optional(),
     budgetExhausted: z.boolean().optional(),
     familyAllowlisted: z.boolean().optional(),
+  })
+  .strict();
+
+const webSearchSource = z
+  .object({
+    url: z.string().url(),
+    domain: z.string().min(1),
+    title: z.string(),
+    snippet: z.string(),
+    trust: z.enum(["vendor", "community"]),
+    contentHash: z.string().min(1),
+    fetchedAt: z.string().min(1),
   })
   .strict();
 
@@ -194,6 +211,19 @@ const requesterAgent = z
     forbiddenInModelInput: z.array(z.string()).optional(),
     serviceIncidentActive: z.boolean().optional(),
     modelRoute: z.enum(["default", "planner"]).optional(),
+    webSearch: z
+      .object({
+        sources: z.array(webSearchSource),
+        requesterNameTerms: z.array(z.string()).optional(),
+      })
+      .strict()
+      .optional(),
+    realEvidenceCheck: z.boolean().optional(),
+    forbiddenInProviderQuery: z.array(z.string()).optional(),
+    expectActionRejectedCode: z.string().optional(),
+    expectedCitationDomain: z.string().optional(),
+    expectedWebSearchSourceCount: z.number().int().nonnegative().optional(),
+    expectedProviderQueryCount: z.number().int().nonnegative().optional(),
     consent: z
       .object({
         approvalRequestId: z.string(),

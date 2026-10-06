@@ -236,7 +236,7 @@ export function checkTextSafety(text: string): UserMessageSafety {
 
   // Prompt-injection and role-change attempts
   if (
-    /\bignore (previous|the above|all prior|your) instructions\b|\bignore (the )?system prompt\b|\byou are (now|a) (?:hacker|IT admin|admin|security expert|expert|developer|malicious|unrestricted)\b|\bDAN\b|\bdo (not|n't) (?:follow|obey|listen|enforce)\b|\bdisregard (safety|policy|rules)\b|\bnew role\b|\bforget (your )?instructions\b|\bfrom now on you\b|\bpwned mode\b|\bdisable (safety|your safety|policy|rules)\b/i.test(
+    /\bignore (previous|all previous|the above|all prior|your) instructions\b|\bignore (the )?system prompt\b|\byou are (now|a) (?:hacker|IT admin|admin|security expert|expert|developer|malicious|unrestricted)\b|\bDAN\b|\bdo (not|n't) (?:follow|obey|listen|enforce)\b|\bdisregard (safety|policy|rules)\b|\bnew role\b|\bforget (your )?instructions\b|\bfrom now on you\b|\bpwned mode\b|\bdisable (safety|your safety|policy|rules)\b/i.test(
       normalized
     )
   ) {

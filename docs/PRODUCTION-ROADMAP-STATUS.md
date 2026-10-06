@@ -166,6 +166,21 @@ the v1 assistant fallback. Apply `supabase/requester-agent.sql` before
 enabling; use the mock provider for the initial pilot. Research, live device
 collection, consented actions, verification, and autorun remain deferred.
 
+## Requester-agent PR15 — web and Reddit search
+
+Implemented on the PR15 branch behind the default-off
+`HELP_DESK_AGENT_WEB_SEARCH_ENABLED` flag and the existing research flag. The
+search pipeline sanitizes provider queries, reuses research cache and budget,
+and caps searches at three per session. Community sources remain untrusted
+context only; approved guides remain the only source of user instructions.
+Apply `supabase/agent-web-search.sql` only after
+`supabase/research.sql` and `supabase/requester-agent.sql`; this migration has
+not been run on production. See `SETUP-NOTES-PR15.md`.
+
+The related G3 audit export action is limited to five requests per minute after
+organization-admin authorization. `docs/OPEN-QUESTIONS.md` remains an
+owner-maintained input and is included unchanged.
+
 # Production Roadmap Status
 
 Roadmap version audited: **2.0** (Phase 0 / proposed PR #31).

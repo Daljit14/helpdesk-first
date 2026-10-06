@@ -3,14 +3,22 @@ import { runAgentTurn, type AgentLoopDeps } from "./loop";
 import { handleAgentRequest, type AgentTurnDeps } from "./turn";
 import { budgetExceeded } from "./budgets";
 import type { AgentEvent, AgentSession } from "./types";
-import type { AgentToolResult } from "./tools";
-import type { ProposeOutcome } from "./actions";
+import { runSearchWebTool, type AgentToolResult } from "./tools";
+import {
+  researchOnlyEvidenceRejection,
+  type ProposeActionInput,
+  type ProposeOutcome,
+} from "./actions";
 import { recordAutonomyOutcome } from "@/lib/autonomy/ladder";
 import { guardModelInput } from "@/lib/autonomy/guardrails/input";
 import { wrapUntrusted } from "./untrusted";
 import { NO_REQUESTER, toUserText } from "./output-guard";
 import { checkUserStep } from "./user-steps";
 import { selectAgentRoute } from "./routing";
+import { FakeResearchProvider } from "@/lib/research/fake";
+import { heuristicJudge } from "@/lib/research/judge";
+import type { ResearchProvider, ResearchSource } from "@/lib/research/types";
+import { createEvalResearchStore } from "./eval-research-store";
 
 type HarnessAdmin = Record<string, never>;
 
@@ -35,6 +43,8 @@ export type AgentEvalHarness = {
   session: AgentSession;
   model: ScriptedAgentModel;
   modelIds: string[];
+  providerQueries: string[];
+  researchRows: ReturnType<typeof createEvalResearchStore>["rows"];
   events: AgentEvent[];
   steps: Array<{ kind: string; resultSummary?: string; toolName?: string }>;
   toolCalls: number;
@@ -77,6 +87,11 @@ function session(): AgentSession {
 export function createAgentEvalHarness(input: {
   outputs: AgentModelOutput[];
   modelRoute?: "default" | "planner";
+  webSearch?: {
+    sources: ResearchSource[];
+    requesterNameTerms?: string[];
+  };
+  realEvidenceCheck?: boolean;
   toolResults?: ScriptedToolResult[];
   serviceIncidentActive?: boolean;
   serviceHealthEnabled?: boolean;
@@ -115,6 +130,18 @@ export function createAgentEvalHarness(input: {
   const steps: AgentEvalHarness["steps"] = [];
   const model = new ScriptedAgentModel([...input.outputs]);
   const modelIds: string[] = [];
+  const providerQueries: string[] = [];
+  const researchStore = createEvalResearchStore();
+  const fakeResearchProvider = new FakeResearchProvider(
+    input.webSearch?.sources ?? []
+  );
+  const researchProvider: ResearchProvider = {
+    id: fakeResearchProvider.id,
+    search: async (query) => {
+      providerQueries.push(query);
+      return fakeResearchProvider.search();
+    },
+  };
   const routeDeps: Partial<AgentLoopDeps> =
     input.modelRoute === undefined
       ? {}
@@ -149,7 +176,9 @@ export function createAgentEvalHarness(input: {
   let executePlanCalls = 0;
   let gatewayCalls = 0;
   let resolvedWithoutVerification = false;
-  const admin = {} as HarnessAdmin;
+  const admin = (input.webSearch
+    ? researchStore.admin
+    : {}) as unknown as HarnessAdmin;
   const autonomyScenario = input.autonomyScenario;
   const autonomyStats: Record<string, unknown> = {
     organization_id: current.organization_id,
@@ -261,19 +290,55 @@ export function createAgentEvalHarness(input: {
     serviceHealthEnabled: input.serviceHealthEnabled,
     orgEnvironmentEnabled: input.orgEnvironmentEnabled,
     diagnosticSourcesEnabled: input.diagnosticSourcesEnabled,
+    webSearchEnabled: Boolean(input.webSearch),
+    loadEvidence: async () => [],
     ...routeDeps,
     userStepsEnabled: input.userStepsEnabled ?? false,
     checkUserStep: (stepInput) =>
       checkUserStep(stepInput, {
         approvedSlugs: new Set(input.approvedSlugs ?? []),
         approvedSoftware: [],
+        loadResearchSource: async (id) => {
+          const source = researchStore.rows.research_sources.find(
+            (row) =>
+              row.id === id &&
+              row.organization_id === current.organization_id &&
+              row.agent_session_id === current.id
+          );
+          if (!source) return null;
+          return {
+            trust: String(source.trust ?? ""),
+            domain: String(source.domain ?? ""),
+            title: String(source.title ?? ""),
+            url: String(source.url ?? ""),
+          };
+        },
       }),
     loadRequesterIdentifiers: async () =>
       input.requesterIdentifiers ?? ["requester@example.test"],
     writeStep,
     updateSession,
-    runTool: async (_context, name, input) => {
+    runTool: async (context, name, toolInput) => {
       toolCalls += 1;
+      if (name === "search_web" && input.webSearch) {
+        const result = await runSearchWebTool(
+          context,
+          toolInput as { query: string },
+          {
+            provider: researchProvider,
+            judge: async (sources, hypotheses) =>
+              heuristicJudge(sources, hypotheses),
+            configOverride: { enabled: true },
+            loadNameTerms: async () =>
+              input.webSearch?.requesterNameTerms ?? [],
+          }
+        );
+        if (result.ok) {
+          executedInputs.push(toolInput);
+          executedTools.push(name);
+        }
+        return result;
+      }
       const scripted = toolResults.shift() ?? {
         ok: true as const,
         value: { result: "scripted" },
@@ -282,7 +347,7 @@ export function createAgentEvalHarness(input: {
         userSummary: "Scripted read-only result.",
       };
       if (scripted.ok) {
-        executedInputs.push(input);
+        executedInputs.push(toolInput);
         executedTools.push(name);
         if (scripted.sideEffects) sideEffectCalls += 1;
       }
@@ -299,8 +364,20 @@ export function createAgentEvalHarness(input: {
     alert: async () => {
       alerts += 1;
     },
-    proposeAction: async () => {
+    proposeAction: async (
+      _admin,
+      _target,
+      actionInput: ProposeActionInput,
+      ctx
+    ) => {
       proposeActionCalls += 1;
+      if (input.realEvidenceCheck) {
+        const researchRejection = researchOnlyEvidenceRejection(
+          ctx.evidence,
+          actionInput.hypothesisId
+        );
+        if (researchRejection) return researchRejection;
+      }
       if (input.proposeActionOutcome?.kind === "consent_required")
         executePlanCalls += 1;
       if (autonomyScenario?.rollbackFailed) {
@@ -454,6 +531,8 @@ export function createAgentEvalHarness(input: {
     session: current,
     model,
     modelIds,
+    providerQueries,
+    researchRows: researchStore.rows,
     events,
     steps,
     get toolCalls() {

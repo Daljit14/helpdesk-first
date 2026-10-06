@@ -162,6 +162,55 @@ describe("requester user-step validation", () => {
     ).resolves.toMatchObject({ ok: false, code: "step_blocked" });
   });
 
+  test("accepts only loaded vendor web citations for approved guide steps", async () => {
+    const input = {
+      issueSlug: issue.id,
+      stepIndex: 0,
+      why: "This is supported by the official documentation.",
+      citationSourceId: "00000000-0000-4000-8000-000000000101",
+    };
+    const baseContext = {
+      approvedSlugs: new Set([issue.id]),
+      approvedSoftware: [] as string[],
+    };
+    await expect(checkUserStep(input, baseContext)).resolves.toMatchObject({
+      ok: false,
+      code: "unapproved_source",
+    });
+    await expect(
+      checkUserStep(input, {
+        ...baseContext,
+        loadResearchSource: async () => ({
+          trust: "community",
+          domain: "reddit.com",
+          title: "Community answer",
+          url: "https://reddit.com/r/help",
+        }),
+      })
+    ).resolves.toMatchObject({ ok: false, code: "community_source" });
+    await expect(
+      checkUserStep(input, {
+        ...baseContext,
+        loadResearchSource: async () => ({
+          trust: "vendor",
+          domain: "learn.microsoft.com",
+          title: "Official Teams guide",
+          url: "https://learn.microsoft.com/teams",
+        }),
+      })
+    ).resolves.toMatchObject({
+      ok: true,
+      instruction: policies[0]?.text,
+      citation: {
+        kind: "web",
+        trust: "vendor",
+        domain: "learn.microsoft.com",
+        title: "Official Teams guide",
+        url: "https://learn.microsoft.com/teams",
+      },
+    });
+  });
+
   test.each(["e.g. restart", "use the 2.4 GHz band"])(
     "allows ordinary text that is not a URL: %s",
     async (why) => {

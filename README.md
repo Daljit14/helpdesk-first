@@ -65,7 +65,14 @@ halts, kill-switch checks, and an append-only encrypted session audit. Set
 the C1 budget variables in `.env.example`; enable only with a pilot watch and
 the existing human handoff path. The legacy assistant remains unchanged when
 UI v2 or the requester-agent flag is off. Research and live device collection
-are deferred to C2.
+remain deferred to C2 on the staff-side path.
+
+Requester-agent web search is separately disabled by default with
+`HELP_DESK_AGENT_WEB_SEARCH_ENABLED=false`; it also requires
+`HELP_DESK_RESEARCH_ENABLED=true` and a configured research provider. Searches
+are limited to three per session. Community sources are context only, never
+instructions or action evidence; user steps still come from approved guides.
+See `SETUP-NOTES-PR15.md` before enabling.
 
 ## Requester-agent C2
 

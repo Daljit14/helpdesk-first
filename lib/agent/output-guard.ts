@@ -6,6 +6,8 @@ import {
   type SecretKind,
 } from "@/lib/security/secret-patterns";
 
+export { SECRET_PATTERNS };
+
 export type OutputRedactionKind =
   | SecretKind
   | "email"
@@ -36,18 +38,20 @@ const SECRET_OUTPUT_LABELS: Record<SecretKind, string> = {
   private_key: SECRET_LABEL,
 };
 
-const IP_ADDRESS =
+export const IP_ADDRESS =
   /(?<!\.\d)\b(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\b(?!\.\d)/g;
-const IPV6_CANDIDATE = /(?<![0-9a-f:])[0-9a-f:]*::[0-9a-f:]*(?![0-9a-f:])/gi;
-const IPV6_FULL =
+export const IPV6_CANDIDATE =
+  /(?<![0-9a-f:])[0-9a-f:]*::[0-9a-f:]*(?![0-9a-f:])/gi;
+export const IPV6_FULL =
   /(?<![0-9a-f:])(?:[0-9a-f]{1,4}:){7}[0-9a-f]{1,4}(?![0-9a-f:])/gi;
-const MAC_ADDRESS = /\b[0-9A-Fa-f]{2}(?:[:-][0-9A-Fa-f]{2}){5}\b/g;
-const WINDOWS_SID = /\bS-1-\d+(?:-\d+){1,14}\b/g;
-const EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+/g;
-const UNC_HOSTNAME = /\\\\[A-Za-z0-9-]+/g;
-const INTERNAL_FQDN =
+export const MAC_ADDRESS = /\b[0-9A-Fa-f]{2}(?:[:-][0-9A-Fa-f]{2}){5}\b/g;
+export const WINDOWS_SID = /\bS-1-\d+(?:-\d+){1,14}\b/g;
+export const EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+/g;
+export const UNC_HOSTNAME = /\\\\[A-Za-z0-9-]+/g;
+export const INTERNAL_FQDN =
   /\b(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+(?:local|lan|internal|intranet|corp|home\.arpa|ad)\b/gi;
-const WINDOWS_HOSTNAME = /\b(?:DESKTOP|LAPTOP|WIN|PC)-[A-Z0-9]{5,}\b/g;
+export const WINDOWS_HOSTNAME = /\b(?:DESKTOP|LAPTOP|WIN|PC)-[A-Z0-9]{5,}\b/g;
+export const URL_PATTERN = /\b(?:https?:\/\/|www\.)\S+/gi;
 
 function requesterIdentifiers(ctx: OutputGuardContext): Set<string> {
   return new Set(
@@ -195,6 +199,13 @@ export function guardAgentEvent(
   event: AgentEvent,
   ctx: OutputGuardContext
 ): AgentEvent {
+  const isHttpsUrl = (value: string) => {
+    try {
+      return new URL(value).protocol === "https:";
+    } catch {
+      return false;
+    }
+  };
   switch (event.type) {
     case "session":
     case "tool_started":
@@ -224,6 +235,20 @@ export function guardAgentEvent(
           title: toUserText(incident.title, ctx),
         })),
       };
+    case "web_sources":
+      return {
+        ...event,
+        sources: event.sources.flatMap((source) => {
+          if (!isHttpsUrl(source.url)) return [];
+          return [
+            {
+              ...source,
+              title: toUserText(source.title, ctx),
+              domain: toUserText(source.domain, ctx),
+            },
+          ];
+        }),
+      };
     case "user_step":
       return {
         ...event,
@@ -235,6 +260,15 @@ export function guardAgentEvent(
             ...event.card.source,
             title: toUserText(event.card.source.title, ctx),
           },
+          ...(event.card.citation && isHttpsUrl(event.card.citation.url)
+            ? {
+                citation: {
+                  ...event.card.citation,
+                  title: toUserText(event.card.citation.title, ctx),
+                  domain: toUserText(event.card.citation.domain, ctx),
+                },
+              }
+            : {}),
         },
       };
     case "consent_required":

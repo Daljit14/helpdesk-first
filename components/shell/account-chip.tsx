@@ -139,7 +139,12 @@ export function AccountChip({
             {initial}
           </span>
         ) : (
-          <Avatar id={selected} size={36} className="ring-2 ring-card" />
+          <Avatar
+            id={selected}
+            size={36}
+            className="ring-2 ring-card"
+            animate
+          />
         )}
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[13px] font-bold leading-tight text-foreground">

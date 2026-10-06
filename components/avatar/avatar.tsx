@@ -10,6 +10,11 @@ import {
 } from "react";
 import { Bot, Check, UserRound } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ClayCanvas } from "@/components/avatar/clay-canvas";
+import {
+  useAvatarAnimationPreference,
+  usePrefersReducedMotion,
+} from "@/components/avatar/avatar-motion";
 import {
   HUMAN_AVATAR_IDS,
   PORTRAITS,
@@ -90,20 +95,30 @@ export function Avatar({
   size = 40,
   className,
   title,
+  animate = false,
 }: {
   id: AvatarId | AssistantAvatarId | LegacyAvatarId;
   size?: number | "fill";
   className?: string;
   title?: string;
+  animate?: boolean;
 }) {
   const fill = size === "fill";
   const pixelSize = fill ? 64 : size;
   const [failedAvatar, setFailedAvatar] = useState<AvatarId | null>(null);
+  const [animationEnabled] = useAvatarAnimationPreference();
+  const prefersReducedMotion = usePrefersReducedMotion();
   const human: AvatarId = isHumanId(id)
     ? id
     : (LEGACY_AVATAR_MAP[id as LegacyAvatarId] ?? DEFAULT_AVATAR);
   const src = portraitSrc(human, pixelSize > 96 ? 256 : 96);
   const imageRef = useRef<HTMLImageElement>(null);
+  const canAnimate =
+    animate &&
+    animationEnabled &&
+    !prefersReducedMotion &&
+    id !== "bot" &&
+    failedAvatar !== human;
   const box = fill
     ? { width: "100%", height: "100%" }
     : { width: size, height: size };
@@ -139,8 +154,9 @@ export function Avatar({
   return (
     <span
       data-avatar={human}
+      data-animating={canAnimate ? "true" : "false"}
       className={cn(
-        "inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted",
+        "relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted",
         className
       )}
       style={box}
@@ -169,6 +185,7 @@ export function Avatar({
           onError={() => setFailedAvatar(human)}
         />
       )}
+      {canAnimate && <ClayCanvas key={human} id={human} />}
     </span>
   );
 }
@@ -221,6 +238,9 @@ export function AvatarPicker({
   initial: string;
   onChange: (next: AvatarId | "initial") => void;
 }) {
+  const [animationEnabled, setAnimationEnabled] =
+    useAvatarAnimationPreference();
+  const prefersReducedMotion = usePrefersReducedMotion();
   const buttonsRef = useRef<Array<HTMLButtonElement | null>>([]);
   const [hovered, setHovered] = useState<AvatarId | "initial" | null>(null);
   const [focused, setFocused] = useState<AvatarId | "initial" | null>(null);
@@ -327,11 +347,12 @@ export function AvatarPicker({
                   id={id}
                   size="fill"
                   className="h-full w-full rounded-xl"
+                  animate={selected || hovered === id || focused === id}
                 />
                 <span
                   aria-hidden
                   className={cn(
-                    "absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm transition-opacity duration-150",
+                    "absolute bottom-1 right-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm transition-opacity duration-150",
                     selected ? "opacity-100" : "opacity-0"
                   )}
                 >
@@ -386,6 +407,44 @@ export function AvatarPicker({
           />
         </button>
       </div>
+      <div className="mt-2 flex min-h-11 items-center justify-between gap-2 rounded-xl border border-border bg-card px-3 py-2">
+        <span className="min-w-0 text-xs font-bold">Avatar animation</span>
+        <button
+          type="button"
+          role="switch"
+          aria-label="Avatar animation"
+          aria-checked={animationEnabled && !prefersReducedMotion}
+          aria-disabled={prefersReducedMotion ? "true" : undefined}
+          onClick={() => {
+            if (!prefersReducedMotion) setAnimationEnabled(!animationEnabled);
+          }}
+          className="relative flex h-11 min-h-11 w-11 shrink-0 items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+        >
+          <span
+            aria-hidden
+            className={cn(
+              "absolute inset-x-0 top-1/2 h-6 -translate-y-1/2 rounded-full border p-0.5 transition-colors duration-150",
+              animationEnabled && !prefersReducedMotion
+                ? "border-primary bg-primary"
+                : "border-border bg-muted"
+            )}
+          />
+          <span
+            aria-hidden
+            className={cn(
+              "absolute left-0.5 top-1/2 h-5 w-5 -translate-y-1/2 rounded-full bg-card shadow-sm transition-transform duration-150",
+              animationEnabled && !prefersReducedMotion
+                ? "translate-x-5"
+                : "translate-x-0"
+            )}
+          />
+        </button>
+      </div>
+      {prefersReducedMotion && (
+        <p className="mt-1 px-1 text-[10px] leading-tight text-muted-foreground">
+          Off while your device reduces motion
+        </p>
+      )}
     </div>
   );
 }

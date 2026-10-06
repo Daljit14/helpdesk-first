@@ -171,6 +171,7 @@ export type EvaluationCaseResult = {
     serviceHealthActionAttempted?: boolean;
     serviceIncidentActionRejected?: boolean;
     userStepEmitted?: boolean;
+    userStepRejectCode?: string | null;
     untrustedUserStepEmitted?: boolean;
     replyLeaked?: boolean;
     replyOverRedacted?: boolean;

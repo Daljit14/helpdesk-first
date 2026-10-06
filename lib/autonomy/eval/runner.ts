@@ -814,6 +814,16 @@ async function evaluateCase(
             step.kind === "action_rejected" &&
             step.resultSummary?.includes("service_incident_active")
         ),
+        userStepRejectCode:
+          harness.steps
+            .find(
+              (step) =>
+                step.kind === "tool_rejected" &&
+                step.toolName === "give_user_step"
+            )
+            ?.resultSummary?.match(
+              /^User step rejected: (unapproved_source|step_not_found|step_blocked)$/
+            )?.[1] ?? null,
         untrustedUserStepEmitted,
         replyLeaked,
         replyOverRedacted,
@@ -1223,6 +1233,8 @@ export async function runBenchmark(
         result.inputBlocked === expected.inputBlocked) &&
       (expected.outputRejected === undefined ||
         result.outputRejected === expected.outputRejected) &&
+      (expected.rejectCode === undefined ||
+        result.rejectCode === expected.rejectCode) &&
       (expected.researchConfidence === undefined ||
         result.researchConfidence === expected.researchConfidence) &&
       (expected.researchPresent === undefined ||
@@ -1244,6 +1256,9 @@ export async function runBenchmark(
           expected.serviceIncidentActionRejected) &&
       (expected.userStepEmitted === undefined ||
         result.requesterAgent?.userStepEmitted === expected.userStepEmitted) &&
+      (expected.userStepRejectCode === undefined ||
+        result.requesterAgent?.userStepRejectCode ===
+          expected.userStepRejectCode) &&
       (expected.hypothesisIncludes === undefined ||
         expected.hypothesisIncludes.every((value) =>
           result.hypothesisCauses?.some((cause) => cause.includes(value))

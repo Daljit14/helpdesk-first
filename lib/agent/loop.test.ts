@@ -4,6 +4,7 @@ import { runAgentTurn, type AgentLoopDeps } from "./loop";
 import type { AgentModel, AgentModelOutput } from "./model";
 import type { AgentEvent, AgentSession } from "./types";
 import { selectAgentRoute } from "./routing";
+import { INSTRUCTION_WITHHELD } from "./untrusted";
 
 const toolUse = (id: string, name = "search_guides", input: unknown = {}) => ({
   kind: "tool_use" as const,
@@ -217,6 +218,40 @@ describe("requester agent loop", () => {
     const toolStarted = steps.find((step) => step.kind === "tool_started");
     expect(toolStarted?.resultSummary).toBeDefined();
     expect(toolStarted?.resultSummary).not.toContain(secret);
+  });
+
+  test("logs successful tool output when instruction content was withheld", async () => {
+    const steps: Array<{ kind: string }> = [];
+    let modelCalls = 0;
+    const { deps } = directLoopDeps({
+      createModel: () => ({
+        next: async () =>
+          modelCalls++ === 0
+            ? toolUse("instruction-tool")
+            : {
+                kind: "final" as const,
+                text: "Here is a safe answer.",
+                confidence: 0.9,
+                summary: "Answer",
+              },
+      }),
+      runTool: async () => ({
+        ok: true,
+        value: { note: "A source included instruction-like content." },
+        modelText: `<untrusted_data source="guide">${INSTRUCTION_WITHHELD}</untrusted_data>`,
+        userSummary: "One guide found.",
+      }),
+      writeStep: async (_admin, _session, step) => {
+        steps.push({ kind: step.kind });
+        return null;
+      },
+    });
+
+    await runDirectLoop({ deps });
+
+    expect(steps).toContainEqual({
+      kind: "tripwire_instruction_content",
+    });
   });
 
   test("allows trusted user-step outcome text through the user safety filters", async () => {

@@ -60,10 +60,12 @@ const expected = z
       .optional(),
     auditChainOk: z.boolean().optional(),
     auditChainFirstBreakId: z.string().optional(),
+    taintedProposal: z.boolean().optional(),
+    instructionContentWithheld: z.boolean().optional(),
     hypothesisIncludes: z.array(z.string()).optional(),
     safetyWarningIncludes: z.array(z.string()).optional(),
     deviceHypothesisConfidenceBelow: z.number().min(0).max(1).optional(),
-    executed: z.literal(false),
+    executed: z.boolean(),
   })
   .strict();
 
@@ -238,10 +240,12 @@ const requesterAgent = z
     expectedCitationDomain: z.string().optional(),
     expectedWebSearchSourceCount: z.number().int().nonnegative().optional(),
     expectedProviderQueryCount: z.number().int().nonnegative().optional(),
+    expectInstructionWithheld: z.boolean().optional(),
     consent: z
       .object({
         approvalRequestId: z.string(),
         decision: z.enum(["approve", "decline"]),
+        reconfirmTainted: z.boolean().optional(),
       })
       .strict()
       .optional(),
@@ -261,6 +265,15 @@ const requesterAgent = z
       })
       .strict()
       .optional(),
+    priorFinalText: z.string().optional(),
+  })
+  .strict();
+
+const taintScenario = z
+  .object({
+    capabilityId: z.string().min(1),
+    autorunEligible: z.boolean(),
+    reconfirmTainted: z.boolean().optional(),
   })
   .strict();
 
@@ -356,6 +369,7 @@ export const benchmarkCaseSchema = z
     research: research.optional(),
     device: device.optional(),
     requesterAgent: requesterAgent.optional(),
+    taintScenario: taintScenario.optional(),
     blastRadius: blastRadius.optional(),
     auditChain: z.enum(["intact", "delete_middle"]).optional(),
     expected,

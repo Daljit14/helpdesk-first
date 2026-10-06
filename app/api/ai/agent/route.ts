@@ -42,6 +42,7 @@ const inputSchema = z
       .object({
         approvalRequestId: z.string().uuid(),
         decision: z.enum(["approve", "decline"]),
+        reconfirmTainted: z.boolean().optional(),
       })
       .optional(),
     confirm: z.enum(["yes", "no"]).optional(),

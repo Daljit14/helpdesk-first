@@ -471,6 +471,167 @@ describe("AgentChat", () => {
     expect(decline).toBeDisabled();
   });
 
+  test("reopens taint reconfirmation after the server requests it again", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        streamResponse([
+          {
+            type: "consent_required",
+            card: {
+              approvalRequestId: "approval-tainted",
+              capabilityId: "device_flush_dns",
+              title: "Flush DNS",
+              whatHappens: "Flush the device DNS cache.",
+              target: { kind: "device", label: "Work laptop" },
+              reversible: true,
+              expiresAt: new Date(Date.now() + 60_000).toISOString(),
+              tainted: [
+                {
+                  param: "hostname",
+                  value: "PC-7ABCDE",
+                  source: "your device's diagnostics",
+                  trust: "external_untrusted",
+                },
+              ],
+              requiresReconfirm: true,
+            },
+          },
+        ])
+      )
+      .mockResolvedValueOnce(
+        streamResponse([
+          {
+            type: "error",
+            message:
+              "Please tick “I checked these values and want to continue” and approve again.",
+            recoverable: true,
+            reopenConsentId: "approval-tainted",
+          },
+        ])
+      )
+      .mockResolvedValueOnce(streamResponse([]));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<AgentChat initialProblem="Wi-Fi is down" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Ask the assistant" }));
+    const approve = await screen.findByRole("button", { name: "Approve" });
+    expect(approve).toBeDisabled();
+    fireEvent.click(
+      screen.getByLabelText("I checked these values and want to continue")
+    );
+    expect(approve).not.toBeDisabled();
+    fireEvent.click(approve);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    const reconfirm = screen.getByLabelText(
+      "I checked these values and want to continue"
+    );
+    await waitFor(() => {
+      expect(reconfirm).toBeEnabled();
+      expect(reconfirm).not.toBeChecked();
+      expect(approve).toBeDisabled();
+    });
+    fireEvent.click(reconfirm);
+    expect(approve).not.toBeDisabled();
+    fireEvent.click(approve);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+    expect(JSON.parse(fetchMock.mock.calls[2][1].body)).toMatchObject({
+      consent: {
+        approvalRequestId: "approval-tainted",
+        decision: "approve",
+        reconfirmTainted: true,
+      },
+    });
+  });
+
+  test("reopens taint reconfirmation in the step-up panel", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        streamResponse([
+          {
+            type: "consent_required",
+            card: {
+              approvalRequestId: "approval-tainted",
+              capabilityId: "device_flush_dns",
+              title: "Flush DNS",
+              whatHappens: "Flush the device DNS cache.",
+              target: { kind: "device", label: "Work laptop" },
+              reversible: true,
+              expiresAt: new Date(Date.now() + 60_000).toISOString(),
+              tainted: [
+                {
+                  param: "hostname",
+                  value: "PC-7ABCDE",
+                  source: "a web page",
+                  trust: "vendor",
+                },
+              ],
+              requiresReconfirm: true,
+            },
+          },
+          {
+            type: "step_up_required",
+            card: {
+              capabilityId: "device_flush_dns",
+              requiredLevel: "A2",
+              currentLevel: "A1",
+              stepUpUrl: "/auth/step-up?next=/assistant",
+            },
+          },
+        ])
+      )
+      .mockResolvedValueOnce(
+        streamResponse([
+          {
+            type: "error",
+            message:
+              "Please tick “I checked these values and want to continue” and approve again.",
+            recoverable: true,
+            reopenConsentId: "approval-tainted",
+          },
+        ])
+      )
+      .mockResolvedValueOnce(streamResponse([]));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<AgentChat initialProblem="Wi-Fi is down" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Ask the assistant" }));
+    const continueButton = await screen.findByRole("button", {
+      name: "Continue",
+    });
+    expect(continueButton).toBeDisabled();
+    fireEvent.click(
+      screen.getByLabelText("I checked these values and want to continue")
+    );
+    expect(continueButton).not.toBeDisabled();
+    fireEvent.click(continueButton);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    const reconfirm = screen.getByLabelText(
+      "I checked these values and want to continue"
+    );
+    await waitFor(() => {
+      expect(reconfirm).toBeEnabled();
+      expect(reconfirm).not.toBeChecked();
+      expect(continueButton).toBeDisabled();
+    });
+    fireEvent.click(reconfirm);
+    expect(continueButton).not.toBeDisabled();
+    fireEvent.click(continueButton);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+    expect(JSON.parse(fetchMock.mock.calls[2][1].body)).toMatchObject({
+      consent: {
+        approvalRequestId: "approval-tainted",
+        decision: "approve",
+        reconfirmTainted: true,
+      },
+    });
+  });
+
   test("keeps a consent card enabled after a session consent event", async () => {
     const fetchMock = vi
       .fn()

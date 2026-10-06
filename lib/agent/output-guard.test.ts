@@ -166,6 +166,15 @@ describe("requester-agent output guard", () => {
           target: { kind: "device" as const, label: "192.168.1.20" },
           reversible: true,
           expiresAt: "later",
+          tainted: [
+            {
+              param: "hostname",
+              value: "DESKTOP-ABC1234",
+              source: "device DESKTOP-ABC1234 diagnostics",
+              trust: "external_untrusted" as const,
+            },
+          ],
+          requiresReconfirm: true,
         },
       },
       {
@@ -207,6 +216,15 @@ describe("requester-agent output guard", () => {
         target: {
           label: "[removed: device or network detail]",
         },
+        tainted: [
+          {
+            param: "hostname",
+            value: "[removed: device or network detail]",
+            source: "device [removed: device or network detail] diagnostics",
+            trust: "external_untrusted",
+          },
+        ],
+        requiresReconfirm: true,
       },
     });
     expect(guarded[3]).toMatchObject({
@@ -248,6 +266,18 @@ describe("requester-agent output guard", () => {
         },
       ],
     });
+  });
+
+  test("preserves the consent id on guarded error events", () => {
+    const event = {
+      type: "error" as const,
+      message:
+        "Please tick “I checked these values and want to continue” and approve again.",
+      recoverable: true,
+      reopenConsentId: "approval-1",
+    };
+
+    expect(guardAgentEvent(event, context())).toEqual(event);
   });
 
   test("minimizes nested tool data and bounds arrays and depth", () => {

@@ -72,13 +72,15 @@ function consentAdmin(
     request?: Record<string, unknown> | null;
     ticket?: Record<string, unknown> | null;
     run?: Record<string, unknown> | null;
+    agentStep?: Record<string, unknown> | null;
+    agentStepError?: boolean;
   } = {}
 ) {
   let updates = 0;
   const from = vi.fn((table: string) => {
     const chain: Record<string, (...args: unknown[]) => unknown> = {};
     let updated = false;
-    for (const method of ["select", "eq", "update"]) {
+    for (const method of ["select", "eq", "update", "limit"]) {
       chain[method] = () => {
         if (method === "update") {
           updated = true;
@@ -95,6 +97,11 @@ function consentAdmin(
         };
       if (table === "tickets")
         return { data: options.ticket ?? null, error: null };
+      if (table === "agent_steps")
+        return {
+          data: options.agentStep ?? null,
+          error: options.agentStepError ? { message: "lookup failed" } : null,
+        };
       return { data: options.run ?? null, error: null };
     };
     return chain;
@@ -209,6 +216,56 @@ describe("resolution actions", () => {
       success: true,
     });
     expect(mocks.resumeAfterApproval).toHaveBeenCalledTimes(1);
+  });
+
+  test("requires requester-agent reconfirmation in the chat", async () => {
+    mocks.getCurrentUser.mockResolvedValue(user);
+    const admin = consentAdmin({
+      request: {
+        id: "request-1",
+        organization_id: "org-1",
+        run_id: "run-1",
+        ticket_id: ticketId,
+        type: "user_consent",
+        capability_id: "device_flush_dns",
+        status: "requested",
+        expires_at: new Date(Date.now() + 60_000).toISOString(),
+      },
+      ticket: { user_id: user.id, organization_id: "org-1" },
+      agentStep: { policy_decision: "reconfirm" },
+    });
+    mocks.createAdminClient.mockReturnValue(admin);
+
+    await expect(respondToAiConsent("request-1", "grant")).resolves.toEqual({
+      error: "Approve this in the chat.",
+    });
+    expect(admin.updates).toBe(0);
+    expect(mocks.resumeAfterApproval).not.toHaveBeenCalled();
+  });
+
+  test("refuses portal approval when requester-agent taint lookup fails", async () => {
+    mocks.getCurrentUser.mockResolvedValue(user);
+    const admin = consentAdmin({
+      request: {
+        id: "request-1",
+        organization_id: "org-1",
+        run_id: "run-1",
+        ticket_id: ticketId,
+        type: "user_consent",
+        capability_id: "device_flush_dns",
+        status: "requested",
+        expires_at: new Date(Date.now() + 60_000).toISOString(),
+      },
+      ticket: { user_id: user.id, organization_id: "org-1" },
+      agentStepError: true,
+    });
+    mocks.createAdminClient.mockReturnValue(admin);
+
+    await expect(respondToAiConsent("request-1", "grant")).resolves.toEqual({
+      error: "Approve this in the chat.",
+    });
+    expect(admin.updates).toBe(0);
+    expect(mocks.resumeAfterApproval).not.toHaveBeenCalled();
   });
 
   test("leaves account consent pending when identity assurance is disabled", async () => {

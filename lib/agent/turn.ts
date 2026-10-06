@@ -38,6 +38,7 @@ import {
 } from "./output-guard";
 import { alertSecurityEvent } from "@/lib/autonomy/alerts";
 import type { AssuranceFacts } from "@/lib/identity/assurance";
+import { INSTRUCTION_WITHHELD } from "./untrusted";
 
 type Admin = ReturnType<typeof createAdminClient>;
 
@@ -57,6 +58,7 @@ type HandleAgentRequestInput = {
   consent?: {
     approvalRequestId: string;
     decision: "approve" | "decline";
+    reconfirmTainted?: boolean;
   };
   confirm?: "yes" | "no";
   sessionConsent?: "grant" | "revoke";
@@ -264,6 +266,11 @@ async function handleAgentRequestBody(
       if (!input.humanRequested) return;
     } else {
       for (const item of intake.items) {
+        if (item.modelText.includes(INSTRUCTION_WITHHELD))
+          await (deps?.writeStep ?? writeStep)(admin, session, {
+            kind: "tripwire_instruction_content",
+            toolName: "screenshot",
+          });
         await (deps?.writeStep ?? writeStep)(admin, session, {
           kind: "screenshot_received",
           attachmentId: item.attachmentId,
@@ -353,7 +360,15 @@ async function handleAgentRequestBody(
       dispatchEmit,
       signal
     );
-    if (result === "invalid" && !stepUpEmitted)
+    if (result === "reconfirm_required")
+      emit({
+        type: "error",
+        message:
+          "Please tick “I checked these values and want to continue” and approve again.",
+        recoverable: true,
+        reopenConsentId: input.consent.approvalRequestId,
+      });
+    else if (result === "invalid" && !stepUpEmitted)
       emit({
         type: "error",
         message: "That consent request is no longer available.",

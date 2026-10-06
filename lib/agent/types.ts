@@ -3,6 +3,7 @@ import type { UserStepCard } from "./user-steps";
 import type { OutputGuardContext } from "./output-guard";
 import type { TrustTier } from "@/lib/research/types";
 import type { AssuranceLevel } from "@/lib/identity/assurance";
+import type { TaintTrust } from "./taint";
 
 export type ConsentCard = {
   approvalRequestId: string;
@@ -12,6 +13,13 @@ export type ConsentCard = {
   target: { kind: "device" | "account"; label: string };
   reversible: boolean;
   expiresAt: string;
+  tainted?: Array<{
+    param: string;
+    value: string;
+    source: string;
+    trust: TaintTrust;
+  }>;
+  requiresReconfirm?: boolean;
 };
 
 export type SessionConsentCard = {
@@ -95,7 +103,12 @@ export type AgentEvent =
       evidence: string[];
     }
   | { type: "escalated"; ticketId: string; reason: string }
-  | { type: "error"; message: string; recoverable?: boolean }
+  | {
+      type: "error";
+      message: string;
+      recoverable?: boolean;
+      reopenConsentId?: string;
+    }
   | { type: "halted"; reason: string; ticketId?: string };
 
 export type AgentSession = {

@@ -76,6 +76,9 @@ export function AgentChat({
   const [answeredCards, setAnsweredCards] = useState<Record<number, boolean>>(
     {}
   );
+  const [reconfirmedCards, setReconfirmedCards] = useState<
+    Record<number, boolean>
+  >({});
   const itemsRef = useRef<TimelineItem[]>([]);
   const answeredCardsRef = useRef<Record<number, boolean>>({});
   const [now, setNow] = useState(() => Date.now());
@@ -138,6 +141,9 @@ export function AgentChat({
   function appendEvent(event: AgentEvent) {
     const current = itemsRef.current;
     const answered = { ...answeredCardsRef.current };
+    const reopenConsentId =
+      event.type === "error" ? event.reopenConsentId : undefined;
+    const reopenedCardIds = new Set<number>();
     if (
       event.type !== "session_consent_offer" &&
       event.type !== "session_consent" &&
@@ -149,8 +155,21 @@ export function AgentChat({
           item.type === "consent_required" ||
           item.type === "confirm_required"
         ) {
-          answered[item.id] = true;
+          const shouldReopen =
+            item.type === "consent_required" &&
+            item.card.approvalRequestId === reopenConsentId;
+          answered[item.id] = !shouldReopen;
+          if (shouldReopen) reopenedCardIds.add(item.id);
         }
+      });
+    }
+    if (reopenedCardIds.size > 0) {
+      setReconfirmedCards((currentReconfirmed) => {
+        const nextReconfirmed = { ...currentReconfirmed };
+        reopenedCardIds.forEach((id) => {
+          delete nextReconfirmed[id];
+        });
+        return nextReconfirmed;
       });
     }
     const next = [...current, { ...event, id: current.length }];
@@ -442,7 +461,13 @@ export function AgentChat({
               const expiresAt = new Date(event.card.expiresAt).getTime();
               const remaining = Math.max(0, expiresAt - now);
               const expired = remaining === 0;
-              const disabled = answeredCards[event.id] || expired;
+              const requiresReconfirm =
+                event.card.requiresReconfirm === true &&
+                (event.card.tainted?.length ?? 0) > 0;
+              const disabled =
+                answeredCards[event.id] ||
+                expired ||
+                (requiresReconfirm && !reconfirmedCards[event.id]);
               return (
                 <div
                   key={event.id}
@@ -459,6 +484,32 @@ export function AgentChat({
                       ? "This approval has expired."
                       : `Expires in ${Math.ceil(remaining / 1000)} seconds.`}
                   </p>
+                  {event.card.tainted?.map((item, index) => (
+                    <p className="mt-2 text-sm" key={`${item.param}-${index}`}>
+                      <mark>
+                        {item.param}: {item.value}
+                      </mark>
+                      <span className="ml-2">
+                        This value came from {item.source}, not from you.
+                      </span>
+                    </p>
+                  ))}
+                  {requiresReconfirm && (
+                    <label className="mt-3 flex items-start gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={reconfirmedCards[event.id] === true}
+                        disabled={answeredCards[event.id] || expired}
+                        onChange={(change) =>
+                          setReconfirmedCards((current) => ({
+                            ...current,
+                            [event.id]: change.target.checked,
+                          }))
+                        }
+                      />
+                      <span>I checked these values and want to continue</span>
+                    </label>
+                  )}
                   <div className="mt-3 flex gap-2">
                     <Button
                       size="sm"
@@ -469,6 +520,9 @@ export function AgentChat({
                           consent: {
                             approvalRequestId: event.card.approvalRequestId,
                             decision: "approve",
+                            ...(requiresReconfirm
+                              ? { reconfirmTainted: true }
+                              : {}),
                           },
                         });
                       }}
@@ -507,6 +561,9 @@ export function AgentChat({
                   > =>
                     item.type === "consent_required" && !answeredCards[item.id]
                 );
+              const reconfirmSatisfied =
+                !pendingApproval?.card.requiresReconfirm ||
+                reconfirmedCards[pendingApproval.id] === true;
               return (
                 <section
                   key={event.id}
@@ -528,7 +585,7 @@ export function AgentChat({
                     </a>
                     <Button
                       size="sm"
-                      disabled={pending}
+                      disabled={pending || !reconfirmSatisfied}
                       onClick={() => {
                         answerCard(event.id);
                         void send(
@@ -539,6 +596,9 @@ export function AgentChat({
                                   approvalRequestId:
                                     pendingApproval.card.approvalRequestId,
                                   decision: "approve",
+                                  ...(pendingApproval.card.requiresReconfirm
+                                    ? { reconfirmTainted: true }
+                                    : {}),
                                 },
                               }
                             : undefined,

@@ -284,6 +284,15 @@ export function guardAgentEvent(
             ...event.card.target,
             label: toUserText(event.card.target.label, ctx),
           },
+          ...(event.card.tainted
+            ? {
+                tainted: event.card.tainted.map((item) => ({
+                  ...item,
+                  value: toUserText(item.value, ctx),
+                  source: toUserText(item.source, ctx),
+                })),
+              }
+            : {}),
         },
       };
     case "session_consent_offer":

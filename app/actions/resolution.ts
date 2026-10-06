@@ -138,6 +138,20 @@ export async function respondToAiConsent(
     return { error: "This consent request has expired." };
   if (request.data.status !== "requested")
     return { error: "Consent request is no longer available." };
+  if (decision === "grant") {
+    const taintStep = await admin
+      .from("agent_steps")
+      .select("policy_decision")
+      .eq("consent_id", requestId)
+      .eq("kind", "consent_required")
+      .limit(1)
+      .maybeSingle();
+    if (
+      taintStep.error ||
+      (taintStep.data && taintStep.data.policy_decision !== "clean")
+    )
+      return { error: "Approve this in the chat." };
+  }
   const rate = await consentLimiter.check(
     `org:${request.data.organization_id}:user:${user.id}`
   );

@@ -43,6 +43,7 @@ import {
   escalate,
   halt,
   handoffReasonFor,
+  loadSessionProvenance,
   loadRequesterIdentifiers,
 } from "./session";
 import type { AgentSession } from "./types";
@@ -95,6 +96,7 @@ function makeAdmin(
   options: {
     actionInsertError?: Error;
     userStepRows?: Array<Record<string, unknown>>;
+    provenanceRows?: Array<Record<string, unknown>>;
   } = {}
 ) {
   const insertedActions: unknown[] = [];
@@ -142,14 +144,16 @@ function makeAdmin(
           data =
             selection === "seq"
               ? { seq: actionSteps.length }
-              : selection.includes("params_hash")
-                ? (options.userStepRows ?? [])
-                : selection.includes("capability_id")
-                  ? actionSteps
-                  : actionSteps.map((step) => ({
-                      kind: step.kind,
-                      tool_name: step.capability_id,
-                    }));
+              : selection === "kind,tool_name,result_summary,seq"
+                ? (options.provenanceRows ?? [])
+                : selection.includes("params_hash")
+                  ? (options.userStepRows ?? [])
+                  : selection.includes("capability_id")
+                    ? actionSteps
+                    : actionSteps.map((step) => ({
+                        kind: step.kind,
+                        tool_name: step.capability_id,
+                      }));
         }
         if (table === "ticket_actions") data = [];
         if (table === "agent_sessions") data = [];
@@ -162,7 +166,7 @@ function makeAdmin(
   const admin = {
     from: vi.fn((table: string) => queries[table] ?? makeQuery(table)),
   };
-  return { admin, insertedActions, insertedSteps };
+  return { admin, insertedActions, insertedSteps, queries };
 }
 
 afterEach(() => {
@@ -411,6 +415,95 @@ describe("requester-agent escalation handoff reasons", () => {
         params_hash: "step-pending",
       })
     );
+  });
+});
+
+describe("loadSessionProvenance", () => {
+  test("loads typed text, screenshot OCR, tool trust, and earlier replies", async () => {
+    mocks.decryptAgentText.mockImplementation(
+      async (_admin, _org, _table, _column, value) => value
+    );
+    const screenshot =
+      '<untrusted_data source="screenshot">{"text":"PC-7ABCDE"}</untrusted_data>';
+    const { admin, queries } = makeAdmin({
+      provenanceRows: [
+        {
+          kind: "final",
+          tool_name: null,
+          result_summary: "Earlier reply mentioned PC-7ABCDE.",
+          seq: 3,
+        },
+        {
+          kind: "tool_result",
+          tool_name: "get_recent_sign_in_failures",
+          result_summary: "[evidence id: ev-7] Sign-in failed for PC-7ABCDE.",
+          seq: 2,
+        },
+        {
+          kind: "user_message",
+          tool_name: null,
+          result_summary: `Use host PC-7ABCDE. ${screenshot}`,
+          seq: 1,
+        },
+      ],
+    });
+
+    await expect(
+      loadSessionProvenance(admin as never, session)
+    ).resolves.toEqual({
+      userTexts: ["Use host PC-7ABCDE."],
+      items: [
+        {
+          evidenceId: "screenshot-1",
+          source: "screenshot",
+          trust: "external_untrusted",
+          text: "PC-7ABCDE",
+        },
+        {
+          evidenceId: "ev-7",
+          source: "get_recent_sign_in_failures",
+          trust: "external_untrusted",
+          text: "Sign-in failed for PC-7ABCDE.",
+        },
+        {
+          evidenceId: "final-3",
+          source: "earlier reply",
+          trust: "external_untrusted",
+          text: "Earlier reply mentioned PC-7ABCDE.",
+        },
+      ],
+    });
+    expect(admin.from).toHaveBeenCalledWith("agent_steps");
+    expect(queries.agent_steps.order).toHaveBeenCalledWith("seq", {
+      ascending: false,
+    });
+    expect(queries.agent_steps.limit).toHaveBeenCalledWith(200);
+  });
+
+  test("loads the latest 200 provenance steps in sequence order", async () => {
+    mocks.decryptAgentText.mockImplementation(
+      async (_admin, _org, _table, _column, value) => value
+    );
+    const provenanceRows = Array.from({ length: 200 }, (_, index) => {
+      const seq = 205 - index;
+      return {
+        kind: "user_message",
+        tool_name: null,
+        result_summary: `Requester turn ${seq}`,
+        seq,
+      };
+    });
+    const { admin, queries } = makeAdmin({ provenanceRows });
+
+    const result = await loadSessionProvenance(admin as never, session);
+
+    expect(result.userTexts).toHaveLength(200);
+    expect(result.userTexts[0]).toBe("Requester turn 6");
+    expect(result.userTexts[199]).toBe("Requester turn 205");
+    expect(queries.agent_steps.order).toHaveBeenCalledWith("seq", {
+      ascending: false,
+    });
+    expect(queries.agent_steps.limit).toHaveBeenCalledWith(200);
   });
 });
 

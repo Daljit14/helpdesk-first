@@ -2,7 +2,10 @@ import { createHash } from "node:crypto";
 import { createWorkflowTicket } from "@/app/actions/tickets";
 import { consumeAiConsent } from "@/app/actions/resolution";
 import { alertSecurityEvent } from "@/lib/autonomy/alerts";
-import { getCapability } from "@/lib/autonomy/capabilities/registry";
+import {
+  getCapability,
+  inputSchemaJson,
+} from "@/lib/autonomy/capabilities/registry";
 import { isDenylisted } from "./denylist";
 import { readKillSwitches } from "@/lib/autonomy/kill-switches";
 import {
@@ -38,6 +41,14 @@ import {
   type AssuranceFacts,
 } from "@/lib/identity/assurance";
 import { requiredAssurance } from "@/lib/autonomy/capabilities/registry";
+import {
+  findTaintedParams,
+  reconfirmSatisfied,
+  taintDecision,
+  type SessionProvenance,
+  type TaintedParam,
+} from "./taint";
+import { NO_REQUESTER, toUserText } from "./output-guard";
 
 type Admin = ReturnType<
   typeof import("@/lib/supabase/admin").createAdminClient
@@ -71,7 +82,8 @@ export type ProposeOutcome =
         | "tier_shadow"
         | "service_incident_active"
         | "assurance_disabled"
-        | "assurance_required";
+        | "assurance_required"
+        | "tainted_parameter";
       message: string;
     }
   | { kind: "escalate"; reason: string }
@@ -148,6 +160,35 @@ async function actionStep(
     paramsHash,
     resultSummary: `${capabilityId} ${detail}`.slice(0, 500),
   });
+}
+
+function taintSourceLabel(item: TaintedParam): string {
+  switch (item.source) {
+    case "screenshot":
+      return "a screenshot";
+    case "earlier reply":
+      return "an earlier reply";
+    case "get_device_diagnostics":
+      return "your device's diagnostics";
+    case "get_recent_sign_in_failures":
+      return "sign-in records";
+    case "count_similar_org_issues":
+      return "other tickets in your organization";
+    case "get_ticket_history":
+      return "your ticket history";
+    case "get_account_status":
+      return "your organization's directory";
+    case "search_guides":
+      return "your organization's guides";
+    case "get_org_environment":
+      return "your organization's settings";
+    case "get_service_health":
+      return "a service status page";
+    case "search_web":
+      return item.trust === "community" ? "a community post" : "a web page";
+    default:
+      return "a tool result";
+  }
 }
 
 export async function ensureBackingRun(
@@ -407,6 +448,7 @@ export async function proposeAction(
   input: ProposeActionInput,
   ctx: {
     evidence: Array<{ id: string; tool: string }>;
+    provenance: SessionProvenance;
     actor: string;
     platform?: string;
     emit?: (event: AgentEvent) => void;
@@ -522,6 +564,46 @@ export async function proposeAction(
     input.hypothesisId
   );
   if (researchRejection) return researchRejection;
+  const tainted = findTaintedParams(
+    input.params,
+    inputSchemaJson(capability),
+    ctx.provenance
+  );
+  const taintPolicy = taintDecision(capability, tainted);
+  if (taintPolicy === "reject") {
+    await actionStep(
+      admin,
+      session,
+      "action_rejected",
+      capability.id,
+      paramsHash,
+      "tainted_parameter"
+    );
+    return reject(
+      "tainted_parameter",
+      "That value came from content you didn't type, so I can't use it in a fix."
+    );
+  }
+  if (
+    taintPolicy === "reconfirm" &&
+    tainted.some(
+      ({ value }) =>
+        value.length > 120 ||
+        toUserText(value, { ...NO_REQUESTER, redactions: [] }) !== value
+    )
+  ) {
+    await writeStep(admin, session, {
+      kind: "action_rejected",
+      toolName: "propose_action",
+      capabilityId: capability.id,
+      paramsHash,
+      resultSummary: "tainted_parameter_undisplayable",
+    });
+    return reject(
+      "tainted_parameter",
+      "That value came from content you didn't type and can't be shown to you safely, so I can't use it in a fix."
+    );
+  }
   const existing = await admin
     .from("agent_steps")
     .select("capability_id,params_hash")
@@ -633,6 +715,7 @@ export async function proposeAction(
     input.rationale
   );
   const autorun =
+    taintPolicy === "clean" &&
     tier === "autorun" &&
     isRequesterAgentAutorunEnabledForOrg(session.organization_id) &&
     sessionConsentActive(session) &&
@@ -704,24 +787,48 @@ export async function proposeAction(
       pending_approval_id: approval.data.id,
     });
     session.pending_approval_id = approval.data.id;
-    await actionStep(
+    let consentStepId: string | null = null;
+    try {
+      consentStepId = await writeStep(admin, session, {
+        kind: "consent_required",
+        toolName: "propose_action",
+        capabilityId: input.capabilityId,
+        paramsHash,
+        policyDecision: taintPolicy,
+        consentId: approval.data.id,
+        resultSummary: "Requester approval is required.",
+      });
+    } catch {
+      consentStepId = null;
+    }
+    if (taintPolicy === "reconfirm" && !consentStepId) {
+      await escalate(admin, session, "taint_record_failed", input.rationale);
+      return { kind: "escalate", reason: "taint_record_failed" };
+    }
+    const card = await approvalCard(
       admin,
       session,
-      "consent_required",
+      approval.data.id,
       input.capabilityId,
-      paramsHash,
-      approval.data.id
+      approval.data.expires_at ?? new Date(Date.now() + 300_000).toISOString()
     );
     return {
       kind: "consent_required",
       approvalRequestId: approval.data.id,
-      card: await approvalCard(
-        admin,
-        session,
-        approval.data.id,
-        input.capabilityId,
-        approval.data.expires_at ?? new Date(Date.now() + 300_000).toISOString()
-      ),
+      card: {
+        ...card,
+        ...(taintPolicy === "reconfirm"
+          ? {
+              tainted: tainted.map((item) => ({
+                param: item.param,
+                value: item.value,
+                source: taintSourceLabel(item),
+                trust: item.trust,
+              })),
+              requiresReconfirm: true,
+            }
+          : {}),
+      },
     };
   }
   if (result.status === "escalated") {
@@ -744,6 +851,7 @@ export async function decideConsent(
     approvalRequestId: string;
     decision: "approve" | "decline";
     userId: string;
+    reconfirmTainted?: boolean;
     assurance?: AssuranceFacts;
   },
   emit: (event: AgentEvent) => void,
@@ -752,6 +860,7 @@ export async function decideConsent(
   | "executed_verified_passed"
   | "executed_verified_failed"
   | "declined"
+  | "reconfirm_required"
   | "invalid"
   | "escalated"
 > {
@@ -767,6 +876,33 @@ export async function decideConsent(
     session.pending_approval_id !== input.approvalRequestId
   )
     return rejectConsent();
+  if (input.decision === "approve") {
+    const taintStep = await admin
+      .from("agent_steps")
+      .select("policy_decision")
+      .eq("session_id", session.id)
+      .eq("kind", "consent_required")
+      .eq("consent_id", input.approvalRequestId)
+      .maybeSingle();
+    const policyDecision =
+      typeof taintStep.data?.policy_decision === "string"
+        ? taintStep.data.policy_decision
+        : null;
+    if (
+      !reconfirmSatisfied({
+        policyDecision,
+        lookupFailed: Boolean(taintStep.error),
+        reconfirmTainted: input.reconfirmTainted === true,
+      })
+    ) {
+      await writeStep(admin, session, {
+        kind: "action_rejected",
+        consentId: input.approvalRequestId,
+        resultSummary: "Re-confirm required.",
+      });
+      return "reconfirm_required";
+    }
+  }
   const approval = await admin
     .from("approval_requests")
     .select("id,run_id,step_id,capability_id,parameter_hash,status,expires_at")

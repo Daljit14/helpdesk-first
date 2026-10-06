@@ -129,6 +129,7 @@ describe("requester agent turn dispatch", () => {
       message:
         "Please tick “I checked these values and want to continue” and approve again.",
       recoverable: true,
+      reopenConsentId: "approval-1",
     });
     expect(harness.model.calls).toBe(0);
   });

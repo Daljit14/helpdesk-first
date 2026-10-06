@@ -366,6 +366,7 @@ async function handleAgentRequestBody(
         message:
           "Please tick “I checked these values and want to continue” and approve again.",
         recoverable: true,
+        reopenConsentId: input.consent.approvalRequestId,
       });
     else if (result === "invalid" && !stepUpEmitted)
       emit({

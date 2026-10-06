@@ -141,6 +141,9 @@ export function AgentChat({
   function appendEvent(event: AgentEvent) {
     const current = itemsRef.current;
     const answered = { ...answeredCardsRef.current };
+    const reopenConsentId =
+      event.type === "error" ? event.reopenConsentId : undefined;
+    const reopenedCardIds = new Set<number>();
     if (
       event.type !== "session_consent_offer" &&
       event.type !== "session_consent" &&
@@ -152,8 +155,21 @@ export function AgentChat({
           item.type === "consent_required" ||
           item.type === "confirm_required"
         ) {
-          answered[item.id] = true;
+          const shouldReopen =
+            item.type === "consent_required" &&
+            item.card.approvalRequestId === reopenConsentId;
+          answered[item.id] = !shouldReopen;
+          if (shouldReopen) reopenedCardIds.add(item.id);
         }
+      });
+    }
+    if (reopenedCardIds.size > 0) {
+      setReconfirmedCards((currentReconfirmed) => {
+        const nextReconfirmed = { ...currentReconfirmed };
+        reopenedCardIds.forEach((id) => {
+          delete nextReconfirmed[id];
+        });
+        return nextReconfirmed;
       });
     }
     const next = [...current, { ...event, id: current.length }];

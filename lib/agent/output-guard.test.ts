@@ -268,6 +268,18 @@ describe("requester-agent output guard", () => {
     });
   });
 
+  test("preserves the consent id on guarded error events", () => {
+    const event = {
+      type: "error" as const,
+      message:
+        "Please tick “I checked these values and want to continue” and approve again.",
+      recoverable: true,
+      reopenConsentId: "approval-1",
+    };
+
+    expect(guardAgentEvent(event, context())).toEqual(event);
+  });
+
   test("minimizes nested tool data and bounds arrays and depth", () => {
     const output = minimizeToolOutput({
       requester_id: "requester-1",

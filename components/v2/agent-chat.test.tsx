@@ -471,7 +471,7 @@ describe("AgentChat", () => {
     expect(decline).toBeDisabled();
   });
 
-  test("requires taint reconfirmation before approving and sends the step-up field", async () => {
+  test("reopens taint reconfirmation after the server requests it again", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(
@@ -499,6 +499,17 @@ describe("AgentChat", () => {
           },
         ])
       )
+      .mockResolvedValueOnce(
+        streamResponse([
+          {
+            type: "error",
+            message:
+              "Please tick “I checked these values and want to continue” and approve again.",
+            recoverable: true,
+            reopenConsentId: "approval-tainted",
+          },
+        ])
+      )
       .mockResolvedValueOnce(streamResponse([]));
     vi.stubGlobal("fetch", fetchMock);
     render(<AgentChat initialProblem="Wi-Fi is down" />);
@@ -513,7 +524,20 @@ describe("AgentChat", () => {
     fireEvent.click(approve);
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
-    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({
+    const reconfirm = screen.getByLabelText(
+      "I checked these values and want to continue"
+    );
+    await waitFor(() => {
+      expect(reconfirm).toBeEnabled();
+      expect(reconfirm).not.toBeChecked();
+      expect(approve).toBeDisabled();
+    });
+    fireEvent.click(reconfirm);
+    expect(approve).not.toBeDisabled();
+    fireEvent.click(approve);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+    expect(JSON.parse(fetchMock.mock.calls[2][1].body)).toMatchObject({
       consent: {
         approvalRequestId: "approval-tainted",
         decision: "approve",
@@ -522,7 +546,7 @@ describe("AgentChat", () => {
     });
   });
 
-  test("requires taint reconfirmation before continuing step-up consent", async () => {
+  test("reopens taint reconfirmation in the step-up panel", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(
@@ -559,6 +583,17 @@ describe("AgentChat", () => {
           },
         ])
       )
+      .mockResolvedValueOnce(
+        streamResponse([
+          {
+            type: "error",
+            message:
+              "Please tick “I checked these values and want to continue” and approve again.",
+            recoverable: true,
+            reopenConsentId: "approval-tainted",
+          },
+        ])
+      )
       .mockResolvedValueOnce(streamResponse([]));
     vi.stubGlobal("fetch", fetchMock);
     render(<AgentChat initialProblem="Wi-Fi is down" />);
@@ -575,7 +610,20 @@ describe("AgentChat", () => {
     fireEvent.click(continueButton);
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
-    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({
+    const reconfirm = screen.getByLabelText(
+      "I checked these values and want to continue"
+    );
+    await waitFor(() => {
+      expect(reconfirm).toBeEnabled();
+      expect(reconfirm).not.toBeChecked();
+      expect(continueButton).toBeDisabled();
+    });
+    fireEvent.click(reconfirm);
+    expect(continueButton).not.toBeDisabled();
+    fireEvent.click(continueButton);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+    expect(JSON.parse(fetchMock.mock.calls[2][1].body)).toMatchObject({
       consent: {
         approvalRequestId: "approval-tainted",
         decision: "approve",

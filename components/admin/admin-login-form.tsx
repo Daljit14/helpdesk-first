@@ -14,24 +14,27 @@ export function AdminLoginForm({
   googleSsoEnabled = false,
   microsoftSsoEnabled = false,
   turnstileSiteKey = null,
+  initialError,
 }: {
   next: string;
   googleSsoEnabled?: boolean;
   microsoftSsoEnabled?: boolean;
   turnstileSiteKey?: string | null;
+  initialError?: string;
 }) {
   const [state, action, pending] = useActionState<AdminAuthState, FormData>(
     adminLogin,
     null
   );
+  const errorMessage = state?.error ?? initialError;
   return (
     <form action={action} className="space-y-5">
-      {state?.error && (
+      {errorMessage && (
         <p
           role="alert"
           className="rounded-2xl bg-destructive/10 p-3 text-sm text-destructive"
         >
-          {state.error}
+          {errorMessage}
         </p>
       )}
       <input type="hidden" name="next" value={next} />
@@ -72,6 +75,7 @@ export function AdminLoginForm({
           {googleSsoEnabled && (
             <Button
               type="submit"
+              formNoValidate
               formAction={() =>
                 startSso({
                   provider: "google",
@@ -87,6 +91,7 @@ export function AdminLoginForm({
           {microsoftSsoEnabled && (
             <Button
               type="submit"
+              formNoValidate
               formAction={() =>
                 startSso({
                   provider: "azure",

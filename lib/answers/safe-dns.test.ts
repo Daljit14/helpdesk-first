@@ -202,6 +202,35 @@ describe("safe DNS", () => {
       expect(callback).toHaveBeenCalledWith(null, "93.184.216.34", 4);
     });
 
+    test("rejects invalid response statuses without throwing synchronously", async () => {
+      const response = new PassThrough();
+      Object.assign(response, {
+        statusCode: 999,
+        statusMessage: "Invalid",
+        headers: {},
+      });
+      const destroy = vi.spyOn(response, "destroy");
+      vi.mocked(https.request).mockImplementation(((
+        _options: Record<string, unknown>,
+        callback?: (response: unknown) => void
+      ) => {
+        const request = Object.assign(new EventEmitter(), { end: vi.fn() });
+        callback?.(response);
+        return request;
+      }) as unknown as typeof https.request);
+
+      let fetchPromise!: Promise<Response>;
+      expect(() => {
+        fetchPromise = pinnedFetch(
+          new URL("https://docs.example.test/article"),
+          {},
+          { address: "93.184.216.34", family: 4 }
+        );
+      }).not.toThrow();
+      await expect(fetchPromise).rejects.toThrow(RangeError);
+      expect(destroy).toHaveBeenCalled();
+    });
+
     test("rejects non-HTTPS URLs", () => {
       expect(() =>
         pinnedFetch(

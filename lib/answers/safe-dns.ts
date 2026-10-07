@@ -204,29 +204,36 @@ export function pinnedFetch(
         lookup: pinnedLookup(pinned),
       },
       (response) => {
-        const status = response.statusCode ?? 502;
-        const responseHeaders = new Headers();
-        for (const [key, value] of Object.entries(response.headers)) {
-          if (value === undefined) continue;
-          responseHeaders.set(
-            key,
-            Array.isArray(value) ? value.join(", ") : String(value)
+        try {
+          const status = response.statusCode ?? 502;
+          if (!Number.isInteger(status) || status < 200 || status > 599)
+            throw new RangeError(`Invalid response status: ${status}`);
+          const responseHeaders = new Headers();
+          for (const [key, value] of Object.entries(response.headers)) {
+            if (value === undefined) continue;
+            responseHeaders.set(
+              key,
+              Array.isArray(value) ? value.join(", ") : String(value)
+            );
+          }
+          const empty = status === 204 || status === 304 || method === "HEAD";
+          if (empty) response.resume();
+          resolve(
+            new Response(
+              empty
+                ? null
+                : (Readable.toWeb(response) as ReadableStream<Uint8Array>),
+              {
+                status,
+                statusText: response.statusMessage ?? "",
+                headers: responseHeaders,
+              }
+            )
           );
+        } catch (error) {
+          response.destroy();
+          reject(error);
         }
-        const empty = status === 204 || status === 304 || method === "HEAD";
-        if (empty) response.resume();
-        resolve(
-          new Response(
-            empty
-              ? null
-              : (Readable.toWeb(response) as ReadableStream<Uint8Array>),
-            {
-              status,
-              statusText: response.statusMessage ?? "",
-              headers: responseHeaders,
-            }
-          )
-        );
       }
     );
     request.on("error", reject);

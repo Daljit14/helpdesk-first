@@ -1,7 +1,7 @@
 import type { CapabilityDefinition } from "@/lib/autonomy/capabilities/types";
 
 export type TaintTrust =
-  "org_approved" | "vendor" | "community" | "external_untrusted";
+  "org_approved" | "vendor" | "community" | "reference" | "external_untrusted";
 
 export type ProvenanceItem = {
   evidenceId: string;
@@ -29,6 +29,7 @@ const TRUST_SEVERITY: Record<TaintTrust, number> = {
   org_approved: 0,
   vendor: 1,
   community: 2,
+  reference: 2,
   external_untrusted: 3,
 };
 
@@ -84,7 +85,9 @@ export function provenanceFromTool(
     if (!isRecord(current)) return;
     const nestedTrust =
       toolName === "search_web" &&
-      (current.trust === "vendor" || current.trust === "community")
+      (current.trust === "vendor" ||
+        current.trust === "community" ||
+        current.trust === "reference")
         ? current.trust
         : trust;
     for (const [key, child] of Object.entries(current)) {
@@ -237,7 +240,9 @@ export function taintDecision(
     capability.riskLevel !== "safe" &&
     tainted.some(
       (item) =>
-        item.trust === "community" || item.trust === "external_untrusted"
+        item.trust === "community" ||
+        item.trust === "reference" ||
+        item.trust === "external_untrusted"
     )
   )
     return "reject";

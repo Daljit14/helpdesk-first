@@ -303,7 +303,7 @@ export function buildEvidence(
     : [];
   const researchFacts = (inputs.research?.sources ?? []).map((source) => ({
     id: `research.${source.judgement}:${source.hypothesisId ?? "general"}`,
-    statement: `${source.trust === "vendor" ? "Vendor" : "Community"} source ${source.judgement}: ${source.title}`,
+    statement: `${source.trust === "vendor" ? "Vendor" : source.trust === "reference" ? "Reference" : "Community"} source ${source.judgement}: ${source.title}`,
     source: "external_source" as const,
     at: source.fetchedAt,
   }));

@@ -192,6 +192,17 @@ describe("requester user-step validation", () => {
       checkUserStep(input, {
         ...baseContext,
         loadResearchSource: async () => ({
+          trust: "reference",
+          domain: "en.wikipedia.org",
+          title: "Wi-Fi",
+          url: "https://en.wikipedia.org/wiki/Wi-Fi",
+        }),
+      })
+    ).resolves.toMatchObject({ ok: false, code: "reference_source" });
+    await expect(
+      checkUserStep(input, {
+        ...baseContext,
+        loadResearchSource: async () => ({
           trust: "vendor",
           domain: "learn.microsoft.com",
           title: "Official Teams guide",

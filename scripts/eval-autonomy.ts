@@ -1,6 +1,7 @@
 import { writeFile } from "node:fs/promises";
 import { runBenchmark } from "@/lib/autonomy/eval/runner";
 import { BENCHMARK_VERSION } from "@/lib/autonomy/eval/benchmark/version";
+import { replyQualityMarkdown } from "@/lib/autonomy/eval/reply-quality-report";
 
 const report = await runBenchmark();
 const serializableReport = {
@@ -28,6 +29,8 @@ const markdown = [
   ...Object.entries(report.gatewayCodes).map(
     ([code, count]) => `- ${code}: ${count}`
   ),
+  "",
+  ...replyQualityMarkdown(report.results).split("\n"),
   "",
   "## Release gates",
   ...report.gates.map(

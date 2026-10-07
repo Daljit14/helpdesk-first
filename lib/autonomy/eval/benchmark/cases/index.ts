@@ -10,6 +10,7 @@ import { blastRadiusCases } from "./blast-radius";
 import { auditChainCases } from "./audit-chain";
 import { identityAssuranceCases } from "./identity-assurance";
 import { honestMetricsCases } from "./honest-metrics";
+import { replyQualityCases } from "./reply-quality";
 import { answerEngineCases } from "./answer-engine";
 
 const base = {
@@ -102,6 +103,7 @@ export const benchmarkCases = [
   ...auditChainCases,
   ...identityAssuranceCases,
   ...honestMetricsCases,
+  ...replyQualityCases,
   ...answerEngineCases,
   ...catalogCases,
   ...redTeamCases,

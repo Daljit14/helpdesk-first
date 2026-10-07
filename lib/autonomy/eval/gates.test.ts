@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import type { ReplyQualityScore } from "@/lib/agent/reply-quality";
 import {
   evaluateGates,
   RELEASE_GATES,
@@ -45,9 +46,44 @@ function result(
   };
 }
 
+function qualityScore(
+  overrides: Omit<Partial<ReplyQualityScore>, "checks"> & {
+    checks?: Partial<ReplyQualityScore["checks"]>;
+  } = {}
+) {
+  const checks = {
+    gradeOk: true,
+    sentenceLengthOk: true,
+    questionsOk: true,
+    noBannedWords: true,
+    checkedOk: true,
+    sourcesOk: true,
+    labelsOk: true,
+    ...overrides.checks,
+  };
+  const checksPassed = Object.values(checks).filter(Boolean).length;
+  return {
+    grade: overrides.grade ?? 6,
+    checks,
+    checksPassed: overrides.checksPassed ?? checksPassed,
+    passed: overrides.passed ?? checksPassed === 7,
+  };
+}
+
+function replyQualityResult(
+  v1 = qualityScore({ grade: 9, checksPassed: 5, passed: false }),
+  v2 = qualityScore()
+) {
+  return result({
+    caseId: "reply-quality-fixture",
+    suite: "requester_agent_reply_quality",
+    replyQuality: { fixtureId: "fixture", v1, v2 },
+  });
+}
+
 describe("requester-agent release gates", () => {
   test("includes the diagnostic_tools_read_only release gate", () => {
-    expect(RELEASE_GATES).toHaveLength(44);
+    expect(RELEASE_GATES).toHaveLength(45);
     expect(RELEASE_GATES).toContain("service_health_never_executes");
     expect(RELEASE_GATES).toContain("diagnostic_tools_read_only");
     expect(RELEASE_GATES.indexOf("diagnostic_tools_read_only")).toBe(
@@ -68,6 +104,75 @@ describe("requester-agent release gates", () => {
       "honest_metrics",
       "abandoned_session_never_counted_resolved",
     ]);
+    expect(RELEASE_GATES).toContain("reply_quality_floor");
+    expect(SUITE_GATE_PREFIXES).toContainEqual([
+      "requester_agent_reply_quality",
+      "reply_quality_floor",
+    ]);
+  });
+
+  test("passes the reply-quality floor when v2 improves and stays readable", () => {
+    const gate = evaluateGates([replyQualityResult()]).find(
+      (item) => item.name === "reply_quality_floor"
+    );
+
+    expect(gate).toMatchObject({ passed: true, offendingCaseIds: [] });
+  });
+
+  test("fails the reply-quality floor when mean v2 grade exceeds eight", () => {
+    const gate = evaluateGates([
+      replyQualityResult(
+        qualityScore({ grade: 9, checksPassed: 5, passed: false }),
+        qualityScore({ grade: 8.1 })
+      ),
+    ]).find((item) => item.name === "reply_quality_floor");
+
+    expect(gate).toMatchObject({
+      passed: false,
+      offendingCaseIds: ["reply-quality-fixture"],
+    });
+  });
+
+  test("fails the reply-quality floor when a v2 community label is missing", () => {
+    const gate = evaluateGates([
+      replyQualityResult(
+        qualityScore({ grade: 9, checksPassed: 5, passed: false }),
+        qualityScore({ checks: { labelsOk: false }, checksPassed: 6 })
+      ),
+    ]).find((item) => item.name === "reply_quality_floor");
+
+    expect(gate).toMatchObject({
+      passed: false,
+      offendingCaseIds: ["reply-quality-fixture"],
+    });
+  });
+
+  test("fails the reply-quality floor when a v2 case fails a check", () => {
+    const gate = evaluateGates([
+      replyQualityResult(
+        qualityScore({ grade: 9, checksPassed: 5, passed: false }),
+        qualityScore({ checks: { questionsOk: false }, checksPassed: 6 })
+      ),
+    ]).find((item) => item.name === "reply_quality_floor");
+
+    expect(gate).toMatchObject({
+      passed: false,
+      offendingCaseIds: ["reply-quality-fixture"],
+    });
+  });
+
+  test("fails the reply-quality floor when v2 does not beat v1 checks", () => {
+    const gate = evaluateGates([
+      replyQualityResult(
+        qualityScore({ checksPassed: 7 }),
+        qualityScore({ checksPassed: 7 })
+      ),
+    ]).find((item) => item.name === "reply_quality_floor");
+
+    expect(gate).toMatchObject({
+      passed: false,
+      offendingCaseIds: ["reply-quality-fixture"],
+    });
   });
 
   test("fails honest-metrics cases on scenario failures or abandoned resolutions", () => {

@@ -1,6 +1,7 @@
 import type { EscalationPackage } from "@/lib/investigation/escalation";
 import { riskLabel } from "@/lib/investigation/policy";
 import { formatHandoffReason } from "@/lib/tickets/routing";
+import { trustLabel } from "@/lib/research/labels";
 
 function Empty() {
   return <span className="text-muted-foreground">None recorded</span>;
@@ -238,9 +239,7 @@ export function EscalationPackageCard({
                     {source.title}
                   </a>{" "}
                   <span className="glass-pill px-2 py-0.5 text-xs">
-                    {source.trust === "vendor"
-                      ? "Vendor docs"
-                      : "Community — unverified"}
+                    {trustLabel(source.trust)}
                   </span>{" "}
                   <span className="text-muted-foreground">
                     {source.judgement}

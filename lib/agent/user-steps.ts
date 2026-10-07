@@ -40,7 +40,8 @@ export type UserStepCheck =
         | "unapproved_source"
         | "step_not_found"
         | "step_blocked"
-        | "community_source";
+        | "community_source"
+        | "reference_source";
       message: string;
     };
 
@@ -139,7 +140,13 @@ export async function checkUserStep(
         code: "unapproved_source",
         message: "That web source is not available for this session.",
       };
-    if (source.trust !== "vendor")
+    if (source.trust === "reference")
+      return {
+        ok: false,
+        code: "reference_source",
+        message: "Reference pages cannot be used as step citations.",
+      };
+    if (source.trust === "community")
       return {
         ok: false,
         code: "community_source",

@@ -26,6 +26,7 @@ import { isRealDeviceJob } from "@/lib/device-agent/server/job-status";
 import { RecordExclusionControl } from "@/components/admin/record-exclusion-control";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isRecordExcluded } from "@/lib/admin/record-exclusions";
+import { trustLabel } from "@/lib/research/labels";
 import {
   AdminHero,
   AdminPage,
@@ -296,11 +297,8 @@ export default async function ResolutionRunPage({
                     {source.title}
                   </a>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    {source.domain} ·{" "}
-                    {source.trust === "vendor"
-                      ? "Vendor docs"
-                      : "Community — unverified"}{" "}
-                    · {source.judgement}
+                    {source.domain} · {trustLabel(source.trust)} ·{" "}
+                    {source.judgement}
                   </p>
                 </li>
               ))}

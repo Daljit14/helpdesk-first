@@ -219,13 +219,13 @@ export async function runAgentWebSearch(
   }
   const orderedSources = guardedSources
     .map((source, index) => ({ source, index }))
-    .sort((left, right) =>
-      left.source.trust === right.source.trust
-        ? left.index - right.index
-        : left.source.trust === "vendor"
-          ? -1
-          : 1
-    )
+    .sort((left, right) => {
+      const rank = { vendor: 0, reference: 1, community: 2 };
+      return (
+        rank[left.source.trust] - rank[right.source.trust] ||
+        left.index - right.index
+      );
+    })
     .slice(0, AGENT_WEB_SEARCH_MAX_SOURCES)
     .map(({ source }) => source);
   if (orderedSources.length === 0)

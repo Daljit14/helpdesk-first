@@ -210,6 +210,8 @@ export async function runResearch(
           vendor: judged.filter((source) => source.trust === "vendor").length,
           community: judged.filter((source) => source.trust === "community")
             .length,
+          reference: judged.filter((source) => source.trust === "reference")
+            .length,
           dropped,
           cached: cachedCount,
         }

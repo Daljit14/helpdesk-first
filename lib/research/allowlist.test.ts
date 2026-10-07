@@ -32,6 +32,17 @@ describe("research trust allowlist", () => {
     ).toBe("community");
   });
 
+  test("keeps reference domains in the reference tier even if organization-approved", () => {
+    expect(
+      trustTierFor("https://en.wikipedia.org/wiki/Wi-Fi", ["wikipedia.org"])
+    ).toBe("reference");
+    expect(
+      trustTierFor("https://developer.mozilla.org/en-US/docs/Web", [
+        "developer.mozilla.org",
+      ])
+    ).toBe("reference");
+  });
+
   test("keeps blocked hosts untrusted even when injected as org domains", () => {
     expect(trustTierFor("https://repo.github.io/docs", ["github.io"])).toBe(
       "community"

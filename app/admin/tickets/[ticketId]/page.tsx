@@ -78,6 +78,8 @@ import {
 } from "@/lib/security/ticket-crypto";
 import { RecordExclusionControl } from "@/components/admin/record-exclusion-control";
 import { isRecordExcluded } from "@/lib/admin/record-exclusions";
+import { trustLabel } from "@/lib/research/labels";
+import type { TrustTier } from "@/lib/research/types";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -556,7 +558,7 @@ export default async function AdminTicketPage({
       title: string;
       domain: string;
       url: string;
-      trust: "vendor" | "community";
+      trust: TrustTier;
     }>;
   } | null = null;
   try {
@@ -577,7 +579,7 @@ export default async function AdminTicketPage({
         title: string;
         domain: string;
         url: string;
-        trust: "vendor" | "community";
+        trust: TrustTier;
       }> = [];
       try {
         const sourcesResult = await admin
@@ -598,7 +600,9 @@ export default async function AdminTicketPage({
               typeof source.url !== "string" ||
               typeof source.domain !== "string" ||
               typeof source.title !== "string" ||
-              (source.trust !== "vendor" && source.trust !== "community")
+              (source.trust !== "vendor" &&
+                source.trust !== "community" &&
+                source.trust !== "reference")
             )
               return [];
             try {
@@ -1065,10 +1069,7 @@ export default async function AdminTicketPage({
                               {source.title}
                             </a>
                             <span className="ml-2 text-xs text-muted-foreground">
-                              {source.domain} ·{" "}
-                              {source.trust === "vendor"
-                                ? "Vendor docs"
-                                : "Community — unverified"}
+                              {source.domain} · {trustLabel(source.trust)}
                             </span>
                           </li>
                         ))}

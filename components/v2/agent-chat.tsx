@@ -15,6 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { AgentEvent } from "@/lib/agent/types";
+import { trustLabel } from "@/lib/research/labels";
 import { uploadSecureAttachment } from "@/lib/attachments/client";
 import {
   AssistantNotice,
@@ -408,20 +409,88 @@ export function AgentChat({
               return (
                 <div
                   key={event.id}
-                  className="hf-rise rounded-2xl bg-muted p-4"
+                  className="hf-rise min-w-0 rounded-2xl bg-muted p-4"
                 >
-                  <p>{event.text}</p>
-                  {event.evidence.length > 0 && (
-                    <div className="mt-3">
-                      <p className="text-xs font-semibold uppercase tracking-wide">
-                        Evidence
-                      </p>
-                      <ul className="mt-1 list-disc pl-5 text-sm text-muted-foreground">
-                        {event.evidence.map((evidence) => (
-                          <li key={evidence}>{evidence}</li>
-                        ))}
-                      </ul>
+                  {event.reply ? (
+                    <div className="min-w-0 break-words">
+                      {event.reply.summary && <p>{event.reply.summary}</p>}
+                      {event.reply.checked.length > 0 && (
+                        <div className="mt-3 min-w-0">
+                          <p className="text-xs font-semibold uppercase tracking-wide">
+                            What I checked
+                          </p>
+                          <ul className="mt-1 list-disc break-words pl-5 text-sm text-muted-foreground">
+                            {event.reply.checked.map((item, index) => (
+                              <li
+                                className="break-words"
+                                key={`${item}-${index}`}
+                              >
+                                {item}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {event.reply.nextStep && (
+                        <div className="mt-3 min-w-0 break-words">
+                          <p className="text-xs font-semibold uppercase tracking-wide">
+                            Next step
+                          </p>
+                          <p>{event.reply.nextStep.action}</p>
+                          {event.reply.nextStep.why && (
+                            <p className="text-sm text-muted-foreground">
+                              Why: {event.reply.nextStep.why}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                      {event.reply.sources.length > 0 && (
+                        <div className="mt-3 min-w-0">
+                          <p className="text-xs font-semibold uppercase tracking-wide">
+                            Sources
+                          </p>
+                          <ul className="mt-1 space-y-1.5 text-sm">
+                            {event.reply.sources.map((source, index) => (
+                              <li
+                                className="min-w-0 break-words"
+                                key={`${source.url}-${index}`}
+                              >
+                                <span className="mr-2 inline-block rounded-full border px-2 py-0.5 text-xs">
+                                  {source.label}
+                                </span>
+                                <a
+                                  href={source.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer nofollow"
+                                  className="font-medium underline underline-offset-4"
+                                >
+                                  {source.title}
+                                </a>
+                                <span className="ml-2 text-xs text-muted-foreground">
+                                  {source.domain}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                     </div>
+                  ) : (
+                    <>
+                      <p>{event.text}</p>
+                      {event.evidence.length > 0 && (
+                        <div className="mt-3">
+                          <p className="text-xs font-semibold uppercase tracking-wide">
+                            Evidence
+                          </p>
+                          <ul className="mt-1 list-disc pl-5 text-sm text-muted-foreground">
+                            {event.evidence.map((evidence) => (
+                              <li key={evidence}>{evidence}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               );
@@ -447,10 +516,7 @@ export function AgentChat({
                           {source.title}
                         </a>
                         <span className="ml-2 text-xs text-muted-foreground">
-                          {source.domain} ·{" "}
-                          {source.trust === "vendor"
-                            ? "Official docs"
-                            : "Community post"}
+                          {source.domain} · {trustLabel(source.trust)}
                         </span>
                       </li>
                     ))}
@@ -636,7 +702,7 @@ export function AgentChat({
                   </p>
                   {event.card.citation && (
                     <p className="mt-1 text-sm text-muted-foreground">
-                      Official docs:{" "}
+                      {trustLabel(event.card.citation.trust)}:{" "}
                       <a
                         href={event.card.citation.url}
                         target="_blank"
@@ -833,6 +899,11 @@ export function AgentChat({
                       ? "This session was stopped for safety; a ticket has been created."
                       : "A support ticket has been created."}
                   </div>
+                  {event.type === "escalated" && event.passedOn && (
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      {event.passedOn}
+                    </p>
+                  )}
                   {"ticketId" in event && event.ticketId && (
                     <Link
                       className="mt-2 inline-block underline"

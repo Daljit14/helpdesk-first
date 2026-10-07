@@ -1,5 +1,5 @@
 export type ResearchProviderId = "tavily" | "brave";
-export type TrustTier = "vendor" | "community";
+export type TrustTier = "vendor" | "community" | "reference";
 
 export interface ResearchSource {
   url: string;

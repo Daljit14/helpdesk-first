@@ -46,6 +46,14 @@ import { checkHourlyLimits, recordBlastRadiusOutcome } from "../blast-radius";
 import { readKillSwitches } from "../kill-switches";
 import { runAuditChainScenario } from "./benchmark/audit-chain-pglite";
 import { runHonestMetricsScenario } from "./benchmark/honest-metrics";
+import { NO_REQUESTER } from "@/lib/agent/output-guard";
+import { renderAgentReply } from "@/lib/agent/reply";
+import {
+  fleschKincaidGrade,
+  scoreReply,
+  type ReplyQualityScore,
+} from "@/lib/agent/reply-quality";
+import { REPLY_QUALITY_FIXTURES } from "./benchmark/cases/reply-quality-fixtures";
 import { runAnswerEngineScenario } from "./benchmark/answer-engine";
 
 export type BenchmarkReport = {
@@ -677,10 +685,152 @@ function assuranceGatewayResult(
   };
 }
 
+function gradeTextForReply(
+  reply: ReturnType<typeof renderAgentReply>["reply"]
+) {
+  return [
+    reply.summary,
+    ...reply.checked,
+    reply.nextStep?.action,
+    reply.nextStep?.why ?? undefined,
+  ]
+    .filter((part): part is string => Boolean(part))
+    .map((part) => {
+      const trimmed = part.trim();
+      return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
+    })
+    .join(" ");
+}
+
+function evaluateReplyQuality(input: BenchmarkCase): {
+  fixtureId: string;
+  v1: ReplyQualityScore;
+  v2: ReplyQualityScore;
+} {
+  const fixtureId = input.replyQuality?.fixtureId;
+  const fixture = REPLY_QUALITY_FIXTURES.find((item) => item.id === fixtureId);
+  if (!fixture) throw new Error(`Unknown reply-quality fixture: ${fixtureId}`);
+
+  const webSources = new Map(
+    fixture.webSources.map((source) => [
+      source.sourceId,
+      {
+        title: source.title,
+        domain: new URL(source.url).hostname,
+        url: source.url,
+        trust: source.trust,
+      },
+    ])
+  );
+  const rendered = renderAgentReply(fixture.v2, {
+    webSources,
+    outputGuard: NO_REQUESTER,
+  });
+  const communitySourceUrls = fixture.v2.sourceIds.flatMap((sourceId) => {
+    const source = webSources.get(sourceId);
+    return source?.trust === "community" ? [source.url] : [];
+  });
+  const replyContent = [
+    rendered.reply.summary,
+    rendered.reply.nextStep?.action,
+    rendered.reply.nextStep?.why,
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const communitySourcesLabelled =
+    communitySourceUrls.every((url) =>
+      rendered.reply.sources.some(
+        (source) => source.url === url && source.label === "Community post"
+      )
+    ) &&
+    (communitySourceUrls.length === 0 ||
+      !/\bOfficial docs\b/i.test(replyContent));
+  const v2Text = gradeTextForReply(rendered.reply);
+  const v2 = scoreReply({
+    text: v2Text,
+    toolsRan: fixture.toolsRan.length > 0,
+    webUsed: fixture.toolsRan.includes("search_web"),
+    communitySourcesLabelled,
+    hasChecked: rendered.reply.checked.length > 0,
+    sourcesShown: rendered.reply.sources.length > 0,
+  });
+  const v1Text = fixture.v1
+    .replace(/\b(?:https?:\/\/|www\.)[^\s)]+/gi, " ")
+    .replace(/\b(?:www\.)?reddit\.com\/[^\s)]+/gi, " ")
+    .trim();
+  const fixtureSourceHosts = fixture.webSources.map((source) =>
+    new URL(source.url).hostname.replace(/^www\./i, "")
+  );
+  const v1SourcesShown =
+    fixtureSourceHosts.some((host) =>
+      fixture.v1.toLowerCase().includes(host.toLowerCase())
+    ) || /\b(?:official docs|community post|reference)\b/i.test(fixture.v1);
+  const v1CommunitySourcesLabelled = fixture.webSources
+    .filter((source) => source.trust === "community")
+    .every((source) => {
+      const host = new URL(source.url).hostname.replace(/^www\./i, "");
+      return (
+        !fixture.v1.toLowerCase().includes(host.toLowerCase()) ||
+        /community post/i.test(fixture.v1)
+      );
+    });
+  const v1 = scoreReply({
+    text: v1Text,
+    toolsRan: fixture.toolsRan.length > 0,
+    webUsed: fixture.toolsRan.includes("search_web"),
+    communitySourcesLabelled: v1CommunitySourcesLabelled,
+    hasChecked: /\bI (checked|looked at)\b/i.test(fixture.v1),
+    sourcesShown: v1SourcesShown,
+  });
+  return {
+    fixtureId: fixture.id,
+    v1,
+    v2: {
+      ...v2,
+      grade: fleschKincaidGrade(v2Text),
+    },
+  };
+}
+
 async function evaluateCase(
   input: BenchmarkCase
 ): Promise<EvaluationCaseResult> {
   const started = Date.now();
+  if (input.replyQuality) {
+    return {
+      caseId: input.id,
+      suite: input.suite,
+      redTeam: false,
+      planner: "no_action",
+      capability: null,
+      policy: "deny",
+      verificationMethod: null,
+      executed: false,
+      inputBlocked: false,
+      outputRejected: false,
+      rejectCode: null,
+      gatewayCode: null,
+      replay: false,
+      foreignIds: false,
+      handlerCalls: 0,
+      executionInserts: 0,
+      deviceJobInserts: 0,
+      allowedEvents: 0,
+      capabilityEnabled: false,
+      runResolved: false,
+      verificationPassed: false,
+      consentSatisfied: false,
+      failedExecutionTerminal: true,
+      providerPolicy: null,
+      okPolicy: null,
+      unsafeModelSink: false,
+      identityBound: false,
+      identityCapability: false,
+      directoryWriteCalls: 0,
+      latencyMs: Date.now() - started,
+      replyQuality: evaluateReplyQuality(input),
+    };
+  }
   if (input.identityAssurance) {
     const scenario = input.identityAssurance;
     const now = new Date();
@@ -1222,7 +1372,7 @@ async function evaluateCase(
                 step.toolName === "give_user_step"
             )
             ?.resultSummary?.match(
-              /^User step rejected: (unapproved_source|step_not_found|step_blocked|community_source)$/
+              /^User step rejected: (unapproved_source|step_not_found|step_blocked|community_source|reference_source)$/
             )?.[1] ?? null,
         actionRejectedCode: rejectedActionCode,
         citationDomain: citationDomains[0] ?? null,
@@ -1252,7 +1402,7 @@ async function evaluateCase(
   let researchPresent = false;
   let researchConfidence = baseEvidence.hypotheses[0]?.confidence;
   let researchProviderCalls = 0;
-  let researchTrusts: ("vendor" | "community")[] = [];
+  let researchTrusts: ("vendor" | "community" | "reference")[] = [];
   if (input.research) {
     const provider = new FakeResearchProvider(
       input.research.sources.map(researchSourceFor),
@@ -1769,7 +1919,9 @@ export async function runBenchmark(
         (result.gatewayCode === "execution_disabled" &&
           expected.gatewayCode !== "not_reached")) &&
       (expected.assuranceLevel === undefined ||
-        result.assuranceLevel === expected.assuranceLevel);
+        result.assuranceLevel === expected.assuranceLevel) &&
+      (input.replyQuality === undefined ||
+        result.replyQuality?.v2.passed === true);
     const suite = (suites[input.suite] ??= {
       total: 0,
       passed: 0,

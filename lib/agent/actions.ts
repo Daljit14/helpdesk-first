@@ -185,7 +185,11 @@ function taintSourceLabel(item: TaintedParam): string {
     case "get_service_health":
       return "a service status page";
     case "search_web":
-      return item.trust === "community" ? "a community post" : "a web page";
+      return item.trust === "reference"
+        ? "a reference page"
+        : item.trust === "community"
+          ? "a community post"
+          : "a web page";
     default:
       return "a tool result";
   }

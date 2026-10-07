@@ -298,6 +298,48 @@ describe("requester-agent escalation handoff reasons", () => {
     expect(mocks.completeUserHandoff).toHaveBeenCalledWith("ticket-1");
   });
 
+  test("records handoff summaries in the new ticket and ticket actions", async () => {
+    const { admin, insertedActions } = makeAdmin();
+    mocks.createWorkflowTicket.mockResolvedValue({
+      ticketId: "created-ticket",
+    });
+    const lines = [
+      "Problem: Printer offline",
+      "Checked: nothing yet",
+      "Why passed on: Several attempts did not resolve the issue.",
+    ];
+
+    await escalate(
+      admin as never,
+      { ...session, backing_ticket_id: null },
+      "max_failed_hypotheses",
+      "The printer is still offline.",
+      "escalated",
+      {},
+      { handoffSummary: lines }
+    );
+
+    expect(mocks.createWorkflowTicket).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: expect.stringContaining(
+          "Summary for staff:\n- Problem: Printer offline\n- Checked: nothing yet"
+        ),
+      })
+    );
+    expect(insertedActions).toContainEqual(
+      expect.objectContaining({
+        ticket_id: "created-ticket",
+        tool_name: "ai_handoff_summary",
+        action_summary: "AI hand-off summary",
+        result_summary: lines.join("\n"),
+        approval_type: "none",
+        consent_required: false,
+        consent_received: false,
+        created_at: expect.any(String),
+      })
+    );
+  });
+
   test("adds user steps and notifies only pending unsaved steps when enabled", async () => {
     vi.stubEnv("HELP_DESK_AGENT_USER_STEPS_ENABLED", "true");
     const at = "2026-09-28T00:00:00.000Z";

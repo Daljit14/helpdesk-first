@@ -469,7 +469,8 @@ export async function escalate(
   reason: string,
   lastMessage: string,
   terminalStatus: "escalated" | "halted" = "escalated",
-  terminalFields: Record<string, unknown> = {}
+  terminalFields: Record<string, unknown> = {},
+  options: { handoffSummary?: string[] } = {}
 ): Promise<string> {
   const steps = await admin
     .from("agent_steps")
@@ -481,11 +482,15 @@ export async function escalate(
   const transcript = (steps.data ?? [])
     .map((step) => `${step.kind}${step.tool_name ? `:${step.tool_name}` : ""}`)
     .join(", ");
+  const handoffSummary =
+    options.handoffSummary && options.handoffSummary.length > 0
+      ? `\n\nSummary for staff:\n${options.handoffSummary.map((line) => `- ${line}`).join("\n")}`
+      : "";
   const created = session.backing_ticket_id
     ? { ticketId: session.backing_ticket_id }
     : await createWorkflowTicket({
         message:
-          `Escalated from AI assistant session ${session.id}: ${reason}\n\n${lastMessage}\n\nRead-only steps: ${transcript}`.slice(
+          `Escalated from AI assistant session ${session.id}: ${reason}${handoffSummary}\n\n${lastMessage}\n\nRead-only steps: ${transcript}`.slice(
             0,
             2000
           ),
@@ -567,6 +572,20 @@ export async function escalate(
     actions.push(
       ...(await escalatedUserStepActions(admin, session, created.ticketId))
     );
+    if (options.handoffSummary?.length) {
+      actions.push({
+        ticket_id: created.ticketId,
+        organization_id: session.organization_id,
+        agent_id: null,
+        tool_name: "ai_handoff_summary",
+        action_summary: "AI hand-off summary",
+        result_summary: options.handoffSummary.join("\n").slice(0, 1000),
+        approval_type: "none",
+        consent_required: false,
+        consent_received: false,
+        created_at: new Date().toISOString(),
+      });
+    }
     if (actions.length > 0) {
       const inserted = await admin.from("ticket_actions").insert(actions);
       if (inserted.error)

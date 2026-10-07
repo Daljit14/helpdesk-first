@@ -219,6 +219,94 @@ export function getResearchConfig(): ResearchConfig {
   };
 }
 
+export type AnswerEngineConfig = {
+  enabled: boolean;
+  publicEnabled: boolean;
+  wikipediaEnabled: boolean;
+  stackexchangeEnabled: boolean;
+  pageFetchEnabled: boolean;
+  webProviders: ("brave" | "tavily")[];
+  stackexchangeSites: string[];
+  stackexchangeKey: string;
+  globalDailyCap: number;
+  providerTimeoutMs: number;
+  deadlineMs: number;
+  minConfidence: number;
+  cacheTtlHours: number;
+  contact: string;
+};
+
+export function getAnswerEngineConfig(): AnswerEngineConfig {
+  const researchProvider = getResearchConfig().provider;
+  const providerFallback: ("brave" | "tavily")[] =
+    researchProvider === "brave" ? ["brave", "tavily"] : ["tavily", "brave"];
+  const configuredProviders = (
+    process.env.HELP_DESK_ANSWER_ENGINE_WEB_PROVIDERS ?? ""
+  )
+    .split(",")
+    .map((provider) => provider.trim().toLowerCase())
+    .filter(
+      (provider): provider is "brave" | "tavily" =>
+        provider === "brave" || provider === "tavily"
+    );
+  const webProviders = configuredProviders.length
+    ? [...new Set(configuredProviders)]
+    : providerFallback;
+  const configuredSites = (
+    process.env.HELP_DESK_STACKEXCHANGE_SITES ??
+    "superuser,serverfault,askubuntu"
+  )
+    .split(",")
+    .map((site) => site.trim().toLowerCase())
+    .filter((site) => /^[a-z0-9-]{2,40}$/.test(site));
+  const sites = [...new Set(configuredSites)].slice(0, 3);
+  const confidence = Number(process.env.HELP_DESK_ANSWER_ENGINE_MIN_CONFIDENCE);
+  return {
+    enabled: process.env.HELP_DESK_ANSWER_ENGINE_ENABLED === "true",
+    publicEnabled:
+      process.env.HELP_DESK_ANSWER_ENGINE_PUBLIC_ENABLED === "true",
+    wikipediaEnabled: process.env.HELP_DESK_SOURCE_WIKIPEDIA_ENABLED === "true",
+    stackexchangeEnabled:
+      process.env.HELP_DESK_SOURCE_STACKEXCHANGE_ENABLED === "true",
+    pageFetchEnabled: process.env.HELP_DESK_PAGE_FETCH_ENABLED === "true",
+    webProviders,
+    stackexchangeSites:
+      sites.length > 0 ? sites : ["superuser", "serverfault", "askubuntu"],
+    stackexchangeKey: process.env.STACKEXCHANGE_KEY?.trim() ?? "",
+    globalDailyCap: boundedNumber(
+      "HELP_DESK_ANSWER_ENGINE_GLOBAL_DAILY_CAP",
+      1000,
+      0,
+      100_000
+    ),
+    providerTimeoutMs: boundedNumber(
+      "HELP_DESK_ANSWER_ENGINE_PROVIDER_TIMEOUT_MS",
+      4000,
+      500,
+      10_000
+    ),
+    deadlineMs: boundedNumber(
+      "HELP_DESK_ANSWER_ENGINE_DEADLINE_MS",
+      10_000,
+      2000,
+      30_000
+    ),
+    minConfidence:
+      Number.isFinite(confidence) && confidence >= 0 && confidence <= 1
+        ? confidence
+        : 0.5,
+    cacheTtlHours: boundedNumber(
+      "HELP_DESK_ANSWER_ENGINE_CACHE_TTL_HOURS",
+      24,
+      1,
+      720
+    ),
+    contact:
+      process.env.HELP_DESK_ANSWER_ENGINE_CONTACT?.trim() ||
+      "https://github.com/Daljit14/helpdesk-first",
+  };
+}
+
 export function getAutonomyMode(): AutonomyMode {
   return process.env.HELP_DESK_AUTONOMY_MODE === "execute"
     ? "execute"

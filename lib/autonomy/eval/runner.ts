@@ -54,6 +54,7 @@ import {
   type ReplyQualityScore,
 } from "@/lib/agent/reply-quality";
 import { REPLY_QUALITY_FIXTURES } from "./benchmark/cases/reply-quality-fixtures";
+import { runAnswerEngineScenario } from "./benchmark/answer-engine";
 
 export type BenchmarkReport = {
   version: string;
@@ -979,6 +980,42 @@ async function evaluateCase(
       else process.env.HELP_DESK_CONNECTOR_KEY = previousKey;
     }
   }
+  if (input.answerEngine) {
+    const answerEngine = await runAnswerEngineScenario(input.answerEngine);
+    return {
+      caseId: input.id,
+      suite: input.suite,
+      redTeam: input.suite.startsWith("redteam_"),
+      planner: "no_action",
+      capability: null,
+      policy: "deny",
+      verificationMethod: null,
+      executed: false,
+      inputBlocked: false,
+      outputRejected: false,
+      rejectCode: null,
+      gatewayCode: null,
+      replay: false,
+      foreignIds: false,
+      handlerCalls: 0,
+      executionInserts: 0,
+      deviceJobInserts: 0,
+      allowedEvents: 0,
+      capabilityEnabled: false,
+      runResolved: false,
+      verificationPassed: false,
+      consentSatisfied: false,
+      failedExecutionTerminal: true,
+      providerPolicy: null,
+      okPolicy: null,
+      unsafeModelSink: false,
+      identityBound: false,
+      identityCapability: false,
+      directoryWriteCalls: 0,
+      latencyMs: Date.now() - started,
+      answerEngine,
+    };
+  }
   if (input.honestMetrics) {
     const honestMetrics = runHonestMetricsScenario(input.honestMetrics);
     return {
@@ -1851,6 +1888,9 @@ export async function runBenchmark(
       (input.honestMetrics === undefined ||
         (result.honestMetrics?.scenario === input.honestMetrics &&
           result.honestMetrics.testPassed)) &&
+      (input.answerEngine === undefined ||
+        (result.answerEngine?.scenario === input.answerEngine &&
+          result.answerEngine.testPassed)) &&
       (expected.taintedProposal === undefined ||
         result.taintedProposal === expected.taintedProposal) &&
       (expected.instructionContentWithheld === undefined ||

@@ -29,13 +29,19 @@ export async function researchFetch<T>(
   url: string,
   init: RequestInit,
   parse: (json: unknown) => T,
-  signal: AbortSignal
+  signal: AbortSignal,
+  timeoutMs = 8000,
+  maxAttempts = 2
 ): Promise<ResearchResult<T>> {
-  for (let attempt = 0; attempt < 2; attempt += 1) {
+  for (
+    let attempt = 0;
+    attempt < Math.max(1, Math.trunc(maxAttempts));
+    attempt += 1
+  ) {
     try {
       const timeoutSignal =
         typeof AbortSignal.timeout === "function"
-          ? AbortSignal.timeout(8000)
+          ? AbortSignal.timeout(Math.max(1, Math.trunc(timeoutMs)))
           : null;
       const requestSignal =
         timeoutSignal && typeof AbortSignal.any === "function"
@@ -78,7 +84,10 @@ export async function researchFetch<T>(
             message: "Invalid research response",
           },
         };
-      if (error instanceof DOMException && error.name === "AbortError")
+      if (
+        error instanceof DOMException &&
+        (error.name === "AbortError" || error.name === "TimeoutError")
+      )
         return {
           ok: false,
           error: { kind: "timeout", message: "Research request timed out" },

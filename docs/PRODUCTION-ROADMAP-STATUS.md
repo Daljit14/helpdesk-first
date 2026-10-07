@@ -13,8 +13,9 @@
 11. `supabase/identity-assurance.sql` (E1a) — after `requester-agent.sql`, `org-environment-profile.sql`, and `agent-reply-guard.sql`.
 12. `supabase/agent-taint.sql` (E2a) — after identity assurance.
 13. `supabase/agent-session-abandon.sql` (E3) — after agent taint and before audit-chain.
-14. `supabase/audit-chain.sql` (G3 #149) — after audit-chain prerequisites, in a quiet window; the E10 trust-constraint migration may follow.
+14. `supabase/answer-engine.sql` (E11a) — after `agent-session-abandon.sql`.
 15. `supabase/research-reference-tier.sql` (E10) — after `research.sql` and `agent-web-search.sql`; widens the research-source trust constraint.
+16. `supabase/audit-chain.sql` (G3 #149) — always last, in a quiet window.
 
 Prerequisite migrations listed in each SETUP-NOTES file must already be applied; none of these 15 has run on production.
 
@@ -50,6 +51,19 @@ outcomes to refuse unsafe autorun promotions, and adds a default-off,
 conditional sweep for stale requester-agent sessions. The cron schedule is
 `45 4 * * *`. `supabase/agent-session-abandon.sql` is authored but has not
 been applied; see `SETUP-NOTES-E3.md` and `docs/METRICS.md`.
+
+## Phase E — E11a answer-engine backend
+
+E11a adds the default-off, backend-only answer engine with trusted-source
+tiering, query planning, Brave/Tavily failover, Wikimedia and Stack Exchange
+adapters, optional safe page fetching, source screening, citation enforcement,
+caching, budget reservation, feedback storage, and Resolution Center metrics.
+No requester assistant, agent tool, community-tip UI, or feedback route is
+wired in this phase. Its 13 fake-provider evaluation cases exercise 44 release
+gates at benchmark version `2026-10-07.2`; the authored
+`supabase/answer-engine.sql` migration has not been applied. See
+`SETUP-NOTES-E11a.md` for provider terms, rollout controls, and the DNS-level
+SSRF limitation.
 
 ## Phase E — E10 conversation quality
 

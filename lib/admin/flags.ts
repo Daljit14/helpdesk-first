@@ -98,6 +98,29 @@ export function isAgentStyleV2Enabled(): boolean {
   return process.env.HELP_DESK_AGENT_STYLE_V2_ENABLED === "true";
 }
 
+export function isAnswerEngineEnabled(): boolean {
+  return process.env.HELP_DESK_ANSWER_ENGINE_ENABLED === "true";
+}
+
+export function isAnswerEnginePublicEnabled(): boolean {
+  return (
+    isAnswerEngineEnabled() &&
+    process.env.HELP_DESK_ANSWER_ENGINE_PUBLIC_ENABLED === "true"
+  );
+}
+
+export function isWikipediaSourceEnabled(): boolean {
+  return process.env.HELP_DESK_SOURCE_WIKIPEDIA_ENABLED === "true";
+}
+
+export function isStackExchangeSourceEnabled(): boolean {
+  return process.env.HELP_DESK_SOURCE_STACKEXCHANGE_ENABLED === "true";
+}
+
+export function isAnswerEnginePageFetchEnabled(): boolean {
+  return process.env.HELP_DESK_PAGE_FETCH_ENABLED === "true";
+}
+
 export function isOrgEncryptionEnabled(): boolean {
   return process.env.HELP_DESK_ORG_ENCRYPTION_ENABLED === "true";
 }

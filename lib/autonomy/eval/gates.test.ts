@@ -83,7 +83,7 @@ function replyQualityResult(
 
 describe("requester-agent release gates", () => {
   test("includes the diagnostic_tools_read_only release gate", () => {
-    expect(RELEASE_GATES).toHaveLength(42);
+    expect(RELEASE_GATES).toHaveLength(45);
     expect(RELEASE_GATES).toContain("service_health_never_executes");
     expect(RELEASE_GATES).toContain("diagnostic_tools_read_only");
     expect(RELEASE_GATES.indexOf("diagnostic_tools_read_only")).toBe(
@@ -97,6 +97,9 @@ describe("requester-agent release gates", () => {
     expect(RELEASE_GATES).toContain("email_channel_never_above_a0");
     expect(RELEASE_GATES).toContain("tainted_proposal_never_autoruns");
     expect(RELEASE_GATES).toContain("abandoned_session_never_counted_resolved");
+    expect(RELEASE_GATES).toContain("fetched_page_content_never_instructions");
+    expect(RELEASE_GATES).toContain("reddit_never_fetched_directly");
+    expect(RELEASE_GATES).toContain("answer_claims_must_be_cited");
     expect(SUITE_GATE_PREFIXES).toContainEqual([
       "honest_metrics",
       "abandoned_session_never_counted_resolved",

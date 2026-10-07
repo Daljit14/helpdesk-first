@@ -4,6 +4,8 @@ import { isDenylisted } from "@/lib/agent/denylist";
 import { listCapabilities, getCapability } from "./capabilities/registry";
 import type { CapabilityDefinition } from "./capabilities/types";
 import type { createAdminClient } from "@/lib/supabase/admin";
+import { isOrgActionPolicyEnabled } from "@/lib/admin/flags";
+import { loadOrgPolicyCeiling } from "./policy/org-policy-server";
 import {
   loadAutonomyMetrics,
   type HonestBreakdown,
@@ -333,6 +335,27 @@ export async function setTier(
 ): Promise<{ ok: true } | { ok: false; reasons: string[] }> {
   const capability = getCapability(input.capabilityId, 1);
   if (!capability) return { ok: false, reasons: ["Unknown capability."] };
+  if (isOrgActionPolicyEnabled()) {
+    const ceiling = await loadOrgPolicyCeiling(admin, {
+      organizationId: input.organizationId,
+      capabilityId: input.capabilityId,
+    });
+    if (ceiling) {
+      const tierOrder: Record<AutonomyTier, number> = {
+        disabled: 0,
+        shadow: 1,
+        consent: 2,
+        autorun: 3,
+      };
+      if (tierOrder[input.toTier] > tierOrder[ceiling])
+        return {
+          ok: false,
+          reasons: [
+            `Your organization's AI action policy allows at most ${ceiling} for this fix.`,
+          ],
+        };
+    }
+  }
   const currentTier = await readTier(
     admin,
     input.organizationId,

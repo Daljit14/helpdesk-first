@@ -30,6 +30,7 @@ import {
   isDeviceSignedTrustEnabled,
   isRequesterAgentAutorunEnabledForOrg,
   isIdentityRiskSignalsEnabled,
+  isOrgActionPolicyEnabled,
 } from "@/lib/admin/flags";
 import { getDeviceAction } from "@/lib/device-agent/catalog";
 import { loadSignedDeviceIdentifiers } from "@/lib/device-agent/server/signed-identifiers";
@@ -39,6 +40,7 @@ import {
   recordAutonomyOutcome,
   type AutonomyTier,
 } from "@/lib/autonomy/ladder";
+import { loadOrgPolicyDecision } from "@/lib/autonomy/policy/org-policy-server";
 import { sessionConsentActive } from "./session-consent";
 import {
   compareAssurance,
@@ -89,6 +91,7 @@ export type ProposeOutcome =
         | "user_daily_cap"
         | "kill_switch"
         | "policy_denied"
+        | "org_policy_denied"
         | "specialist_only"
         | "read_only_capability"
         | "tier_disabled"
@@ -96,7 +99,8 @@ export type ProposeOutcome =
         | "service_incident_active"
         | "assurance_disabled"
         | "assurance_required"
-        | "tainted_parameter";
+        | "tainted_parameter"
+        | "technician_approval_pending";
       message: string;
     }
   | { kind: "escalate"; reason: string }
@@ -811,6 +815,42 @@ export async function proposeAction(
       "This fix cannot be applied automatically yet; here is how to do it manually."
     );
   }
+  const orgPolicyDecision = isOrgActionPolicyEnabled()
+    ? await loadOrgPolicyDecision(admin, {
+        organizationId: session.organization_id,
+        capabilityId: capability.id,
+        subjectUserId: session.requester_id,
+        tier,
+        now: new Date(),
+      })
+    : null;
+  if (orgPolicyDecision && !orgPolicyDecision.allowed) {
+    const message =
+      "Your organization doesn't allow the assistant to do this. I can pass it to your IT team if you'd like.";
+    await actionStep(
+      admin,
+      session,
+      "action_rejected",
+      capability.id,
+      paramsHash,
+      message
+    );
+    return reject("org_policy_denied", message);
+  }
+  if (orgPolicyDecision?.effectiveMaxTier === "shadow") {
+    await actionStep(
+      admin,
+      session,
+      "action_shadowed",
+      capability.id,
+      paramsHash,
+      "This fix cannot be applied automatically yet; here is how to do it manually."
+    );
+    return reject(
+      "tier_shadow",
+      "This fix cannot be applied automatically yet; here is how to do it manually."
+    );
+  }
   const run = await ensureBackingRun(admin, session, ctx.platform);
   if (!run || !run.ticket_id)
     return { kind: "escalate", reason: "backing_run_unavailable" };
@@ -871,7 +911,10 @@ export async function proposeAction(
     isRequesterAgentAutorunEnabledForOrg(session.organization_id) &&
     sessionConsentActive(session) &&
     (session.autorun_consent_capabilities ?? []).includes(capability.id) &&
-    isSnapshotReversible(capability);
+    isSnapshotReversible(capability) &&
+    (orgPolicyDecision === null ||
+      (orgPolicyDecision.effectiveMaxTier === "autorun" &&
+        !orgPolicyDecision.requireStaffApproval));
   const result = await executePlan(admin, run, plan, {
     actor: ctx.actor,
     stepId: planStep.data.id,
@@ -985,6 +1028,11 @@ export async function proposeAction(
       },
     };
   }
+  if (result.status === "awaiting_approval")
+    return reject(
+      "technician_approval_pending",
+      "Your IT team needs to approve this fix. I've asked them."
+    );
   if (result.status === "escalated") {
     if (result.escalation_reason === "policy_denied")
       return reject("policy_denied", "Organization policy denied this action.");

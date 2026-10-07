@@ -39,6 +39,9 @@ import { readBoundConsent } from "../guardrails/consent";
 import { getDeviceAction } from "@/lib/device-agent/catalog";
 import { findDeviceForTicket } from "@/lib/device-agent/server/jobs";
 import type { AssuranceFacts } from "@/lib/identity/assurance";
+import { isOrgActionPolicyEnabled } from "@/lib/admin/flags";
+import { readTier } from "../ladder";
+import { loadOrgPolicyDecision } from "../policy/org-policy-server";
 
 type PlanStep = { id: string; detail?: Record<string, unknown> };
 
@@ -80,6 +83,7 @@ export async function verifyExecution(input: {
 type Ticket = {
   platform: string | null;
   category: string | null;
+  user_id: string | null;
 };
 
 type OrgPolicy = {
@@ -94,6 +98,7 @@ type PolicyEvaluation =
       input: PolicyInput;
       capability: CapabilityDefinition;
       validatedParameters: Record<string, unknown>;
+      subjectUserId: string | null;
     }
   | {
       ok: false;
@@ -163,7 +168,7 @@ async function readTicket(
 ): Promise<Ticket | null> {
   const result = await admin
     .from("tickets")
-    .select("platform,category")
+    .select("platform,category,user_id")
     .eq("id", run.ticket_id)
     .eq("organization_id", run.organization_id)
     .maybeSingle();
@@ -505,6 +510,7 @@ export async function evaluatePlanPolicy(
     input: policyInput,
     capability,
     validatedParameters: validated.value as Record<string, unknown>,
+    subjectUserId: typeof ticket.user_id === "string" ? ticket.user_id : null,
   };
 }
 
@@ -608,6 +614,77 @@ export async function executePlan(
       ...policyInput,
       consent: { user: false, technician: false },
     });
+  }
+  let orgPolicyDecision: Awaited<ReturnType<typeof loadOrgPolicyDecision>> =
+    null;
+  if (isOrgActionPolicyEnabled()) {
+    let tier: Awaited<ReturnType<typeof readTier>> = "disabled";
+    try {
+      tier = await readTier(admin, run.organization_id, capability.id);
+    } catch {
+      tier = "disabled";
+    }
+    orgPolicyDecision = await loadOrgPolicyDecision(admin, {
+      organizationId: run.organization_id,
+      capabilityId: capability.id,
+      subjectUserId: evaluated.subjectUserId,
+      tier,
+      now: new Date(),
+    });
+  }
+  if (
+    orgPolicyDecision &&
+    (!orgPolicyDecision.allowed ||
+      orgPolicyDecision.effectiveMaxTier === "disabled" ||
+      orgPolicyDecision.effectiveMaxTier === "shadow")
+  ) {
+    const planningRun =
+      run.status === "planning"
+        ? await transitionRun(admin, run, "policy_check", {
+            actor: deps.actor ?? "orchestrator",
+          })
+        : run;
+    if (!planningRun) return null;
+    await writeEvent(admin, planningRun, "policy.org_denied", {
+      reasons: orgPolicyDecision.reasons,
+    });
+    return escalate(admin, planningRun, "org_policy_denied", deps);
+  }
+  if (
+    orgPolicyDecision &&
+    decision.decision === "allow_automatic" &&
+    capability.sideEffects !== "read_only" &&
+    orgPolicyDecision.effectiveMaxTier !== "autorun"
+  ) {
+    decision = {
+      ...decision,
+      decision:
+        capability.consent === "technician"
+          ? "require_technician_approval"
+          : "require_user_consent",
+      reasons: [...decision.reasons, "org_policy_max_tier"],
+      consentSatisfied: false,
+    };
+  }
+  if (
+    orgPolicyDecision?.requireStaffApproval &&
+    (decision.decision === "allow_automatic" ||
+      decision.decision === "require_user_consent")
+  ) {
+    decision = {
+      ...decision,
+      decision: "require_technician_approval",
+      reasons: [...decision.reasons, "org_policy_staff_approval"],
+      consentSatisfied: false,
+    };
+  }
+  if (orgPolicyDecision) {
+    decision = {
+      ...decision,
+      reasons: [
+        ...new Set([...decision.reasons, ...orgPolicyDecision.reasons]),
+      ],
+    };
   }
   const planningRun =
     run.status === "planning"

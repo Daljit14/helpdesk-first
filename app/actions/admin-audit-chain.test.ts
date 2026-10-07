@@ -179,6 +179,7 @@ describe("exportAuditChain", () => {
       resolution_events: [resolutionRow1, resolutionRow2, resolutionRow3],
       agent_steps: [stepRow1, stepRow2, stepRow3],
       capability_autonomy_transitions: [],
+      org_action_policy_events: [],
     };
     const rpc = vi.fn(async (_name: string, args: Record<string, unknown>) => ({
       data: records[args.p_table as keyof typeof records]
@@ -285,6 +286,7 @@ describe("exportAuditChain", () => {
       resolution_events: events,
       agent_steps: [],
       capability_autonomy_transitions: [],
+      org_action_policy_events: [],
     };
     const rpc = vi.fn(async (_name: string, args: Record<string, unknown>) => ({
       data: records[args.p_table as keyof typeof records]

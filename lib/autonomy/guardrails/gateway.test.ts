@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   loadAccountRiskFacts: vi.fn(),
   loadStaffVerification: vi.fn(),
   getIdentityBinding: vi.fn(),
+  loadOrgPolicyDecision: vi.fn(),
 }));
 
 vi.mock("../alerts", () => ({ alertSecurityEvent: mocks.alertSecurityEvent }));
@@ -47,6 +48,9 @@ vi.mock("@/lib/identity/staff-verification", () => ({
 }));
 vi.mock("../connectors/binding", () => ({
   getIdentityBinding: mocks.getIdentityBinding,
+}));
+vi.mock("../policy/org-policy-server", () => ({
+  loadOrgPolicyDecision: mocks.loadOrgPolicyDecision,
 }));
 
 import type { HandlerAdmin } from "../executor/handlers/types";
@@ -280,6 +284,7 @@ describe("executeThroughGateway", () => {
     mocks.loadAccountRiskFacts.mockResolvedValue(null);
     mocks.loadStaffVerification.mockResolvedValue(null);
     mocks.getIdentityBinding.mockResolvedValue(null);
+    mocks.loadOrgPolicyDecision.mockResolvedValue(null);
     mocks.transitionRun.mockImplementation(
       async (_admin: unknown, value: ResolutionRun, status: string) => ({
         ...value,
@@ -297,6 +302,90 @@ describe("executeThroughGateway", () => {
     const result = await executeThroughGateway(admin, request());
     expect(result).toMatchObject({ ok: false, code });
     expect(handler.run).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    [
+      "org_policy_denied",
+      {
+        allowed: false,
+        governed: true,
+        effectiveMaxTier: "disabled",
+        requireStaffApproval: false,
+        reasons: ["org_policy_denied"],
+      },
+    ],
+    [
+      "org_policy_tier_exceeded",
+      {
+        allowed: true,
+        governed: true,
+        effectiveMaxTier: "consent",
+        requireStaffApproval: false,
+        reasons: ["org_policy_max_tier"],
+      },
+    ],
+    [
+      "org_policy_staff_approval_required",
+      {
+        allowed: true,
+        governed: true,
+        effectiveMaxTier: "autorun",
+        requireStaffApproval: true,
+        reasons: ["org_policy_staff_approval"],
+      },
+    ],
+  ])("denies organization policy with %s", async (code, decision) => {
+    vi.stubEnv("HELP_DESK_ORG_ACTION_POLICY_ENABLED", "true");
+    mocks.loadOrgPolicyDecision.mockResolvedValue(decision);
+    const capability = {
+      ...baseCapability(),
+      sideEffects: "external_write" as const,
+    };
+    const { admin, handler, inserts } = makeAdmin();
+    const result = await executeThroughGateway(admin, request({ capability }));
+    expect(result).toMatchObject({ ok: false, code });
+    expect(handler.run).not.toHaveBeenCalled();
+    expect(inserts).toContainEqual(
+      expect.objectContaining({
+        kind: "guardrail.policy_denied",
+        detail: expect.objectContaining({
+          reasonCode: code,
+          reasons: decision.reasons,
+        }),
+      })
+    );
+  });
+
+  test("adds the max-tier reason when another policy reason is present", async () => {
+    vi.stubEnv("HELP_DESK_ORG_ACTION_POLICY_ENABLED", "true");
+    mocks.loadOrgPolicyDecision.mockResolvedValue({
+      allowed: true,
+      governed: true,
+      effectiveMaxTier: "consent",
+      requireStaffApproval: false,
+      reasons: ["org_policy_outside_autorun_window"],
+    });
+    const capability = {
+      ...baseCapability(),
+      sideEffects: "external_write" as const,
+    };
+    const { admin, handler, inserts } = makeAdmin();
+    const result = await executeThroughGateway(admin, request({ capability }));
+    expect(result).toMatchObject({
+      ok: false,
+      code: "org_policy_tier_exceeded",
+    });
+    expect(handler.run).not.toHaveBeenCalled();
+    expect(inserts).toContainEqual(
+      expect.objectContaining({
+        kind: "guardrail.policy_denied",
+        detail: expect.objectContaining({
+          reasonCode: "org_policy_tier_exceeded",
+          reasons: ["org_policy_outside_autorun_window", "org_policy_max_tier"],
+        }),
+      })
+    );
   });
 
   test("denies A3 capabilities when assurance is disabled after identity binding", async () => {

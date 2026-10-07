@@ -45,17 +45,19 @@ function exportLines() {
     prev_hash: hash1,
     row_hash: hash2,
   };
-  const summaries = ["agent_steps", "capability_autonomy_transitions"].map(
-    (name) => ({
-      type: "verify",
-      table: name,
-      from_seq: null,
-      to_seq: null,
-      head_hash: null,
-      rows: 0,
-      excluded: 0,
-    })
-  );
+  const summaries = [
+    "agent_steps",
+    "capability_autonomy_transitions",
+    "org_action_policy_events",
+  ].map((name) => ({
+    type: "verify",
+    table: name,
+    from_seq: null,
+    to_seq: null,
+    head_hash: null,
+    rows: 0,
+    excluded: 0,
+  }));
   return {
     row1,
     row2,

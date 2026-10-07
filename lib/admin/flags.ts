@@ -44,6 +44,10 @@ export function isStaffVerificationEnabled(): boolean {
   );
 }
 
+export function isOrgActionPolicyEnabled(): boolean {
+  return process.env.HELP_DESK_ORG_ACTION_POLICY_ENABLED === "true";
+}
+
 export function getIdentityAssuranceFreshMinutes(): number {
   const parsed = Number(process.env.HELP_DESK_IDENTITY_ASSURANCE_FRESH_MINUTES);
   if (!Number.isFinite(parsed)) return 10;

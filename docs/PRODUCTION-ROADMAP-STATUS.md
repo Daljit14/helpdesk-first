@@ -16,9 +16,10 @@
 14. `supabase/answer-engine.sql` (E11a) — after `agent-session-abandon.sql`.
 15. `supabase/research-reference-tier.sql` (E10) — after `research.sql` and `agent-web-search.sql`; widens the research-source trust constraint.
 16. `supabase/identity-risk.sql` (E1b) — after identity assurance and before audit-chain.
-17. `supabase/audit-chain.sql` (G3 #149) — always last, in a quiet window.
+17. `supabase/org-action-policy.sql` (G5) — after identity risk and before audit-chain.
+18. `supabase/audit-chain.sql` (G3 #149) — always last, in a quiet window.
 
-Prerequisite migrations listed in each SETUP-NOTES file must already be applied; none of these 17 has run on production.
+Prerequisite migrations listed in each SETUP-NOTES file must already be applied; none of these 18 has run on production.
 
 ## Phase E — E0 small follow-ups
 
@@ -82,7 +83,7 @@ Page fetch now resolves each URL hop once, rejects any private or reserved
 DNS answer, and pins HTTPS connections to a validated public address while
 preserving the hostname for SNI and Host. The DNS-pinning scenarios are covered
 by the 46-gate benchmark at version `2026-10-07.4`. This is a code-only change:
-no SQL was added or applied, and the production SQL run order remains at 16.
+no SQL was added or applied, and the production SQL run order remains at 17.
 
 ## Phase E — E11b answer-first assistant and community tips
 
@@ -92,8 +93,21 @@ Community tips require independent-domain corroboration and deterministic
 step-safety screening; answer content remains external and cannot become an
 agent action. Benchmark version `2026-10-07.5` adds the community-tip gate and
 scenarios. This is code-only: no SQL was added or applied, and the production
-SQL run order remains at 16. See `SETUP-NOTES-E11b.md` for flags, budgets,
+SQL run order remains at 17. See `SETUP-NOTES-E11b.md` for flags, budgets,
 safety screening, and provider-dependent rollout checks.
+
+## Phase G — G5 organization AI action policy
+
+G5 adds a default-off, organization-admin-managed policy layer with capability
+and wildcard allow/deny rules, directory-group scopes, tier ceilings, local-time
+autorun windows, and optional technician approval. Policies are enforced by the
+gateway, executor, requester agent, and autonomy ladder; append-only policy
+events are included in the audit chain. Benchmark version `2026-10-07.8`
+adds 12 policy scenarios and registers the `org_policy_deny_wins` release gate.
+The migration
+`supabase/org-action-policy.sql` is authored but not applied; it belongs after
+`identity-risk.sql` and before `audit-chain.sql`, which remains last (18 SQL
+files total). See `SETUP-NOTES-G5.md`.
 
 ## Phase E — device-signed identifier trust
 
@@ -123,7 +137,8 @@ production rollout and follow `SETUP-NOTES-G1.md`.
 ## Wave 2 G3 — tamper-evident audit chain
 
 G3 adds fixed-payload SHA-256 chains and append-only anchors for resolution
-events, agent steps, and capability-autonomy transitions. A daily
+events, agent steps, capability-autonomy transitions, and organization action
+policy events. A daily
 service-role-only verifier and organization-admin JSONL export are included.
 The scheduled check remains disabled by default; `supabase/audit-chain.sql`
 is authored but has not been applied. See `SETUP-NOTES-G3.md` for migration

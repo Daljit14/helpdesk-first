@@ -1,6 +1,7 @@
 -- G3 tamper-evident audit chain. Run after requester-agent.sql,
 -- autonomy-ladder.sql, autonomy-audit.sql, agent-reply-guard.sql, and
--- agent-user-steps.sql and requester-agent-vision.sql. The fixed payload lists
+-- agent-user-steps.sql, requester-agent-vision.sql, and org-action-policy.sql.
+-- The fixed payload lists
 -- deliberately exclude future columns; update this migration and
 -- AUDIT_CHAIN_COLUMNS explicitly when the covered records' schemas change.
 
@@ -16,6 +17,10 @@ alter table public.capability_autonomy_transitions
   add column if not exists chain_seq bigint,
   add column if not exists prev_hash text,
   add column if not exists row_hash text;
+alter table public.org_action_policy_events
+  add column if not exists chain_seq bigint,
+  add column if not exists prev_hash text,
+  add column if not exists row_hash text;
 
 create unique index if not exists resolution_events_audit_chain_seq_idx
   on public.resolution_events(organization_id, chain_seq);
@@ -23,6 +28,8 @@ create unique index if not exists agent_steps_audit_chain_seq_idx
   on public.agent_steps(organization_id, chain_seq);
 create unique index if not exists capability_autonomy_transitions_audit_chain_seq_idx
   on public.capability_autonomy_transitions(organization_id, chain_seq);
+create unique index if not exists org_action_policy_events_audit_chain_seq_idx
+  on public.org_action_policy_events(organization_id, chain_seq);
 
 create or replace function public.audit_canonical(v jsonb)
 returns text
@@ -169,6 +176,11 @@ begin
         'id','organization_id','capability_id','from_tier','to_tier','kind',
         'reason','actor','actor_user_id','created_at','chain_seq'
       ];
+    when 'org_action_policy_events' then
+      columns := array[
+        'id','organization_id','policy_id','capability_id','action','before',
+        'after','actor_user_id','created_at','chain_seq'
+      ];
     else
       raise exception 'unsupported audit chain table: %', p_table;
   end case;
@@ -203,13 +215,18 @@ $$;
 create table if not exists public.audit_chain_anchors (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete cascade,
-  table_name text not null check (table_name in (
-    'resolution_events', 'agent_steps', 'capability_autonomy_transitions'
-  )),
+  table_name text not null,
   chain_seq bigint not null,
   row_hash text not null,
   checked_at timestamptz not null default now()
 );
+alter table public.audit_chain_anchors
+  drop constraint if exists audit_chain_anchors_table_name_check;
+alter table public.audit_chain_anchors
+  add constraint audit_chain_anchors_table_name_check check (table_name in (
+    'resolution_events', 'agent_steps', 'capability_autonomy_transitions',
+    'org_action_policy_events'
+  ));
 create index if not exists audit_chain_anchors_latest_idx
   on public.audit_chain_anchors(organization_id, table_name, checked_at desc);
 alter table public.audit_chain_anchors enable row level security;
@@ -248,11 +265,13 @@ declare
   payload jsonb;
 begin
   foreach target_table in array array[
-    'resolution_events', 'agent_steps', 'capability_autonomy_transitions'
+    'resolution_events', 'agent_steps', 'capability_autonomy_transitions',
+    'org_action_policy_events'
   ] loop
     immutable_trigger := case target_table
       when 'agent_steps' then 'agent_steps_immutable'
       when 'capability_autonomy_transitions' then 'capability_autonomy_transitions_immutable'
+      when 'org_action_policy_events' then 'org_action_policy_events_immutable'
       else 'resolution_events_immutable_trigger'
     end;
 
@@ -309,6 +328,9 @@ alter table public.agent_steps
 alter table public.capability_autonomy_transitions
   alter column chain_seq set not null,
   alter column row_hash set not null;
+alter table public.org_action_policy_events
+  alter column chain_seq set not null,
+  alter column row_hash set not null;
 
 create or replace function public.audit_chain_before_insert()
 returns trigger
@@ -352,6 +374,11 @@ drop trigger if exists capability_autonomy_transitions_audit_chain_insert
 create trigger capability_autonomy_transitions_audit_chain_insert
 before insert on public.capability_autonomy_transitions
 for each row execute function public.audit_chain_before_insert();
+drop trigger if exists org_action_policy_events_audit_chain_insert
+  on public.org_action_policy_events;
+create trigger org_action_policy_events_audit_chain_insert
+before insert on public.org_action_policy_events
+for each row execute function public.audit_chain_before_insert();
 
 create or replace function public.audit_chain_rows(
   p_table text,
@@ -374,7 +401,8 @@ set search_path = public, extensions
 as $$
 begin
   if p_table is null or p_table not in (
-    'resolution_events', 'agent_steps', 'capability_autonomy_transitions'
+    'resolution_events', 'agent_steps', 'capability_autonomy_transitions',
+    'org_action_policy_events'
   ) then
     raise exception 'unsupported audit chain table: %', p_table;
   end if;
@@ -393,6 +421,7 @@ grant execute on function public.audit_chain_rows(text, uuid, timestamptz, bigin
 -- drop trigger if exists resolution_events_audit_chain_insert on public.resolution_events;
 -- drop trigger if exists agent_steps_audit_chain_insert on public.agent_steps;
 -- drop trigger if exists capability_autonomy_transitions_audit_chain_insert on public.capability_autonomy_transitions;
+-- drop trigger if exists org_action_policy_events_audit_chain_insert on public.org_action_policy_events;
 -- drop trigger if exists audit_chain_anchors_immutable on public.audit_chain_anchors;
 -- drop function if exists public.audit_chain_rows(text, uuid, timestamptz, bigint, integer);
 -- drop function if exists public.audit_chain_before_insert();
@@ -404,3 +433,4 @@ grant execute on function public.audit_chain_rows(text, uuid, timestamptz, bigin
 -- alter table public.resolution_events drop column if exists chain_seq, drop column if exists prev_hash, drop column if exists row_hash;
 -- alter table public.agent_steps drop column if exists chain_seq, drop column if exists prev_hash, drop column if exists row_hash;
 -- alter table public.capability_autonomy_transitions drop column if exists chain_seq, drop column if exists prev_hash, drop column if exists row_hash;
+-- alter table public.org_action_policy_events drop column if exists chain_seq, drop column if exists prev_hash, drop column if exists row_hash;

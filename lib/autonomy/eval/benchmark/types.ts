@@ -42,6 +42,7 @@ const expected = z
     rejectCode: z.string().optional(),
     gatewayCode: z.string().optional(),
     assuranceLevel: z.enum(["A0", "A1", "A2", "A3"]).optional(),
+    orgPolicyPromotionRefused: z.boolean().optional(),
     researchConfidence: z.number().min(0).max(1).optional(),
     researchPresent: z.boolean().optional(),
     researchInfluencedNonSafe: z.boolean().optional(),
@@ -103,6 +104,43 @@ const identityAssurance = z
     consentType: z
       .enum(["user_consent", "technician_approval"])
       .default("user_consent"),
+    orgPolicy: z
+      .object({
+        enabled: z.boolean().default(true),
+        autoMode: z.boolean().default(false),
+        ladderTier: z
+          .enum(["disabled", "shadow", "consent", "autorun"])
+          .optional(),
+        groups: z.array(z.string()).optional(),
+        promotionAttempt: z.boolean().default(false),
+        rules: z
+          .array(
+            z
+              .object({
+                capabilityId: z.string(),
+                effect: z.enum(["allow", "deny"]),
+                scopeGroups: z.array(z.string()).default([]),
+                maxTier: z.enum(["shadow", "consent", "autorun"]),
+                autorunWindows: z
+                  .array(
+                    z
+                      .object({
+                        days: z.array(z.number().int().min(0).max(6)).max(7),
+                        start: z.string(),
+                        end: z.string(),
+                        timeZone: z.string(),
+                      })
+                      .strict()
+                  )
+                  .default([]),
+                requireStaffApproval: z.boolean().default(false),
+              })
+              .strict()
+          )
+          .default([]),
+      })
+      .strict()
+      .optional(),
     risk: z
       .object({
         signals: z.array(

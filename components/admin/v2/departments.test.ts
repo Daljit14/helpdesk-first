@@ -70,6 +70,35 @@ describe("trusted vendor docs department", () => {
   });
 });
 
+describe("AI action policy department", () => {
+  test("is available only to org admins when enabled", () => {
+    const orgAdmin = buildDepartments(
+      { role: "org_admin", isPlatformAdmin: false },
+      { ...flags, orgActionPolicyEnabled: true }
+    );
+    expect(orgAdmin).toContainEqual(
+      expect.objectContaining({
+        id: "org-action-policy",
+        label: "AI action policy",
+        href: "/admin/resolution/policy",
+        group: "Support",
+      })
+    );
+
+    const supportAgent = buildDepartments(
+      { role: "support_agent", isPlatformAdmin: false },
+      { ...flags, orgActionPolicyEnabled: true }
+    );
+    expect(supportAgent.map(({ id }) => id)).not.toContain("org-action-policy");
+
+    const disabled = buildDepartments(
+      { role: "org_admin", isPlatformAdmin: false },
+      flags
+    );
+    expect(disabled.map(({ id }) => id)).not.toContain("org-action-policy");
+  });
+});
+
 describe("users and logins department", () => {
   test("is available to org admins and platform admins", () => {
     const orgAdmin = buildDepartments(

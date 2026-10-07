@@ -18,11 +18,20 @@ import {
   isIdentityRiskSignalsEnabled,
   isStaffVerificationEnabled,
   isDeviceSignedTrustEnabled,
+  isOrgActionPolicyEnabled,
 } from "./flags";
 
 afterEach(() => vi.unstubAllEnvs());
 
 describe("requester agent flags", () => {
+  test("keeps organization action policy disabled unless exactly enabled", () => {
+    expect(isOrgActionPolicyEnabled()).toBe(false);
+    vi.stubEnv("HELP_DESK_ORG_ACTION_POLICY_ENABLED", "TRUE");
+    expect(isOrgActionPolicyEnabled()).toBe(false);
+    vi.stubEnv("HELP_DESK_ORG_ACTION_POLICY_ENABLED", "true");
+    expect(isOrgActionPolicyEnabled()).toBe(true);
+  });
+
   test("keeps device-signed trust disabled unless explicitly enabled", () => {
     expect(isDeviceSignedTrustEnabled()).toBe(false);
     vi.stubEnv("HELP_DESK_DEVICE_SIGNED_TRUST_ENABLED", "TRUE");

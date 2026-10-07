@@ -55,6 +55,8 @@ import {
 } from "@/lib/agent/reply-quality";
 import { REPLY_QUALITY_FIXTURES } from "./benchmark/cases/reply-quality-fixtures";
 import { runAnswerEngineScenario } from "./benchmark/answer-engine";
+import { setTier } from "../ladder";
+import { __resetOrgPolicyGroupCache } from "../policy/org-policy-server";
 
 export type BenchmarkReport = {
   version: string;
@@ -648,7 +650,8 @@ function assuranceGatewayResult(
   assuranceLevel: "A0" | "A1" | "A2" | "A3",
   definition: NonNullable<ReturnType<typeof getCapability>>,
   gatewayCode: string,
-  started: number
+  started: number,
+  orgPolicyPromotionRefused?: boolean
 ): EvaluationCaseResult {
   return {
     caseId: input.id,
@@ -681,6 +684,15 @@ function assuranceGatewayResult(
     identityCapability: definition.requiresIdentityBinding === true,
     directoryWriteCalls: 0,
     assuranceLevel,
+    ...(orgPolicyPromotionRefused === undefined
+      ? {}
+      : { orgPolicyPromotionRefused }),
+    ...(input.identityAssurance?.orgPolicy?.autoMode &&
+    input.identityAssurance.orgPolicy.enabled !== false &&
+    gatewayCode === "allowed" &&
+    harness.admin.executionInserts > 0
+      ? { orgPolicyAutorunAllowed: true }
+      : {}),
     latencyMs: Date.now() - started,
   };
 }
@@ -829,7 +841,11 @@ function identityRiskDirectoryFetch(
           : [],
       });
     if (path === "/users/directory-user-1/memberOf")
-      return Response.json({ value: [] });
+      return Response.json({
+        value: (input.identityAssurance?.orgPolicy?.groups ?? []).map((id) => ({
+          id,
+        })),
+      });
     if (
       path === "/users/directory-user-1/memberOf/microsoft.graph.directoryRole"
     )
@@ -990,7 +1006,34 @@ function seedIdentityRiskHarness(
           ];
     harness.rows.set("staff_caller_verifications", verifications);
   }
-  if (scenario?.risk?.enabled) {
+  if (scenario?.orgPolicy) {
+    harness.rows.set(
+      "org_action_policies",
+      scenario.orgPolicy.rules.map((rule, index) => ({
+        id: `00000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
+        organization_id: harness.organizationId,
+        capability_id: rule.capabilityId,
+        effect: rule.effect,
+        scope_groups: rule.scopeGroups,
+        max_tier: rule.maxTier,
+        autorun_windows: rule.autorunWindows,
+        require_staff_approval: rule.requireStaffApproval,
+      }))
+    );
+    harness.rows.set(
+      "capability_autonomy_stats",
+      scenario.orgPolicy.ladderTier
+        ? [
+            {
+              organization_id: harness.organizationId,
+              capability_id: scenario.capabilityId,
+              tier: scenario.orgPolicy.ladderTier,
+            },
+          ]
+        : []
+    );
+  }
+  if (scenario?.risk?.enabled || scenario?.orgPolicy?.groups !== undefined) {
     harness.rows.set("organization_connectors", [
       {
         organization_id: harness.organizationId,
@@ -1009,6 +1052,7 @@ async function evaluateCase(
   input: BenchmarkCase
 ): Promise<EvaluationCaseResult> {
   const started = Date.now();
+  if (input.identityAssurance?.orgPolicy) __resetOrgPolicyGroupCache();
   if (input.replyQuality) {
     return {
       caseId: input.id,
@@ -1135,7 +1179,7 @@ async function evaluateCase(
     const previousFetch = globalThis.fetch;
     process.env.HELP_DESK_CONNECTOR_KEY = connectorKey.toString("base64");
     seedIdentityRiskHarness(input, harness, connectorKey);
-    if (scenario.risk?.enabled)
+    if (scenario.risk?.enabled || scenario.orgPolicy?.groups !== undefined)
       globalThis.fetch = identityRiskDirectoryFetch(input, now);
     if (definition.id === "grant_group_access") {
       harness.rows.set("organization_connectors", [
@@ -1149,6 +1193,19 @@ async function evaluateCase(
           status: "active",
         },
       ]);
+    }
+    let orgPolicyPromotionRefused: boolean | undefined;
+    if (scenario.orgPolicy?.promotionAttempt) {
+      const promotion = await setTier(harness.admin, {
+        organizationId: harness.organizationId,
+        capabilityId: definition.id,
+        toTier: "autorun",
+        reason: "benchmark promotion",
+        actor: "benchmark",
+        actorUserId: "staff-1",
+        kind: "promotion",
+      });
+      orgPolicyPromotionRefused = !promotion.ok;
     }
     const plan = {
       ticketId: harness.ticketId,
@@ -1168,7 +1225,7 @@ async function evaluateCase(
     try {
       const run = {
         ...runRecord(harness, input),
-        attempts: getAutonomyLimits().maxAttempts,
+        attempts: input.expected.executed ? 0 : getAutonomyLimits().maxAttempts,
       };
       if (input.id === "identity-risk-elevated-fresh-a3")
         run.created_at = new Date(Date.now() - 60_000).toISOString();
@@ -1191,7 +1248,7 @@ async function evaluateCase(
           policyVersion: "benchmark",
           auditLabel: "benchmark",
           userLabel: "benchmark",
-          ...(scenario.consentType
+          ...(scenario.consentType && !scenario.orgPolicy?.autoMode
             ? {
                 consent: {
                   type: scenario.consentType,
@@ -1225,7 +1282,8 @@ async function evaluateCase(
           : facts.level,
         definition,
         result.ok ? "allowed" : result.code,
-        started
+        started,
+        orgPolicyPromotionRefused
       );
     } finally {
       globalThis.fetch = previousFetch;
@@ -2030,6 +2088,7 @@ export async function runBenchmark(
       "HELP_DESK_GUARDRAILS_ENFORCED",
       "HELP_DESK_CAPABILITY_REGISTRY_ENABLED",
       "HELP_DESK_PILOT_CAPABILITY_ALLOWLIST",
+      "HELP_DESK_ORG_ACTION_POLICY_ENABLED",
       "HELP_DESK_IDENTITY_RISK_SIGNALS_ENABLED",
       "HELP_DESK_STAFF_VERIFICATION_ENABLED",
       ...assuranceCapabilityFlags,
@@ -2042,6 +2101,7 @@ export async function runBenchmark(
   try {
     process.env.HELP_DESK_IDENTITY_RISK_SIGNALS_ENABLED = "false";
     process.env.HELP_DESK_STAFF_VERIFICATION_ENABLED = "false";
+    process.env.HELP_DESK_ORG_ACTION_POLICY_ENABLED = "false";
     await Promise.all(
       parsed.map(async (item, index) => {
         if (!item.identityAssurance) {
@@ -2070,6 +2130,8 @@ export async function runBenchmark(
         .staff?.enabled
         ? "true"
         : "false";
+      process.env.HELP_DESK_ORG_ACTION_POLICY_ENABLED =
+        item.identityAssurance.orgPolicy?.enabled === false ? "false" : "true";
       results[index] = await evaluateCase(item);
     }
   } finally {

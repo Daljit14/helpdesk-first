@@ -357,6 +357,37 @@ describe("executeThroughGateway", () => {
     );
   });
 
+  test("adds the max-tier reason when another policy reason is present", async () => {
+    vi.stubEnv("HELP_DESK_ORG_ACTION_POLICY_ENABLED", "true");
+    mocks.loadOrgPolicyDecision.mockResolvedValue({
+      allowed: true,
+      governed: true,
+      effectiveMaxTier: "consent",
+      requireStaffApproval: false,
+      reasons: ["org_policy_outside_autorun_window"],
+    });
+    const capability = {
+      ...baseCapability(),
+      sideEffects: "external_write" as const,
+    };
+    const { admin, handler, inserts } = makeAdmin();
+    const result = await executeThroughGateway(admin, request({ capability }));
+    expect(result).toMatchObject({
+      ok: false,
+      code: "org_policy_tier_exceeded",
+    });
+    expect(handler.run).not.toHaveBeenCalled();
+    expect(inserts).toContainEqual(
+      expect.objectContaining({
+        kind: "guardrail.policy_denied",
+        detail: expect.objectContaining({
+          reasonCode: "org_policy_tier_exceeded",
+          reasons: ["org_policy_outside_autorun_window", "org_policy_max_tier"],
+        }),
+      })
+    );
+  });
+
   test("denies A3 capabilities when assurance is disabled after identity binding", async () => {
     vi.stubEnv("HELP_DESK_IDENTITY_ASSURANCE_ENABLED", "false");
     const capability = {

@@ -25,7 +25,7 @@ describe("organization AI action policy migration", () => {
     );
   });
 
-  test("allows staff reads, limits mutations to admins, and keeps events append-only", async () => {
+  test("allows staff reads, restricts policy writes to the service role, and keeps events append-only", async () => {
     const source = await readFile(
       join(process.cwd(), "supabase/org-action-policy.sql"),
       "utf8"
@@ -36,11 +36,29 @@ describe("organization AI action policy migration", () => {
     for (const operation of ["insert", "update", "delete"]) {
       expect(source).toMatch(
         new RegExp(
-          `org_action_policies_admin_${operation}[\\s\\S]*?is_org_admin\\(organization_id\\)`,
+          `drop policy if exists org_action_policies_admin_${operation}`,
           "i"
         )
       );
     }
+    expect(source).not.toMatch(
+      /create policy \w+\s+on public\.org_action_policies\s+for (?:all|insert|update|delete)\b[\s\S]*?\bto authenticated\b/i
+    );
+    expect(source).not.toMatch(
+      /grant\b[^;]*\b(?:all|insert|update|delete)\b[^;]*on public\.org_action_policies\s+to authenticated/i
+    );
+    expect(source).toMatch(
+      /revoke insert, update, delete\s+on public\.org_action_policies from anon, authenticated/i
+    );
+    expect(source).toMatch(
+      /grant select on public\.org_action_policies to authenticated/i
+    );
+    expect(source).toMatch(
+      /grant all on public\.org_action_policies to service_role/i
+    );
+    expect(source).toMatch(
+      /comment on table public\.org_action_policies[\s\S]*?saveOrgActionPolicyAction[\s\S]*?deleteOrgActionPolicyAction[\s\S]*?audit-chained/i
+    );
     expect(source).toMatch(
       /org_action_policy_events_staff_select[\s\S]*?is_org_staff\(organization_id\)/i
     );

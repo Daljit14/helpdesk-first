@@ -270,11 +270,7 @@ export async function executeThroughGateway(
         orgPolicy.requireStaffApproval &&
         req.policy.consent?.type !== "technician_approval";
       const reasons = [...orgPolicy.reasons];
-      if (
-        tierExceeded &&
-        !reasons.includes("org_policy_max_tier") &&
-        reasons.length === 0
-      )
+      if (tierExceeded && !reasons.includes("org_policy_max_tier"))
         reasons.push("org_policy_max_tier");
       if (
         staffApprovalMissing &&

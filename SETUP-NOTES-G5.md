@@ -11,9 +11,11 @@ before `supabase/audit-chain.sql`; keep the audit-chain migration last. The
 production run order contains 18 SQL files. This change only authors the
 migrations; it does not apply SQL or change hosted settings.
 
-Policy rows are organization-scoped. Policy events are append-only and remain
-available if a policy row is deleted. Policy changes are also written to the
-application audit log.
+Policy rows are organization-scoped and readable by organization staff through
+RLS. Writes must go through `saveOrgActionPolicyAction` and
+`deleteOrgActionPolicyAction` so every change is audit-chained. Policy events
+are append-only and remain available if a policy row is deleted. Policy
+changes are also written to the application audit log.
 
 ## Policy behavior
 

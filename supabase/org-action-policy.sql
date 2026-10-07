@@ -89,22 +89,15 @@ create policy org_action_policies_staff_select
 
 drop policy if exists org_action_policies_admin_insert
   on public.org_action_policies;
-create policy org_action_policies_admin_insert
-  on public.org_action_policies for insert to authenticated
-  with check (public.is_org_admin(organization_id));
 
 drop policy if exists org_action_policies_admin_update
   on public.org_action_policies;
-create policy org_action_policies_admin_update
-  on public.org_action_policies for update to authenticated
-  using (public.is_org_admin(organization_id))
-  with check (public.is_org_admin(organization_id));
 
 drop policy if exists org_action_policies_admin_delete
   on public.org_action_policies;
-create policy org_action_policies_admin_delete
-  on public.org_action_policies for delete to authenticated
-  using (public.is_org_admin(organization_id));
+
+comment on table public.org_action_policies is
+  'Writes must go through saveOrgActionPolicyAction / deleteOrgActionPolicyAction so every change is audit-chained.';
 
 drop policy if exists org_action_policy_events_admin_select
   on public.org_action_policy_events;
@@ -122,8 +115,9 @@ create policy org_action_policy_events_service_role
 
 revoke all on public.org_action_policies from public, anon;
 revoke all on public.org_action_policy_events from public, anon;
-grant select, insert, update, delete
-  on public.org_action_policies to authenticated;
+revoke insert, update, delete
+  on public.org_action_policies from anon, authenticated;
+grant select on public.org_action_policies to authenticated;
 grant select on public.org_action_policy_events to authenticated;
 revoke insert, update, delete
   on public.org_action_policy_events from anon, authenticated;

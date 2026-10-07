@@ -183,8 +183,19 @@ describe("Supabase RLS coverage", () => {
     expect(source).toMatch(
       /org_action_policies_staff_select[\s\S]*?is_org_staff\(organization_id\)/i
     );
+    for (const operation of ["insert", "update", "delete"]) {
+      expect(source).toMatch(
+        new RegExp(
+          `drop policy if exists org_action_policies_admin_${operation}`,
+          "i"
+        )
+      );
+    }
+    expect(source).not.toMatch(
+      /create policy \w+\s+on public\.org_action_policies\s+for (?:all|insert|update|delete)\b[\s\S]*?\bto authenticated\b/i
+    );
     expect(source).toMatch(
-      /org_action_policies_admin_update[\s\S]*?is_org_admin\(organization_id\)[\s\S]*?with check \(public\.is_org_admin\(organization_id\)\)/i
+      /revoke insert, update, delete\s+on public\.org_action_policies from anon, authenticated/i
     );
     expect(source).toMatch(
       /org_action_policy_events_immutable[\s\S]*?before update or delete/i

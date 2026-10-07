@@ -792,6 +792,219 @@ function evaluateReplyQuality(input: BenchmarkCase): {
   };
 }
 
+function identityRiskDirectoryFetch(
+  input: BenchmarkCase,
+  now: Date
+): typeof fetch {
+  const signals = new Set(input.identityAssurance?.risk?.signals ?? []);
+  return async (request) => {
+    const url = new URL(
+      request instanceof Request ? request.url : String(request)
+    );
+    if (url.hostname === "login.microsoftonline.com")
+      return Response.json({ access_token: "benchmark", expires_in: 3600 });
+    if (url.hostname !== "graph.microsoft.com")
+      return Response.json({}, { status: 404 });
+    const path = url.pathname.replace("/v1.0", "");
+    if (path === "/users" && url.searchParams.has("$filter"))
+      return Response.json({
+        value: [
+          {
+            id: "directory-user-1",
+            mail: "requester@example.com",
+            accountEnabled: true,
+          },
+        ],
+      });
+    if (path === "/users/directory-user-1/authentication/methods")
+      return Response.json({
+        value: signals.has("mfa_changed_7d")
+          ? [
+              {
+                createdDateTime: new Date(
+                  now.getTime() - 24 * 60 * 60_000
+                ).toISOString(),
+              },
+            ]
+          : [],
+      });
+    if (path === "/users/directory-user-1/memberOf")
+      return Response.json({ value: [] });
+    if (
+      path === "/users/directory-user-1/memberOf/microsoft.graph.directoryRole"
+    )
+      return Response.json({
+        value: signals.has("privileged_account") ? [{ id: "role-1" }] : [],
+      });
+    if (path === "/users/directory-user-1/manager")
+      return Response.json({ displayName: "Directory Manager" });
+    if (path === "/users/directory-user-1")
+      return Response.json({ businessPhones: ["+1 555 0100"] });
+    if (path === "/auditLogs/signIns") {
+      const filter = url.searchParams.get("$filter") ?? "";
+      if (!filter.includes("createdDateTime ge"))
+        return Response.json({ value: [] });
+      const signIns = signals.has("impossible_travel")
+        ? [
+            { at: new Date(now.getTime() - 30 * 60_000), country: "US" },
+            { at: new Date(now.getTime() - 60 * 60_000), country: "FR" },
+          ]
+        : signals.has("new_sign_in_country")
+          ? [
+              {
+                at: new Date(now.getTime() - 3 * 24 * 60 * 60_000),
+                country: "US",
+              },
+              { at: new Date(now.getTime() - 60 * 60_000), country: "FR" },
+            ]
+          : [];
+      return Response.json({
+        value: signIns.map((item) => ({
+          createdDateTime: item.at.toISOString(),
+          location: { countryOrRegion: item.country },
+        })),
+      });
+    }
+    return Response.json({}, { status: 404 });
+  };
+}
+
+function seedIdentityRiskHarness(
+  input: BenchmarkCase,
+  harness: BenchmarkHarness,
+  connectorKey: Buffer
+): void {
+  const scenario = input.identityAssurance;
+  const signals = new Set(scenario?.risk?.signals ?? []);
+  const privileged =
+    scenario?.staff?.privileged === true || signals.has("privileged_account");
+  const ticket = harness.rows.get("tickets") ?? [];
+  if (ticket[0]) {
+    ticket[0].issue_title = input.ticket.title;
+    ticket[0].message = input.ticket.description;
+  }
+  harness.rows.set("tickets", ticket);
+  harness.rows.set("organization_domains", [
+    {
+      id: "verified-domain",
+      organization_id: harness.organizationId,
+      domain: "example.com",
+      verified: true,
+    },
+  ]);
+  harness.rows.set("organization_members", [
+    {
+      organization_id: harness.organizationId,
+      user_id: "requester-1",
+      role: privileged ? "org_admin" : "support_agent",
+    },
+  ]);
+  (
+    harness.admin as unknown as {
+      auth: {
+        admin: {
+          getUserById: (userId: string) => Promise<unknown>;
+        };
+      };
+    }
+  ).auth = {
+    admin: {
+      getUserById: async () => ({
+        data: {
+          user: {
+            email: "requester@example.com",
+            email_confirmed_at: new Date().toISOString(),
+          },
+        },
+        error: null,
+      }),
+    },
+  };
+  if (signals.has("repeat_account_request_24h")) {
+    const runs = harness.rows.get("resolution_runs") ?? [];
+    runs.push({
+      id: "prior-account-run",
+      organization_id: harness.organizationId,
+      ticket_id: harness.ticketId,
+      status: "completed",
+    });
+    harness.rows.set("resolution_runs", runs);
+    const approvals = harness.rows.get("approval_requests") ?? [];
+    approvals.push({
+      id: "prior-account-approval",
+      organization_id: harness.organizationId,
+      run_id: "prior-account-run",
+      ticket_id: harness.ticketId,
+      capability_id: "send_password_reset_link",
+      created_at: new Date(Date.now() - 60 * 60_000).toISOString(),
+    });
+    harness.rows.set("approval_requests", approvals);
+  }
+  if (signals.has("new_device_24h")) {
+    harness.rows.set("devices", [
+      {
+        id: "recent-device",
+        organization_id: harness.organizationId,
+        user_id: "requester-1",
+        status: "active",
+        enrolled_at: new Date(Date.now() - 60 * 60_000).toISOString(),
+      },
+    ]);
+  }
+  if (scenario?.staff) {
+    const now = Date.now();
+    const ticketId =
+      scenario.staff.verification === "other_ticket"
+        ? "00000000-0000-4000-8000-000000000099"
+        : harness.ticketId;
+    const subjectUserId =
+      scenario.staff.verification === "other_subject"
+        ? "other-requester"
+        : "requester-1";
+    const createdAt =
+      scenario.staff.verification === "expired"
+        ? now - 16 * 60_000
+        : now - 5 * 60_000;
+    const verifications =
+      scenario.staff.verification === "none"
+        ? []
+        : [
+            {
+              organization_id: harness.organizationId,
+              ticket_id: ticketId,
+              subject_user_id: subjectUserId,
+              method: "directory_callback",
+              created_at: new Date(createdAt).toISOString(),
+            },
+            ...(scenario.staff.verification === "valid_with_manager"
+              ? [
+                  {
+                    organization_id: harness.organizationId,
+                    ticket_id: ticketId,
+                    subject_user_id: subjectUserId,
+                    method: "manager_confirmed",
+                    created_at: new Date(now - 4 * 60_000).toISOString(),
+                  },
+                ]
+              : []),
+          ];
+    harness.rows.set("staff_caller_verifications", verifications);
+  }
+  if (scenario?.risk?.enabled) {
+    harness.rows.set("organization_connectors", [
+      {
+        organization_id: harness.organizationId,
+        provider: "entra",
+        config: { tenantId: "benchmark", clientId: "benchmark" },
+        secret_ciphertext: sealSecret("benchmark", connectorKey),
+        allowed_group_ids: [],
+        reset_url: null,
+        status: "active",
+      },
+    ]);
+  }
+}
+
 async function evaluateCase(
   input: BenchmarkCase
 ): Promise<EvaluationCaseResult> {
@@ -858,9 +1071,17 @@ async function evaluateCase(
       freshMinutes: 10,
       now,
     });
-    const facts = scenario.expired
+    const baseFacts = scenario.expired
       ? { ...assurance, expiresAt: new Date(now.getTime() - 1).toISOString() }
       : assurance;
+    const facts =
+      input.id === "identity-risk-elevated-stale-a3"
+        ? {
+            ...baseFacts,
+            authAt: new Date(now.getTime() - 60_000).toISOString(),
+            expiresAt: new Date(now.getTime() + 9 * 60_000).toISOString(),
+          }
+        : baseFacts;
     if (scenario.mode === "channel") {
       return {
         caseId: input.id,
@@ -911,7 +1132,11 @@ async function evaluateCase(
     };
     const connectorKey = Buffer.alloc(32, 1);
     const previousKey = process.env.HELP_DESK_CONNECTOR_KEY;
+    const previousFetch = globalThis.fetch;
     process.env.HELP_DESK_CONNECTOR_KEY = connectorKey.toString("base64");
+    seedIdentityRiskHarness(input, harness, connectorKey);
+    if (scenario.risk?.enabled)
+      globalThis.fetch = identityRiskDirectoryFetch(input, now);
     if (definition.id === "grant_group_access") {
       harness.rows.set("organization_connectors", [
         {
@@ -941,19 +1166,42 @@ async function evaluateCase(
       verificationMethod: definition.verification,
     };
     try {
+      const run = {
+        ...runRecord(harness, input),
+        attempts: getAutonomyLimits().maxAttempts,
+      };
+      if (input.id === "identity-risk-elevated-fresh-a3")
+        run.created_at = new Date(Date.now() - 60_000).toISOString();
+      if (
+        scenario.staff?.enabled &&
+        scenario.consentType === "technician_approval" &&
+        ["valid", "valid_with_manager"].includes(scenario.staff.verification)
+      )
+        run.created_at = new Date(Date.now() - 10 * 60_000).toISOString();
       const result = await executeThroughGateway(harness.admin, {
-        run: {
-          ...runRecord(harness, input),
-          attempts: getAutonomyLimits().maxAttempts,
-        },
+        run,
         plan,
         capability: definition,
         policy: {
-          decision: "allow_automatic",
+          decision:
+            scenario.consentType === "technician_approval"
+              ? "require_technician_approval"
+              : "allow_automatic",
           reasons: [],
           policyVersion: "benchmark",
           auditLabel: "benchmark",
           userLabel: "benchmark",
+          ...(scenario.consentType
+            ? {
+                consent: {
+                  type: scenario.consentType,
+                  userId:
+                    scenario.consentType === "technician_approval"
+                      ? "staff-1"
+                      : "requester-1",
+                },
+              }
+            : {}),
         },
         actor: "ai",
         idempotencyKey: buildIdempotencyKey({
@@ -970,12 +1218,17 @@ async function evaluateCase(
       return assuranceGatewayResult(
         input,
         harness,
-        facts.level,
+        scenario.staff?.enabled &&
+          scenario.consentType === "technician_approval" &&
+          ["valid", "valid_with_manager"].includes(scenario.staff.verification)
+          ? "A3"
+          : facts.level,
         definition,
         result.ok ? "allowed" : result.code,
         started
       );
     } finally {
+      globalThis.fetch = previousFetch;
       if (previousKey === undefined) delete process.env.HELP_DESK_CONNECTOR_KEY;
       else process.env.HELP_DESK_CONNECTOR_KEY = previousKey;
     }
@@ -1777,6 +2030,8 @@ export async function runBenchmark(
       "HELP_DESK_GUARDRAILS_ENFORCED",
       "HELP_DESK_CAPABILITY_REGISTRY_ENABLED",
       "HELP_DESK_PILOT_CAPABILITY_ALLOWLIST",
+      "HELP_DESK_IDENTITY_RISK_SIGNALS_ENABLED",
+      "HELP_DESK_STAFF_VERIFICATION_ENABLED",
       ...assuranceCapabilityFlags,
     ].map((name) => [name, process.env[name]])
   );
@@ -1784,14 +2039,16 @@ export async function runBenchmark(
     "00000000-0000-4000-8000-000000000001";
   const parsed = cases.map((item) => benchmarkCaseSchema.parse(item));
   const results = new Array<EvaluationCaseResult>(parsed.length);
-  await Promise.all(
-    parsed.map(async (item, index) => {
-      if (!item.identityAssurance) {
-        results[index] = await evaluateCase(item);
-      }
-    })
-  );
   try {
+    process.env.HELP_DESK_IDENTITY_RISK_SIGNALS_ENABLED = "false";
+    process.env.HELP_DESK_STAFF_VERIFICATION_ENABLED = "false";
+    await Promise.all(
+      parsed.map(async (item, index) => {
+        if (!item.identityAssurance) {
+          results[index] = await evaluateCase(item);
+        }
+      })
+    );
     process.env.HELP_DESK_AUTONOMY_ENABLED = "true";
     process.env.HELP_DESK_AUTONOMOUS_EXECUTION_ENABLED = "true";
     process.env.HELP_DESK_GUARDRAILS_ENFORCED = "true";
@@ -1803,6 +2060,14 @@ export async function runBenchmark(
         item.identityAssurance.capabilityId ?? "";
       process.env.HELP_DESK_IDENTITY_ASSURANCE_ENABLED = item.identityAssurance
         .flagEnabled
+        ? "true"
+        : "false";
+      process.env.HELP_DESK_IDENTITY_RISK_SIGNALS_ENABLED = item
+        .identityAssurance.risk?.enabled
+        ? "true"
+        : "false";
+      process.env.HELP_DESK_STAFF_VERIFICATION_ENABLED = item.identityAssurance
+        .staff?.enabled
         ? "true"
         : "false";
       results[index] = await evaluateCase(item);

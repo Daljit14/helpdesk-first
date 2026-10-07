@@ -28,9 +28,23 @@ import {
 } from "@/lib/identity/assurance";
 import {
   getIdentityAssuranceFreshMinutes,
+  isIdentityRiskSignalsEnabled,
   isIdentityAssuranceEnabled,
+  isStaffVerificationEnabled,
 } from "@/lib/admin/flags";
 import { requiredAssurance } from "../capabilities/registry";
+import {
+  assessAccountRisk,
+  isAccountCapability,
+  isFreshA3Since,
+  type AccountRiskFacts,
+} from "@/lib/identity/risk";
+import {
+  isOrganizationPrivileged,
+  loadAccountRiskFacts,
+} from "@/lib/identity/risk-server";
+import { loadStaffVerification } from "@/lib/identity/staff-verification";
+import { decryptTicketRow } from "@/lib/security/ticket-crypto";
 
 export type GatewayRequest = {
   run: ResolutionRun;
@@ -87,10 +101,12 @@ async function deny(
   admin: HandlerAdmin,
   req: GatewayRequest,
   code: string,
-  kind = "guardrail.execution_disabled"
+  kind = "guardrail.execution_disabled",
+  detail: Record<string, unknown> = {}
 ): Promise<GatewayDenied> {
   await guardrailEvent(admin, req.run, kind, code, {
     capability: `${req.capability.id}@${req.capability.version}`,
+    ...detail,
   });
   return { ok: false, code, run: req.run };
 }
@@ -204,7 +220,7 @@ export async function executeThroughGateway(
   }
   const ticket = await admin
     .from("tickets")
-    .select("id,organization_id,user_id")
+    .select("id,organization_id,user_id,issue_title,message")
     .eq("id", req.run.ticket_id)
     .eq("organization_id", req.run.organization_id)
     .maybeSingle();
@@ -236,6 +252,66 @@ export async function executeThroughGateway(
       return deny(admin, req, "identity_unbound", "guardrail.identity_unbound");
     }
   }
+  const accountCapability = isAccountCapability(req.capability);
+  const riskEnabled = isIdentityRiskSignalsEnabled();
+  const staffEnabled = isStaffVerificationEnabled();
+  let riskFacts: AccountRiskFacts | null = null;
+  if (accountCapability && riskEnabled) {
+    if (typeof ticket.data.user_id !== "string")
+      return deny(admin, req, "identity_unbound", "guardrail.identity_unbound");
+    const ticketText = await decryptTicketRow(admin, {
+      ...ticket.data,
+      organization_id: req.run.organization_id,
+    });
+    riskFacts = await loadAccountRiskFacts(admin, {
+      organizationId: req.run.organization_id,
+      subjectUserId: ticket.data.user_id,
+      currentRunId: req.run.id,
+      texts: [
+        typeof ticketText.issue_title === "string"
+          ? ticketText.issue_title
+          : "",
+        typeof ticketText.message === "string" ? ticketText.message : "",
+      ],
+      now: new Date(),
+    });
+  }
+  let staffVerified: AssuranceFacts | null = null;
+  if (
+    accountCapability &&
+    staffEnabled &&
+    req.policy.consent?.type === "technician_approval"
+  ) {
+    const privileged = riskEnabled
+      ? riskFacts?.privileged === true
+      : await isOrganizationPrivileged(
+          admin,
+          req.run.organization_id,
+          ticket.data.user_id
+        );
+    staffVerified = await loadStaffVerification(admin, {
+      organizationId: req.run.organization_id,
+      ticketId: req.run.ticket_id,
+      subjectUserId: ticket.data.user_id,
+      privileged,
+      now: new Date(),
+    });
+    if (!staffVerified)
+      return deny(
+        admin,
+        req,
+        "staff_verification_required",
+        "guardrail.assurance_insufficient"
+      );
+  }
+  let riskAssessment: ReturnType<typeof assessAccountRisk> | null = null;
+  if (accountCapability && riskEnabled && !staffVerified && riskFacts) {
+    riskAssessment = assessAccountRisk({ facts: riskFacts, now: new Date() });
+    if (riskAssessment.level === "high")
+      return deny(admin, req, "identity_risk_high", "guardrail.policy_denied", {
+        reasons: riskAssessment.reasons,
+      });
+  }
   const fallbackAssurance = ticket.data.user_id
     ? computeAssurance({
         channel: "ticket_owner_web",
@@ -257,7 +333,7 @@ export async function executeThroughGateway(
         authAt: null,
         expiresAt: null,
       };
-  const suppliedAssurance = req.assurance ?? fallbackAssurance;
+  const suppliedAssurance = staffVerified ?? req.assurance ?? fallbackAssurance;
   const expiresAt = suppliedAssurance.expiresAt
     ? new Date(suppliedAssurance.expiresAt).getTime()
     : null;
@@ -268,6 +344,21 @@ export async function executeThroughGateway(
     compareAssurance(suppliedAssurance.level, "A1") > 0
       ? { ...suppliedAssurance, level: "A1" as const, method: "session" }
       : suppliedAssurance;
+  if (
+    riskAssessment?.level === "elevated" &&
+    !isFreshA3Since(effectiveAssurance, {
+      since: req.run.created_at,
+      now: new Date(),
+    })
+  ) {
+    return deny(
+      admin,
+      req,
+      "step_up_required",
+      "guardrail.assurance_insufficient",
+      { reasons: riskAssessment.reasons }
+    );
+  }
   const required = requiredAssurance(req.capability);
   if (!isIdentityAssuranceEnabled() && required === "A3") {
     return deny(

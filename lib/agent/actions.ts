@@ -29,6 +29,7 @@ import {
   isIdentityAssuranceEnabled,
   isDeviceSignedTrustEnabled,
   isRequesterAgentAutorunEnabledForOrg,
+  isIdentityRiskSignalsEnabled,
 } from "@/lib/admin/flags";
 import { getDeviceAction } from "@/lib/device-agent/catalog";
 import { loadSignedDeviceIdentifiers } from "@/lib/device-agent/server/signed-identifiers";
@@ -53,6 +54,14 @@ import {
   type TaintedParam,
 } from "./taint";
 import { NO_REQUESTER, toUserText } from "./output-guard";
+import {
+  assessAccountRisk,
+  isAccountCapability,
+  isFreshA3Since,
+  type RiskReason,
+} from "@/lib/identity/risk";
+import { loadAccountRiskFacts } from "@/lib/identity/risk-server";
+import { decryptTicketRow } from "@/lib/security/ticket-crypto";
 
 type Admin = ReturnType<
   typeof import("@/lib/supabase/admin").createAdminClient
@@ -555,6 +564,105 @@ export async function proposeAction(
       "assurance_required",
       "Please confirm it's you before continuing."
     );
+  }
+  if (isIdentityRiskSignalsEnabled() && isAccountCapability(capability)) {
+    const texts = [...ctx.provenance.userTexts];
+    if (session.backing_ticket_id) {
+      const backingTicket = await admin
+        .from("tickets")
+        .select("organization_id,issue_title,message")
+        .eq("organization_id", session.organization_id)
+        .eq("id", session.backing_ticket_id)
+        .maybeSingle();
+      if (!backingTicket.error && backingTicket.data) {
+        const decrypted = await decryptTicketRow(admin, {
+          ...backingTicket.data,
+          organization_id: session.organization_id,
+        });
+        if (typeof decrypted.issue_title === "string")
+          texts.push(decrypted.issue_title);
+        if (typeof decrypted.message === "string")
+          texts.push(decrypted.message);
+      }
+    }
+    const currentLevel = ctx.assurance?.level ?? "A0";
+    const facts = await loadAccountRiskFacts(admin, {
+      organizationId: session.organization_id,
+      subjectUserId: session.requester_id,
+      currentRunId: session.resolution_run_id ?? null,
+      texts,
+      now: new Date(),
+    });
+    const risk = assessAccountRisk({ facts, now: new Date() });
+    if (risk.level === "high") {
+      const reasonText: Record<RiskReason, string> = {
+        repeat_account_request_24h: "a recent account-change request",
+        mfa_changed_7d: "a recent sign-in method change",
+        new_sign_in_country: "a new sign-in country",
+        impossible_travel: "sign-ins from different countries close together",
+        new_device_24h: "a recently enrolled device",
+        names_other_person: "a request that names another person",
+        privileged_account: "a privileged account",
+        risk_unavailable: "a risk check that could not be completed",
+      };
+      await actionStep(
+        admin,
+        session,
+        "action_rejected",
+        capability.id,
+        paramsHash,
+        `identity_risk_high:${risk.reasons.join(",")}`
+      );
+      const ticketId = await escalate(
+        admin,
+        session,
+        "identity_risk_high",
+        "For your protection, a person from IT will help with this. They'll call you back on the number in our directory.",
+        "escalated",
+        {},
+        {
+          handoffSummary: [
+            `Account change held: ${risk.reasons.map((reason) => reasonText[reason]).join(", ")}.`,
+            "Verify the caller on the directory number before any account change.",
+          ],
+        }
+      );
+      ctx.emit?.({
+        type: "escalated",
+        ticketId,
+        reason: "identity_risk_high",
+      });
+      return { kind: "escalate", reason: "identity_risk_high" };
+    }
+    if (
+      risk.level === "elevated" &&
+      !isFreshA3Since(ctx.assurance, {
+        since: session.started_at,
+        now: new Date(),
+      })
+    ) {
+      await actionStep(
+        admin,
+        session,
+        "step_up_required",
+        capability.id,
+        paramsHash,
+        "risk_elevated"
+      );
+      ctx.emit?.({
+        type: "step_up_required",
+        card: {
+          capabilityId: capability.id,
+          requiredLevel: "A3",
+          currentLevel,
+          stepUpUrl: "/auth/step-up?next=/assistant",
+        },
+      });
+      return reject(
+        "assurance_required",
+        "Please confirm it's you before continuing."
+      );
+    }
   }
   if (capability.sideEffects === "read_only")
     return reject(

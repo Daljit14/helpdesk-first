@@ -15,9 +15,10 @@
 13. `supabase/agent-session-abandon.sql` (E3) — after agent taint and before audit-chain.
 14. `supabase/answer-engine.sql` (E11a) — after `agent-session-abandon.sql`.
 15. `supabase/research-reference-tier.sql` (E10) — after `research.sql` and `agent-web-search.sql`; widens the research-source trust constraint.
-16. `supabase/audit-chain.sql` (G3 #149) — always last, in a quiet window.
+16. `supabase/identity-risk.sql` (E1b) — after identity assurance and before audit-chain.
+17. `supabase/audit-chain.sql` (G3 #149) — always last, in a quiet window.
 
-Prerequisite migrations listed in each SETUP-NOTES file must already be applied; none of these 16 has run on production.
+Prerequisite migrations listed in each SETUP-NOTES file must already be applied; none of these 17 has run on production.
 
 ## Phase E — E0 small follow-ups
 
@@ -34,6 +35,17 @@ Insufficient assurance prompts a step-up flow without consuming pending
 consent. `supabase/identity-assurance.sql` is authored but has not been
 applied. Enrolled-device binding remains a follow-up. See
 `SETUP-NOTES-E1a.md`.
+
+## Phase E — E1b account risk and staff caller verification
+
+E1b adds default-off identity-risk signals and a 15-minute, ticket/subject-scoped
+staff verification path for technician-approved account actions. High-risk
+requester actions escalate without creating approval requests; elevated risk
+requires fresh A3 assurance. Directory facts remain bounded and private, and
+staff verification is recorded append-only with ticket and run audit events.
+`supabase/identity-risk.sql` is authored but has not been applied. The
+`2026-10-07.7` benchmark adds 18 scenarios and two release gates. See
+`SETUP-NOTES-E1b.md`; no hosted flags or production settings were changed.
 
 ## Phase E — E2a provenance and taint tracking
 

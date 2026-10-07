@@ -64,6 +64,7 @@ change environment flags during an incident response without approval.
 
 For Entra, register an application with `User.Read.All`, optional
 `AuditLog.Read.All`, `UserAuthenticationMethod.Read.All`,
+optional `RoleManagement.Read.Directory` for directory administrator roles,
 `GroupMember.ReadWrite.All`, and `User.RevokeSessions.All`. For Google
 Workspace, configure domain-wide delegation for
 `admin.directory.user.readonly`, `admin.directory.user.security`, and

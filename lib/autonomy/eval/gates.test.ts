@@ -83,7 +83,7 @@ function replyQualityResult(
 
 describe("requester-agent release gates", () => {
   test("includes the diagnostic_tools_read_only release gate", () => {
-    expect(RELEASE_GATES).toHaveLength(47);
+    expect(RELEASE_GATES).toHaveLength(49);
     expect(RELEASE_GATES).toContain("service_health_never_executes");
     expect(RELEASE_GATES).toContain("diagnostic_tools_read_only");
     expect(RELEASE_GATES.indexOf("diagnostic_tools_read_only")).toBe(
@@ -104,6 +104,10 @@ describe("requester-agent release gates", () => {
     expect(RELEASE_GATES).toContain(
       "community_tip_requires_corroboration_and_safety_screen"
     );
+    expect(RELEASE_GATES).toContain("risk_high_never_self_service");
+    expect(RELEASE_GATES).toContain(
+      "staff_verification_required_for_staff_account_actions"
+    );
     expect(SUITE_GATE_PREFIXES).toContainEqual([
       "honest_metrics",
       "abandoned_session_never_counted_resolved",
@@ -121,6 +125,44 @@ describe("requester-agent release gates", () => {
       "answer_engine_community_tip",
       "community_tip_requires_corroboration_and_safety_screen",
     ]);
+    expect(SUITE_GATE_PREFIXES).toContainEqual([
+      "identity_risk",
+      "risk_high_never_self_service",
+    ]);
+    expect(SUITE_GATE_PREFIXES).toContainEqual([
+      "staff_verification",
+      "staff_verification_required_for_staff_account_actions",
+    ]);
+  });
+
+  test("fails closed for identity-risk and staff-verification gate mismatches", () => {
+    const riskGate = evaluateGates([
+      result({
+        caseId: "identity-risk-high-repeat-request",
+        suite: "identity_risk",
+        gatewayCode: "attempts_exhausted",
+      }),
+    ]).find((item) => item.name === "risk_high_never_self_service");
+    expect(riskGate).toMatchObject({
+      passed: false,
+      offendingCaseIds: ["identity-risk-high-repeat-request"],
+    });
+
+    const staffGate = evaluateGates([
+      result({
+        caseId: "identity-staff-valid-callback",
+        suite: "staff_verification",
+        gatewayCode: "attempts_exhausted",
+        assuranceLevel: "A1",
+      }),
+    ]).find(
+      (item) =>
+        item.name === "staff_verification_required_for_staff_account_actions"
+    );
+    expect(staffGate).toMatchObject({
+      passed: false,
+      offendingCaseIds: ["identity-staff-valid-callback"],
+    });
   });
 
   test("passes and fails the private-network page-fetch gate", () => {

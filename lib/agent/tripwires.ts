@@ -10,8 +10,11 @@ export type TripwireKind =
   | "model_proposed_denylisted"
   | "instruction_content";
 
+export const OTHER_USER_TARGET =
+  /for (my|a) (colleague|boss|manager|coworker)/i;
+
 const patterns: Array<[TripwireKind, RegExp]> = [
-  ["other_user_target", /for (my|a) (colleague|boss|manager|coworker)/i],
+  ["other_user_target", OTHER_USER_TARGET],
   [
     "weaken_security",
     /(disable|turn off|stop) (defender|antivirus|firewall|edr|vpn)/i,

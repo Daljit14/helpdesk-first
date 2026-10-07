@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   autorunEnabled: vi.fn(),
   deviceSignedEnabled: vi.fn(),
   loadSignedDeviceIdentifiers: vi.fn(),
+  loadAccountRiskFacts: vi.fn(),
 }));
 
 vi.mock("@/lib/autonomy/executor/execute", () => ({
@@ -47,6 +48,12 @@ vi.mock("@/lib/admin/flags", async () => {
 vi.mock("@/lib/device-agent/server/signed-identifiers", () => ({
   loadSignedDeviceIdentifiers: mocks.loadSignedDeviceIdentifiers,
 }));
+vi.mock("@/lib/identity/risk-server", async () => {
+  const actual = await vi.importActual<
+    typeof import("@/lib/identity/risk-server")
+  >("@/lib/identity/risk-server");
+  return { ...actual, loadAccountRiskFacts: mocks.loadAccountRiskFacts };
+});
 vi.mock("@/app/actions/resolution", () => ({
   consumeAiConsent: mocks.consumeAiConsent,
 }));
@@ -195,6 +202,14 @@ describe("requester action proposals", () => {
     mocks.autorunEnabled.mockReturnValue(true);
     mocks.deviceSignedEnabled.mockReturnValue(false);
     mocks.loadSignedDeviceIdentifiers.mockResolvedValue(null);
+    mocks.loadAccountRiskFacts.mockResolvedValue({
+      priorAccountRequests24h: 0,
+      mfaChangedAt: null,
+      signIns: [],
+      newestDeviceEnrolledAt: null,
+      namesOtherPerson: false,
+      privileged: false,
+    });
     mocks.startRun.mockResolvedValue({ run, created: false });
     mocks.transitionRun.mockImplementation(
       async (
@@ -294,6 +309,103 @@ describe("requester action proposals", () => {
       expect.anything(),
       expect.objectContaining({ kind: "step_up_required" })
     );
+    expect(mocks.escalate).not.toHaveBeenCalled();
+    expect(mocks.startRun).not.toHaveBeenCalled();
+  });
+
+  test("escalates high-risk requester account changes without creating approval", async () => {
+    vi.stubEnv("HELP_DESK_IDENTITY_ASSURANCE_ENABLED", "true");
+    vi.stubEnv("HELP_DESK_IDENTITY_RISK_SIGNALS_ENABLED", "true");
+    mocks.loadAccountRiskFacts.mockResolvedValue({
+      priorAccountRequests24h: 1,
+      mfaChangedAt: null,
+      signIns: [],
+      newestDeviceEnrolledAt: null,
+      namesOtherPerson: false,
+      privileged: false,
+    });
+    const admin = actionAdmin();
+    const result = await proposeAction(
+      admin as never,
+      proposalSession(),
+      {
+        capabilityId: "send_password_reset_link",
+        params: {},
+        hypothesisId: "ev-1",
+        rationale: "Reset the account password.",
+      },
+      {
+        actor: "requester_agent:session-1",
+        evidence: [{ id: "ev-1", tool: "get_ticket_history" }],
+        provenance: { userTexts: [], items: [] },
+        assurance: {
+          level: "A3",
+          method: "supabase_mfa",
+          authAt: new Date().toISOString(),
+          expiresAt: new Date(Date.now() + 60_000).toISOString(),
+        },
+      }
+    );
+
+    expect(result).toEqual({
+      kind: "escalate",
+      reason: "identity_risk_high",
+    });
+    expect(mocks.escalate).toHaveBeenCalledWith(
+      admin,
+      expect.anything(),
+      "identity_risk_high",
+      expect.any(String),
+      "escalated",
+      {},
+      expect.objectContaining({
+        handoffSummary: expect.arrayContaining([
+          expect.stringContaining("recent account-change request"),
+        ]),
+      })
+    );
+    expect(mocks.startRun).not.toHaveBeenCalled();
+    expect(mocks.executePlan).not.toHaveBeenCalled();
+  });
+
+  test("requires fresh A3 for elevated requester risk", async () => {
+    vi.stubEnv("HELP_DESK_IDENTITY_ASSURANCE_ENABLED", "true");
+    vi.stubEnv("HELP_DESK_IDENTITY_RISK_SIGNALS_ENABLED", "true");
+    mocks.loadAccountRiskFacts.mockResolvedValue({
+      priorAccountRequests24h: 0,
+      mfaChangedAt: null,
+      signIns: [],
+      newestDeviceEnrolledAt: new Date(Date.now() - 60_000).toISOString(),
+      namesOtherPerson: false,
+      privileged: false,
+    });
+    const admin = actionAdmin();
+    const result = await proposeAction(
+      admin as never,
+      proposalSession(),
+      {
+        capabilityId: "send_password_reset_link",
+        params: {},
+        hypothesisId: "ev-1",
+        rationale: "Reset the account password.",
+      },
+      {
+        actor: "requester_agent:session-1",
+        evidence: [{ id: "ev-1", tool: "get_ticket_history" }],
+        provenance: { userTexts: [], items: [] },
+        assurance: {
+          level: "A3",
+          method: "supabase_mfa",
+          authAt: null,
+          expiresAt: new Date(Date.now() + 60_000).toISOString(),
+        },
+      }
+    );
+
+    expect(result).toMatchObject({
+      kind: "rejected",
+      code: "assurance_required",
+    });
     expect(mocks.escalate).not.toHaveBeenCalled();
     expect(mocks.startRun).not.toHaveBeenCalled();
   });

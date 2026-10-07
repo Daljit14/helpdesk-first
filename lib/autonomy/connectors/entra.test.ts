@@ -67,6 +67,107 @@ describe("Entra directory connector", () => {
     vi.unstubAllGlobals();
   });
 
+  test("maps independent Entra risk signals and the 30-day sign-in query", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("login.microsoftonline.com"))
+        return response({ access_token: "token", expires_in: 3600 });
+      if (url.includes("/authentication/methods"))
+        return response({
+          value: [
+            { id: "method-1", createdDateTime: "2026-10-03T12:00:00Z" },
+            { id: "method-2", createdDateTime: "2026-10-05T12:00:00Z" },
+          ],
+        });
+      if (url.includes("/memberOf/microsoft.graph.directoryRole"))
+        return response({ value: [{ id: "role-1" }] });
+      if (url.includes("/manager"))
+        return response({ displayName: "Manager Name" });
+      if (url.includes("/auditLogs/signIns"))
+        return response({
+          value: [
+            {
+              createdDateTime: "2026-10-10T10:00:00Z",
+              location: { countryOrRegion: "US" },
+            },
+            {
+              createdDateTime: "2026-10-09T10:00:00Z",
+              location: { countryOrRegion: "" },
+            },
+          ],
+        });
+      return response({ businessPhones: ["+1 555 0100"], mobilePhone: null });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await new EntraDirectory(config).getRiskFacts(
+      "user-1",
+      new AbortController().signal
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      value: {
+        privileged: true,
+        mfaChangedAt: "2026-10-05T12:00:00Z",
+        signIns: [{ at: "2026-10-10T10:00:00Z", country: "US" }],
+        directoryPhone: "+1 555 0100",
+        managerName: "Manager Name",
+      },
+    });
+    const signInsUrl = String(
+      fetchMock.mock.calls.find((call) =>
+        String(call[0]).includes("/auditLogs/signIns")
+      )?.[0]
+    );
+    expect(signInsUrl).toContain("$top=50");
+    expect(signInsUrl).toContain("createdDateTime");
+    expect(signInsUrl).toContain("userId%20eq");
+    vi.unstubAllGlobals();
+  });
+
+  test("keeps Entra risk subcall failures unknown without failing the result", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("login.microsoftonline.com"))
+        return response({ access_token: "token", expires_in: 3600 });
+      if (
+        url.includes("/manager") ||
+        url.includes("/authentication/methods") ||
+        url.includes("/memberOf/microsoft.graph.directoryRole")
+      )
+        return response({}, 403);
+      if (url.includes("/auditLogs/signIns"))
+        return response({
+          value: [
+            {
+              createdDateTime: "2026-10-10T10:00:00Z",
+              location: { countryOrRegion: "CA" },
+            },
+          ],
+        });
+      return response({ businessPhones: ["+1 555 0100"] });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await new EntraDirectory(config).getRiskFacts(
+      "user-1",
+      new AbortController().signal
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      value: {
+        privileged: null,
+        mfaChangedAt: null,
+        signIns: [{ at: "2026-10-10T10:00:00Z", country: "CA" }],
+        directoryPhone: "+1 555 0100",
+        managerName: null,
+      },
+    });
+    vi.unstubAllGlobals();
+  });
+
   test("paginates Microsoft 365 service-health issues", async () => {
     const fetchMock = vi
       .fn()

@@ -19,6 +19,25 @@ vi.mock("@/lib/analytics/autonomy-metrics", () => ({
   loadAutonomyMetrics: vi.fn(),
 }));
 
+const policyMocks = vi.hoisted(() => ({
+  isOrgActionPolicyEnabled: vi.fn(() => false),
+  loadOrgPolicyCeiling: vi.fn(),
+}));
+
+vi.mock("@/lib/admin/flags", async () => {
+  const actual =
+    await vi.importActual<typeof import("@/lib/admin/flags")>(
+      "@/lib/admin/flags"
+    );
+  return {
+    ...actual,
+    isOrgActionPolicyEnabled: policyMocks.isOrgActionPolicyEnabled,
+  };
+});
+vi.mock("./policy/org-policy-server", () => ({
+  loadOrgPolicyCeiling: policyMocks.loadOrgPolicyCeiling,
+}));
+
 const stats = (overrides: Partial<LadderStats> = {}): LadderStats => ({
   organization_id: "org",
   capability_id: "device_flush_dns",
@@ -41,7 +60,11 @@ const reversible = {
   sideEffects: "internal_write",
 } as unknown as CapabilityDefinition;
 
-afterEach(() => vi.clearAllMocks());
+afterEach(() => {
+  vi.clearAllMocks();
+  policyMocks.isOrgActionPolicyEnabled.mockReturnValue(false);
+  policyMocks.loadOrgPolicyCeiling.mockResolvedValue(null);
+});
 
 describe("autonomy ladder", () => {
   test("records outcomes without promoting a capability", async () => {
@@ -243,6 +266,34 @@ describe("autonomy ladder", () => {
       ok: false,
       reasons: ["Honest metrics are unavailable."],
     });
+  });
+
+  test("refuses promotion above the organization policy ceiling", async () => {
+    policyMocks.isOrgActionPolicyEnabled.mockReturnValue(true);
+    policyMocks.loadOrgPolicyCeiling.mockResolvedValue("consent");
+    const admin = { from: vi.fn() };
+
+    await expect(
+      setTier(admin as never, {
+        organizationId: "org",
+        capabilityId: "device_flush_dns",
+        toTier: "autorun",
+        reason: "promotion",
+        actor: "admin",
+        actorUserId: "user-1",
+        kind: "promotion",
+      })
+    ).resolves.toEqual({
+      ok: false,
+      reasons: [
+        "Your organization's AI action policy allows at most consent for this fix.",
+      ],
+    });
+    expect(policyMocks.loadOrgPolicyCeiling).toHaveBeenCalledWith(admin, {
+      organizationId: "org",
+      capabilityId: "device_flush_dns",
+    });
+    expect(admin.from).not.toHaveBeenCalled();
   });
 
   test("demotes on rollback, security incident, breaker, or poor window", () => {

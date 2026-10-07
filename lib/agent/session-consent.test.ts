@@ -8,6 +8,8 @@ const mocks = vi.hoisted(() => ({
   listCapabilities: vi.fn(),
   updateSession: vi.fn(),
   writeStep: vi.fn(),
+  isOrgActionPolicyEnabled: vi.fn(() => false),
+  loadOrgPolicyCeiling: vi.fn(),
 }));
 
 vi.mock("@/lib/autonomy/capabilities/enablement", () => ({
@@ -23,6 +25,19 @@ vi.mock("@/lib/autonomy/ladder", () => ({
 vi.mock("@/lib/autonomy/capabilities/registry", () => ({
   getCapability: vi.fn(),
   listCapabilities: mocks.listCapabilities,
+}));
+vi.mock("@/lib/admin/flags", async () => {
+  const actual =
+    await vi.importActual<typeof import("@/lib/admin/flags")>(
+      "@/lib/admin/flags"
+    );
+  return {
+    ...actual,
+    isOrgActionPolicyEnabled: mocks.isOrgActionPolicyEnabled,
+  };
+});
+vi.mock("@/lib/autonomy/policy/org-policy-server", () => ({
+  loadOrgPolicyCeiling: mocks.loadOrgPolicyCeiling,
 }));
 vi.mock("./session", () => ({
   updateSession: mocks.updateSession,
@@ -83,6 +98,8 @@ describe("session autorun consent", () => {
     );
     mocks.updateSession.mockResolvedValue(undefined);
     mocks.writeStep.mockResolvedValue(undefined);
+    mocks.isOrgActionPolicyEnabled.mockReturnValue(false);
+    mocks.loadOrgPolicyCeiling.mockResolvedValue(null);
   });
 
   test("covers only enabled, reversible, non-denylisted autorun capabilities", async () => {
@@ -95,6 +112,18 @@ describe("session autorun consent", () => {
       autorunCoveredCapabilities({} as never, "org-1")
     ).resolves.toEqual(["device_flush_dns"]);
     expect(mocks.isCapabilityEnabled).toHaveBeenCalled();
+  });
+
+  test("omits capabilities below the organization autorun ceiling from session consent", async () => {
+    mocks.isOrgActionPolicyEnabled.mockReturnValue(true);
+    mocks.loadOrgPolicyCeiling.mockResolvedValue("consent");
+    await expect(
+      autorunCoveredCapabilities({} as never, "org-1")
+    ).resolves.toEqual([]);
+    expect(mocks.loadOrgPolicyCeiling).toHaveBeenCalledWith(
+      {},
+      { organizationId: "org-1", capabilityId: "device_flush_dns" }
+    );
   });
 
   test.each([

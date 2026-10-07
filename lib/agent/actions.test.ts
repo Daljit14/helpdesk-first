@@ -16,6 +16,8 @@ const mocks = vi.hoisted(() => ({
   deviceSignedEnabled: vi.fn(),
   loadSignedDeviceIdentifiers: vi.fn(),
   loadAccountRiskFacts: vi.fn(),
+  isOrgActionPolicyEnabled: vi.fn(() => false),
+  loadOrgPolicyDecision: vi.fn(),
 }));
 
 vi.mock("@/lib/autonomy/executor/execute", () => ({
@@ -43,10 +45,14 @@ vi.mock("@/lib/admin/flags", async () => {
     ...actual,
     isRequesterAgentAutorunEnabledForOrg: mocks.autorunEnabled,
     isDeviceSignedTrustEnabled: mocks.deviceSignedEnabled,
+    isOrgActionPolicyEnabled: mocks.isOrgActionPolicyEnabled,
   };
 });
 vi.mock("@/lib/device-agent/server/signed-identifiers", () => ({
   loadSignedDeviceIdentifiers: mocks.loadSignedDeviceIdentifiers,
+}));
+vi.mock("@/lib/autonomy/policy/org-policy-server", () => ({
+  loadOrgPolicyDecision: mocks.loadOrgPolicyDecision,
 }));
 vi.mock("@/lib/identity/risk-server", async () => {
   const actual = await vi.importActual<
@@ -210,6 +216,8 @@ describe("requester action proposals", () => {
       namesOtherPerson: false,
       privileged: false,
     });
+    mocks.isOrgActionPolicyEnabled.mockReturnValue(false);
+    mocks.loadOrgPolicyDecision.mockResolvedValue(null);
     mocks.startRun.mockResolvedValue({ run, created: false });
     mocks.transitionRun.mockImplementation(
       async (
@@ -260,6 +268,80 @@ describe("requester action proposals", () => {
     );
     expect(mocks.startRun).not.toHaveBeenCalled();
     expect(mocks.executePlan).not.toHaveBeenCalled();
+  });
+
+  test("does not expose organization policy details in requester denial text", async () => {
+    mocks.isOrgActionPolicyEnabled.mockReturnValue(true);
+    mocks.loadOrgPolicyDecision.mockResolvedValue({
+      allowed: false,
+      governed: true,
+      effectiveMaxTier: "disabled",
+      requireStaffApproval: false,
+      reasons: ["org_policy_denied", "private-group-id"],
+    });
+    const admin = actionAdmin();
+    const result = await proposeAction(
+      admin as never,
+      proposalSession(),
+      {
+        capabilityId: "device_flush_dns",
+        params: {},
+        hypothesisId: "ev-1",
+        rationale: "Clear the DNS cache.",
+      },
+      {
+        actor: "requester_agent:session-1",
+        evidence: [{ id: "ev-1", tool: "get_device_status" }],
+        provenance: { userTexts: [], items: [] },
+      }
+    );
+    expect(result).toEqual({
+      kind: "rejected",
+      code: "org_policy_denied",
+      message:
+        "Your organization doesn't allow the assistant to do this. I can pass it to your IT team if you'd like.",
+    });
+    expect(JSON.stringify(result)).not.toContain("private-group-id");
+    expect(mocks.startRun).not.toHaveBeenCalled();
+  });
+
+  test("routes organization staff approval without creating a requester consent card", async () => {
+    mocks.readTier.mockResolvedValue("autorun");
+    mocks.isOrgActionPolicyEnabled.mockReturnValue(true);
+    mocks.loadOrgPolicyDecision.mockResolvedValue({
+      allowed: true,
+      governed: true,
+      effectiveMaxTier: "autorun",
+      requireStaffApproval: true,
+      reasons: ["org_policy_staff_approval"],
+    });
+    mocks.executePlan.mockResolvedValue({ status: "awaiting_approval" });
+    const admin = actionAdmin();
+    const result = await proposeAction(
+      admin as never,
+      proposalSession(),
+      {
+        capabilityId: "device_flush_dns",
+        params: {},
+        hypothesisId: "ev-1",
+        rationale: "Clear the DNS cache.",
+      },
+      {
+        actor: "requester_agent:session-1",
+        evidence: [{ id: "ev-1", tool: "get_device_status" }],
+        provenance: { userTexts: [], items: [] },
+      }
+    );
+    expect(result).toMatchObject({
+      kind: "rejected",
+      code: "technician_approval_pending",
+      message: "Your IT team needs to approve this fix. I've asked them.",
+    });
+    expect(mocks.writeStep).not.toHaveBeenCalledWith(
+      admin,
+      expect.anything(),
+      expect.objectContaining({ kind: "consent_required" })
+    );
   });
 
   test("requests step-up for insufficient account assurance without escalating", async () => {

@@ -294,6 +294,66 @@ describe("audit-chain SQL in PGlite", () => {
     }
   });
 
+  test("hashes organization policy events with the fixed payload fields", async () => {
+    const { db, applyMigration } = await database();
+    const eventId = "10000000-0000-4000-8000-000000000006";
+    const policyId = "10000000-0000-4000-8000-000000000007";
+    await db.query(
+      `insert into public.org_action_policy_events (
+        id, organization_id, policy_id, capability_id, action, "before",
+        "after", actor_user_id, created_at
+      ) values (
+        $1::uuid, $2::uuid, $3::uuid, 'account_unlock', 'updated',
+        '{"max_tier":"consent"}'::jsonb,
+        '{"max_tier":"autorun"}'::jsonb, $4::uuid, $5::timestamptz
+      )`,
+      [eventId, organizationId, policyId, ids[4], "2026-10-06T02:00:00.000001Z"]
+    );
+    await applyMigration();
+    const rows = await db.query<{
+      id: string;
+      chain_seq: number;
+      prev_hash: string | null;
+      row_hash: string;
+      payload: Record<string, unknown>;
+    }>(
+      `select * from public.audit_chain_rows(
+        'org_action_policy_events', $1::uuid, null, 0, 20
+      )`,
+      [organizationId]
+    );
+    expect(rows.rows).toHaveLength(1);
+    expect(rows.rows[0].payload).toEqual({
+      id: eventId,
+      organization_id: organizationId,
+      policy_id: policyId,
+      capability_id: "account_unlock",
+      action: "updated",
+      before: { max_tier: "consent" },
+      after: { max_tier: "autorun" },
+      actor_user_id: ids[4],
+      created_at: "2026-10-06T02:00:00.000001Z",
+      chain_seq: 1,
+    });
+    expect(rows.rows[0].row_hash).toBe(
+      computeRowHash(rows.rows[0].prev_hash, rows.rows[0].payload)
+    );
+    expect(
+      await verifyChain(
+        pgliteAdmin(db),
+        organizationId,
+        "org_action_policy_events"
+      )
+    ).toEqual({ ok: true, checked: 1 });
+    await expect(
+      db.query(
+        `update public.org_action_policy_events set action = 'deleted'
+         where id = $1::uuid`,
+        [eventId]
+      )
+    ).rejects.toThrow("immutable");
+  });
+
   test("keeps anchors append-only and grants their policy only to service role", async () => {
     const { db, applyMigration } = await database();
     await applyMigration();

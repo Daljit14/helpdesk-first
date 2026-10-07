@@ -55,6 +55,17 @@ create table public.capability_autonomy_transitions (
   actor_user_id uuid,
   created_at timestamptz not null default now()
 );
+create table public.org_action_policy_events (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null,
+  policy_id uuid,
+  capability_id text not null,
+  action text not null,
+  "before" jsonb,
+  "after" jsonb,
+  actor_user_id uuid not null,
+  created_at timestamptz not null default now()
+);
 create or replace function public.immutable_audit_row()
 returns trigger language plpgsql as $$
 begin
@@ -68,6 +79,9 @@ create trigger agent_steps_immutable
   for each row execute function public.immutable_audit_row();
 create trigger capability_autonomy_transitions_immutable
   before update or delete on public.capability_autonomy_transitions
+  for each row execute function public.immutable_audit_row();
+create trigger org_action_policy_events_immutable
+  before update or delete on public.org_action_policy_events
   for each row execute function public.immutable_audit_row();
 set search_path to public, extensions;
 `;

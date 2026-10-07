@@ -6,6 +6,8 @@ import {
 import { isCapabilityEnabled } from "@/lib/autonomy/capabilities/enablement";
 import { isDenylisted } from "./denylist";
 import { isSnapshotReversible, readTier } from "@/lib/autonomy/ladder";
+import { isOrgActionPolicyEnabled } from "@/lib/admin/flags";
+import { loadOrgPolicyCeiling } from "@/lib/autonomy/policy/org-policy-server";
 import { updateSession, writeStep } from "./session";
 import type { AgentSession } from "./types";
 
@@ -28,8 +30,16 @@ export async function autorunCoveredCapabilities(
       }))
     )
       continue;
-    if ((await readTier(admin, organizationId, capability.id)) === "autorun")
-      covered.push(capability.id);
+    if ((await readTier(admin, organizationId, capability.id)) !== "autorun")
+      continue;
+    if (isOrgActionPolicyEnabled()) {
+      const ceiling = await loadOrgPolicyCeiling(admin, {
+        organizationId,
+        capabilityId: capability.id,
+      });
+      if (ceiling !== "autorun") continue;
+    }
+    covered.push(capability.id);
   }
   return covered;
 }

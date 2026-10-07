@@ -39,6 +39,33 @@ card to confirm the provider is configured before enabling the feature.
 This runbook enables autonomous execution for one organization only. Do not
 change environment flags during an incident response without approval.
 
+## G5 organization AI action policy
+
+Keep `HELP_DESK_ORG_ACTION_POLICY_ENABLED=false` until policy rules have been
+reviewed. When preparing the schema, apply
+`supabase/org-action-policy.sql` after `supabase/identity-risk.sql` and before
+`supabase/audit-chain.sql`; the audit-chain migration remains last. The full
+production run order contains 18 SQL files. These migrations are authored but
+have not been applied by this code change.
+
+The policy page is available to organization admins only. Capability-specific
+and wildcard rules can deny actions, limit the autonomy tier, schedule autorun
+in the configured local time zone, scope rules to directory group IDs, and
+require technician approval. Missing group data makes scoped denies match and
+scoped allows fail closed. Entra group IDs come from Microsoft Graph group
+object IDs. The current Google Workspace connector does not enumerate a user's
+group memberships, so group-scoped policies are treated as having unavailable
+groups for Google-connected organizations. Any matching deny rule wins;
+capability-specific allows take precedence over wildcard allows, and only
+non-matching deny rules do not narrow the current ladder tier. Turning the
+policy flag off restores the existing behavior without policy-table reads.
+
+After the migration is applied in a controlled environment and the flag is
+enabled for testing, verify the route and rule CRUD in a browser as an
+`org_admin`, confirm that support agents and flag-off environments cannot open
+the page, and check that edits appear in append-only events and the audit
+chain. Browser testing was not run as part of this code-only change.
+
 ## Enable one organization
 
 ### Data protection

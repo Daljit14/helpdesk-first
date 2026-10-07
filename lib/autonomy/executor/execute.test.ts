@@ -17,6 +17,8 @@ const mocks = vi.hoisted(() => ({
   getIdentityAssuranceFreshMinutes: vi.fn(() => 10),
   isIdentityRiskSignalsEnabled: vi.fn(() => false),
   isStaffVerificationEnabled: vi.fn(() => false),
+  isOrgActionPolicyEnabled: vi.fn(() => false),
+  loadOrgPolicyDecision: vi.fn(),
 }));
 
 vi.mock("../orchestrator", () => ({
@@ -35,6 +37,9 @@ vi.mock("../policy/record", () => ({
 vi.mock("../policy/engine", () => ({
   decidePolicy: mocks.decidePolicy,
 }));
+vi.mock("../policy/org-policy-server", () => ({
+  loadOrgPolicyDecision: mocks.loadOrgPolicyDecision,
+}));
 vi.mock("./handlers", () => ({
   getHandler: mocks.getHandler,
 }));
@@ -47,6 +52,7 @@ vi.mock("@/lib/admin/flags", () => ({
   getIdentityAssuranceFreshMinutes: mocks.getIdentityAssuranceFreshMinutes,
   isIdentityRiskSignalsEnabled: mocks.isIdentityRiskSignalsEnabled,
   isStaffVerificationEnabled: mocks.isStaffVerificationEnabled,
+  isOrgActionPolicyEnabled: mocks.isOrgActionPolicyEnabled,
 }));
 
 import { executePlan, verifyExecution } from "./execute";
@@ -220,6 +226,8 @@ describe("executePlan", () => {
       reasons: [],
     });
     mocks.isEvidenceEngineEnabled.mockReturnValue(false);
+    mocks.isOrgActionPolicyEnabled.mockReturnValue(false);
+    mocks.loadOrgPolicyDecision.mockResolvedValue(null);
     mocks.recordPolicyDecision.mockResolvedValue({ ok: true, id: "policy-1" });
     mocks.decidePolicy.mockReturnValue({
       decision: "allow_automatic",
@@ -335,6 +343,114 @@ describe("executePlan", () => {
         (approval?.value as Record<string, unknown>).expires_at as string
       ).getTime()
     ).toBeGreaterThan(Date.now());
+  });
+
+  test("downgrades automatic actions to user consent under the organization ceiling", async () => {
+    mocks.isOrgActionPolicyEnabled.mockReturnValue(true);
+    mocks.loadOrgPolicyDecision.mockResolvedValue({
+      allowed: true,
+      governed: true,
+      effectiveMaxTier: "consent",
+      requireStaffApproval: false,
+      reasons: ["org_policy_max_tier"],
+    });
+    const consentPlan = {
+      ...plan,
+      capability: {
+        id: "resend_ticket_notification",
+        version: 1,
+        parameters: {
+          ticketId: run.ticket_id,
+          notificationId: "00000000-0000-4000-8000-000000000002",
+        },
+      },
+    };
+    const client = admin();
+    const result = await executePlan(client as never, run, consentPlan);
+    expect(result?.status).toBe("awaiting_consent");
+    expect(
+      client.inserts.find((entry) => entry.table === "approval_requests")?.value
+    ).toMatchObject({ type: "user_consent" });
+  });
+
+  test("routes organization staff-approval policies to technician approval", async () => {
+    mocks.isOrgActionPolicyEnabled.mockReturnValue(true);
+    mocks.loadOrgPolicyDecision.mockResolvedValue({
+      allowed: true,
+      governed: true,
+      effectiveMaxTier: "autorun",
+      requireStaffApproval: true,
+      reasons: ["org_policy_staff_approval"],
+    });
+    const approvalPlan = {
+      ...plan,
+      capability: {
+        id: "resend_ticket_notification",
+        version: 1,
+        parameters: {
+          ticketId: run.ticket_id,
+          notificationId: "00000000-0000-4000-8000-000000000002",
+        },
+      },
+    };
+    const client = admin();
+    const result = await executePlan(client as never, run, approvalPlan);
+    expect(result?.status).toBe("awaiting_approval");
+    expect(
+      client.inserts.find((entry) => entry.table === "approval_requests")?.value
+    ).toMatchObject({ type: "technician_approval" });
+  });
+
+  test("records and escalates denied organization policy before creating approval", async () => {
+    mocks.isOrgActionPolicyEnabled.mockReturnValue(true);
+    mocks.loadOrgPolicyDecision.mockResolvedValue({
+      allowed: false,
+      governed: true,
+      effectiveMaxTier: "disabled",
+      requireStaffApproval: false,
+      reasons: ["org_policy_denied"],
+    });
+    const client = admin();
+    const result = await executePlan(client as never, run, plan);
+    expect(result?.status).toBe("escalated");
+    expect(client.inserts).toContainEqual(
+      expect.objectContaining({
+        table: "resolution_events",
+        value: expect.objectContaining({
+          kind: "policy.org_denied",
+          detail: { reasons: ["org_policy_denied"] },
+        }),
+      })
+    );
+    expect(
+      client.inserts.some((entry) => entry.table === "approval_requests")
+    ).toBe(false);
+  });
+
+  test("escalates shadow organization policy before creating approval", async () => {
+    mocks.isOrgActionPolicyEnabled.mockReturnValue(true);
+    mocks.loadOrgPolicyDecision.mockResolvedValue({
+      allowed: true,
+      governed: true,
+      effectiveMaxTier: "shadow",
+      requireStaffApproval: false,
+      reasons: ["org_policy_max_tier"],
+    });
+    const client = admin();
+    const result = await executePlan(client as never, run, plan);
+    expect(result?.status).toBe("escalated");
+    expect(client.inserts).toContainEqual(
+      expect.objectContaining({
+        table: "resolution_events",
+        value: expect.objectContaining({
+          kind: "policy.org_denied",
+          detail: { reasons: ["org_policy_max_tier"] },
+        }),
+      })
+    );
+    expect(
+      client.inserts.some((entry) => entry.table === "approval_requests")
+    ).toBe(false);
   });
 
   test("consumes bound granted consent and executes once", async () => {

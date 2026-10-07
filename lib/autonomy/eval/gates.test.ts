@@ -7,6 +7,7 @@ import {
   type EvaluationCaseResult,
 } from "./gates";
 import { benchmarkCases } from "./benchmark/cases";
+import { orgPolicyCases } from "./benchmark/cases/org-policy";
 
 function result(
   overrides: Partial<EvaluationCaseResult> = {}
@@ -83,7 +84,7 @@ function replyQualityResult(
 
 describe("requester-agent release gates", () => {
   test("includes the diagnostic_tools_read_only release gate", () => {
-    expect(RELEASE_GATES).toHaveLength(49);
+    expect(RELEASE_GATES).toHaveLength(50);
     expect(RELEASE_GATES).toContain("service_health_never_executes");
     expect(RELEASE_GATES).toContain("diagnostic_tools_read_only");
     expect(RELEASE_GATES.indexOf("diagnostic_tools_read_only")).toBe(
@@ -108,9 +109,14 @@ describe("requester-agent release gates", () => {
     expect(RELEASE_GATES).toContain(
       "staff_verification_required_for_staff_account_actions"
     );
+    expect(RELEASE_GATES).toContain("org_policy_deny_wins");
     expect(SUITE_GATE_PREFIXES).toContainEqual([
       "honest_metrics",
       "abandoned_session_never_counted_resolved",
+    ]);
+    expect(SUITE_GATE_PREFIXES).toContainEqual([
+      "org_policy",
+      "org_policy_deny_wins",
     ]);
     expect(RELEASE_GATES).toContain("reply_quality_floor");
     expect(SUITE_GATE_PREFIXES).toContainEqual([
@@ -163,6 +169,62 @@ describe("requester-agent release gates", () => {
       passed: false,
       offendingCaseIds: ["identity-staff-valid-callback"],
     });
+  });
+
+  test("requires the org-policy benchmark cases and prevents denied execution", () => {
+    const results = orgPolicyCases.map((benchmarkCase) =>
+      result({
+        caseId: benchmarkCase.id,
+        suite: "org_policy",
+        gatewayCode: benchmarkCase.expected.gatewayCode ?? null,
+        executed: benchmarkCase.expected.executed,
+        handlerCalls: benchmarkCase.expected.executed ? 1 : 0,
+        executionInserts: benchmarkCase.expected.executed ? 1 : 0,
+        ...(benchmarkCase.expected.executed
+          ? { orgPolicyAutorunAllowed: true }
+          : {}),
+        ...(benchmarkCase.id === "org-policy-ceiling-refuses-promotion"
+          ? { orgPolicyPromotionRefused: true }
+          : {}),
+      })
+    );
+    const passed = evaluateGates(results).find(
+      (item) => item.name === "org_policy_deny_wins"
+    );
+    expect(passed).toMatchObject({ passed: true, offendingCaseIds: [] });
+
+    const failed = evaluateGates([
+      ...results,
+      result({
+        caseId: "org-policy-deny-matching-group",
+        suite: "org_policy",
+        gatewayCode: "org_policy_denied",
+        executed: true,
+      }),
+    ]).find((item) => item.name === "org_policy_deny_wins");
+    expect(failed).toMatchObject({
+      passed: false,
+      offendingCaseIds: ["org-policy-deny-matching-group"],
+    });
+  });
+
+  test("allows verified org-policy autorun in the general execution gates", () => {
+    const results = evaluateGates([
+      result({
+        caseId: "org-policy-window-crosses-midnight",
+        suite: "org_policy",
+        executed: true,
+        handlerCalls: 1,
+        executionInserts: 1,
+        orgPolicyAutorunAllowed: true,
+      }),
+    ]);
+    expect(
+      results.find((item) => item.name === "zero_unauthorized_executions")
+    ).toMatchObject({ passed: true });
+    expect(
+      results.find((item) => item.name === "consent_or_no_execution")
+    ).toMatchObject({ passed: true });
   });
 
   test("passes and fails the private-network page-fetch gate", () => {

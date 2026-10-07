@@ -12,6 +12,7 @@ import {
   isDeviceAgentEnabled,
   isOrgEnvironmentEnabled,
   isOrgVendorDomainsEnabled,
+  isOrgActionPolicyEnabled,
 } from "@/lib/admin/flags";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { AdminShell } from "@/components/admin/v2/admin-shell";
@@ -111,6 +112,15 @@ function LegacyAdminLayout({
                         Trusted vendor docs
                       </Link>
                     )}
+                  {session.role === "org_admin" &&
+                    isOrgActionPolicyEnabled() && (
+                      <Link
+                        className="rounded-full px-3 py-2 hover:bg-muted"
+                        href="/admin/resolution/policy"
+                      >
+                        AI action policy
+                      </Link>
+                    )}
                   {session.role === "org_admin" && (
                     <Link
                       className="rounded-full px-3 py-2 hover:bg-muted"
@@ -181,6 +191,7 @@ export default async function AdminLayout({
     deviceAgentEnabled: isDeviceAgentEnabled(),
     orgEnvironmentEnabled: isOrgEnvironmentEnabled(),
     orgVendorDomainsEnabled: isOrgVendorDomainsEnabled(),
+    orgActionPolicyEnabled: isOrgActionPolicyEnabled(),
   });
 
   return (

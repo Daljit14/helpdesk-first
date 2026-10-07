@@ -6,6 +6,7 @@ export const AUDIT_CHAIN_TABLES = [
   "resolution_events",
   "agent_steps",
   "capability_autonomy_transitions",
+  "org_action_policy_events",
 ] as const;
 
 export type AuditChainTable = (typeof AUDIT_CHAIN_TABLES)[number];
@@ -54,6 +55,18 @@ export const AUDIT_CHAIN_COLUMNS: Readonly<
     "kind",
     "reason",
     "actor",
+    "actor_user_id",
+    "created_at",
+    "chain_seq",
+  ],
+  org_action_policy_events: [
+    "id",
+    "organization_id",
+    "policy_id",
+    "capability_id",
+    "action",
+    "before",
+    "after",
     "actor_user_id",
     "created_at",
     "chain_seq",

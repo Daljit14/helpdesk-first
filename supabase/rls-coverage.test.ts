@@ -175,6 +175,34 @@ describe("Supabase RLS coverage", () => {
     );
   });
 
+  test("keeps organization action policies scoped and policy events append-only", async () => {
+    const source = await readFile(
+      join(process.cwd(), "supabase/org-action-policy.sql"),
+      "utf8"
+    );
+    expect(source).toMatch(
+      /org_action_policies_staff_select[\s\S]*?is_org_staff\(organization_id\)/i
+    );
+    expect(source).toMatch(
+      /org_action_policies_admin_update[\s\S]*?is_org_admin\(organization_id\)[\s\S]*?with check \(public\.is_org_admin\(organization_id\)\)/i
+    );
+    expect(source).toMatch(
+      /org_action_policy_events_immutable[\s\S]*?before update or delete/i
+    );
+    expect(source).toMatch(
+      /org_action_policy_events_staff_select[\s\S]*?is_org_staff\(organization_id\)/i
+    );
+    expect(source).not.toMatch(
+      /create table if not exists public\.org_action_policy_events\s*\([\s\S]*?policy_id uuid references/i
+    );
+    expect(source).toMatch(
+      /revoke all on public\.org_action_policy_events from public, anon/i
+    );
+    expect(source).toMatch(
+      /grant all on public\.org_action_policy_events to service_role/i
+    );
+  });
+
   test("restricts trusted vendor domains to org members and admins", async () => {
     const source = await readFile(
       join(process.cwd(), "supabase/org-research-vendor-domains.sql"),

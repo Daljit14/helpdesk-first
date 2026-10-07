@@ -22,6 +22,7 @@ export type DepartmentFlags = {
   deviceAgentEnabled?: boolean;
   orgEnvironmentEnabled?: boolean;
   orgVendorDomainsEnabled?: boolean;
+  orgActionPolicyEnabled?: boolean;
 };
 
 export const DEPARTMENT_GROUPS = [
@@ -99,6 +100,16 @@ export function buildDepartments(
         "verification",
       ],
     },
+    orgAdmin &&
+      Boolean(flags.orgActionPolicyEnabled) && {
+        id: "org-action-policy",
+        label: "AI action policy",
+        href: "/admin/resolution/policy",
+        icon: "shield",
+        available: true,
+        group: "Support",
+        keywords: ["ai", "autonomy", "policy", "actions", "organization"],
+      },
     {
       id: "capability-matching",
       label: "Capability Matching",

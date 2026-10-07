@@ -45,6 +45,9 @@ import {
 } from "@/lib/identity/risk-server";
 import { loadStaffVerification } from "@/lib/identity/staff-verification";
 import { decryptTicketRow } from "@/lib/security/ticket-crypto";
+import { isOrgActionPolicyEnabled } from "@/lib/admin/flags";
+import { readTier } from "../ladder";
+import { loadOrgPolicyDecision } from "../policy/org-policy-server";
 
 export type GatewayRequest = {
   run: ResolutionRun;
@@ -240,6 +243,74 @@ export async function executeThroughGateway(
       "capability_disabled",
       "guardrail.capability_unknown"
     );
+  }
+  if (isOrgActionPolicyEnabled()) {
+    let tier: Awaited<ReturnType<typeof readTier>> = "disabled";
+    try {
+      tier = await readTier(admin, req.run.organization_id, req.capability.id);
+    } catch {
+      tier = "disabled";
+    }
+    const orgPolicy = await loadOrgPolicyDecision(admin, {
+      organizationId: req.run.organization_id,
+      capabilityId: req.capability.id,
+      subjectUserId:
+        typeof ticket.data.user_id === "string" ? ticket.data.user_id : null,
+      tier,
+      now: new Date(),
+    });
+    if (orgPolicy) {
+      const autoMode =
+        !req.policy.consent && req.capability.sideEffects !== "read_only";
+      const tierExceeded =
+        orgPolicy.effectiveMaxTier === "shadow" ||
+        orgPolicy.effectiveMaxTier === "disabled" ||
+        (autoMode && orgPolicy.effectiveMaxTier !== "autorun");
+      const staffApprovalMissing =
+        orgPolicy.requireStaffApproval &&
+        req.policy.consent?.type !== "technician_approval";
+      const reasons = [...orgPolicy.reasons];
+      if (
+        tierExceeded &&
+        !reasons.includes("org_policy_max_tier") &&
+        reasons.length === 0
+      )
+        reasons.push("org_policy_max_tier");
+      if (
+        staffApprovalMissing &&
+        !reasons.includes("org_policy_staff_approval")
+      )
+        reasons.push("org_policy_staff_approval");
+      if (!orgPolicy.allowed) {
+        return deny(
+          admin,
+          req,
+          "org_policy_denied",
+          "guardrail.policy_denied",
+          {
+            reasons: orgPolicy.reasons,
+          }
+        );
+      }
+      if (tierExceeded) {
+        return deny(
+          admin,
+          req,
+          "org_policy_tier_exceeded",
+          "guardrail.policy_denied",
+          { reasons, effectiveMaxTier: orgPolicy.effectiveMaxTier }
+        );
+      }
+      if (staffApprovalMissing) {
+        return deny(
+          admin,
+          req,
+          "org_policy_staff_approval_required",
+          "guardrail.policy_denied",
+          { reasons }
+        );
+      }
+    }
   }
   if (req.capability.requiresIdentityBinding) {
     const binding = await getIdentityBinding(admin, req.run.id);

@@ -4,6 +4,10 @@ import { isDenylisted } from "@/lib/agent/denylist";
 import { listCapabilities, getCapability } from "./capabilities/registry";
 import type { CapabilityDefinition } from "./capabilities/types";
 import type { createAdminClient } from "@/lib/supabase/admin";
+import {
+  loadAutonomyMetrics,
+  type HonestBreakdown,
+} from "@/lib/analytics/autonomy-metrics";
 
 export type AutonomyTier = "disabled" | "shadow" | "consent" | "autorun";
 export type Outcome =
@@ -149,6 +153,21 @@ export function evaluatePromotion(
   if (stats.tier !== "consent")
     reasons.push("Capability must currently be at consent tier.");
   return { eligible: reasons.length === 0, reasons };
+}
+
+export function evaluateHonestPromotion(
+  row: HonestBreakdown | undefined,
+  thresholds: LadderThresholds = getLadderThresholds()
+): string[] {
+  if (!row) return [];
+  const reasons: string[] = [];
+  if (row.staffTouched > 0)
+    reasons.push(
+      "AI-resolved sessions using this capability were later handled by staff."
+    );
+  if (row.falseResolvedRate > 1 - thresholds.promoteMinSuccess)
+    reasons.push("False-resolved rate is above the promotion limit.");
+  return reasons;
 }
 
 export function evaluateDemotion(
@@ -332,8 +351,19 @@ export async function setTier(
       (row.data as LadderStats | null) ??
       defaultStats(input.organizationId, input.capabilityId, currentTier);
     const eligibility = evaluatePromotion(stats, capability);
-    if (!eligibility.eligible)
-      return { ok: false, reasons: eligibility.reasons };
+    let honestReasons: string[];
+    try {
+      const metrics = await loadAutonomyMetrics(admin, input.organizationId, {
+        windowDays: 30,
+      });
+      honestReasons = evaluateHonestPromotion(
+        metrics.v2.byCapability.find((item) => item.key === input.capabilityId)
+      );
+    } catch {
+      return { ok: false, reasons: ["Honest metrics are unavailable."] };
+    }
+    const reasons = [...eligibility.reasons, ...honestReasons];
+    if (reasons.length > 0) return { ok: false, reasons };
   }
   const now = new Date().toISOString();
   const existing = await admin

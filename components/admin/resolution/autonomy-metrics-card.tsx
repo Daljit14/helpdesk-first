@@ -7,16 +7,17 @@ import {
   Coins,
   DollarSign,
   Lightbulb,
-  TrendingUp,
   XCircle,
 } from "lucide-react";
-import type { AutonomyMetrics } from "@/lib/analytics/autonomy-metrics";
+import type {
+  AutonomyMetrics,
+  HonestBreakdown,
+} from "@/lib/analytics/autonomy-metrics";
 import {
   BarRows,
   EmptyState,
   Panel,
   StatTile,
-  type StatTone,
 } from "@/components/admin/ui/admin-kit";
 
 function percent(value: number): string {
@@ -31,69 +32,166 @@ function duration(value: number): string {
   return `${hours}h`;
 }
 
-const headlineLabels = [
-  ["sessions", "Sessions", Activity, "primary"],
-  ["aiResolved", "AI resolved", CheckCircle2, "good"],
-  ["aiResolutionRate", "AI resolution rate", TrendingUp, "good"],
-  ["falseResolved", "False resolved", XCircle, "danger"],
-  ["escalated", "Escalated", AlertTriangle, "warn"],
-  ["escalationRate", "Escalation rate", TrendingUp, "warn"],
-] as const;
+function BreakdownTable({
+  title,
+  rows,
+}: {
+  title: string;
+  rows: HonestBreakdown[];
+}) {
+  return (
+    <div className="min-w-0 rounded-2xl border border-border p-4">
+      <h3 className="mb-3 font-extrabold">{title}</h3>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[34rem] text-left text-xs">
+          <thead className="text-muted-foreground">
+            <tr>
+              <th className="pb-2 pr-3 font-semibold">Key</th>
+              <th className="pb-2 pr-3 font-semibold">Sessions</th>
+              <th className="pb-2 pr-3 font-semibold">AI resolved</th>
+              <th className="pb-2 pr-3 font-semibold">False resolved</th>
+              <th className="pb-2 font-semibold">Abandoned</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="py-2 text-muted-foreground">
+                  None recorded.
+                </td>
+              </tr>
+            ) : (
+              rows.map((row) => (
+                <tr key={row.key} className="border-t border-border">
+                  <th scope="row" className="py-2 pr-3 font-semibold">
+                    {row.key}
+                  </th>
+                  <td className="py-2 pr-3">{row.sessions}</td>
+                  <td className="py-2 pr-3">{row.aiResolved}</td>
+                  <td className="py-2 pr-3">{row.falseResolved}</td>
+                  <td className="py-2">{row.abandoned}</td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
 
 export function AutonomyMetricsCard({ metrics }: { metrics: AutonomyMetrics }) {
-  if (metrics.sessions === 0) {
-    return (
-      <Panel
-        id="autonomy-metrics"
-        title="Requester-agent outcome metrics"
-        icon={Bot}
-        delay={0.1}
-      >
+  return (
+    <Panel
+      id="autonomy-metrics"
+      title="Requester-agent outcome metrics"
+      description={`Last ${metrics.window.windowDays} days · Metrics v2`}
+      icon={Bot}
+      delay={0.1}
+    >
+      {metrics.sessions === 0 && (
         <EmptyState
           icon={Bot}
           title="No sessions yet"
           body="Outcome metrics will appear here after requester-agent sessions are recorded for this organization."
         />
-        {metrics.orgEnvironment && (
-          <div className="mt-4 max-w-sm">
-            <StatTile
-              label="Avg clarifying questions"
-              value={metrics.avgClarifyingQuestions?.toFixed(1) ?? "—"}
-              icon={Lightbulb}
-              tone="info"
-              index={8}
-              hint={`${metrics.clarifiedTickets} tickets`}
-            />
-          </div>
-        )}
-      </Panel>
-    );
-  }
-
-  return (
-    <Panel
-      id="autonomy-metrics"
-      title="Requester-agent outcome metrics"
-      description={`Last ${metrics.window.windowDays} days`}
-      icon={Bot}
-      delay={0.1}
-    >
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
-        {headlineLabels.map(([key, label, icon, tone], index) => {
-          const isRate = key === "aiResolutionRate" || key === "escalationRate";
-          const value = isRate ? percent(metrics[key]) : String(metrics[key]);
-          return (
-            <StatTile
-              key={key}
-              label={label}
-              value={value}
-              icon={icon}
-              tone={tone as StatTone}
-              index={index}
-              progress={isRate ? metrics[key] : undefined}
-            />
-          );
-        })}
+      )}
+      <div className="grid gap-3">
+        <div className="grid grid-cols-2 gap-3">
+          <StatTile
+            label="AI resolved"
+            value={percent(metrics.v2.aiResolutionRate)}
+            icon={CheckCircle2}
+            tone="good"
+            index={0}
+            progress={metrics.v2.aiResolutionRate}
+            hint={`${metrics.v2.aiResolved} sessions`}
+          />
+          <StatTile
+            label="False resolved"
+            value={percent(metrics.v2.falseResolvedRate)}
+            icon={XCircle}
+            tone="danger"
+            index={1}
+            progress={metrics.v2.falseResolvedRate}
+            hint={`${metrics.v2.falseResolved} sessions`}
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <StatTile
+            label="Deflection"
+            value={percent(metrics.v2.deflectionRate)}
+            icon={Activity}
+            tone="good"
+            index={2}
+            progress={metrics.v2.deflectionRate}
+            hint={`${metrics.v2.deflected} sessions`}
+          />
+          <StatTile
+            label="Abandonment"
+            value={percent(metrics.v2.abandonmentRate)}
+            icon={AlertTriangle}
+            tone="warn"
+            index={3}
+            progress={metrics.v2.abandonmentRate}
+            hint={`${metrics.v2.abandoned} sessions`}
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <StatTile
+            label="Median time to resolve"
+            value={duration(metrics.v2.medianResolveMs)}
+            icon={Clock}
+            tone="neutral"
+            index={4}
+          />
+          <StatTile
+            label="p90 time to resolve"
+            value={duration(metrics.v2.p90ResolveMs)}
+            icon={Clock}
+            tone="neutral"
+            index={5}
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <StatTile
+            label="Sessions"
+            value={String(metrics.v2.sessions)}
+            icon={Bot}
+            tone="primary"
+            index={6}
+          />
+          <StatTile
+            label="Pending (72 h)"
+            value={String(metrics.v2.pending)}
+            icon={Clock}
+            tone="warn"
+            index={7}
+          />
+          <StatTile
+            label="Hidden staff touch"
+            value={String(metrics.v2.hiddenStaffTouch)}
+            icon={AlertTriangle}
+            tone="warn"
+            index={8}
+          />
+          <StatTile
+            label="Repeat-issue rate (30 d)"
+            value={percent(metrics.v2.repeatIssueRate)}
+            icon={Activity}
+            tone="info"
+            index={9}
+            hint={`${metrics.v2.repeatIssues} repeat issues`}
+          />
+        </div>
+      </div>
+      <p className="mt-3 text-xs text-muted-foreground">
+        Metrics v1 (comparison): AI resolution rate{" "}
+        {percent(metrics.aiResolutionRate)}
+      </p>
+      <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <BreakdownTable title="By category" rows={metrics.v2.byCategory} />
+        <BreakdownTable title="By capability" rows={metrics.v2.byCapability} />
       </div>
       {metrics.orgEnvironment && (
         <div className="mt-3 max-w-sm">
@@ -102,7 +200,7 @@ export function AutonomyMetricsCard({ metrics }: { metrics: AutonomyMetrics }) {
             value={metrics.avgClarifyingQuestions?.toFixed(1) ?? "—"}
             icon={Lightbulb}
             tone="info"
-            index={8}
+            index={10}
             hint={`${metrics.clarifiedTickets} tickets`}
           />
         </div>
@@ -118,14 +216,14 @@ export function AutonomyMetricsCard({ metrics }: { metrics: AutonomyMetrics }) {
             }
             icon={DollarSign}
             tone="neutral"
-            index={6}
+            index={11}
           />
           <StatTile
             label="AI spend (window)"
             value={`$${(metrics.totalCostMicros / 1_000_000).toFixed(2)}`}
             icon={Coins}
             tone="neutral"
-            index={7}
+            index={12}
           />
         </div>
       )}
@@ -186,20 +284,6 @@ export function AutonomyMetricsCard({ metrics }: { metrics: AutonomyMetrics }) {
             </ul>
           )}
         </div>
-      </div>
-      <div className="mt-4 flex flex-wrap gap-2 text-sm font-bold text-muted-foreground">
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-status-success/15 px-3 py-1.5 text-status-success">
-          <Clock className="h-3.5 w-3.5" aria-hidden />
-          <span>
-            Median AI resolution: {duration(metrics.medianAiResolutionMs)}
-          </span>
-        </span>
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1.5">
-          <Clock className="h-3.5 w-3.5" aria-hidden />
-          <span>
-            Median human resolution: {duration(metrics.medianHumanResolutionMs)}
-          </span>
-        </span>
       </div>
     </Panel>
   );

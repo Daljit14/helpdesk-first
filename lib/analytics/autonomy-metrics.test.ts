@@ -622,4 +622,495 @@ describe("computeAutonomyMetrics", () => {
       avgClarifyingQuestions: null,
     });
   });
+
+  test("classifies every honest v2 outcome bucket", () => {
+    const pendingEnd = new Date(
+      Date.parse(window.to) - 60 * 60_000
+    ).toISOString();
+    const metrics = computeAutonomyMetrics(
+      input({
+        sessions: [
+          session({
+            id: "ai",
+            userConfirmedAt: "2026-01-02T00:02:00.000Z",
+          }),
+          session({
+            id: "pending",
+            startedAt: new Date(
+              Date.parse(pendingEnd) - 60 * 60_000
+            ).toISOString(),
+            endedAt: pendingEnd,
+            backingTicketId: null,
+          }),
+          session({
+            id: "false",
+            userConfirmedAt: "2026-01-02T00:02:00.000Z",
+            backingTicketId: null,
+          }),
+          session({
+            id: "staff",
+            backingTicketId: "ticket-staff",
+          }),
+          session({
+            id: "unverified",
+            backingTicketId: null,
+          }),
+          session({
+            id: "abandoned",
+            status: "abandoned",
+            backingTicketId: null,
+          }),
+          session({
+            id: "escalated",
+            status: "escalated",
+            backingTicketId: null,
+          }),
+        ],
+        tickets: [
+          { id: "ticket-1", status: "Resolved", resolvedAt: null },
+          { id: "ticket-staff", status: "Resolved", resolvedAt: null },
+        ],
+        systemEvents: [
+          {
+            ticketId: "ticket-staff",
+            eventType: "comment.created",
+            actorType: "employee",
+            createdAt: "2026-01-02T00:00:30.000Z",
+          },
+        ],
+        steps: [
+          {
+            sessionId: "unverified",
+            kind: "action_executing",
+            toolName: null,
+            resultSummary: null,
+            capabilityId: "device_flush_dns",
+            seq: 1,
+          },
+        ],
+        feedback: [
+          {
+            sessionId: "false",
+            verdict: "came_back",
+            createdAt: "2026-01-03T00:00:00.000Z",
+            text: null,
+          },
+        ],
+      }),
+      window
+    );
+
+    expect(metrics.v2).toMatchObject({
+      version: 2,
+      sessions: 7,
+      outcomes: {
+        ai_resolved: 1,
+        pending: 1,
+        false_resolved: 1,
+        staff_touched: 1,
+        unverified: 1,
+        abandoned: 1,
+        escalated: 1,
+      },
+    });
+  });
+
+  test("uses the exact 72-hour pending boundary and honors confirmation", () => {
+    const now = Date.parse(window.to);
+    const beforeBoundary = new Date(now - 72 * 60 * 60_000 + 1).toISOString();
+    const atBoundary = new Date(now - 72 * 60 * 60_000).toISOString();
+    const confirmedEnd = new Date(now - 60 * 60_000).toISOString();
+    const metrics = computeAutonomyMetrics(
+      input({
+        sessions: [
+          session({
+            id: "pending",
+            startedAt: new Date(
+              Date.parse(beforeBoundary) - 60_000
+            ).toISOString(),
+            endedAt: beforeBoundary,
+            backingTicketId: null,
+          }),
+          session({
+            id: "boundary",
+            startedAt: new Date(Date.parse(atBoundary) - 60_000).toISOString(),
+            endedAt: atBoundary,
+            backingTicketId: null,
+          }),
+          session({
+            id: "confirmed",
+            startedAt: new Date(
+              Date.parse(confirmedEnd) - 60_000
+            ).toISOString(),
+            endedAt: confirmedEnd,
+            userConfirmedAt: new Date(
+              Date.parse(confirmedEnd) + 30_000
+            ).toISOString(),
+            backingTicketId: null,
+          }),
+        ],
+      }),
+      window
+    );
+
+    expect(metrics.v2.sessionOutcomes).toEqual([
+      { sessionId: "pending", outcome: "pending" },
+      { sessionId: "boundary", outcome: "ai_resolved" },
+      { sessionId: "confirmed", outcome: "ai_resolved" },
+    ]);
+  });
+
+  test("detects 72-hour re-reports by requester and by device", () => {
+    const metrics = computeAutonomyMetrics(
+      input({
+        sessions: [
+          session({
+            id: "requester-original",
+            requesterId: "requester-a",
+            startedAt: "2026-01-10T00:00:00.000Z",
+            endedAt: "2026-01-10T01:00:00.000Z",
+            userConfirmedAt: "2026-01-10T01:30:00.000Z",
+            backingTicketId: "ticket-requester-original",
+          }),
+          session({
+            id: "requester-report",
+            requesterId: "requester-a",
+            status: "abandoned",
+            startedAt: "2026-01-11T00:00:00.000Z",
+            backingTicketId: "ticket-requester-report",
+          }),
+          session({
+            id: "device-original",
+            requesterId: "requester-b",
+            startedAt: "2026-01-10T00:00:00.000Z",
+            endedAt: "2026-01-10T01:00:00.000Z",
+            userConfirmedAt: "2026-01-10T01:30:00.000Z",
+            backingTicketId: "ticket-device-original",
+          }),
+          session({
+            id: "device-report",
+            requesterId: "requester-c",
+            status: "abandoned",
+            startedAt: "2026-01-11T00:00:00.000Z",
+            backingTicketId: "ticket-device-report",
+          }),
+        ],
+        tickets: [
+          {
+            id: "ticket-requester-original",
+            status: "Resolved",
+            resolvedAt: null,
+            category: "network",
+          },
+          {
+            id: "ticket-requester-report",
+            status: "Open",
+            resolvedAt: null,
+            category: "network",
+          },
+          {
+            id: "ticket-device-original",
+            status: "Resolved",
+            resolvedAt: null,
+            category: "printer",
+          },
+          {
+            id: "ticket-device-report",
+            status: "Open",
+            resolvedAt: null,
+            category: "printer",
+          },
+        ],
+        deviceJobs: [
+          { ticketId: "ticket-device-original", deviceId: "device-1" },
+          { ticketId: "ticket-device-report", deviceId: "device-1" },
+        ],
+      }),
+      window
+    );
+
+    expect(metrics.v2.sessionOutcomes).toContainEqual({
+      sessionId: "requester-original",
+      outcome: "false_resolved",
+    });
+    expect(metrics.v2.sessionOutcomes).toContainEqual({
+      sessionId: "device-original",
+      outcome: "false_resolved",
+    });
+  });
+
+  test("counts repeats within 30 days but not at day 31", () => {
+    const extendedWindow = {
+      windowDays: 63,
+      from: "2026-01-01T00:00:00.000Z",
+      to: "2026-03-05T00:00:00.000Z",
+    };
+    const makeRepeatInput = (days: number) =>
+      input({
+        sessions: [
+          session({
+            id: "original",
+            requesterId: "requester-repeat",
+            startedAt: "2026-01-02T00:00:00.000Z",
+            endedAt: "2026-01-02T01:00:00.000Z",
+            userConfirmedAt: "2026-01-02T01:30:00.000Z",
+            backingTicketId: "ticket-original",
+          }),
+          session({
+            id: "repeat",
+            requesterId: "requester-repeat",
+            status: "abandoned",
+            startedAt: new Date(
+              Date.parse("2026-01-02T01:00:00.000Z") + days * 86_400_000
+            ).toISOString(),
+            backingTicketId: "ticket-repeat",
+          }),
+        ],
+        tickets: [
+          {
+            id: "ticket-original",
+            status: "Resolved",
+            resolvedAt: null,
+            category: "network",
+          },
+          {
+            id: "ticket-repeat",
+            status: "Open",
+            resolvedAt: null,
+            category: "network",
+          },
+        ],
+      });
+
+    expect(
+      computeAutonomyMetrics(makeRepeatInput(10), extendedWindow).v2
+        .repeatIssues
+    ).toBe(1);
+    expect(
+      computeAutonomyMetrics(makeRepeatInput(31), extendedWindow).v2
+        .repeatIssues
+    ).toBe(0);
+  });
+
+  test("counts hidden staff touch only when its timestamp is at or after resolution", () => {
+    const metrics = computeAutonomyMetrics(
+      input({
+        sessions: [
+          session({
+            id: "hidden",
+            backingTicketId: "ticket-hidden",
+            endedAt: "2026-01-02T00:01:00.000Z",
+          }),
+          session({
+            id: "visible",
+            backingTicketId: "ticket-visible",
+            endedAt: "2026-01-02T00:01:00.000Z",
+          }),
+        ],
+        systemEvents: [
+          {
+            ticketId: "ticket-hidden",
+            eventType: "comment.created",
+            actorType: "employee",
+            createdAt: "2026-01-02T00:02:00.000Z",
+          },
+          {
+            ticketId: "ticket-visible",
+            eventType: "comment.created",
+            actorType: "employee",
+            createdAt: "2026-01-02T00:00:30.000Z",
+          },
+        ],
+      }),
+      window
+    );
+
+    expect(metrics.v2).toMatchObject({
+      outcomes: { staff_touched: 2 },
+      hiddenStaffTouch: 1,
+    });
+  });
+
+  test("counts abandoned sessions as deflected, but never AI resolved", () => {
+    const metrics = computeAutonomyMetrics(
+      input({
+        sessions: [
+          session({
+            id: "abandoned",
+            status: "abandoned",
+            backingTicketId: null,
+            escalationTicketId: null,
+          }),
+        ],
+      }),
+      window
+    );
+
+    expect(metrics.v2).toMatchObject({
+      sessions: 1,
+      aiResolved: 0,
+      abandoned: 1,
+      abandonmentRate: 1,
+      deflected: 1,
+      deflectionRate: 1,
+    });
+  });
+
+  test("ignores excluded report tickets when detecting repeats", () => {
+    const metrics = computeAutonomyMetrics(
+      input({
+        sessions: [
+          session({
+            id: "resolved",
+            requesterId: "requester-report",
+            startedAt: "2026-01-10T00:00:00.000Z",
+            endedAt: "2026-01-10T01:00:00.000Z",
+            userConfirmedAt: "2026-01-10T01:30:00.000Z",
+            backingTicketId: "ticket-resolved",
+          }),
+        ],
+        tickets: [
+          {
+            id: "ticket-resolved",
+            status: "Resolved",
+            resolvedAt: null,
+            category: "network",
+          },
+        ],
+        reportTickets: [
+          {
+            id: "ticket-report",
+            userId: "requester-report",
+            category: "network",
+            createdAt: "2026-01-11T00:00:00.000Z",
+          },
+        ],
+        excludedTicketIds: new Set(["ticket-report"]),
+      }),
+      window
+    );
+
+    expect(metrics.v2).toMatchObject({
+      outcomes: { ai_resolved: 1, false_resolved: 0 },
+      repeatIssues: 0,
+    });
+  });
+
+  test("uses guide categories and first action capabilities in breakdowns", () => {
+    const metrics = computeAutonomyMetrics(
+      input({
+        tickets: [
+          {
+            id: "ticket-guide",
+            status: "Resolved",
+            resolvedAt: null,
+            category: null,
+          },
+          {
+            id: "ticket-network",
+            status: "Resolved",
+            resolvedAt: null,
+            category: "network",
+          },
+          {
+            id: "ticket-printer",
+            status: "Resolved",
+            resolvedAt: null,
+            category: "printer",
+          },
+        ],
+        steps: [
+          {
+            sessionId: "guide",
+            kind: "tool_result",
+            toolName: "search_guides",
+            resultSummary: "1 guides found: wifi-disconnecting",
+            capabilityId: null,
+            seq: 1,
+          },
+          {
+            sessionId: "guide",
+            kind: "action_executing",
+            toolName: null,
+            resultSummary: null,
+            capabilityId: "device_flush_dns",
+            seq: 2,
+          },
+          {
+            sessionId: "printer",
+            kind: "action_autorun",
+            toolName: null,
+            resultSummary: null,
+            capabilityId: "device_restart_print_spooler",
+            seq: 1,
+          },
+        ],
+        sessions: [
+          session({
+            id: "guide",
+            startedAt: "2026-01-02T00:00:00.000Z",
+            endedAt: "2026-01-02T00:01:00.000Z",
+            userConfirmedAt: "2026-01-02T00:02:00.000Z",
+            verifiedExecutionId: "execution-1",
+            backingTicketId: "ticket-guide",
+          }),
+          session({
+            id: "network",
+            startedAt: "2026-01-07T00:00:00.000Z",
+            endedAt: "2026-01-07T00:01:00.000Z",
+            userConfirmedAt: "2026-01-07T00:02:00.000Z",
+            backingTicketId: "ticket-network",
+          }),
+          session({
+            id: "printer",
+            startedAt: "2026-01-12T00:00:00.000Z",
+            endedAt: "2026-01-12T00:01:00.000Z",
+            userConfirmedAt: "2026-01-12T00:02:00.000Z",
+            verifiedExecutionId: "execution-2",
+            backingTicketId: "ticket-printer",
+          }),
+        ],
+      }),
+      window
+    );
+
+    expect(metrics.v2.byCategory).toContainEqual(
+      expect.objectContaining({
+        key: "network",
+        sessions: 2,
+        aiResolved: 2,
+        falseResolved: 0,
+        abandoned: 0,
+      })
+    );
+    expect(metrics.v2.byCapability).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: "device_flush_dns", aiResolved: 1 }),
+        expect.objectContaining({
+          key: "device_restart_print_spooler",
+          aiResolved: 1,
+        }),
+        expect.objectContaining({ key: "none", aiResolved: 1 }),
+      ])
+    );
+  });
+
+  test("keeps v1 fields unchanged for the existing resolved-session fixture", () => {
+    const metrics = computeAutonomyMetrics(input(), window);
+
+    expect(metrics).toMatchObject({
+      sessions: 1,
+      aiResolved: 1,
+      aiResolutionRate: 1,
+      falseResolved: 0,
+      falseResolvedRate: 0,
+      escalated: 0,
+      escalationRate: 0,
+      medianAiResolutionMs: 60_000,
+      medianHumanResolutionMs: 0,
+      unhandledIntentCount: 0,
+      totalCostMicros: 0,
+      costPerAiResolutionMicros: null,
+    });
+  });
 });

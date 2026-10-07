@@ -32,6 +32,16 @@ unconsumed until assurance is sufficient.
 References: [Google OpenID Connect reference](https://developers.google.com/identity/openid-connect/reference)
 and [OpenID Connect documentation](https://developers.google.com/identity/openid-connect/openid-connect).
 
+## For admins: Google sign-in
+
+Google sign-in alone cannot reach A3, even if the user signs in again, because
+Google does not document a way to force a fresh sign-in. For account actions
+such as password reset links, signing out everywhere, or group access, users
+in Google-based organizations must set up an authenticator app through
+Supabase MFA (TOTP). Microsoft Entra users can reach A3 by signing in again
+when the confirmed organization profile attests that MFA is required for every
+sign-in.
+
 The current assurance contract does not bind authentication to an enrolled
 device. Enrolled-device binding is a follow-up.
 

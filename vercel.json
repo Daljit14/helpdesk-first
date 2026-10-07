@@ -39,6 +39,10 @@
     {
       "path": "/api/cron/audit-chain",
       "schedule": "30 4 * * *"
+    },
+    {
+      "path": "/api/cron/agent-sessions-abandon",
+      "schedule": "45 4 * * *"
     }
   ]
 }

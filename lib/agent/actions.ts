@@ -57,7 +57,7 @@ import { NO_REQUESTER, toUserText } from "./output-guard";
 import {
   assessAccountRisk,
   isAccountCapability,
-  staffAssuranceWithinRun,
+  isFreshA3Since,
   type RiskReason,
 } from "@/lib/identity/risk";
 import { loadAccountRiskFacts } from "@/lib/identity/risk-server";
@@ -636,8 +636,8 @@ export async function proposeAction(
     }
     if (
       risk.level === "elevated" &&
-      !staffAssuranceWithinRun(ctx.assurance, {
-        runCreatedAt: session.started_at,
+      !isFreshA3Since(ctx.assurance, {
+        since: session.started_at,
         now: new Date(),
       })
     ) {

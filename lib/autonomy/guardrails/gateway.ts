@@ -36,7 +36,7 @@ import { requiredAssurance } from "../capabilities/registry";
 import {
   assessAccountRisk,
   isAccountCapability,
-  staffAssuranceWithinRun,
+  isFreshA3Since,
   type AccountRiskFacts,
 } from "@/lib/identity/risk";
 import {
@@ -346,8 +346,8 @@ export async function executeThroughGateway(
       : suppliedAssurance;
   if (
     riskAssessment?.level === "elevated" &&
-    !staffAssuranceWithinRun(effectiveAssurance, {
-      runCreatedAt: req.run.created_at,
+    !isFreshA3Since(effectiveAssurance, {
+      since: req.run.created_at,
       now: new Date(),
     })
   ) {

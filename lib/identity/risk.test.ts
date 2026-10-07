@@ -3,6 +3,7 @@ import { CAPABILITIES } from "@/lib/autonomy/capabilities/registry";
 import {
   assessAccountRisk,
   isAccountCapability,
+  isFreshA3Since,
   namesOtherPerson,
   type AccountRiskFacts,
 } from "./risk";
@@ -183,5 +184,38 @@ describe("isAccountCapability", () => {
       "revoke_user_sessions",
       "send_password_reset_link",
     ]);
+  });
+});
+
+describe("isFreshA3Since", () => {
+  const assurance = {
+    level: "A3" as const,
+    method: "passkey",
+    authAt: "2026-10-10T11:00:00.000Z",
+    expiresAt: "2026-10-10T13:00:00.000Z",
+  };
+
+  test("accepts A3 assurance authenticated since the boundary and not expired", () => {
+    expect(
+      isFreshA3Since(assurance, {
+        since: "2026-10-10T10:00:00.000Z",
+        now,
+      })
+    ).toBe(true);
+  });
+
+  test("rejects assurance from before the boundary or that has expired", () => {
+    expect(
+      isFreshA3Since(assurance, {
+        since: "2026-10-10T11:00:00.001Z",
+        now,
+      })
+    ).toBe(false);
+    expect(
+      isFreshA3Since(
+        { ...assurance, expiresAt: "2026-10-10T11:59:59.999Z" },
+        { since: "2026-10-10T10:00:00.000Z", now }
+      )
+    ).toBe(false);
   });
 });

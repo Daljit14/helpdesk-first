@@ -117,60 +117,74 @@ export async function loadAccountRiskFacts(
   const cutoff = new Date(input.now.getTime() - 24 * 60 * 60 * 1_000);
   let priorAccountRequests24h: number | null = null;
   try {
-    const ownedTickets = await admin
-      .from("tickets")
-      .select("id")
-      .eq("organization_id", input.organizationId)
-      .eq("user_id", input.subjectUserId);
-    if (ownedTickets.error) throw new Error("risk_ticket_lookup_failed");
-    const ticketIds = (ownedTickets.data ?? []).map((row) => row.id as string);
-    if (ticketIds.length === 0) {
+    const accountCapabilityIds = CAPABILITIES.filter(isAccountCapability).map(
+      (capability) => capability.id
+    );
+    const [approvals, executions] = await Promise.all([
+      admin
+        .from("approval_requests")
+        .select("run_id,ticket_id")
+        .eq("organization_id", input.organizationId)
+        .in("capability_id", accountCapabilityIds)
+        .gte("created_at", cutoff.toISOString())
+        .limit(200),
+      admin
+        .from("capability_executions")
+        .select("run_id")
+        .eq("organization_id", input.organizationId)
+        .in("capability_id", accountCapabilityIds)
+        .gte("created_at", cutoff.toISOString())
+        .limit(200),
+    ]);
+    if (approvals.error || executions.error)
+      throw new Error("risk_request_lookup_failed");
+    const candidateRunIds = new Set<string>();
+    for (const row of [...(approvals.data ?? []), ...(executions.data ?? [])]) {
+      if (typeof row.run_id === "string" && row.run_id !== input.currentRunId)
+        candidateRunIds.add(row.run_id);
+    }
+    if (candidateRunIds.size === 0) {
       priorAccountRequests24h = 0;
     } else {
       const runs = await admin
         .from("resolution_runs")
-        .select("id")
+        .select("id,ticket_id")
         .eq("organization_id", input.organizationId)
-        .in("ticket_id", ticketIds);
+        .in("id", [...candidateRunIds]);
       if (runs.error) throw new Error("risk_run_lookup_failed");
-      const runIds = (runs.data ?? []).map((row) => row.id as string);
-      const accountCapabilityIds = CAPABILITIES.filter(isAccountCapability).map(
-        (capability) => capability.id
-      );
-      if (runIds.length === 0) {
+      const runRows = runs.data ?? [];
+      const ticketIds = [
+        ...new Set(
+          runRows
+            .map((row) => row.ticket_id)
+            .filter(
+              (ticketId): ticketId is string => typeof ticketId === "string"
+            )
+        ),
+      ];
+      if (ticketIds.length === 0) {
         priorAccountRequests24h = 0;
       } else {
-        const [approvals, executions] = await Promise.all([
-          admin
-            .from("approval_requests")
-            .select("run_id")
-            .eq("organization_id", input.organizationId)
-            .in("ticket_id", ticketIds)
-            .in("run_id", runIds)
-            .in("capability_id", accountCapabilityIds)
-            .gte("created_at", cutoff.toISOString()),
-          admin
-            .from("capability_executions")
-            .select("run_id")
-            .eq("organization_id", input.organizationId)
-            .in("run_id", runIds)
-            .in("capability_id", accountCapabilityIds)
-            .gte("created_at", cutoff.toISOString()),
-        ]);
-        if (approvals.error || executions.error)
-          throw new Error("risk_request_lookup_failed");
-        const priorRunIds = new Set<string>();
-        for (const row of [
-          ...(approvals.data ?? []),
-          ...(executions.data ?? []),
-        ]) {
-          if (
-            typeof row.run_id === "string" &&
-            row.run_id !== input.currentRunId
-          )
-            priorRunIds.add(row.run_id);
-        }
-        priorAccountRequests24h = priorRunIds.size;
+        const ownedTickets = await admin
+          .from("tickets")
+          .select("id")
+          .eq("organization_id", input.organizationId)
+          .in("id", ticketIds)
+          .eq("user_id", input.subjectUserId);
+        if (ownedTickets.error) throw new Error("risk_ticket_lookup_failed");
+        const ownedTicketIds = new Set(
+          (ownedTickets.data ?? []).map((row) => row.id as string)
+        );
+        priorAccountRequests24h = new Set(
+          runRows
+            .filter(
+              (row) =>
+                typeof row.id === "string" &&
+                typeof row.ticket_id === "string" &&
+                ownedTicketIds.has(row.ticket_id)
+            )
+            .map((row) => row.id as string)
+        ).size;
       }
     }
   } catch {

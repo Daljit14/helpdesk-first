@@ -82,8 +82,13 @@ import { trustLabel } from "@/lib/research/labels";
 import type { TrustTier } from "@/lib/research/types";
 import { CallerVerificationPanel } from "@/components/admin/caller-verification-panel";
 import { isStaffVerificationEnabled } from "@/lib/admin/flags";
+import { getCapability } from "@/lib/autonomy/capabilities/registry";
+import { isAccountCapability } from "@/lib/identity/risk";
 import { loadCallerDirectoryFacts } from "@/lib/identity/risk-server";
-import { loadStaffVerification } from "@/lib/identity/staff-verification";
+import {
+  loadStaffVerification,
+  STAFF_VERIFICATION_TTL_MS,
+} from "@/lib/identity/staff-verification";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -442,12 +447,15 @@ export default async function AdminTicketPage({
     pendingApprovals: Array<{
       id: string;
       capabilityId: string;
+      accountAction: boolean;
       expiresAt: string;
     }>;
   } | null = null;
   if (staffVerificationEnabled && ticket.user_id) {
     const now = new Date();
-    const cutoff = new Date(now.getTime() - 15 * 60_000).toISOString();
+    const cutoff = new Date(
+      now.getTime() - STAFF_VERIFICATION_TTL_MS
+    ).toISOString();
     const [directoryFacts, verificationResult, approvalResult] =
       await Promise.all([
         loadCallerDirectoryFacts(admin, session.organizationId, ticket.user_id),
@@ -462,7 +470,7 @@ export default async function AdminTicketPage({
           .order("created_at", { ascending: false }),
         admin
           .from("approval_requests")
-          .select("id,capability_id,expires_at")
+          .select("id,capability_id,capability_version,expires_at")
           .eq("organization_id", session.organizationId)
           .eq("ticket_id", ticket.id)
           .eq("type", "technician_approval")
@@ -487,11 +495,23 @@ export default async function AdminTicketPage({
           "directory_callback" | "manager_confirmed" | "idp_push",
         createdAt: row.created_at,
       })),
-      pendingApprovals: (approvalResult.data ?? []).map((row) => ({
-        id: row.id,
-        capabilityId: row.capability_id,
-        expiresAt: row.expires_at,
-      })),
+      pendingApprovals: (approvalResult.data ?? []).map((row) => {
+        const capability =
+          typeof row.capability_id === "string"
+            ? getCapability(
+                row.capability_id,
+                typeof row.capability_version === "number"
+                  ? row.capability_version
+                  : 1
+              )
+            : null;
+        return {
+          id: row.id,
+          capabilityId: row.capability_id,
+          accountAction: capability ? isAccountCapability(capability) : false,
+          expiresAt: row.expires_at,
+        };
+      }),
     };
   }
   const exceptionDetails = verificationExceptionDetails(

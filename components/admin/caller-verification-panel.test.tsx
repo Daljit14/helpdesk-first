@@ -56,6 +56,13 @@ describe("CallerVerificationPanel", () => {
           {
             id: "approval-1",
             capabilityId: "send_password_reset_link",
+            accountAction: true,
+            expiresAt: new Date(Date.now() + 60_000).toISOString(),
+          },
+          {
+            id: "approval-2",
+            capabilityId: "search_approved_knowledge",
+            accountAction: false,
             expiresAt: new Date(Date.now() + 60_000).toISOString(),
           },
         ]}
@@ -73,6 +80,8 @@ describe("CallerVerificationPanel", () => {
       })
     ).toBeDisabled();
     expect(screen.getByText("Not verified")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
+    const approveButtons = screen.getAllByRole("button", { name: "Approve" });
+    expect(approveButtons[0]).toBeDisabled();
+    expect(approveButtons[1]).toBeEnabled();
   });
 });

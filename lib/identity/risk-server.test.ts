@@ -43,11 +43,13 @@ function makeAdmin(options: { errorTable?: string } = {}) {
   const queries: Array<{
     table: string;
     filters: Array<[string, string, unknown]>;
+    limits: number[];
   }> = [];
   const from = vi.fn((table: string) => {
     const query = {
       table,
       filters: [] as Array<[string, string, unknown]>,
+      limits: [] as number[],
       select: () => query,
       eq: (column: string, value: unknown) => {
         query.filters.push(["eq", column, value]);
@@ -62,7 +64,10 @@ function makeAdmin(options: { errorTable?: string } = {}) {
         return query;
       },
       order: () => query,
-      limit: () => query,
+      limit: (value: number) => {
+        query.limits.push(value);
+        return query;
+      },
       maybeSingle: async () => {
         const rows = await execute();
         return { data: rows.data?.[0] ?? null, error: rows.error };
@@ -88,6 +93,11 @@ function makeAdmin(options: { errorTable?: string } = {}) {
         resolution_runs: [
           {
             id: "run-prior",
+            ticket_id: "ticket-1",
+            organization_id: "org-1",
+          },
+          {
+            id: "run-current",
             ticket_id: "ticket-1",
             organization_id: "org-1",
           },
@@ -167,17 +177,17 @@ beforeEach(() => {
 });
 
 describe("loadAccountRiskFacts", () => {
-  test("counts distinct account-capability runs for only the subject's tickets", async () => {
+  test("does not count candidate runs owned by another ticket requester", async () => {
     const { admin, queries } = makeAdmin();
     const facts = await loadAccountRiskFacts(admin, {
       organizationId: "org-1",
       subjectUserId: "user-1",
-      currentRunId: "run-current",
+      currentRunId: null,
       texts: ["Please reset my password."],
       now,
     });
     expect(facts).toMatchObject({
-      priorAccountRequests24h: 1,
+      priorAccountRequests24h: 2,
       mfaChangedAt: directoryFacts.mfaChangedAt,
       newestDeviceEnrolledAt: "2026-10-10T10:00:00.000Z",
       namesOtherPerson: false,
@@ -185,7 +195,28 @@ describe("loadAccountRiskFacts", () => {
     });
     expect(
       queries.find((query) => query.table === "resolution_runs")?.filters
-    ).toContainEqual(["in", "ticket_id", ["ticket-1"]]);
+    ).toContainEqual(["in", "id", ["run-prior", "run-current", "run-other"]]);
+    expect(
+      queries.find((query) => query.table === "approval_requests")?.limits
+    ).toEqual([200]);
+    expect(
+      queries.find((query) => query.table === "capability_executions")?.limits
+    ).toEqual([200]);
+  });
+
+  test("excludes the current run before resolving candidate runs", async () => {
+    const { admin, queries } = makeAdmin();
+    const facts = await loadAccountRiskFacts(admin, {
+      organizationId: "org-1",
+      subjectUserId: "user-1",
+      currentRunId: "run-current",
+      texts: [],
+      now,
+    });
+    expect(facts.priorAccountRequests24h).toBe(1);
+    expect(
+      queries.find((query) => query.table === "resolution_runs")?.filters
+    ).toContainEqual(["in", "id", ["run-prior", "run-other"]]);
   });
 
   test("fails closed to unknown when account-history queries fail", async () => {

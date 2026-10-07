@@ -8,12 +8,6 @@ import {
 } from "@/app/actions/admin-caller-verification";
 import { Panel } from "@/components/admin/ui/admin-kit";
 
-const accountCapabilities = new Set([
-  "send_password_reset_link",
-  "revoke_user_sessions",
-  "grant_group_access",
-]);
-
 type VerificationMethod =
   "directory_callback" | "manager_confirmed" | "idp_push";
 
@@ -27,6 +21,7 @@ type Props = {
   pendingApprovals: Array<{
     id: string;
     capabilityId: string;
+    accountAction: boolean;
     expiresAt: string;
   }>;
 };
@@ -147,7 +142,7 @@ export function CallerVerificationPanel({
             Pending technician approvals
           </h3>
           {pendingApprovals.map((approval) => {
-            const isAccount = accountCapabilities.has(approval.capabilityId);
+            const isAccount = approval.accountAction;
             const disabled = pending || (isAccount && !isVerified);
             return (
               <div

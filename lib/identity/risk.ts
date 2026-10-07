@@ -134,19 +134,19 @@ export function isAccountCapability(definition: CapabilityDefinition): boolean {
   );
 }
 
-export function staffAssuranceWithinRun(
+export function isFreshA3Since(
   assurance: AssuranceFacts | undefined,
-  input: { runCreatedAt: string; now: Date }
+  input: { since: string; now: Date }
 ): assurance is AssuranceFacts {
   if (!assurance || assurance.level !== "A3") return false;
   const authAt = timestamp(assurance.authAt);
   const expiresAt = timestamp(assurance.expiresAt);
-  const runCreatedAt = timestamp(input.runCreatedAt);
+  const since = timestamp(input.since);
   return (
     authAt !== null &&
     expiresAt !== null &&
-    runCreatedAt !== null &&
-    authAt >= runCreatedAt &&
+    since !== null &&
+    authAt >= since &&
     authAt <= input.now.getTime() &&
     expiresAt > input.now.getTime()
   );

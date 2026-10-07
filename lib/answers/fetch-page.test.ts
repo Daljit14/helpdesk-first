@@ -134,6 +134,48 @@ describe("safe answer page fetching", () => {
     expect(failedFetch).not.toHaveBeenCalled();
   });
 
+  test("matches robots wildcards, end anchors, and Allow ties", async () => {
+    const fetchWithRules = (
+      host: string,
+      path: string,
+      rules: string
+    ): Promise<Awaited<ReturnType<typeof fetchPage>>> =>
+      fetchPage(`https://${host}.support.microsoft.com${path}`, {
+        tier: "vendor",
+        signal: new AbortController().signal,
+        fetchImpl: vi.fn(async () => pageResponse("<main><p>safe</p></main>")),
+        robots: async () => ({ status: 200, text: `User-agent: *\n${rules}` }),
+      });
+
+    expect(
+      await fetchWithRules("robots-query-block", "/a?b", "Disallow: /*?")
+    ).toEqual({ ok: false, reason: "robots_disallowed" });
+    expect(
+      (await fetchWithRules("robots-query-allow", "/a", "Disallow: /*?")).ok
+    ).toBe(true);
+    expect(
+      await fetchWithRules("robots-pdf-block", "/x.pdf", "Disallow: /*.pdf$")
+    ).toEqual({ ok: false, reason: "robots_disallowed" });
+    expect(
+      (
+        await fetchWithRules(
+          "robots-pdf-query-allow",
+          "/x.pdf?y",
+          "Disallow: /*.pdf$"
+        )
+      ).ok
+    ).toBe(true);
+    expect(
+      (
+        await fetchWithRules(
+          "robots-tie-allow",
+          "/p",
+          "Allow: /p\nDisallow: /p"
+        )
+      ).ok
+    ).toBe(true);
+  });
+
   test("caps response bytes, rejects non-text content, and extracts useful HTML", async () => {
     const tooLarge = await fetchPage(
       "https://large.support.microsoft.com/article",

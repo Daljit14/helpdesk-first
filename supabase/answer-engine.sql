@@ -130,15 +130,6 @@ drop policy if exists answer_engine_usage_service_role on public.answer_engine_u
 create policy answer_engine_usage_service_role on public.answer_engine_usage
   for all to service_role using (true) with check (true);
 
-revoke all on table public.answer_source_cache, public.answer_cache,
-  public.answer_engine_runs, public.answer_engine_feedback,
-  public.answer_engine_usage from public, anon, authenticated;
-grant select on table public.answer_cache, public.answer_engine_runs,
-  public.answer_engine_feedback to authenticated;
-grant all on table public.answer_source_cache, public.answer_cache,
-  public.answer_engine_runs, public.answer_engine_feedback,
-  public.answer_engine_usage to service_role;
-
 create or replace function public.answer_engine_append_only()
 returns trigger language plpgsql as $$
 begin

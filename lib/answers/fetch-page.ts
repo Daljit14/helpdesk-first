@@ -125,13 +125,26 @@ function rulesFor(groups: RobotsGroup[]): RobotsRule[] {
     .flatMap((group) => group.rules);
 }
 
+function robotsPattern(path: string): RegExp {
+  const endAnchored = path.endsWith("$");
+  const rulePath = endAnchored ? path.slice(0, -1) : path;
+  const pattern = rulePath
+    .split("*")
+    .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    .join(".*");
+  return new RegExp(`^${pattern}${endAnchored ? "$" : ""}`);
+}
+
 function robotsAllows(rules: RobotsRule[], path: string): boolean {
   const matched = rules
-    .filter((rule) => path.startsWith(rule.path))
-    .sort((left, right) => right.path.length - left.path.length);
+    .filter((rule) => robotsPattern(rule.path).test(path))
+    .sort(
+      (left, right) =>
+        right.path.length - left.path.length ||
+        Number(right.allow) - Number(left.allow)
+    );
   if (matched.length === 0) return true;
-  const longest = matched[0].path.length;
-  return matched.find((rule) => rule.path.length === longest)?.allow ?? true;
+  return matched[0].allow;
 }
 
 async function defaultRobotsFetcher(

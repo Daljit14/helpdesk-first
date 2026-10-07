@@ -532,9 +532,7 @@ export async function runAnswerEngine(
             config.cacheTtlHours
           );
           drafts.push(...result);
-        } catch {
-          return drafts;
-        }
+        } catch {}
       }
     }
 
@@ -561,9 +559,7 @@ export async function runAnswerEngine(
             config.cacheTtlHours
           );
           drafts.push(...result);
-        } catch {
-          return drafts;
-        }
+        } catch {}
       }
     }
     return drafts;

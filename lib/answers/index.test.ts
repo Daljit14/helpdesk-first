@@ -374,6 +374,55 @@ describe("runAnswerEngine", () => {
     expect(memory.runs[0]).toMatchObject({ status: "answered" });
   });
 
+  test("continues to Stack Exchange when Wikipedia lookup throws", async () => {
+    const memory = state();
+    const admin = fakeAdmin(memory);
+    const wikipediaSearch = vi.fn(async () => {
+      throw new Error("Wikipedia unavailable");
+    });
+    const stackexchangeSearch = vi.fn(async () => [
+      {
+        provider: "stackexchange" as const,
+        url: "https://superuser.com/questions/123",
+        domain: "superuser.com",
+        title: "Adapter troubleshooting",
+        text: "Open Settings and select the app.",
+        attribution: "Helper on Super User",
+      },
+    ]);
+    const result = await runAnswerEngine(
+      admin as never,
+      engineInput({
+        deps: {
+          webProviders: [],
+          wikipedia: { id: "wikipedia", search: wikipediaSearch },
+          stackexchange: {
+            id: "stackexchange",
+            search: stackexchangeSearch,
+          },
+          loadVendorDomains: async () => [],
+          synthesize,
+        },
+        configOverride: {
+          ...config,
+          wikipediaEnabled: true,
+          stackexchangeEnabled: true,
+          stackexchangeKey: "fake-key",
+        },
+      })
+    );
+
+    expect(wikipediaSearch).toHaveBeenCalled();
+    expect(stackexchangeSearch).toHaveBeenCalled();
+    expect(result.sources).toContainEqual(
+      expect.objectContaining({
+        domain: "superuser.com",
+        tier: "qa_community",
+      })
+    );
+    expect(result.answer?.steps[0]?.sourceIds).toEqual(["s1"]);
+  });
+
   test("screens search API snippets before placing them in the synthesis prompt", async () => {
     const memory = state();
     const admin = fakeAdmin(memory);

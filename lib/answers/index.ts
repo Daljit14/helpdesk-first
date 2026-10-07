@@ -32,6 +32,7 @@ import { answerSourceFromResearch, createWebProviders } from "./providers/web";
 import { createWikipediaProvider } from "./providers/wikipedia";
 import { createStackExchangeProvider } from "./providers/stackexchange";
 import { TIER_RANK } from "./types";
+import type { HostResolver } from "./safe-dns";
 import type {
   Answer,
   AnswerEngineResult,
@@ -315,6 +316,7 @@ export async function runAnswerEngine(
       stackexchange?: AnswerProvider;
       fetchPage?: typeof fetchPage;
       fetchImpl?: typeof fetch;
+      resolveHost?: HostResolver;
       synthesize?: Synthesizer | null;
       loadVendorDomains?: (
         organizationId: string
@@ -617,6 +619,7 @@ export async function runAnswerEngine(
             tier: source.tier,
             signal,
             fetchImpl: input.deps?.fetchImpl,
+            resolveHost: input.deps?.resolveHost,
             orgDomains,
           });
         } catch {

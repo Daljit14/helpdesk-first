@@ -2,6 +2,12 @@ import { answerTierFor, isRedditHost } from "./tiers";
 import { extractPageText, htmlToText } from "./html";
 import { screenSourceText } from "./screen";
 import type { SourceTier } from "./types";
+import {
+  pinnedFetch,
+  resolvePublicHost,
+  type HostResolver,
+  type ResolvedAddress,
+} from "./safe-dns";
 import { validateStatusBaseUrl } from "@/lib/service-health/url";
 
 const PAGE_LIMIT = 1024 * 1024;
@@ -24,7 +30,9 @@ export type FetchPageReason =
   | "bad_content_type"
   | "http_error"
   | "timeout"
-  | "redirect_rejected";
+  | "redirect_rejected"
+  | "private_network"
+  | "dns_failed";
 
 export type FetchPageResult =
   | { ok: true; text: string; withheld: number }
@@ -218,12 +226,35 @@ function validatedTier(
   return answerTierFor(url.toString(), orgDomains);
 }
 
+function normalizedHost(url: URL): string {
+  return url.hostname.toLowerCase().replace(/\.$/, "");
+}
+
+function hopFetcher(
+  hostname: string,
+  address: ResolvedAddress,
+  fetchImpl?: typeof fetch
+): typeof fetch {
+  return (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url =
+      input instanceof URL
+        ? input
+        : new URL(typeof input === "string" ? input : input.url);
+    if (normalizedHost(url) !== hostname)
+      throw new Error("pinned request host mismatch");
+    return fetchImpl
+      ? fetchImpl(input, init)
+      : pinnedFetch(url, init ?? {}, address);
+  }) as typeof fetch;
+}
+
 export async function fetchPage(
   rawUrl: string,
   options: {
     tier: SourceTier;
     signal: AbortSignal;
     fetchImpl?: typeof fetch;
+    resolveHost?: HostResolver;
     robots?: RobotsFetcher;
     orgDomains?: readonly string[];
   }
@@ -244,7 +275,17 @@ export async function fetchPage(
   if (!isFetchableTier(currentTier) || currentTier !== options.tier)
     return { ok: false, reason: "tier_not_fetchable" };
 
-  const fetchImpl = options.fetchImpl ?? fetch;
+  const resolved = await resolvePublicHost(
+    normalizedHost(current),
+    options.signal,
+    options.resolveHost
+  );
+  if (!resolved.ok) return { ok: false, reason: resolved.reason };
+  let fetchImpl = hopFetcher(
+    normalizedHost(current),
+    resolved.address,
+    options.fetchImpl
+  );
   const rules = await getRobotsRules(
     current,
     options.signal,
@@ -300,6 +341,18 @@ export async function fetchPage(
           tierRank(targetTier) > tierRank(currentTier)
         )
           return { ok: false, reason: "redirect_rejected" };
+        const targetResolved = await resolvePublicHost(
+          normalizedHost(target),
+          options.signal,
+          options.resolveHost
+        );
+        if (!targetResolved.ok)
+          return { ok: false, reason: targetResolved.reason };
+        fetchImpl = hopFetcher(
+          normalizedHost(target),
+          targetResolved.address,
+          options.fetchImpl
+        );
         const targetRules = await getRobotsRules(
           target,
           options.signal,

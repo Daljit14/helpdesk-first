@@ -98,6 +98,8 @@ const config = {
   contact: "https://example.test/contact",
 };
 
+const publicResolver = async () => [{ address: "8.8.8.8", family: 4 as const }];
+
 function researchProvider(
   id: "brave" | "tavily",
   search: ReturnType<typeof vi.fn>
@@ -132,6 +134,7 @@ async function synthesize(prompt: string): Promise<unknown> {
 function engineInput(
   overrides: Partial<Parameters<typeof runAnswerEngine>[1]> = {}
 ): Parameters<typeof runAnswerEngine>[1] {
+  const { deps: dependencyOverrides, ...inputOverrides } = overrides;
   return {
     organizationId: "org-test",
     agentSessionId: null,
@@ -143,10 +146,12 @@ function engineInput(
     deps: {
       webProviders: [],
       loadVendorDomains: async () => [],
+      resolveHost: publicResolver,
       synthesize,
+      ...dependencyOverrides,
     },
     configOverride: config,
-    ...overrides,
+    ...inputOverrides,
   };
 }
 

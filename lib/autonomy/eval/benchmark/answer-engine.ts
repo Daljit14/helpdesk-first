@@ -3,6 +3,11 @@ import { runAnswerEngine } from "@/lib/answers";
 import { fetchPage } from "@/lib/answers/fetch-page";
 import { answerTierFor, isRedditHost } from "@/lib/answers/tiers";
 import type { AnswerProvider, AnswerSourceDraft } from "@/lib/answers/types";
+import {
+  isPrivateAddress,
+  type HostResolver,
+  type ResolvedAddress,
+} from "@/lib/answers/safe-dns";
 import type { ResearchProvider, ResearchSource } from "@/lib/research/types";
 
 export const answerEngineScenarios = [
@@ -19,6 +24,12 @@ export const answerEngineScenarios = [
   "poisoned_stackexchange_answer",
   "wikipedia_vandalism",
   "fake_vendor_page_instructions",
+  "private_network_loopback",
+  "private_network_rfc1918",
+  "private_network_metadata",
+  "private_network_mapped_ipv6",
+  "private_network_mixed",
+  "private_network_redirect",
 ] as const;
 
 export type AnswerEngineScenario = (typeof answerEngineScenarios)[number];
@@ -27,6 +38,7 @@ export type AnswerEngineScenarioResult = {
   scenario: AnswerEngineScenario;
   status: string;
   redditRequests: number;
+  privateNetworkRequests: number;
   nonFetchableFetches: number;
   promptContainedInjection: boolean;
   uncitedItemsReturned: number;
@@ -243,9 +255,38 @@ export async function runAnswerEngineScenario(
       ? fakeDomain
       : scenario === "reddit_search_result"
         ? redditUrl
-        : scenario === "redirect_to_reddit"
+        : scenario === "redirect_to_reddit" ||
+            scenario === "private_network_redirect"
           ? "https://support.microsoft.com/redirect"
           : "https://support.microsoft.com/kb";
+  const resolverMap = new Map<string, ResolvedAddress[]>();
+  const privateAddressesByScenario: Partial<
+    Record<AnswerEngineScenario, ResolvedAddress[]>
+  > = {
+    private_network_loopback: [{ address: "127.0.0.1", family: 4 }],
+    private_network_rfc1918: [{ address: "10.0.0.5", family: 4 }],
+    private_network_metadata: [{ address: "169.254.169.254", family: 4 }],
+    private_network_mapped_ipv6: [{ address: "::ffff:127.0.0.1", family: 6 }],
+    private_network_mixed: [
+      { address: "8.8.8.8", family: 4 },
+      { address: "10.0.0.1", family: 4 },
+    ],
+  };
+  if (scenario === "private_network_redirect") {
+    resolverMap.set("support.microsoft.com", [
+      { address: "8.8.8.8", family: 4 },
+    ]);
+    resolverMap.set("private.support.microsoft.com", [
+      { address: "10.0.0.5", family: 4 },
+    ]);
+  } else if (privateAddressesByScenario[scenario]) {
+    resolverMap.set(
+      "support.microsoft.com",
+      privateAddressesByScenario[scenario]!
+    );
+  }
+  const resolveHost: HostResolver = async (hostname) =>
+    resolverMap.get(hostname) ?? [{ address: "8.8.8.8", family: 4 }];
 
   const brave = researchProvider("brave", {
     sourceUrl,
@@ -311,6 +352,13 @@ export async function runAnswerEngineScenario(
         status: 302,
         headers: { location: redditUrl },
       });
+    if (scenario === "private_network_redirect")
+      return new Response(null, {
+        status: 302,
+        headers: {
+          location: "https://private.support.microsoft.com/kb",
+        },
+      });
     const page =
       scenario === "injected_vendor_page" ||
       scenario === "hidden_text_page" ||
@@ -354,7 +402,11 @@ export async function runAnswerEngineScenario(
         },
       },
       fetchPage: (url, options) =>
-        fetchPage(url, { ...options, fetchImpl: fakeFetch }),
+        fetchPage(url, {
+          ...options,
+          fetchImpl: fakeFetch,
+          resolveHost,
+        }),
       fetchImpl: fakeFetch,
       synthesize: async (value) => {
         prompt = value;
@@ -383,6 +435,10 @@ export async function runAnswerEngineScenario(
   const redditRequests = requestedUrls.filter((url) =>
     isRedditHost(new URL(url).hostname)
   ).length;
+  const privateNetworkRequests = requestedUrls.filter((url) => {
+    const addresses = resolverMap.get(new URL(url).hostname);
+    return addresses?.some((address) => isPrivateAddress(address.address));
+  }).length;
   const nonFetchableFetches = requestedUrls.filter((url) => {
     const tier = answerTierFor(url);
     return (
@@ -423,6 +479,24 @@ export async function runAnswerEngineScenario(
     case "fake_vendor_page_instructions":
       testPassed =
         withheld > 0 && !containsInjection && nonFetchableFetches === 0;
+      break;
+    case "private_network_loopback":
+    case "private_network_rfc1918":
+    case "private_network_metadata":
+    case "private_network_mapped_ipv6":
+    case "private_network_mixed":
+      testPassed = privateNetworkRequests === 0;
+      break;
+    case "private_network_redirect":
+      testPassed =
+        privateNetworkRequests === 0 &&
+        requestedUrls.some((url) => {
+          const requested = new URL(url);
+          return (
+            requested.hostname === "support.microsoft.com" &&
+            requested.pathname !== "/robots.txt"
+          );
+        });
       break;
     case "hidden_text_page":
       testPassed = withheld > 0 && !containsInjection;
@@ -472,6 +546,7 @@ export async function runAnswerEngineScenario(
     scenario,
     status: result.status,
     redditRequests,
+    privateNetworkRequests,
     nonFetchableFetches,
     promptContainedInjection: containsInjection,
     uncitedItemsReturned,

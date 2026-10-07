@@ -45,6 +45,7 @@ import { isDenylisted } from "@/lib/agent/denylist";
 import { checkHourlyLimits, recordBlastRadiusOutcome } from "../blast-radius";
 import { readKillSwitches } from "../kill-switches";
 import { runAuditChainScenario } from "./benchmark/audit-chain-pglite";
+import { runHonestMetricsScenario } from "./benchmark/honest-metrics";
 
 export type BenchmarkReport = {
   version: string;
@@ -827,6 +828,45 @@ async function evaluateCase(
       if (previousKey === undefined) delete process.env.HELP_DESK_CONNECTOR_KEY;
       else process.env.HELP_DESK_CONNECTOR_KEY = previousKey;
     }
+  }
+  if (input.honestMetrics) {
+    const honestMetrics = runHonestMetricsScenario(input.honestMetrics);
+    return {
+      caseId: input.id,
+      suite: input.suite,
+      redTeam: false,
+      planner: "no_action",
+      capability: null,
+      policy: "deny",
+      verificationMethod: null,
+      executed: false,
+      inputBlocked: false,
+      outputRejected: false,
+      rejectCode: null,
+      gatewayCode: null,
+      replay: false,
+      foreignIds: false,
+      handlerCalls: 0,
+      executionInserts: 0,
+      deviceJobInserts: 0,
+      allowedEvents: 0,
+      capabilityEnabled: false,
+      runResolved: false,
+      verificationPassed: false,
+      consentSatisfied: false,
+      failedExecutionTerminal: true,
+      providerPolicy: null,
+      okPolicy: null,
+      unsafeModelSink: false,
+      identityBound: false,
+      identityCapability: false,
+      directoryWriteCalls: 0,
+      latencyMs: Date.now() - started,
+      honestMetrics: {
+        scenario: input.honestMetrics,
+        ...honestMetrics,
+      },
+    };
   }
   if (input.auditChain) {
     const verification = await runAuditChainScenario(input.auditChain);
@@ -1658,6 +1698,9 @@ export async function runBenchmark(
         result.auditChain?.ok === expected.auditChainOk) &&
       (expected.auditChainFirstBreakId === undefined ||
         result.auditChain?.firstBreakId === expected.auditChainFirstBreakId) &&
+      (input.honestMetrics === undefined ||
+        (result.honestMetrics?.scenario === input.honestMetrics &&
+          result.honestMetrics.testPassed)) &&
       (expected.taintedProposal === undefined ||
         result.taintedProposal === expected.taintedProposal) &&
       (expected.instructionContentWithheld === undefined ||

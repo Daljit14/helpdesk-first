@@ -9,6 +9,7 @@ import { requesterAgentCasesAll } from "./requester-agent";
 import { blastRadiusCases } from "./blast-radius";
 import { auditChainCases } from "./audit-chain";
 import { identityAssuranceCases } from "./identity-assurance";
+import { honestMetricsCases } from "./honest-metrics";
 
 const base = {
   version: BENCHMARK_VERSION,
@@ -99,6 +100,7 @@ export const benchmarkCases = [
   ...blastRadiusCases,
   ...auditChainCases,
   ...identityAssuranceCases,
+  ...honestMetricsCases,
   ...catalogCases,
   ...redTeamCases,
   ...identityCases,

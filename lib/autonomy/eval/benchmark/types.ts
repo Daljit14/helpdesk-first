@@ -372,6 +372,16 @@ export const benchmarkCaseSchema = z
     taintScenario: taintScenario.optional(),
     blastRadius: blastRadius.optional(),
     auditChain: z.enum(["intact", "delete_middle"]).optional(),
+    honestMetrics: z
+      .enum([
+        "abandoned",
+        "pending_72h",
+        "staff_touched_after_resolve",
+        "same_requester_24h_rereport",
+        "came_back_feedback",
+        "mixed",
+      ])
+      .optional(),
     expected,
   })
   .strict();

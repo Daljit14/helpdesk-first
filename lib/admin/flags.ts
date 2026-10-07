@@ -118,6 +118,18 @@ export function isServiceHealthEnabled(): boolean {
   return process.env.HELP_DESK_SERVICE_HEALTH_ENABLED === "true";
 }
 
+export function isAgentAbandonSweepEnabled(): boolean {
+  return process.env.HELP_DESK_AGENT_ABANDON_SWEEP_ENABLED === "true";
+}
+
+export function getAgentAbandonMinutes(): number {
+  const raw = process.env.HELP_DESK_AGENT_ABANDON_MINUTES;
+  if (!raw?.trim()) return 60;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed)) return 60;
+  return Math.min(1440, Math.max(15, Math.trunc(parsed)));
+}
+
 export function isAgentModelRoutingEnabled(): boolean {
   return process.env.HELP_DESK_AGENT_MODEL_ROUTING_ENABLED === "true";
 }

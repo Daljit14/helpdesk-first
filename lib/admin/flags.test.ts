@@ -5,6 +5,8 @@ import {
   isAgentCostTrackingEnabled,
   isAgentModelRoutingEnabled,
   isAgentPromptCacheEnabled,
+  getAgentAbandonMinutes,
+  isAgentAbandonSweepEnabled,
   getIdentityAssuranceFreshMinutes,
   isIdentityAssuranceEnabled,
 } from "./flags";
@@ -34,6 +36,23 @@ describe("requester agent flags", () => {
     expect(isAgentDiagnosticSourcesEnabled()).toBe(true);
     vi.stubEnv("HELP_DESK_AGENT_USER_STEPS_ENABLED", "true");
     expect(isAgentUserStepsEnabled()).toBe(true);
+  });
+
+  test("keeps abandonment sweep disabled by default and clamps its age", () => {
+    expect(isAgentAbandonSweepEnabled()).toBe(false);
+    expect(getAgentAbandonMinutes()).toBe(60);
+
+    vi.stubEnv("HELP_DESK_AGENT_ABANDON_SWEEP_ENABLED", "TRUE");
+    expect(isAgentAbandonSweepEnabled()).toBe(false);
+    vi.stubEnv("HELP_DESK_AGENT_ABANDON_SWEEP_ENABLED", "true");
+    expect(isAgentAbandonSweepEnabled()).toBe(true);
+
+    vi.stubEnv("HELP_DESK_AGENT_ABANDON_MINUTES", "14");
+    expect(getAgentAbandonMinutes()).toBe(15);
+    vi.stubEnv("HELP_DESK_AGENT_ABANDON_MINUTES", "2000");
+    expect(getAgentAbandonMinutes()).toBe(1440);
+    vi.stubEnv("HELP_DESK_AGENT_ABANDON_MINUTES", "invalid");
+    expect(getAgentAbandonMinutes()).toBe(60);
   });
 
   test("keeps identity assurance disabled by default and clamps freshness", () => {

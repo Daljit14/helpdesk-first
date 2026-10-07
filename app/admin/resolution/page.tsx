@@ -8,17 +8,21 @@ import {
   Sparkles,
 } from "lucide-react";
 import { AutonomyMetricsCard } from "@/components/admin/resolution/autonomy-metrics-card";
+import { AnswerEngineCard } from "@/components/admin/resolution/answer-engine-card";
 import { OutcomeFeedbackPanel } from "@/components/admin/resolution/outcome-feedback-panel";
 import { ResolutionCenterTable } from "@/components/admin/resolution/resolution-center-table";
 import { ResolutionTabs } from "@/components/admin/resolution/resolution-tabs";
 import { AuditChainExportForm } from "./audit-chain-export-form";
 import { getAutonomyMetrics } from "@/lib/analytics/autonomy-metrics";
+import { loadAnswerEngineMetrics } from "@/lib/analytics/answer-engine-metrics";
 import { requireAdminPage } from "@/lib/admin/auth";
 import {
   isOutcomeFeedbackEnabled,
   isResolutionCenterEnabled,
+  isAnswerEngineEnabled,
 } from "@/lib/admin/flags";
 import { getResolutionCenterOverview } from "@/lib/admin/resolution-center";
+import { createAdminClient } from "@/lib/supabase/admin";
 import {
   AdminHero,
   AdminPage,
@@ -52,9 +56,11 @@ export default async function ResolutionCenterPage({
   const params = await searchParams;
   const showExcluded =
     session.role === "org_admin" && params.showExcluded === "1";
-  const [overview, autonomyMetrics] = await Promise.all([
+  const admin = createAdminClient();
+  const [overview, autonomyMetrics, answerEngineMetrics] = await Promise.all([
     getResolutionCenterOverview(session, { showExcluded }),
     getAutonomyMetrics(session, { showExcluded }),
+    loadAnswerEngineMetrics(admin, session.organizationId, { windowDays: 30 }),
   ]);
   const status = params.status?.toLowerCase();
   const runs = overview.runs.filter((run) => {
@@ -141,6 +147,10 @@ export default async function ResolutionCenterPage({
       </StatGrid>
 
       <AutonomyMetricsCard metrics={autonomyMetrics} />
+      <AnswerEngineCard
+        metrics={answerEngineMetrics}
+        enabled={isAnswerEngineEnabled()}
+      />
       {session.role === "org_admin" && <AuditChainExportForm />}
       {isOutcomeFeedbackEnabled() && (
         <OutcomeFeedbackPanel

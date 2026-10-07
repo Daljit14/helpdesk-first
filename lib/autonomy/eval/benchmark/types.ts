@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { answerEngineScenarios } from "./answer-engine";
 
 const evidenceFixture = z
   .object({
@@ -382,6 +383,7 @@ export const benchmarkCaseSchema = z
         "mixed",
       ])
       .optional(),
+    answerEngine: z.enum(answerEngineScenarios).optional(),
     expected,
   })
   .strict();

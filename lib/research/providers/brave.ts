@@ -32,7 +32,8 @@ function hash(value: string): string {
 }
 
 export function createBraveProvider(
-  apiKey = process.env.BRAVE_SEARCH_API_KEY
+  apiKey = process.env.BRAVE_SEARCH_API_KEY,
+  options: { timeoutMs?: number; maxAttempts?: number } = {}
 ): ResearchProvider {
   return {
     id: "brave",
@@ -70,7 +71,9 @@ export function createBraveProvider(
               fetchedAt: new Date().toISOString(),
             }));
         },
-        signal
+        signal,
+        options.timeoutMs ?? 8000,
+        options.maxAttempts ?? 2
       );
     },
   };

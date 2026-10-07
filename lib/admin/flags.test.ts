@@ -5,6 +5,11 @@ import {
   isAgentCostTrackingEnabled,
   isAgentModelRoutingEnabled,
   isAgentPromptCacheEnabled,
+  isAnswerEngineEnabled,
+  isAnswerEnginePublicEnabled,
+  isAnswerEnginePageFetchEnabled,
+  isStackExchangeSourceEnabled,
+  isWikipediaSourceEnabled,
   getAgentAbandonMinutes,
   isAgentAbandonSweepEnabled,
   getIdentityAssuranceFreshMinutes,
@@ -14,6 +19,26 @@ import {
 afterEach(() => vi.unstubAllEnvs());
 
 describe("requester agent flags", () => {
+  test("keeps answer-engine flags disabled unless explicitly enabled", () => {
+    expect(isAnswerEngineEnabled()).toBe(false);
+    expect(isAnswerEnginePublicEnabled()).toBe(false);
+    expect(isWikipediaSourceEnabled()).toBe(false);
+    expect(isStackExchangeSourceEnabled()).toBe(false);
+    expect(isAnswerEnginePageFetchEnabled()).toBe(false);
+
+    vi.stubEnv("HELP_DESK_ANSWER_ENGINE_PUBLIC_ENABLED", "true");
+    expect(isAnswerEnginePublicEnabled()).toBe(false);
+    vi.stubEnv("HELP_DESK_ANSWER_ENGINE_ENABLED", "true");
+    expect(isAnswerEngineEnabled()).toBe(true);
+    expect(isAnswerEnginePublicEnabled()).toBe(true);
+    vi.stubEnv("HELP_DESK_SOURCE_WIKIPEDIA_ENABLED", "true");
+    vi.stubEnv("HELP_DESK_SOURCE_STACKEXCHANGE_ENABLED", "true");
+    vi.stubEnv("HELP_DESK_PAGE_FETCH_ENABLED", "true");
+    expect(isWikipediaSourceEnabled()).toBe(true);
+    expect(isStackExchangeSourceEnabled()).toBe(true);
+    expect(isAnswerEnginePageFetchEnabled()).toBe(true);
+  });
+
   test("defaults each flag off and only accepts the exact true value", () => {
     expect(isAgentModelRoutingEnabled()).toBe(false);
     expect(isAgentPromptCacheEnabled()).toBe(false);

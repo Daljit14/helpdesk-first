@@ -9,6 +9,7 @@ import {
   isAnswerEngineEnabled,
   isAnswerEnginePublicEnabled,
   isAnswerEnginePageFetchEnabled,
+  isAssistantChatEnabled,
   isStackExchangeSourceEnabled,
   isWikipediaSourceEnabled,
   getAgentAbandonMinutes,
@@ -24,6 +25,14 @@ import {
 afterEach(() => vi.unstubAllEnvs());
 
 describe("requester agent flags", () => {
+  test("keeps assistant chat disabled unless exactly enabled", () => {
+    expect(isAssistantChatEnabled()).toBe(false);
+    vi.stubEnv("HELP_DESK_ASSISTANT_CHAT_ENABLED", "TRUE");
+    expect(isAssistantChatEnabled()).toBe(false);
+    vi.stubEnv("HELP_DESK_ASSISTANT_CHAT_ENABLED", "true");
+    expect(isAssistantChatEnabled()).toBe(true);
+  });
+
   test("keeps organization action policy disabled unless exactly enabled", () => {
     expect(isOrgActionPolicyEnabled()).toBe(false);
     vi.stubEnv("HELP_DESK_ORG_ACTION_POLICY_ENABLED", "TRUE");

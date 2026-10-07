@@ -120,6 +120,10 @@ export function isAnswerEngineEnabled(): boolean {
   return process.env.HELP_DESK_ANSWER_ENGINE_ENABLED === "true";
 }
 
+export function isAssistantChatEnabled(): boolean {
+  return process.env.HELP_DESK_ASSISTANT_CHAT_ENABLED === "true";
+}
+
 export function isAnswerEnginePublicEnabled(): boolean {
   return (
     isAnswerEngineEnabled() &&

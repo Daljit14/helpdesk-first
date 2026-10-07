@@ -818,6 +818,36 @@ describe("AssistantWorkspace", () => {
     ).toBeGreaterThan(0);
   });
 
+  it("shows a conversational greeting reply with example chips when chat is available", async () => {
+    const reply = "Hi! What IT problem can I help with?";
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ status: "ok", reply }),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    mocks.currentOutput = null;
+    mocks.problem = "hyyyyyyyyy";
+    render(<AssistantWorkspace chatAvailable />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(await screen.findByText(reply)).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("button", { name: "Printer is offline" }).length
+    ).toBeGreaterThan(0);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/assistant/chat",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          turns: [{ role: "user", text: "hyyyyyyyyy" }],
+          platform: mocks.platform,
+        }),
+      })
+    );
+  });
+
   it("shows an alert for keyboard mashing and never sends it", () => {
     mocks.currentOutput = null;
     mocks.problem = "dikncjkdbcjb ajbdkajbd";
@@ -867,6 +897,82 @@ describe("AssistantWorkspace", () => {
     expect(
       screen.getByRole("link", { name: "Talk to a person" })
     ).toHaveAttribute("href", expect.stringContaining("intent=human"));
+  });
+
+  it("shows a no-match chat reply while preserving suggested guides and handoff", async () => {
+    const reply = "I'm sorry that isn't working. Which device are you using?";
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ status: "ok", reply }),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    mocks.currentOutput = null;
+    mocks.problem = "my smart fridge display flickers";
+    render(<AssistantWorkspace chatAvailable />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(await screen.findByText(reply)).toBeInTheDocument();
+    expect(screen.getByText("Guides that might help")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /external monitor not detected/i })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Talk to a person" })
+    ).toHaveAttribute("href", expect.stringContaining("intent=human"));
+    expect(
+      screen.queryByRole("heading", {
+        name: "I couldn’t find an approved guide for this yet",
+      })
+    ).not.toBeInTheDocument();
+  });
+
+  it("falls back to the static notice when conversational chat fails", async () => {
+    const fetchMock = vi.fn(async () => {
+      throw new Error("network unavailable");
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    mocks.currentOutput = null;
+    mocks.problem = "my office chair is broken";
+    render(<AssistantWorkspace chatAvailable />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "I couldn’t find an approved guide for this yet",
+      })
+    ).toBeInTheDocument();
+  });
+
+  it("does not call chat for sensitive input", () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    mocks.currentOutput = null;
+    mocks.problem = "my password is hunter2";
+    render(<AssistantWorkspace chatAvailable />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent("Don’t share secrets");
+  });
+
+  it("does not call chat when chat is unavailable", () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    mocks.currentOutput = null;
+    mocks.problem = "my office chair is broken";
+    render(<AssistantWorkspace chatAvailable={false} />);
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("heading", {
+        name: "I couldn’t find an approved guide for this yet",
+      })
+    ).toBeInTheDocument();
   });
 
   it("shows the no-match card for a household appliance", () => {

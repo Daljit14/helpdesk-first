@@ -96,6 +96,15 @@ scenarios. This is code-only: no SQL was added or applied, and the production
 SQL run order remains at 17. See `SETUP-NOTES-E11b.md` for flags, budgets,
 safety screening, and provider-dependent rollout checks.
 
+## Phase E — Support Assistant conversational replies
+
+The Support Assistant can optionally replace eligible no-match, greeting,
+small-talk, too-short, and off-topic notices with a short screened
+conversational reply. The default-off feature preserves static notices as a
+fallback, leaves guide matching and answer-engine behavior unchanged, and
+requires no SQL or hosted configuration. See
+`SETUP-NOTES-assistant-chat.md`.
+
 ## Phase G — G5 organization AI action policy
 
 G5 adds a default-off, organization-admin-managed policy layer with capability

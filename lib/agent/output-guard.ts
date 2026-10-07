@@ -235,6 +235,41 @@ export function guardAgentEvent(
           title: toUserText(incident.title, ctx),
         })),
       };
+    case "answer_card":
+      return {
+        ...event,
+        card: {
+          ...event.card,
+          likelyCause: event.card.likelyCause
+            ? {
+                ...event.card.likelyCause,
+                text: toUserText(event.card.likelyCause.text, ctx),
+              }
+            : null,
+          explanations: event.card.explanations.map((item) => ({
+            ...item,
+            text: toUserText(item.text, ctx),
+          })),
+          steps: event.card.steps.map((step) => ({
+            ...step,
+            text: toUserText(step.text, ctx),
+          })),
+          sources: event.card.sources.flatMap((source) =>
+            isHttpsUrl(source.url)
+              ? [
+                  {
+                    ...source,
+                    title: toUserText(source.title, ctx),
+                    domain: toUserText(source.domain, ctx),
+                    attribution: source.attribution
+                      ? toUserText(source.attribution, ctx)
+                      : null,
+                  },
+                ]
+              : []
+          ),
+        },
+      };
     case "web_sources":
       return {
         ...event,

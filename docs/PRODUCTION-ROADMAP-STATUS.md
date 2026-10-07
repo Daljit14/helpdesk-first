@@ -72,6 +72,17 @@ preserving the hostname for SNI and Host. The DNS-pinning scenarios are covered
 by the 46-gate benchmark at version `2026-10-07.4`. This is a code-only change:
 no SQL was added or applied, and the production SQL run order remains at 16.
 
+## Phase E — E11b answer-first assistant and community tips
+
+E11b wires the default-off answer engine into AssistantWorkspace and the
+requester agent, with a separately gated public endpoint and feedback route.
+Community tips require independent-domain corroboration and deterministic
+step-safety screening; answer content remains external and cannot become an
+agent action. Benchmark version `2026-10-07.5` adds the community-tip gate and
+scenarios. This is code-only: no SQL was added or applied, and the production
+SQL run order remains at 16. See `SETUP-NOTES-E11b.md` for flags, budgets,
+safety screening, and provider-dependent rollout checks.
+
 ## Phase E — E10 conversation quality
 
 E10 adds opt-in structured style-v2 replies, readable hand-off summaries,

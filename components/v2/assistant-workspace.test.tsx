@@ -16,6 +16,7 @@ import {
   MAX_MESSAGE_LENGTH,
 } from "@/lib/ai/validation";
 import { diagnosticQuestions } from "@/lib/ai/types";
+import { matchGuides } from "@/lib/assistant/guide-match";
 import { AssistantWorkspace } from "./assistant-workspace";
 
 const platformQuestionText = diagnosticQuestions.find(
@@ -112,6 +113,7 @@ vi.mock("@/components/ai-assistant-logic", () => ({
 
 afterEach(() => {
   cleanup();
+  vi.unstubAllGlobals();
   sessionStorage.clear();
   mocks.handleSendToSupport.mockReset();
   mocks.recordStepOutcome.mockReset();
@@ -919,5 +921,116 @@ describe("AssistantWorkspace", () => {
     mocks.handleStart.mockClear();
     fireEvent.click(screen.getByRole("button", { name: "Send" }));
     expect(mocks.handleStart).toHaveBeenCalledWith("prnter offline");
+  });
+
+  it("does not fetch answer suggestions when the answer engine is unavailable", () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    mocks.currentOutput = null;
+    mocks.problem =
+      "The ACME event bus refuses a new object schema with error SchemaVersionConflict";
+    expect(matchGuides(mocks.problem).status).toBe("none");
+    render(<AssistantWorkspace answerEngineAvailable={false} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(
+      screen.getByRole("heading", {
+        name: "I couldn’t find an approved guide for this yet",
+      })
+    ).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("shows the trusted-source loading turn and a returned answer card", async () => {
+    let resolveFetch!: (response: {
+      ok: boolean;
+      status: number;
+      json: () => Promise<unknown>;
+    }) => void;
+    const fetchPromise = new Promise<{
+      ok: boolean;
+      status: number;
+      json: () => Promise<unknown>;
+    }>((resolve) => {
+      resolveFetch = resolve;
+    });
+    const fetchMock = vi.fn(() => fetchPromise);
+    vi.stubGlobal("fetch", fetchMock);
+    mocks.currentOutput = null;
+    mocks.problem =
+      "The ACME event bus refuses a new object schema with error SchemaVersionConflict";
+    expect(matchGuides(mocks.problem).status).toBe("none");
+    render(<AssistantWorkspace answerEngineAvailable />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(
+      screen.getByText(
+        "There's no guide for this yet, so I'm checking trusted sources…"
+      )
+    ).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/answers",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          problem: mocks.problem,
+          platform: mocks.platform,
+        }),
+      })
+    );
+    await act(async () => {
+      resolveFetch({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          status: "ok",
+          card: {
+            runId: "answer-run",
+            outcome: "answer",
+            likelyCause: null,
+            explanations: [],
+            steps: [
+              {
+                kind: "official",
+                text: "Restart the app.",
+                sourceIds: ["source-1"],
+              },
+              {
+                kind: "community_tip",
+                text: "Clear the local cache.",
+                sourceIds: ["source-2"],
+              },
+            ],
+            withheldForIt: 0,
+            sources: [
+              {
+                id: "source-1",
+                title: "Official support",
+                domain: "support.example.test",
+                url: "https://support.example.test/help",
+                label: "Official docs",
+                attribution: null,
+              },
+              {
+                id: "source-2",
+                title: "Community post",
+                domain: "community.example.test",
+                url: "https://community.example.test/post/1",
+                label: "Community post",
+                attribution: "Community contributors",
+              },
+            ],
+          },
+        }),
+      });
+      await fetchPromise;
+    });
+
+    expect(await screen.findByText("Official step")).toBeInTheDocument();
+    expect(
+      screen.getByText("Community tip — not official")
+    ).toBeInTheDocument();
   });
 });

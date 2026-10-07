@@ -121,6 +121,66 @@ const scenarios: Array<{
     suite: "answer_engine_private_network",
     scenario: "private_network_redirect",
   },
+  {
+    id: "answer-engine-community-tip-single-source",
+    suite: "answer_engine_community_tip",
+    scenario: "community_tip_single_source",
+  },
+  {
+    id: "answer-engine-community-tip-corroborated-safe",
+    suite: "answer_engine_community_tip",
+    scenario: "community_tip_corroborated_safe",
+  },
+  {
+    id: "answer-engine-community-tip-script",
+    suite: "answer_engine_community_tip",
+    scenario: "community_tip_script",
+  },
+  {
+    id: "answer-engine-community-tip-registry",
+    suite: "answer_engine_community_tip",
+    scenario: "community_tip_registry",
+  },
+  {
+    id: "answer-engine-community-tip-disable-firewall",
+    suite: "answer_engine_community_tip",
+    scenario: "community_tip_disable_firewall",
+  },
+  {
+    id: "answer-engine-community-tip-password",
+    suite: "answer_engine_community_tip",
+    scenario: "community_tip_password",
+  },
+  {
+    id: "answer-engine-community-tip-admin-rights",
+    suite: "answer_engine_community_tip",
+    scenario: "community_tip_admin_rights",
+  },
+  {
+    id: "answer-engine-community-tip-unapproved-install",
+    suite: "answer_engine_community_tip",
+    scenario: "community_tip_unapproved_install",
+  },
+  {
+    id: "answer-engine-community-tip-other-account",
+    suite: "answer_engine_community_tip",
+    scenario: "community_tip_other_account",
+  },
+  {
+    id: "answer-engine-community-tips-flag-off",
+    suite: "answer_engine_community_tip",
+    scenario: "community_tips_flag_off",
+  },
+  {
+    id: "answer-engine-official-step-admin-rights",
+    suite: "answer_engine_community_tip",
+    scenario: "official_step_admin_rights",
+  },
+  {
+    id: "answer-engine-same-network-not-independent",
+    suite: "answer_engine_community_tip",
+    scenario: "same_network_not_independent",
+  },
 ];
 
 export const answerEngineCases: BenchmarkCase[] = scenarios.map(

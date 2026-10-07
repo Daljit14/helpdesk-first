@@ -112,6 +112,7 @@ export function createAgentEvalHarness(input: {
   serviceHealthEnabled?: boolean;
   orgEnvironmentEnabled?: boolean;
   diagnosticSourcesEnabled?: boolean;
+  answerEngineEnabled?: boolean;
   userStepsEnabled?: boolean;
   approvedSlugs?: string[];
   killSwitchAfterTool?: boolean;
@@ -322,6 +323,7 @@ export function createAgentEvalHarness(input: {
     serviceHealthEnabled: input.serviceHealthEnabled,
     orgEnvironmentEnabled: input.orgEnvironmentEnabled,
     diagnosticSourcesEnabled: input.diagnosticSourcesEnabled,
+    answerEngineEnabled: input.answerEngineEnabled,
     webSearchEnabled: Boolean(input.webSearch),
     loadEvidence: async () => [],
     ...routeDeps,

@@ -3,11 +3,14 @@ import {
   getAgentTools,
   loadRequesterNameTerms,
   recentSignInFailuresValue,
+  runFindAnswerTool,
   runSearchWebTool,
   runTool,
   similarOrgIssuesValue,
 } from "./tools";
 import { createEvalResearchStore } from "./eval-research-store";
+import type { runAnswerEngine } from "@/lib/answers";
+import type { AnswerEngineResult } from "@/lib/answers/types";
 import { FakeResearchProvider } from "@/lib/research/fake";
 import { heuristicJudge } from "@/lib/research/judge";
 import type { ResearchProvider, ResearchSource } from "@/lib/research/types";
@@ -58,12 +61,221 @@ const context = {
   outputGuard: { requesterIdentifiers: [], redactions: [] },
 };
 
+function countAdmin(
+  counts: { research: number; answers: number },
+  failedTable?: string
+) {
+  const from = vi.fn((table: string) => ({
+    select: () => ({
+      eq: () => ({
+        eq: () =>
+          Promise.resolve({
+            count:
+              table === "research_queries" ? counts.research : counts.answers,
+            error: table === failedTable ? new Error("count failed") : null,
+          }),
+      }),
+    }),
+  }));
+  return { from } as never;
+}
+
+function answeredResult(): AnswerEngineResult {
+  return {
+    status: "answered",
+    runId: "answer-run",
+    answer: {
+      likelyCause: {
+        text: "A recent application update may have affected startup.",
+        sourceIds: ["official-source"],
+      },
+      explanations: [],
+      steps: [
+        {
+          kind: "official",
+          text: "Restart the application.",
+          sourceIds: ["official-source"],
+          tiers: ["vendor"],
+          independentDomains: 1,
+          confidence: 0.9,
+        },
+        {
+          kind: "community",
+          text: "Sign out and back into the application.",
+          sourceIds: ["community-source"],
+          tiers: ["community"],
+          independentDomains: 2,
+          confidence: 0.8,
+        },
+      ],
+      confidence: 0.9,
+      topTier: "vendor",
+    },
+    sources: [
+      {
+        id: "official-source",
+        title: "Application troubleshooting",
+        domain: "support.example.com",
+        url: "https://support.example.com/troubleshooting",
+        tier: "vendor",
+        attribution: null,
+      },
+      {
+        id: "community-source",
+        title: "User discussion",
+        domain: "community.example.net",
+        url: "https://community.example.net/posts/123",
+        tier: "community",
+        attribution: null,
+      },
+    ],
+    cached: false,
+    droppedClaims: 0,
+  };
+}
+
 afterEach(() => {
   vi.resetAllMocks();
   vi.unstubAllEnvs();
 });
 
 describe("requester agent tools", () => {
+  test("exposes find_answer only when the answer-engine flag is enabled", () => {
+    expect(
+      getAgentTools(false, false, false, false, false, false, false).map(
+        (tool) => tool.name
+      )
+    ).not.toContain("find_answer");
+    expect(
+      getAgentTools(false, false, false, false, false, false, true).map(
+        (tool) => tool.name
+      )
+    ).toContain("find_answer");
+  });
+
+  test("shares the session cap across web research and answer runs", async () => {
+    const runner = vi.fn();
+    const result = await runFindAnswerTool(
+      {
+        ...context,
+        admin: countAdmin({ research: 2, answers: 1 }),
+        session: { id: "session-1" } as never,
+      },
+      { problem: "The app will not start" },
+      { runAnswerEngine: runner as never }
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      value: { status: "skipped", reason: "session_cap" },
+    });
+    expect(runner).not.toHaveBeenCalled();
+  });
+
+  test("fails closed when either session-cap count fails", async () => {
+    const runner = vi.fn();
+    const result = await runFindAnswerTool(
+      {
+        ...context,
+        admin: countAdmin({ research: 0, answers: 0 }, "answer_engine_runs"),
+        session: { id: "session-1" } as never,
+      },
+      { problem: "The app will not start" },
+      { runAnswerEngine: runner as never }
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      value: { status: "skipped", reason: "provider_failed" },
+    });
+    expect(runner).not.toHaveBeenCalled();
+  });
+
+  test("minimizes answer data and screens with confirmed organization software", async () => {
+    const answerRunInputs: Parameters<typeof runAnswerEngine>[1][] = [];
+    const runner = vi.fn(
+      async (
+        _admin: Parameters<typeof runAnswerEngine>[0],
+        input: Parameters<typeof runAnswerEngine>[1]
+      ) => {
+        answerRunInputs.push(input);
+        return answeredResult();
+      }
+    );
+    const loadApprovedSoftware = vi.fn(async () => ["Zoom"]);
+    const now = () => new Date("2026-10-08T12:00:00.000Z");
+    const result = await runFindAnswerTool(
+      {
+        ...context,
+        admin: countAdmin({ research: 1, answers: 1 }),
+        session: {
+          id: "session-1",
+          backing_ticket_id: "ticket-1",
+        } as never,
+        platform: "Windows",
+        outputGuard: {
+          requesterIdentifiers: ["requester@example.com"],
+          redactions: [],
+        },
+      },
+      { problem: "The app will not start" },
+      {
+        runAnswerEngine: runner,
+        loadApprovedSoftware,
+        loadNameTerms: async () => ["Jane Doe"],
+        communityTipsEnabled: true,
+        now,
+      }
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      userSummary: "Found an answer from 2 sources.",
+      card: {
+        runId: "answer-run",
+        outcome: "answer",
+        steps: [
+          { kind: "official", text: "Restart the application." },
+          {
+            kind: "community_tip",
+            text: "Sign out and back into the application.",
+          },
+        ],
+      },
+      value: {
+        status: "answer",
+        sources: [
+          {
+            sourceId: "official-source",
+            title: "Application troubleshooting",
+            domain: "support.example.com",
+            label: "Official docs",
+          },
+          {
+            sourceId: "community-source",
+            title: "User discussion",
+            domain: "community.example.net",
+            label: "Community post",
+          },
+        ],
+      },
+    });
+    expect(result.ok && result.value).not.toHaveProperty("sources.0.url");
+    expect(result.ok && result.value).not.toHaveProperty(
+      "sources.0.attribution"
+    );
+    expect(loadApprovedSoftware).toHaveBeenCalledOnce();
+    expect(answerRunInputs[0]).toMatchObject({
+      organizationId: "org",
+      agentSessionId: "session-1",
+      ticketId: "ticket-1",
+      problem: "The app will not start",
+      platform: "Windows",
+      denyTerms: ["requester@example.com", "Jane Doe"],
+    });
+    expect(answerRunInputs[0]?.deps?.now).toBe(now);
+  });
+
   test("exposes web search only when both feature flags are enabled", async () => {
     vi.stubEnv("HELP_DESK_RESEARCH_ENABLED", "true");
     vi.stubEnv("HELP_DESK_AGENT_WEB_SEARCH_ENABLED", "false");

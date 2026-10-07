@@ -53,6 +53,7 @@ import {
   isServiceHealthEnabled,
   isAgentDiagnosticSourcesEnabled,
   isAgentWebSearchEnabled,
+  isAnswerEngineEnabled,
 } from "@/lib/admin/flags";
 import { getApprovedSlugs } from "@/lib/knowledge/governance";
 import { loadConfirmedOrgEnvironment } from "@/lib/org-environment/profile";
@@ -99,6 +100,7 @@ export type AgentLoopDeps = {
   orgEnvironmentEnabled?: boolean;
   userStepsEnabled?: boolean;
   webSearchEnabled?: boolean;
+  answerEngineEnabled?: boolean;
   styleV2Enabled?: boolean;
   assurance?: AssuranceFacts;
   checkUserStep?: (input: {
@@ -221,6 +223,8 @@ export async function runAgentTurn(input: {
     deps.orgEnvironmentEnabled ?? isOrgEnvironmentEnabled();
   const userStepsEnabled = deps.userStepsEnabled ?? isAgentUserStepsEnabled();
   const webSearchEnabled = deps.webSearchEnabled ?? isAgentWebSearchEnabled();
+  const answerEngineEnabled =
+    deps.answerEngineEnabled ?? isAnswerEngineEnabled();
   const styleV2 = deps.styleV2Enabled ?? isAgentStyleV2Enabled();
   const checkUserStep =
     deps.checkUserStep ??
@@ -351,7 +355,8 @@ export async function runAgentTurn(input: {
         userStepsEnabled,
         webSearchEnabled,
         isIdentityAssuranceEnabled() ? input.assurance?.level : undefined,
-        styleV2
+        styleV2,
+        answerEngineEnabled
       ),
       messages,
       tools: [
@@ -361,7 +366,8 @@ export async function runAgentTurn(input: {
           orgEnvironmentEnabled,
           diagnosticSourcesEnabled,
           userStepsEnabled,
-          webSearchEnabled
+          webSearchEnabled,
+          answerEngineEnabled
         ).map((tool) => ({
           name: tool.name,
           description: tool.description,
@@ -755,6 +761,39 @@ export async function runAgentTurn(input: {
         });
         if (sources.length > 0) emit({ type: "web_sources", sources });
       }
+    }
+    if (
+      result.name === "find_answer" &&
+      tool.ok &&
+      tool.card &&
+      tool.card.outcome !== "none"
+    ) {
+      const card = tool.card;
+      for (const source of card.sources) {
+        try {
+          if (new URL(source.url).protocol !== "https:") continue;
+        } catch {
+          continue;
+        }
+        const trust =
+          source.label === "Official docs"
+            ? "vendor"
+            : source.label === "Reference"
+              ? "reference"
+              : "community";
+        turnWebSources.set(source.id, {
+          title: source.title,
+          domain: source.domain,
+          url: source.url,
+          trust,
+        });
+      }
+      await deps.writeStep(admin, session, {
+        kind: "tool_result",
+        toolName: "answer_card_shown",
+        resultSummary: `${card.outcome} official=${card.steps.filter((step) => step.kind === "official").length} community_tips=${card.steps.filter((step) => step.kind === "community_tip").length} withheld=${card.withheldForIt}`,
+      });
+      emit({ type: "answer_card", card });
     }
     const toolSummary = toUserText(tool.userSummary, outputGuard);
     if (tool.ok) checkedThisTurn.push(toolSummary);

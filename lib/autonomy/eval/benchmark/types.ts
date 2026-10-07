@@ -230,6 +230,7 @@ const requesterAgent = z
     forbiddenInModelInput: z.array(z.string()).optional(),
     serviceIncidentActive: z.boolean().optional(),
     modelRoute: z.enum(["default", "planner"]).optional(),
+    answerEngineEnabled: z.boolean().optional(),
     webSearch: z
       .object({
         sources: z.array(webSearchSource),

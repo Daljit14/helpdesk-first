@@ -23,6 +23,7 @@ import {
 } from "@/components/assistant/input-notice";
 import { classifyInput, inputHint } from "@/lib/assistant/input-quality";
 import { noticeText } from "@/lib/assistant/replies";
+import { AnswerCard } from "@/components/v2/answer-card";
 import { OutcomeFeedback } from "@/components/v2/outcome-feedback";
 import { subscribeToOutage } from "@/app/actions/outage-subscriptions";
 
@@ -523,6 +524,8 @@ export function AgentChat({
                   </ul>
                 </section>
               );
+            if (event.type === "answer_card")
+              return <AnswerCard key={event.id} card={event.card} />;
             if (event.type === "consent_required") {
               const expiresAt = new Date(event.card.expiresAt).getTime();
               const remaining = Math.max(0, expiresAt - now);
@@ -686,7 +689,7 @@ export function AgentChat({
                   aria-label="Your step"
                   className="rounded-2xl border border-primary/30 bg-primary/5 p-4"
                 >
-                  <p className="font-medium">Your step</p>
+                  <p className="font-medium">Guide step</p>
                   <p className="mt-2 font-medium">{event.card.instruction}</p>
                   <p className="mt-2 text-sm text-muted-foreground">
                     Why this helps: {event.card.why}

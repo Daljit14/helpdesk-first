@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { createAgentEvalHarness } from "./eval-harness";
 import { runAgentTurn, type AgentLoopDeps } from "./loop";
+import { requesterAgentActionPrompt } from "./prompt";
 import type { AgentModel, AgentModelOutput } from "./model";
 import type { AgentEvent, AgentSession } from "./types";
 import { selectAgentRoute } from "./routing";
@@ -183,6 +184,173 @@ async function runDirectLoop(input: {
 afterEach(() => vi.unstubAllEnvs());
 
 describe("requester agent loop", () => {
+  test("keeps tools and prompt unchanged when style v2 is off", async () => {
+    const events: AgentEvent[] = [];
+    const captured: Array<{
+      system: string;
+      tools: Array<{ name: string }>;
+    }> = [];
+    const { deps } = directLoopDeps({
+      styleV2Enabled: false,
+      createModel: () => ({
+        next: async (input) => {
+          captured.push({
+            system: input.system,
+            tools: input.tools.map(({ name }) => ({ name })),
+          });
+          return {
+            kind: "final" as const,
+            text: "Here is a safe answer.",
+            confidence: 0.9,
+            summary: "Answer",
+          };
+        },
+      }),
+    });
+
+    await runDirectLoop({ deps, events });
+
+    expect(captured[0]?.tools.map(({ name }) => name)).not.toContain(
+      "final_reply"
+    );
+    expect(captured[0]?.system).toBe(
+      requesterAgentActionPrompt(
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        undefined,
+        false
+      )
+    );
+    expect(events.at(-1)).toMatchObject({
+      type: "final_answer",
+      text: "Here is a safe answer.",
+    });
+    expect(events.at(-1)).not.toHaveProperty("reply");
+  });
+
+  test("renders style v2 replies using only current-turn web sources", async () => {
+    const events: AgentEvent[] = [];
+    const modelInputs: Array<{
+      system: string;
+      tools: Array<{ name: string }>;
+    }> = [];
+    let calls = 0;
+    const { deps } = directLoopDeps({
+      styleV2Enabled: true,
+      webSearchEnabled: true,
+      createModel: () => ({
+        next: async (input) => {
+          modelInputs.push({
+            system: input.system,
+            tools: input.tools,
+          });
+          calls += 1;
+          return calls === 1
+            ? toolUse("web-search", "search_web", { query: "printer offline" })
+            : {
+                kind: "final" as const,
+                text: "A fallback.",
+                confidence: 0.9,
+                summary: "Answer",
+                reply: {
+                  summary: "I checked the printer support status.",
+                  checked: ["The printer service is available."],
+                  nextStep: {
+                    action: "Restart the printer.",
+                    why: "This reconnects it to the network.",
+                  },
+                  sourceIds: ["current-source", "prior-source"],
+                },
+              };
+        },
+      }),
+      runTool: async () => ({
+        ok: true,
+        value: {
+          sources: [
+            {
+              sourceId: "current-source",
+              title: "Printer support",
+              domain: "support.example.com",
+              url: "https://support.example.com/printer",
+              trust: "vendor",
+            },
+          ],
+        },
+        modelText: "Search results.",
+        userSummary: "Found one web source.",
+      }),
+    });
+
+    await runDirectLoop({ deps, events });
+
+    expect(modelInputs[0].tools.map(({ name }) => name)).toContain(
+      "final_reply"
+    );
+    expect(modelInputs[0].system).toContain(
+      "Style rules (style-v2-2026-10-07)"
+    );
+    expect(events.at(-1)).toMatchObject({
+      type: "final_answer",
+      text: expect.stringContaining("I checked the printer support status."),
+      reply: {
+        summary: "I checked the printer support status.",
+        checked: ["The printer service is available."],
+        nextStep: {
+          action: "Restart the printer.",
+          why: "This reconnects it to the network.",
+        },
+        sources: [
+          {
+            label: "Official docs",
+            title: "Printer support",
+            domain: "support.example.com",
+            url: "https://support.example.com/printer",
+          },
+        ],
+      },
+    });
+  });
+
+  test("passes a readable handoff summary to style v2 escalations", async () => {
+    const events: AgentEvent[] = [];
+    let escalationArgs: Parameters<AgentLoopDeps["escalate"]> | undefined;
+    const { deps } = directLoopDeps({
+      styleV2Enabled: true,
+      budgetExceeded: () => "max_failed_hypotheses",
+      loadContext: async () => [
+        { role: "user", content: "I restarted the printer." },
+        { role: "user", content: "It still does not print." },
+      ],
+      escalate: async (...args) => {
+        escalationArgs = args;
+        return "ticket-1";
+      },
+    });
+
+    await runDirectLoop({
+      userMessage: "My printer is offline.",
+      deps,
+      events,
+    });
+
+    expect(escalationArgs?.[6]).toMatchObject({
+      handoffSummary: expect.arrayContaining([
+        "Problem: My printer is offline.",
+        "User said: I restarted the printer. / It still does not print.",
+      ]),
+    });
+    expect(events.at(-1)).toMatchObject({
+      type: "escalated",
+      passedOn:
+        "Here's what I passed on: \"My printer is offline.\". A support person will pick this up, and you won't need to repeat yourself.",
+    });
+  });
+
   test("filters the tool_started note before persisting it", async () => {
     const secret = "AKIA1234567890ABCDEF";
     const steps: Array<{ kind: string; resultSummary?: string }> = [];
@@ -1042,6 +1210,7 @@ describe("requester agent loop", () => {
         value: {
           sources: [
             {
+              sourceId: "vendor-source",
               title: "Teams audio troubleshooting",
               domain: "learn.microsoft.com",
               url: "https://learn.microsoft.com/teams/audio",

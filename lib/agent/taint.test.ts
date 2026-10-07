@@ -184,6 +184,42 @@ describe("taint provenance", () => {
     ).toMatchObject({ trust: "community", source: "search_web" });
   });
 
+  test("keeps reference provenance at community severity", () => {
+    const items = provenanceFromTool("search_web", "ev-2", {
+      sources: [
+        { domain: "en.wikipedia.org", trust: "reference", title: "PC-7ABCDE" },
+      ],
+    });
+    const cautionCapability = {
+      ...capability,
+      riskLevel: "caution" as const,
+    };
+
+    expect(items.map((item) => item.trust)).toEqual(["reference", "reference"]);
+    expect(
+      taintDecision(cautionCapability, [
+        {
+          param: "value",
+          value: "PC-7ABCDE",
+          evidenceId: "ev-2",
+          source: "search_web",
+          trust: "reference",
+        },
+      ])
+    ).toBe("reject");
+    expect(
+      taintDecision(cautionCapability, [
+        {
+          param: "value",
+          value: "PC-7ABCDE",
+          evidenceId: "ev-2",
+          source: "search_web",
+          trust: "community",
+        },
+      ])
+    ).toBe("reject");
+  });
+
   test.each([
     ["org-approved", "org_approved", "reconfirm"],
     ["vendor", "vendor", "reconfirm"],

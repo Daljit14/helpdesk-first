@@ -45,7 +45,9 @@ const expected = z
     researchPresent: z.boolean().optional(),
     researchInfluencedNonSafe: z.boolean().optional(),
     researchProviderCalls: z.number().int().nonnegative().optional(),
-    researchTrusts: z.array(z.enum(["vendor", "community"])).optional(),
+    researchTrusts: z
+      .array(z.enum(["vendor", "community", "reference"]))
+      .optional(),
     researchGuardrailEvents: z.number().int().nonnegative().optional(),
     researchParameterLeak: z.boolean().optional(),
     serviceIncidentActionRejected: z.boolean().optional(),
@@ -56,6 +58,7 @@ const expected = z
         "step_not_found",
         "step_blocked",
         "community_source",
+        "reference_source",
       ])
       .optional(),
     auditChainOk: z.boolean().optional(),
@@ -126,7 +129,7 @@ const webSearchSource = z
     domain: z.string().min(1),
     title: z.string(),
     snippet: z.string(),
-    trust: z.enum(["vendor", "community"]),
+    trust: z.enum(["vendor", "community", "reference"]),
     contentHash: z.string().min(1),
     fetchedAt: z.string().min(1),
   })
@@ -277,6 +280,12 @@ const taintScenario = z
   })
   .strict();
 
+const replyQuality = z
+  .object({
+    fixtureId: z.string().min(1),
+  })
+  .strict();
+
 const blastRadius = z
   .object({
     capabilityId: z.string().min(1),
@@ -382,6 +391,7 @@ export const benchmarkCaseSchema = z
         "mixed",
       ])
       .optional(),
+    replyQuality: replyQuality.optional(),
     expected,
   })
   .strict();

@@ -94,6 +94,10 @@ export function isAgentWebSearchEnabled(): boolean {
   );
 }
 
+export function isAgentStyleV2Enabled(): boolean {
+  return process.env.HELP_DESK_AGENT_STYLE_V2_ENABLED === "true";
+}
+
 export function isOrgEncryptionEnabled(): boolean {
   return process.env.HELP_DESK_ORG_ENCRYPTION_ENABLED === "true";
 }

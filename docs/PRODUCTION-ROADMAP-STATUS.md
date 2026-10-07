@@ -13,9 +13,10 @@
 11. `supabase/identity-assurance.sql` (E1a) — after `requester-agent.sql`, `org-environment-profile.sql`, and `agent-reply-guard.sql`.
 12. `supabase/agent-taint.sql` (E2a) — after identity assurance.
 13. `supabase/agent-session-abandon.sql` (E3) — after agent taint and before audit-chain.
-14. `supabase/audit-chain.sql` (G3 #149) — always last, in a quiet window.
+14. `supabase/audit-chain.sql` (G3 #149) — after audit-chain prerequisites, in a quiet window; the E10 trust-constraint migration may follow.
+15. `supabase/research-reference-tier.sql` (E10) — after `research.sql` and `agent-web-search.sql`; widens the research-source trust constraint.
 
-Prerequisite migrations listed in each SETUP-NOTES file must already be applied; none of these 14 has run on production.
+Prerequisite migrations listed in each SETUP-NOTES file must already be applied; none of these 15 has run on production.
 
 ## Phase E — E0 small follow-ups
 
@@ -49,6 +50,14 @@ outcomes to refuse unsafe autorun promotions, and adds a default-off,
 conditional sweep for stale requester-agent sessions. The cron schedule is
 `45 4 * * *`. `supabase/agent-session-abandon.sql` is authored but has not
 been applied; see `SETUP-NOTES-E3.md` and `docs/METRICS.md`.
+
+## Phase E — E10 conversation quality
+
+E10 adds opt-in structured style-v2 replies, readable hand-off summaries,
+reply-quality benchmarking, and a `reference` research trust tier. The style
+flag `HELP_DESK_AGENT_STYLE_V2_ENABLED` remains off by default. This is a
+code-only change with no safety-policy changes; `supabase/research-reference-tier.sql`
+is authored but has not been run in production. See `SETUP-NOTES-E10.md`.
 
 ## Wave 2 G1 — blast-radius limits and automatic safety stops
 

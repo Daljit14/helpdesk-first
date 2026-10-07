@@ -10,6 +10,48 @@ import { redactEvidenceText } from "./redaction";
 import { neutraliseCertainty } from "./wording";
 
 describe("evidence primitives", () => {
+  test("labels reference research without treating it as vendor support", () => {
+    const record = buildEvidence({
+      ticket: {
+        message: "DNS lookup fails.",
+        platform: "Windows",
+        issue_id: "wifi-disconnecting",
+        diagnostic_answers: [],
+      },
+      investigation: null,
+      turns: [],
+      stepOutcomes: [],
+      attachments: [],
+      research: {
+        queries: ["DNS lookup"],
+        sources: [
+          {
+            url: "https://en.wikipedia.org/wiki/Domain_Name_System",
+            domain: "en.wikipedia.org",
+            title: "Domain Name System",
+            snippet: "DNS translates domain names to IP addresses.",
+            trust: "reference",
+            contentHash: "reference-hash",
+            fetchedAt: "2026-10-07T00:00:00.000Z",
+            judgement: "supports",
+            hypothesisId: "hypothesis-1",
+          },
+        ],
+      },
+    });
+
+    expect(record.confirmedFacts).toContainEqual(
+      expect.objectContaining({
+        statement: "Reference source supports: Domain Name System",
+      })
+    );
+    expect(record.confirmedFacts).not.toContainEqual(
+      expect.objectContaining({
+        statement: "Vendor source supports: Domain Name System",
+      })
+    );
+  });
+
   test("adjusts confidence with bounded support and rejection", () => {
     const rejecting = [
       {

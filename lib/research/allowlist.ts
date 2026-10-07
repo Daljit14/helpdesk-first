@@ -9,6 +9,11 @@ export const VENDOR_DOMAINS = [
   "instructure.com",
 ] as const;
 
+export const REFERENCE_DOMAINS = [
+  "wikipedia.org",
+  "developer.mozilla.org",
+] as const;
+
 export const BLOCKED_VENDOR_DOMAINS = [
   "reddit.com",
   "redd.it",
@@ -110,6 +115,10 @@ export function trustTierFor(
     const hostname = parsed.hostname.toLowerCase();
     if (VENDOR_DOMAINS.some((domain) => isDomainOrSubdomain(hostname, domain)))
       return "vendor";
+    if (
+      REFERENCE_DOMAINS.some((domain) => isDomainOrSubdomain(hostname, domain))
+    )
+      return "reference";
     return orgDomains.some(
       (domain) =>
         isDomainOrSubdomain(hostname, domain) && !isBlockedVendorHost(hostname)

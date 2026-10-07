@@ -3,10 +3,12 @@ import { getAiModel, getAiProviderKind } from "@/lib/ai/config";
 import { getProviderTimeoutMs } from "@/lib/ai/safety-policy";
 import type { ModelUsage } from "@/lib/ai/pricing";
 import {
+  isAgentStyleV2Enabled,
   isAgentUserStepsEnabled,
   isAgentPromptCacheEnabled,
   isRequesterAgentActionsEnabled,
 } from "@/lib/admin/flags";
+import { finalReplySchema, type AgentReplyDraft } from "./reply";
 
 export type AgentMessage =
   | { role: "user"; content: string }
@@ -29,7 +31,13 @@ type AgentModelOutputKind =
       input: unknown;
       summary: string;
     }
-  | { kind: "final"; text: string; confidence: number; summary: string }
+  | {
+      kind: "final";
+      text: string;
+      confidence: number;
+      summary: string;
+      reply?: AgentReplyDraft;
+    }
   | { kind: "invalid"; raw: string };
 
 export type AgentModelOutput = AgentModelOutputKind & {
@@ -174,17 +182,34 @@ export class MockAgentModel implements AgentModel {
   private diagnosticsSsid: string | undefined;
   constructor(private readonly firstMessage: string) {}
 
+  private final(text: string, summary: string): AgentModelOutput {
+    return {
+      kind: "final",
+      text,
+      confidence: 0.9,
+      summary,
+      ...(isAgentStyleV2Enabled()
+        ? {
+            reply: {
+              summary: text,
+              checked: [],
+              nextStep: null,
+              sourceIds: [],
+            },
+          }
+        : {}),
+    };
+  }
+
   async next(
     input: { messages: AgentMessage[] } = { messages: [] }
   ): Promise<AgentModelOutput> {
     if (/^User step result:/.test(this.firstMessage) && !this.called) {
       this.called = true;
-      return {
-        kind: "final",
-        text: "I found some information that may help. Please tell me whether it resolves the problem.",
-        confidence: 0.9,
-        summary: "I’m summarizing the available findings.",
-      };
+      return this.final(
+        "I found some information that may help. Please tell me whether it resolves the problem.",
+        "I’m summarizing the available findings."
+      );
     }
     const diagnosticsResult = [...input.messages]
       .reverse()
@@ -298,12 +323,10 @@ export class MockAgentModel implements AgentModel {
         summary: "I can propose a consent-gated DNS cache flush.",
       };
     }
-    return {
-      kind: "final",
-      text: "I found some information that may help. Please tell me whether it resolves the problem.",
-      confidence: 0.9,
-      summary: "I’m summarizing the available read-only findings.",
-    };
+    return this.final(
+      "I found some information that may help. Please tell me whether it resolves the problem.",
+      "I’m summarizing the available read-only findings."
+    );
   }
 }
 
@@ -357,7 +380,31 @@ export class AnthropicAgentModel implements AgentModel {
     };
     modelTelemetry(input.system, input.messages, body);
     const usage = parseUsage(body.usage);
-    const tool = body.content?.find((item) => item.type === "tool_use");
+    const tool =
+      body.content?.find(
+        (item) => item.type === "tool_use" && item.name === "final_reply"
+      ) ?? body.content?.find((item) => item.type === "tool_use");
+    if (tool?.name === "final_reply") {
+      const parsed = finalReplySchema.safeParse(tool.input);
+      if (!parsed.success)
+        return {
+          kind: "invalid",
+          raw: JSON.stringify(tool.input).slice(0, 500),
+          usage,
+          model: this.model,
+        };
+      return {
+        kind: "final",
+        text: [parsed.data.summary, parsed.data.nextStep?.action]
+          .filter(Boolean)
+          .join(" "),
+        reply: parsed.data,
+        confidence: 0.8,
+        summary: "I’m summarizing the findings.",
+        usage,
+        model: this.model,
+      };
+    }
     if (tool?.name && tool.id) {
       return {
         kind: "tool_use",

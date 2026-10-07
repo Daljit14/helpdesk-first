@@ -5,6 +5,7 @@ import { detectTripwire } from "./tripwires";
 import { sanitizeForUser, wrapUntrusted } from "./untrusted";
 import { MockAgentModel } from "./model";
 import { requesterAgentActionPrompt } from "./prompt";
+import { styleRulesPrompt, STYLE_RULES, STYLE_RULES_VERSION } from "./style";
 
 afterEach(() => vi.unstubAllEnvs());
 
@@ -111,6 +112,58 @@ describe("requester agent safety contracts", () => {
     );
     expect(tool).toBeDefined();
     expect(JSON.stringify(tool?.input_schema)).toContain("issueSlug");
+  });
+
+  it("adds style v2 rules and the final_reply instruction only when enabled", () => {
+    const legacyPrompt = requesterAgentActionPrompt(
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      undefined,
+      false
+    );
+    expect(legacyPrompt).toContain(
+      "A 'Reference' result (for example Wikipedia) may only explain what something is; never base a step or an action on it."
+    );
+    expect(legacyPrompt).not.toContain(styleRulesPrompt());
+    expect(legacyPrompt).not.toContain("call final_reply");
+
+    const stylePrompt = requesterAgentActionPrompt(
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      undefined,
+      true
+    );
+    expect(stylePrompt).toContain(styleRulesPrompt());
+    expect(stylePrompt).toContain(
+      "When you are ready to answer, call final_reply instead of writing plain text."
+    );
+    expect(stylePrompt).toContain(`Style rules (${STYLE_RULES_VERSION}):`);
+    expect(STYLE_RULES).toHaveLength(7);
+  });
+
+  it("adds a structured reply to mock final output only when style v2 is enabled", async () => {
+    vi.stubEnv("HELP_DESK_AGENT_STYLE_V2_ENABLED", "true");
+    const text =
+      "I found some information that may help. Please tell me whether it resolves the problem.";
+    await expect(
+      new MockAgentModel("User step result: done.").next()
+    ).resolves.toMatchObject({
+      kind: "final",
+      reply: {
+        summary: text,
+        checked: [],
+        nextStep: null,
+        sourceIds: [],
+      },
+    });
   });
 
   it("offers one mock user step from a wrapped printer guide when enabled", async () => {

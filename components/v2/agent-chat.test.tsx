@@ -60,6 +60,60 @@ afterEach(() => {
 });
 
 describe("AgentChat", () => {
+  test("renders structured replies and hides the legacy evidence list", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        streamResponse([
+          {
+            type: "final_answer",
+            text: "Summary",
+            confidence: 0.9,
+            evidence: ["legacy evidence"],
+            reply: {
+              summary: "The printer is online.",
+              checked: ["I checked its connection."],
+              nextStep: {
+                action: "Print a test page.",
+                why: "This confirms the queue works.",
+              },
+              sources: [
+                {
+                  label: "Reference",
+                  title: "Printing overview",
+                  domain: "wikipedia.org",
+                  url: "https://en.wikipedia.org/wiki/Printing",
+                },
+              ],
+            },
+          },
+        ])
+      )
+    );
+    render(<AgentChat initialProblem="Printer is offline" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Ask the assistant" }));
+
+    expect(
+      await screen.findByText("The printer is online.")
+    ).toBeInTheDocument();
+    expect(screen.getByText("What I checked")).toBeInTheDocument();
+    expect(screen.getByText("I checked its connection.")).toBeInTheDocument();
+    expect(screen.getByText("Next step")).toBeInTheDocument();
+    expect(
+      screen.getByText("Why: This confirms the queue works.")
+    ).toBeInTheDocument();
+    expect(screen.getByText("Reference")).toBeInTheDocument();
+    expect(screen.queryByText("Evidence")).not.toBeInTheDocument();
+    expect(screen.queryByText("legacy evidence")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Printing overview" })
+    ).toHaveAttribute("target", "_blank");
+    expect(
+      screen.getByRole("link", { name: "Printing overview" })
+    ).toHaveAttribute("rel", "noopener noreferrer nofollow");
+  });
+
   test("hides screenshot input when vision is disabled", () => {
     render(<AgentChat initialProblem="Wi-Fi is down" />);
     expect(screen.queryByText("Screenshot")).not.toBeInTheDocument();
@@ -731,6 +785,8 @@ describe("AgentChat", () => {
             type: "escalated",
             ticketId: "ticket-1",
             reason: "human_requested",
+            passedOn:
+              "Here's what I passed on: \"Wi-Fi is down\". A support person will pick this up, and you won't need to repeat yourself.",
           },
         ])
       );
@@ -748,6 +804,11 @@ describe("AgentChat", () => {
         "/tickets/ticket-1"
       )
     );
+    expect(
+      screen.getByText(
+        "Here's what I passed on: \"Wi-Fi is down\". A support person will pick this up, and you won't need to repeat yourself."
+      )
+    ).toBeInTheDocument();
     expect(screen.getByText("Try restarting the adapter.")).toBeInTheDocument();
   });
 

@@ -4,6 +4,7 @@ import type { OutputGuardContext } from "./output-guard";
 import type { TrustTier } from "@/lib/research/types";
 import type { AssuranceLevel } from "@/lib/identity/assurance";
 import type { TaintTrust } from "./taint";
+import type { RenderedReply } from "./reply";
 
 export type ConsentCard = {
   approvalRequestId: string;
@@ -101,8 +102,14 @@ export type AgentEvent =
       text: string;
       confidence: number;
       evidence: string[];
+      reply?: RenderedReply;
     }
-  | { type: "escalated"; ticketId: string; reason: string }
+  | {
+      type: "escalated";
+      ticketId: string;
+      reason: string;
+      passedOn?: string;
+    }
   | {
       type: "error";
       message: string;

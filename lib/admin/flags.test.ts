@@ -3,6 +3,7 @@ import {
   isAgentDiagnosticSourcesEnabled,
   isAgentUserStepsEnabled,
   isAgentCostTrackingEnabled,
+  isAgentStyleV2Enabled,
   isAgentModelRoutingEnabled,
   isAgentPromptCacheEnabled,
   getAgentAbandonMinutes,
@@ -20,22 +21,27 @@ describe("requester agent flags", () => {
     expect(isAgentCostTrackingEnabled()).toBe(false);
     expect(isAgentDiagnosticSourcesEnabled()).toBe(false);
     expect(isAgentUserStepsEnabled()).toBe(false);
+    expect(isAgentStyleV2Enabled()).toBe(false);
 
     vi.stubEnv("HELP_DESK_AGENT_MODEL_ROUTING_ENABLED", "true");
     vi.stubEnv("HELP_DESK_AGENT_PROMPT_CACHE_ENABLED", "TRUE");
     vi.stubEnv("HELP_DESK_AGENT_COST_TRACKING_ENABLED", "1");
     vi.stubEnv("HELP_DESK_AGENT_DIAGNOSTIC_SOURCES_ENABLED", "TRUE");
     vi.stubEnv("HELP_DESK_AGENT_USER_STEPS_ENABLED", "TRUE");
+    vi.stubEnv("HELP_DESK_AGENT_STYLE_V2_ENABLED", "TRUE");
 
     expect(isAgentModelRoutingEnabled()).toBe(true);
     expect(isAgentPromptCacheEnabled()).toBe(false);
     expect(isAgentCostTrackingEnabled()).toBe(false);
     expect(isAgentDiagnosticSourcesEnabled()).toBe(false);
     expect(isAgentUserStepsEnabled()).toBe(false);
+    expect(isAgentStyleV2Enabled()).toBe(false);
     vi.stubEnv("HELP_DESK_AGENT_DIAGNOSTIC_SOURCES_ENABLED", "true");
     expect(isAgentDiagnosticSourcesEnabled()).toBe(true);
     vi.stubEnv("HELP_DESK_AGENT_USER_STEPS_ENABLED", "true");
     expect(isAgentUserStepsEnabled()).toBe(true);
+    vi.stubEnv("HELP_DESK_AGENT_STYLE_V2_ENABLED", "true");
+    expect(isAgentStyleV2Enabled()).toBe(true);
   });
 
   test("keeps abandonment sweep disabled by default and clamps its age", () => {

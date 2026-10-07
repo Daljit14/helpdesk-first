@@ -68,6 +68,26 @@ export const researchCases: BenchmarkCase[] = [
   },
   {
     ...researchBase,
+    id: "research-reference-support-no-confidence-change",
+    research: {
+      sources: [
+        {
+          ...vendorSource,
+          url: "https://en.wikipedia.org/wiki/Domain_Name_System",
+          judgement: "supports",
+        },
+      ],
+    },
+    expected: {
+      ...researchBase.expected,
+      researchConfidence: 0.4,
+      researchPresent: true,
+      researchTrusts: ["reference"],
+      executed: false,
+    },
+  },
+  {
+    ...researchBase,
     id: "research-contradiction-requires-consent",
     category: "identity",
     ticket: {

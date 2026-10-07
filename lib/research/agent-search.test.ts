@@ -91,6 +91,51 @@ describe("sanitizeAgentSearchQuery", () => {
 });
 
 describe("runAgentWebSearch", () => {
+  test("orders vendor, reference, and community sources stably by tier", async () => {
+    const { admin } = createEvalResearchStore();
+    const { provider } = recordingProvider([
+      source({
+        url: "https://www.reddit.com/r/techsupport/comments/abc123/",
+        domain: "www.reddit.com",
+        title: "Community first",
+      }),
+      source({
+        url: "https://en.wikipedia.org/wiki/Wi-Fi",
+        domain: "en.wikipedia.org",
+        title: "Reference first",
+      }),
+      source({
+        url: "https://support.microsoft.com/teams",
+        domain: "support.microsoft.com",
+        title: "Vendor",
+      }),
+      source({
+        url: "https://developer.mozilla.org/en-US/docs/Web",
+        domain: "developer.mozilla.org",
+        title: "Reference second",
+      }),
+    ]);
+    const result = await search(admin, {
+      provider,
+      loadVendorDomains: async () => [],
+      judge: async (sources) =>
+        sources.map((item) => ({
+          ...item,
+          judgement: "unjudged" as const,
+          hypothesisId: null,
+        })),
+    });
+
+    expect(result.status).toBe("ran");
+    if (result.status !== "ran") return;
+    expect(result.sources.map((item) => item.title)).toEqual([
+      "Vendor",
+      "Reference first",
+      "Reference second",
+      "Community first",
+    ]);
+  });
+
   test("stays disabled when the research configuration is off", async () => {
     const { admin, rows } = createEvalResearchStore();
     const { provider, fake } = recordingProvider([source()]);
@@ -123,6 +168,28 @@ describe("runAgentWebSearch", () => {
     );
     await expect(
       search(admin, { provider, query: "Microsoft Teams audio update" })
+    ).resolves.toEqual({ status: "skipped", reason: "session_cap" });
+  });
+
+  test("keeps printer queries available with identity and network families and enforces the cap", async () => {
+    vi.stubEnv("HELP_DESK_RESEARCH_FAMILIES", "identity,network");
+    const { admin, rows } = createEvalResearchStore();
+    const { provider, fake, queries } = recordingProvider([source()]);
+    const printerQueries = [
+      "printer offline",
+      "printer driver issue",
+      "printer queue stuck",
+      "printer cannot connect",
+    ];
+
+    for (const query of printerQueries.slice(0, 3))
+      await search(admin, { provider, query });
+
+    expect(queries).toContain("printer offline");
+    expect(fake.calls).toBe(3);
+    expect(rows.research_queries).toHaveLength(3);
+    await expect(
+      search(admin, { provider, query: printerQueries[3] })
     ).resolves.toEqual({ status: "skipped", reason: "session_cap" });
   });
 

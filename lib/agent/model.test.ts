@@ -186,6 +186,83 @@ describe("screenshot transcribers", () => {
 });
 
 describe("Anthropic requester-agent model", () => {
+  test("parses a final_reply tool call into a structured final output", async () => {
+    const reply = {
+      summary: "The sign-in service is available.",
+      checked: ["I checked the service status."],
+      nextStep: {
+        action: "Try signing in again.",
+        why: "The service is available.",
+      },
+      sourceIds: ["source-1"],
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            content: [
+              {
+                type: "tool_use",
+                id: "reply-1",
+                name: "final_reply",
+                input: reply,
+              },
+            ],
+          }),
+          { status: 200 }
+        )
+      )
+    );
+
+    await expect(
+      new AnthropicAgentModel("key", "claude-haiku-4-5").next({
+        system: "system prompt",
+        messages: [{ role: "user", content: "Help." }],
+        tools: [],
+        maxTokens: 1200,
+        signal: new AbortController().signal,
+      })
+    ).resolves.toMatchObject({
+      kind: "final",
+      text: "The sign-in service is available. Try signing in again.",
+      reply,
+      confidence: 0.8,
+      summary: "I’m summarizing the findings.",
+    });
+  });
+
+  test("returns invalid when final_reply input fails schema validation", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            content: [
+              {
+                type: "tool_use",
+                id: "reply-1",
+                name: "final_reply",
+                input: { summary: "", checked: [], sourceIds: [] },
+              },
+            ],
+          }),
+          { status: 200 }
+        )
+      )
+    );
+
+    await expect(
+      new AnthropicAgentModel("key", "claude-haiku-4-5").next({
+        system: "system prompt",
+        messages: [{ role: "user", content: "Help." }],
+        tools: [],
+        maxTokens: 1200,
+        signal: new AbortController().signal,
+      })
+    ).resolves.toMatchObject({ kind: "invalid" });
+  });
+
   test("keeps the request body unchanged when prompt caching is off", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(

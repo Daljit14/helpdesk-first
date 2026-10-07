@@ -4,6 +4,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { describe, expect, test } from "vitest";
 import { runBenchmark } from "@/lib/autonomy/eval/runner";
 import { BENCHMARK_VERSION } from "@/lib/autonomy/eval/benchmark/version";
+import { replyQualityMarkdown } from "@/lib/autonomy/eval/reply-quality-report";
 
 describe("committed autonomy benchmark", () => {
   test("writes the versioned report and passes release gates", async () => {
@@ -54,6 +55,8 @@ describe("committed autonomy benchmark", () => {
         ...Object.entries(report.gatewayCodes).map(
           ([code, count]) => `- ${code}: ${count}`
         ),
+        "",
+        ...replyQualityMarkdown(report.results).split("\n"),
         "",
         "## Release gates",
         ...report.gates.map(

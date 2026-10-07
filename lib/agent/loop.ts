@@ -1,5 +1,8 @@
 import { alertSecurityEvent } from "@/lib/autonomy/alerts";
-import { isIdentityAssuranceEnabled } from "@/lib/admin/flags";
+import {
+  isAgentStyleV2Enabled,
+  isIdentityAssuranceEnabled,
+} from "@/lib/admin/flags";
 import { checkUserMessageSafety } from "@/lib/ai/safety-policy";
 import { guardModelInput } from "@/lib/autonomy/guardrails/input";
 import { readKillSwitches } from "@/lib/autonomy/kill-switches";
@@ -19,6 +22,8 @@ import { budgetExceeded } from "./budgets";
 import { createAgentModel, type AgentMessage, type AgentModel } from "./model";
 import { countEvidenceSources, selectAgentRoute } from "./routing";
 import { requesterAgentActionPrompt } from "./prompt";
+import { FINAL_REPLY_TOOL, renderAgentReply, safeFinalText } from "./reply";
+import { buildHandoff } from "./handoff";
 import {
   checkUserStep as validateUserStep,
   type UserStepCheck,
@@ -57,6 +62,7 @@ import {
 } from "@/lib/service-health";
 import { sanitizeServiceText } from "@/lib/service-health/url";
 import type { AgentEvent, AgentSession } from "./types";
+import type { TrustTier } from "@/lib/research/types";
 import type { createAdminClient } from "@/lib/supabase/admin";
 import type { AssuranceFacts } from "@/lib/identity/assurance";
 
@@ -67,16 +73,6 @@ function summary(value: string): string {
     .replace(/<[^>]*>/g, "")
     .trim()
     .slice(0, 140);
-}
-
-function safeFinalText(value: string): { text: string; stripped: boolean } {
-  const stripped = /\b(fixed|resolved|solved)\b/i.test(value);
-  return {
-    stripped,
-    text: stripped
-      ? value.replace(/\b(fixed|resolved|solved)\b/gi, "may have addressed")
-      : value,
-  };
 }
 
 export type AgentLoopDeps = {
@@ -103,6 +99,7 @@ export type AgentLoopDeps = {
   orgEnvironmentEnabled?: boolean;
   userStepsEnabled?: boolean;
   webSearchEnabled?: boolean;
+  styleV2Enabled?: boolean;
   assurance?: AssuranceFacts;
   checkUserStep?: (input: {
     issueSlug: string;
@@ -200,8 +197,16 @@ export async function runAgentTurn(input: {
   await deps.updateSession(admin, session, { last_user_message: userMessage });
 
   const modelsById = new Map<string, AgentModel>();
+  const contextMessages = await deps.loadContext(admin, session);
+  const earlierAnswers = contextMessages
+    .filter(
+      (message): message is Extract<AgentMessage, { role: "user" }> =>
+        message.role === "user" && typeof message.content === "string"
+    )
+    .slice(-2)
+    .map((message) => message.content.slice(0, 120));
   const messages: AgentMessage[] = [
-    ...(await deps.loadContext(admin, session)),
+    ...contextMessages,
     { role: "user", content: userMessage },
   ];
   const evidence = await deps.loadEvidence(admin, session);
@@ -216,6 +221,7 @@ export async function runAgentTurn(input: {
     deps.orgEnvironmentEnabled ?? isOrgEnvironmentEnabled();
   const userStepsEnabled = deps.userStepsEnabled ?? isAgentUserStepsEnabled();
   const webSearchEnabled = deps.webSearchEnabled ?? isAgentWebSearchEnabled();
+  const styleV2 = deps.styleV2Enabled ?? isAgentStyleV2Enabled();
   const checkUserStep =
     deps.checkUserStep ??
     (async (stepInput) =>
@@ -245,11 +251,48 @@ export async function runAgentTurn(input: {
     }
   }
   const toolResults: string[] = [];
+  const checkedThisTurn: string[] = [];
+  const triedThisTurn: string[] = [];
+  const turnWebSources = new Map<
+    string,
+    { title: string; domain: string; url: string; trust: TrustTier }
+  >();
   const seen = new Map<string, number>();
   let invalid = 0;
   let modelTurns = session.model_turn_count;
   let toolCalls = session.tool_call_count;
   let identityFailures = 0;
+  const escalateTurn = async (reason: string) => {
+    const handoff = styleV2
+      ? buildHandoff(
+          {
+            reason,
+            problem: currentTurn.userText || userMessage,
+            checked: checkedThisTurn,
+            tried: triedThisTurn,
+            answers: earlierAnswers,
+          },
+          outputGuard
+        )
+      : null;
+    const ticketId = handoff
+      ? await deps.escalate(
+          admin,
+          session,
+          reason,
+          userMessage,
+          "escalated",
+          {},
+          { handoffSummary: handoff.staffLines }
+        )
+      : await deps.escalate(admin, session, reason, userMessage);
+    emit({
+      type: "escalated",
+      ticketId,
+      reason,
+      ...(handoff ? { passedOn: handoff.userLine } : {}),
+    });
+  };
 
   while (!signal.aborted) {
     const switches = await deps.readKillSwitches(
@@ -268,36 +311,18 @@ export async function runAgentTurn(input: {
     }
     const budget = deps.budgetExceeded(session);
     if (budget) {
-      const ticketId = await deps.escalate(
-        admin,
-        session,
-        `budget:${budget}`,
-        userMessage
-      );
-      emit({ type: "escalated", ticketId, reason: `budget:${budget}` });
+      await escalateTurn(`budget:${budget}`);
       return;
     }
     if (!(await deps.checkDailyBudget())) {
-      const ticketId = await deps.escalate(
-        admin,
-        session,
-        "budget:daily_ai",
-        userMessage
-      );
-      emit({ type: "escalated", ticketId, reason: "budget:daily_ai" });
+      await escalateTurn("budget:daily_ai");
       return;
     }
     if (
       costTrackingEnabled &&
       !(await deps.checkOrgCostBudget(admin, session.organization_id))
     ) {
-      const ticketId = await deps.escalate(
-        admin,
-        session,
-        "budget:org_cost",
-        userMessage
-      );
-      emit({ type: "escalated", ticketId, reason: "budget:org_cost" });
+      await escalateTurn("budget:org_cost");
       return;
     }
     const route = (deps.selectRoute ?? selectAgentRoute)({
@@ -325,21 +350,25 @@ export async function runAgentTurn(input: {
         diagnosticSourcesEnabled,
         userStepsEnabled,
         webSearchEnabled,
-        isIdentityAssuranceEnabled() ? input.assurance?.level : undefined
+        isIdentityAssuranceEnabled() ? input.assurance?.level : undefined,
+        styleV2
       ),
       messages,
-      tools: getAgentTools(
-        actionToolsEnabled,
-        serviceHealthEnabled,
-        orgEnvironmentEnabled,
-        diagnosticSourcesEnabled,
-        userStepsEnabled,
-        webSearchEnabled
-      ).map((tool) => ({
-        name: tool.name,
-        description: tool.description,
-        input_schema: tool.input_schema as Record<string, unknown>,
-      })),
+      tools: [
+        ...getAgentTools(
+          actionToolsEnabled,
+          serviceHealthEnabled,
+          orgEnvironmentEnabled,
+          diagnosticSourcesEnabled,
+          userStepsEnabled,
+          webSearchEnabled
+        ).map((tool) => ({
+          name: tool.name,
+          description: tool.description,
+          input_schema: tool.input_schema as Record<string, unknown>,
+        })),
+        ...(styleV2 ? [FINAL_REPLY_TOOL] : []),
+      ],
       maxTokens: 1200,
       signal,
     });
@@ -378,13 +407,7 @@ export async function runAgentTurn(input: {
         resultSummary: "The model returned invalid output.",
       });
       if (invalid >= 2) {
-        const ticketId = await deps.escalate(
-          admin,
-          session,
-          "model_invalid_output",
-          userMessage
-        );
-        emit({ type: "escalated", ticketId, reason: "model_invalid_output" });
+        await escalateTurn("model_invalid_output");
         return;
       }
       continue;
@@ -392,22 +415,25 @@ export async function runAgentTurn(input: {
     invalid = 0;
     if (result.kind === "final") {
       const confidence = Math.max(0, Math.min(1, result.confidence));
-      const finalText = safeFinalText(result.text);
-      const text = toUserText(finalText.text, outputGuard).slice(0, 1200);
-      if (finalText.stripped) {
+      const rendered =
+        styleV2 && result.reply
+          ? renderAgentReply(result.reply, {
+              webSources: turnWebSources,
+              outputGuard,
+            })
+          : null;
+      const finalText = rendered ? null : safeFinalText(result.text);
+      const text =
+        rendered?.text ??
+        toUserText(finalText!.text, outputGuard).slice(0, 1200);
+      if (rendered?.claimStripped || finalText?.stripped) {
         await deps.writeStep(admin, session, {
           kind: "claim_stripped",
           resultSummary: text,
         });
       }
       if (confidence < 0.8) {
-        const ticketId = await deps.escalate(
-          admin,
-          session,
-          "low_confidence",
-          userMessage
-        );
-        emit({ type: "escalated", ticketId, reason: "low_confidence" });
+        await escalateTurn("low_confidence");
         return;
       }
       await deps.writeStep(admin, session, {
@@ -422,6 +448,7 @@ export async function runAgentTurn(input: {
         text,
         confidence,
         evidence: toolResults.slice(0, 5),
+        ...(rendered ? { reply: rendered.reply } : {}),
       });
       return;
     }
@@ -476,13 +503,7 @@ export async function runAgentTurn(input: {
         const repeats = (seen.get(key) ?? 0) + 1;
         seen.set(key, repeats);
         if (repeats >= 3) {
-          const ticketId = await deps.escalate(
-            admin,
-            session,
-            "loop_detected",
-            userMessage
-          );
-          emit({ type: "escalated", ticketId, reason: "loop_detected" });
+          await escalateTurn("loop_detected");
           return;
         }
         messages.push(
@@ -554,6 +575,7 @@ export async function runAgentTurn(input: {
           ...(citation ? { citation } : {}),
         },
       });
+      triedThisTurn.push(instruction);
       return;
     }
     if (result.name === "propose_action") {
@@ -611,13 +633,7 @@ export async function runAgentTurn(input: {
           emit({ type: "halted", reason: "denylisted", ticketId });
           return;
         }
-        const ticketId = await deps.escalate(
-          admin,
-          session,
-          action.reason,
-          userMessage
-        );
-        emit({ type: "escalated", ticketId, reason: action.reason });
+        await escalateTurn(action.reason);
         return;
       }
       toolCalls += 1;
@@ -643,13 +659,7 @@ export async function runAgentTurn(input: {
       const rejectionRepeats = (seen.get(rejectionKey) ?? 0) + 1;
       seen.set(rejectionKey, rejectionRepeats);
       if (rejectionRepeats >= 3) {
-        const ticketId = await deps.escalate(
-          admin,
-          session,
-          "loop_detected",
-          userMessage
-        );
-        emit({ type: "escalated", ticketId, reason: "loop_detected" });
+        await escalateTurn("loop_detected");
         return;
       }
       messages.push(
@@ -672,13 +682,7 @@ export async function runAgentTurn(input: {
     const repeats = (seen.get(key) ?? 0) + 1;
     seen.set(key, repeats);
     if (repeats >= 3) {
-      const ticketId = await deps.escalate(
-        admin,
-        session,
-        "loop_detected",
-        userMessage
-      );
-      emit({ type: "escalated", ticketId, reason: "loop_detected" });
+      await escalateTurn("loop_detected");
       return;
     }
     const thinking = toUserText(summary(result.summary), outputGuard);
@@ -722,14 +726,17 @@ export async function runAgentTurn(input: {
           ? tool.value.sources
           : null;
       if (Array.isArray(rawSources)) {
-        const sources = rawSources.flatMap((source) => {
-          if (!source || typeof source !== "object") return [];
-          const item = source as Record<string, unknown>;
+        const sources = rawSources.flatMap((rawSource) => {
+          if (!rawSource || typeof rawSource !== "object") return [];
+          const item = rawSource as Record<string, unknown>;
           if (
+            typeof item.sourceId !== "string" ||
             typeof item.title !== "string" ||
             typeof item.domain !== "string" ||
             typeof item.url !== "string" ||
-            (item.trust !== "vendor" && item.trust !== "community")
+            (item.trust !== "vendor" &&
+              item.trust !== "community" &&
+              item.trust !== "reference")
           )
             return [];
           try {
@@ -737,19 +744,20 @@ export async function runAgentTurn(input: {
           } catch {
             return [];
           }
-          return [
-            {
-              title: item.title,
-              domain: item.domain,
-              url: item.url,
-              trust: item.trust as "vendor" | "community",
-            },
-          ];
+          const webSource = {
+            title: item.title,
+            domain: item.domain,
+            url: item.url,
+            trust: item.trust as TrustTier,
+          };
+          turnWebSources.set(item.sourceId, webSource);
+          return [webSource];
         });
         if (sources.length > 0) emit({ type: "web_sources", sources });
       }
     }
     const toolSummary = toUserText(tool.userSummary, outputGuard);
+    if (tool.ok) checkedThisTurn.push(toolSummary);
     const evidenceId = tool.ok ? `ev-${toolCalls + 1}` : null;
     const persistedSummary = evidenceId
       ? `[evidence id: ${evidenceId}] ${toolSummary}`

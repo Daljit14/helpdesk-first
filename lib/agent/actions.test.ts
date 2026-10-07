@@ -737,6 +737,7 @@ describe("requester action proposals", () => {
     ["get_org_environment", "org_approved", "your organization's settings"],
     ["get_service_health", "vendor", "a service status page"],
     ["search_web", "community", "a community post"],
+    ["search_web", "reference", "a reference page"],
     ["search_web", "vendor", "a web page"],
     ["screenshot", "external_untrusted", "a screenshot"],
     ["earlier reply", "external_untrusted", "an earlier reply"],

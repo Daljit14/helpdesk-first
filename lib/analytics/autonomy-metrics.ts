@@ -5,13 +5,62 @@ import {
 } from "@/lib/admin/flags";
 import { sanitizeForUser } from "@/lib/agent/untrusted";
 import type { AdminSession } from "@/lib/admin/auth";
+import { getIssueBySlug } from "@/lib/search";
 import { decryptAgentText } from "@/lib/security/ticket-crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
+
+type Admin = ReturnType<typeof createAdminClient>;
+
+export const METRICS_DEFINITION_VERSION = 2;
 
 export type AutonomyMetricsWindow = {
   windowDays: number;
   from: string;
   to: string;
+};
+
+export type HonestOutcome =
+  | "ai_resolved"
+  | "pending"
+  | "false_resolved"
+  | "staff_touched"
+  | "unverified"
+  | "abandoned"
+  | "escalated";
+
+export type HonestBreakdown = {
+  key: string;
+  sessions: number;
+  aiResolved: number;
+  falseResolved: number;
+  staffTouched: number;
+  abandoned: number;
+  escalated: number;
+  aiResolutionRate: number;
+  falseResolvedRate: number;
+};
+
+export type HonestMetrics = {
+  version: 2;
+  sessions: number;
+  outcomes: Record<HonestOutcome, number>;
+  aiResolved: number;
+  aiResolutionRate: number;
+  falseResolved: number;
+  falseResolvedRate: number;
+  deflected: number;
+  deflectionRate: number;
+  abandoned: number;
+  abandonmentRate: number;
+  medianResolveMs: number;
+  p90ResolveMs: number;
+  pending: number;
+  hiddenStaffTouch: number;
+  repeatIssues: number;
+  repeatIssueRate: number;
+  sessionOutcomes: Array<{ sessionId: string; outcome: HonestOutcome }>;
+  byCategory: HonestBreakdown[];
+  byCapability: HonestBreakdown[];
 };
 
 export type EscalationReasonCount = {
@@ -53,6 +102,7 @@ export type AutonomyMetrics = {
   orgEnvironment: boolean;
   clarifiedTickets: number;
   avgClarifyingQuestions: number | null;
+  v2: HonestMetrics;
 };
 
 export type AutonomyMetricsInput = {
@@ -71,11 +121,14 @@ export type AutonomyMetricsInput = {
     backingTicketId: string | null;
     escalationTicketId: string | null;
     costMicros?: number | null;
+    verifiedExecutionId?: string | null;
+    userConfirmedAt?: string | null;
   }>;
   tickets: Array<{
     id: string;
     status: string | null;
     resolvedAt: string | null;
+    category?: string | null;
   }>;
   systemEvents: Array<{
     ticketId: string;
@@ -86,6 +139,7 @@ export type AutonomyMetricsInput = {
   actions: Array<{
     ticketId: string;
     agentId: string | null;
+    createdAt?: string;
   }>;
   steps: Array<{
     sessionId: string;
@@ -93,6 +147,7 @@ export type AutonomyMetricsInput = {
     toolName: string | null;
     resultSummary: string | null;
     seq: number;
+    capabilityId?: string | null;
   }>;
   feedback?: Array<{
     sessionId: string;
@@ -100,6 +155,13 @@ export type AutonomyMetricsInput = {
     createdAt: string;
     text: string | null;
   }>;
+  reportTickets?: Array<{
+    id: string;
+    userId: string | null;
+    category: string | null;
+    createdAt: string;
+  }>;
+  deviceJobs?: Array<{ ticketId: string; deviceId: string }>;
 };
 
 const DAY_MS = 86_400_000;
@@ -141,6 +203,401 @@ function firstSearchSlugs(
   return parseSearchSlugs(step?.resultSummary ?? null);
 }
 
+const HONEST_72_HOURS_MS = 72 * 60 * 60_000;
+const HONEST_30_DAYS_MS = 30 * DAY_MS;
+
+function emptyHonestOutcomes(): Record<HonestOutcome, number> {
+  return {
+    ai_resolved: 0,
+    pending: 0,
+    false_resolved: 0,
+    staff_touched: 0,
+    unverified: 0,
+    abandoned: 0,
+    escalated: 0,
+  };
+}
+
+function emptyHonestBreakdown(key: string) {
+  return {
+    key,
+    sessions: 0,
+    aiResolved: 0,
+    falseResolved: 0,
+    staffTouched: 0,
+    abandoned: 0,
+    escalated: 0,
+  };
+}
+
+export function emptyHonestMetrics(): HonestMetrics {
+  return {
+    version: 2,
+    sessions: 0,
+    outcomes: emptyHonestOutcomes(),
+    aiResolved: 0,
+    aiResolutionRate: 0,
+    falseResolved: 0,
+    falseResolvedRate: 0,
+    deflected: 0,
+    deflectionRate: 0,
+    abandoned: 0,
+    abandonmentRate: 0,
+    medianResolveMs: 0,
+    p90ResolveMs: 0,
+    pending: 0,
+    hiddenStaffTouch: 0,
+    repeatIssues: 0,
+    repeatIssueRate: 0,
+    sessionOutcomes: [],
+    byCategory: [],
+    byCapability: [],
+  };
+}
+
+function honestBreakdowns(
+  source: Map<string, ReturnType<typeof emptyHonestBreakdown>>
+): HonestBreakdown[] {
+  return [...source.values()]
+    .map((row) => ({
+      ...row,
+      aiResolutionRate: row.sessions > 0 ? row.aiResolved / row.sessions : 0,
+      falseResolvedRate:
+        row.aiResolved + row.falseResolved > 0
+          ? row.falseResolved / (row.aiResolved + row.falseResolved)
+          : 0,
+    }))
+    .sort(
+      (left, right) =>
+        right.sessions - left.sessions || left.key.localeCompare(right.key)
+    );
+}
+
+function computeHonestMetrics(
+  input: AutonomyMetricsInput,
+  window: AutonomyMetricsWindow
+): HonestMetrics {
+  const now = Date.parse(window.to);
+  const from = Date.parse(window.from);
+  const to = now;
+  const ticketsById = new Map(
+    input.tickets.map((ticket) => [ticket.id, ticket])
+  );
+  const stepsBySession = new Map<string, AutonomyMetricsInput["steps"]>();
+  for (const step of input.steps) {
+    const steps = stepsBySession.get(step.sessionId) ?? [];
+    steps.push(step);
+    stepsBySession.set(step.sessionId, steps);
+  }
+  for (const steps of stepsBySession.values())
+    steps.sort((left, right) => left.seq - right.seq);
+
+  const deviceByTicket = new Map<string, string>();
+  for (const job of input.deviceJobs ?? []) {
+    if (!deviceByTicket.has(job.ticketId))
+      deviceByTicket.set(job.ticketId, job.deviceId);
+  }
+
+  const categoryFor = (
+    session: AutonomyMetricsInput["sessions"][number]
+  ): string => {
+    const ticketCategory = (
+      session.backingTicketId
+        ? ticketsById.get(session.backingTicketId)?.category
+        : null
+    )?.trim();
+    const escalationCategory = (
+      session.escalationTicketId
+        ? ticketsById.get(session.escalationTicketId)?.category
+        : null
+    )?.trim();
+    if (ticketCategory) return ticketCategory;
+    if (escalationCategory) return escalationCategory;
+    const slug = firstSearchSlugs(
+      stepsBySession.get(session.id) ?? [],
+      session.id
+    )[0];
+    return (slug ? getIssueBySlug(slug)?.category : null) ?? "uncategorized";
+  };
+
+  const metadata = new Map(
+    input.sessions.map((session) => {
+      const steps = stepsBySession.get(session.id) ?? [];
+      const firstAction = steps.find(
+        (step) =>
+          step.kind === "action_executing" || step.kind === "action_autorun"
+      );
+      const touchTimes: Array<string | undefined> = [];
+      if (session.backingTicketId) {
+        touchTimes.push(
+          ...(input.systemEvents
+            .filter(
+              (event) =>
+                event.ticketId === session.backingTicketId &&
+                event.actorType === "employee"
+            )
+            .map((event) => event.createdAt) ?? []),
+          ...input.actions
+            .filter(
+              (action) =>
+                action.ticketId === session.backingTicketId &&
+                action.agentId !== null
+            )
+            .map((action) => action.createdAt)
+        );
+      }
+      return [
+        session.id,
+        {
+          category: categoryFor(session),
+          capability: firstAction?.capabilityId || "none",
+          deviceId: session.backingTicketId
+            ? (deviceByTicket.get(session.backingTicketId) ?? null)
+            : null,
+          touchTimes,
+          hasStaffTouch: touchTimes.length > 0,
+          hiddenStaffTouch:
+            Number.isFinite(Date.parse(session.endedAt ?? "")) &&
+            touchTimes.some((timestamp) => {
+              const touchedAt = Date.parse(timestamp ?? "");
+              return (
+                Number.isFinite(touchedAt) &&
+                touchedAt >= Date.parse(session.endedAt as string)
+              );
+            }),
+        },
+      ] as const;
+    })
+  );
+
+  const isExcluded = (session: AutonomyMetricsInput["sessions"][number]) =>
+    Boolean(
+      (session.backingTicketId &&
+        input.excludedTicketIds?.has(session.backingTicketId)) ||
+      (session.escalationTicketId &&
+        input.excludedTicketIds?.has(session.escalationTicketId))
+    );
+  const candidateSessions = input.sessions.filter((session) => {
+    const startedAt = Date.parse(session.startedAt);
+    return (
+      session.status !== "active" &&
+      Number.isFinite(startedAt) &&
+      startedAt >= from &&
+      startedAt <= to &&
+      !isExcluded(session)
+    );
+  });
+  const candidateReportTickets = input.reportTickets ?? [];
+  const feedbackSessionIds = new Set(
+    (input.feedback ?? []).map((feedback) => feedback.sessionId)
+  );
+  const sessionOutcomes: Array<{
+    sessionId: string;
+    outcome: HonestOutcome;
+  }> = [];
+  const outcomes = emptyHonestOutcomes();
+  const categoryRows = new Map<
+    string,
+    ReturnType<typeof emptyHonestBreakdown>
+  >();
+  const capabilityRows = new Map<
+    string,
+    ReturnType<typeof emptyHonestBreakdown>
+  >();
+  let deflected = 0;
+  let hiddenStaffTouch = 0;
+  let repeatIssues = 0;
+  const resolveDurations: number[] = [];
+
+  const hasSameIssueWithin = (
+    session: AutonomyMetricsInput["sessions"][number],
+    rangeMs: number
+  ): boolean => {
+    const sessionCategory =
+      metadata.get(session.id)?.category ?? "uncategorized";
+    const endedAt = Date.parse(session.endedAt ?? "");
+    if (sessionCategory === "uncategorized" || !Number.isFinite(endedAt))
+      return false;
+    const identityMatches = (
+      candidateUserId: string | null,
+      candidateDeviceId: string | null
+    ) =>
+      session.requesterId === candidateUserId ||
+      Boolean(
+        metadata.get(session.id)?.deviceId &&
+        candidateDeviceId &&
+        metadata.get(session.id)?.deviceId === candidateDeviceId
+      );
+    const laterThanEnd = (timestamp: string) => {
+      const candidateAt = Date.parse(timestamp);
+      return (
+        Number.isFinite(candidateAt) &&
+        candidateAt > endedAt &&
+        candidateAt <= endedAt + rangeMs
+      );
+    };
+
+    if (
+      candidateSessions.some((candidate) => {
+        if (candidate.id === session.id) return false;
+        const candidateMeta = metadata.get(candidate.id);
+        return (
+          candidateMeta?.category === sessionCategory &&
+          identityMatches(candidate.requesterId, candidateMeta.deviceId) &&
+          laterThanEnd(candidate.startedAt)
+        );
+      })
+    )
+      return true;
+
+    return candidateReportTickets.some((candidate) => {
+      if (
+        candidate.id === session.backingTicketId ||
+        candidate.id === session.escalationTicketId ||
+        input.excludedTicketIds?.has(candidate.id) ||
+        candidate.category?.trim() !== sessionCategory
+      )
+        return false;
+      return (
+        identityMatches(
+          candidate.userId,
+          deviceByTicket.get(candidate.id) ?? null
+        ) && laterThanEnd(candidate.createdAt)
+      );
+    });
+  };
+
+  const reopenWithinSevenDays = (
+    session: AutonomyMetricsInput["sessions"][number]
+  ) => {
+    const endedAt = Date.parse(session.endedAt ?? "");
+    const ticket = session.backingTicketId
+      ? ticketsById.get(session.backingTicketId)
+      : undefined;
+    return (
+      ticket?.status?.toLowerCase() === "reopened" ||
+      (Boolean(session.backingTicketId) &&
+        Number.isFinite(endedAt) &&
+        input.systemEvents.some((event) => {
+          if (
+            event.ticketId !== session.backingTicketId ||
+            event.eventType !== "ticket.reopened"
+          )
+            return false;
+          const createdAt = Date.parse(event.createdAt);
+          return (
+            createdAt >= endedAt &&
+            createdAt <= endedAt + FALSE_RESOLUTION_WINDOW_MS
+          );
+        }))
+    );
+  };
+
+  for (const session of candidateSessions) {
+    let outcome: HonestOutcome | null = null;
+    const sessionSteps = stepsBySession.get(session.id) ?? [];
+    const sessionMeta = metadata.get(session.id);
+    const hasAction = sessionSteps.some(
+      (step) =>
+        step.kind === "action_executing" || step.kind === "action_autorun"
+    );
+    if (session.status === "abandoned") outcome = "abandoned";
+    else if (session.status === "escalated" || session.status === "halted")
+      outcome = "escalated";
+    else if (session.status === "resolved") {
+      if (hasAction && !session.verifiedExecutionId) outcome = "unverified";
+      else if (sessionMeta?.hasStaffTouch) outcome = "staff_touched";
+      else if (
+        feedbackSessionIds.has(session.id) ||
+        reopenWithinSevenDays(session) ||
+        hasSameIssueWithin(session, HONEST_72_HOURS_MS)
+      )
+        outcome = "false_resolved";
+      else if (
+        !session.userConfirmedAt &&
+        now < Date.parse(session.endedAt ?? "") + HONEST_72_HOURS_MS
+      )
+        outcome = "pending";
+      else outcome = "ai_resolved";
+    }
+    if (!outcome) continue;
+
+    sessionOutcomes.push({ sessionId: session.id, outcome });
+    outcomes[outcome] += 1;
+    const categoryKey = sessionMeta?.category ?? "uncategorized";
+    const capabilityKey = sessionMeta?.capability ?? "none";
+    const categoryRow =
+      categoryRows.get(categoryKey) ?? emptyHonestBreakdown(categoryKey);
+    const capabilityRow =
+      capabilityRows.get(capabilityKey) ?? emptyHonestBreakdown(capabilityKey);
+    for (const row of [categoryRow, capabilityRow]) {
+      row.sessions += 1;
+      if (outcome === "ai_resolved") row.aiResolved += 1;
+      if (outcome === "false_resolved") row.falseResolved += 1;
+      if (outcome === "staff_touched") row.staffTouched += 1;
+      if (outcome === "abandoned") row.abandoned += 1;
+      if (outcome === "escalated") row.escalated += 1;
+    }
+    categoryRows.set(categoryKey, categoryRow);
+    capabilityRows.set(capabilityKey, capabilityRow);
+
+    if (
+      !session.escalationTicketId &&
+      outcome !== "escalated" &&
+      !sessionMeta?.hasStaffTouch
+    )
+      deflected += 1;
+    if (sessionMeta?.hiddenStaffTouch) hiddenStaffTouch += 1;
+    if (outcome === "ai_resolved") {
+      if (hasSameIssueWithin(session, HONEST_30_DAYS_MS)) repeatIssues += 1;
+      if (session.endedAt) {
+        const duration =
+          Date.parse(session.endedAt) - Date.parse(session.startedAt);
+        if (Number.isFinite(duration) && duration >= 0)
+          resolveDurations.push(duration);
+      }
+    }
+  }
+
+  const aiResolved = outcomes.ai_resolved;
+  const falseResolved = outcomes.false_resolved;
+  const abandoned = outcomes.abandoned;
+  const sortedDurations = [...resolveDurations].sort(
+    (left, right) => left - right
+  );
+  return {
+    version: 2,
+    sessions: sessionOutcomes.length,
+    outcomes,
+    aiResolved,
+    aiResolutionRate:
+      sessionOutcomes.length > 0 ? aiResolved / sessionOutcomes.length : 0,
+    falseResolved,
+    falseResolvedRate:
+      aiResolved + falseResolved > 0
+        ? falseResolved / (aiResolved + falseResolved)
+        : 0,
+    deflected,
+    deflectionRate:
+      sessionOutcomes.length > 0 ? deflected / sessionOutcomes.length : 0,
+    abandoned,
+    abandonmentRate:
+      sessionOutcomes.length > 0 ? abandoned / sessionOutcomes.length : 0,
+    medianResolveMs: median(resolveDurations),
+    p90ResolveMs:
+      sortedDurations.length > 0
+        ? sortedDurations[Math.ceil(0.9 * sortedDurations.length) - 1]
+        : 0,
+    pending: outcomes.pending,
+    hiddenStaffTouch,
+    repeatIssues,
+    repeatIssueRate: aiResolved > 0 ? repeatIssues / aiResolved : 0,
+    sessionOutcomes,
+    byCategory: honestBreakdowns(categoryRows),
+    byCapability: honestBreakdowns(capabilityRows),
+  };
+}
+
 function normalizeEscalationReason(summary: string | null): string {
   const token = summary?.trim().split(/\s+/)[0]?.toLowerCase() ?? "";
   if (!token) return "unknown";
@@ -173,6 +630,7 @@ function zeroMetrics(window: AutonomyMetricsWindow): AutonomyMetrics {
     orgEnvironment: false,
     clarifiedTickets: 0,
     avgClarifyingQuestions: null,
+    v2: emptyHonestMetrics(),
   };
 }
 
@@ -417,6 +875,7 @@ export function computeAutonomyMetrics(
     orgEnvironment: Boolean(input.orgEnvironment),
     clarifiedTickets,
     avgClarifyingQuestions,
+    v2: computeHonestMetrics(input, window),
   };
 }
 
@@ -455,6 +914,18 @@ function isMissingInvestigationTurnsTable(error: {
   );
 }
 
+function isMissingDeviceJobsTable(error: {
+  code?: string;
+  message?: string;
+}): boolean {
+  return (
+    error.code === "42P01" ||
+    error.code === "PGRST205" ||
+    (/device_jobs/i.test(error.message ?? "") &&
+      /does not exist|schema cache/i.test(error.message ?? ""))
+  );
+}
+
 function metricsWindow(windowDays: number): AutonomyMetricsWindow {
   const to = new Date();
   const from = new Date(to.getTime() - windowDays * DAY_MS);
@@ -465,20 +936,20 @@ function metricsWindow(windowDays: number): AutonomyMetricsWindow {
   };
 }
 
-export async function getAutonomyMetrics(
-  session: AdminSession,
-  opts: { windowDays?: number; showExcluded?: boolean } = {}
+export async function loadAutonomyMetrics(
+  admin: Admin,
+  organizationId: string,
+  opts: { windowDays?: number; includeExcluded?: boolean } = {}
 ): Promise<AutonomyMetrics> {
   const window = metricsWindow(opts.windowDays ?? 30);
-  const admin = createAdminClient();
   const costTracking = isAgentCostTrackingEnabled();
   const orgEnvironment = isOrgEnvironmentEnabled();
   const sessionSelect =
-    "id,requester_id,status,started_at,ended_at,last_user_message,resolution_summary,backing_ticket_id,escalation_ticket_id";
+    "id,requester_id,status,started_at,ended_at,last_user_message,resolution_summary,backing_ticket_id,escalation_ticket_id,verified_execution_id,user_confirmed_at";
   const sessionResult = await admin
     .from("agent_sessions")
     .select(costTracking ? `${sessionSelect},cost_micros` : sessionSelect)
-    .eq("organization_id", session.organizationId)
+    .eq("organization_id", organizationId)
     .gte("started_at", window.from)
     .neq("status", "active")
     .order("started_at", { ascending: false });
@@ -487,10 +958,9 @@ export async function getAutonomyMetrics(
       return zeroMetrics(window);
     throw sessionResult.error;
   }
-  const excluded =
-    opts.showExcluded && session.role === "org_admin"
-      ? new Set<string>()
-      : await getExcludedRecordIds(admin, session.organizationId, "tickets");
+  const excluded = opts.includeExcluded
+    ? new Set<string>()
+    : await getExcludedRecordIds(admin, organizationId, "tickets");
   const rawSessions = (sessionResult.data ?? []) as unknown as Array<{
     id: string;
     requester_id: string;
@@ -501,6 +971,8 @@ export async function getAutonomyMetrics(
     resolution_summary: string | null;
     backing_ticket_id: string | null;
     escalation_ticket_id: string | null;
+    verified_execution_id?: string | null;
+    user_confirmed_at?: string | null;
     cost_micros?: number | null;
   }>;
   const selectedRows = rawSessions.filter(
@@ -520,8 +992,17 @@ export async function getAutonomyMetrics(
       )
     ),
   ];
+  const backingTicketIds = [
+    ...new Set(
+      selectedRows
+        .map((row) => row.backing_ticket_id)
+        .filter((value): value is string => Boolean(value))
+    ),
+  ];
   const [
     ticketResult,
+    reportTicketResult,
+    deviceJobResult,
     eventResult,
     actionResult,
     stepResult,
@@ -531,29 +1012,41 @@ export async function getAutonomyMetrics(
     ticketIds.length
       ? admin
           .from("tickets")
-          .select("id,status,resolved_at")
-          .eq("organization_id", session.organizationId)
+          .select("id,status,resolved_at,category")
+          .eq("organization_id", organizationId)
           .in("id", ticketIds)
+      : Promise.resolve({ data: [], error: null }),
+    admin
+      .from("tickets")
+      .select("id,user_id,category,created_at")
+      .eq("organization_id", organizationId)
+      .gte("created_at", window.from),
+    backingTicketIds.length
+      ? admin
+          .from("device_jobs")
+          .select("ticket_id,device_id")
+          .eq("organization_id", organizationId)
+          .in("ticket_id", backingTicketIds)
       : Promise.resolve({ data: [], error: null }),
     ticketIds.length
       ? admin
           .from("ticket_system_events")
           .select("ticket_id,event_type,actor_type,created_at")
-          .eq("organization_id", session.organizationId)
+          .eq("organization_id", organizationId)
           .in("ticket_id", ticketIds)
       : Promise.resolve({ data: [], error: null }),
     ticketIds.length
       ? admin
           .from("ticket_actions")
-          .select("ticket_id,agent_id")
-          .eq("organization_id", session.organizationId)
+          .select("ticket_id,agent_id,created_at")
+          .eq("organization_id", organizationId)
           .in("ticket_id", ticketIds)
       : Promise.resolve({ data: [], error: null }),
     sessionIds.length
       ? admin
           .from("agent_steps")
-          .select("session_id,kind,tool_name,result_summary,seq")
-          .eq("organization_id", session.organizationId)
+          .select("session_id,kind,tool_name,result_summary,seq,capability_id")
+          .eq("organization_id", organizationId)
           .in("session_id", sessionIds)
           .order("seq", { ascending: true })
       : Promise.resolve({ data: [], error: null }),
@@ -561,20 +1054,28 @@ export async function getAutonomyMetrics(
       ? admin
           .from("agent_outcome_feedback")
           .select("session_id,verdict,created_at,free_text")
-          .eq("organization_id", session.organizationId)
+          .eq("organization_id", organizationId)
           .in("session_id", sessionIds)
       : Promise.resolve({ data: [], error: null }),
     orgEnvironment
       ? admin
           .from("ticket_investigation_turns")
           .select("ticket_id,question_ids")
-          .eq("organization_id", session.organizationId)
+          .eq("organization_id", organizationId)
           .gte("created_at", window.from)
       : Promise.resolve({ data: [], error: null }),
   ]);
-  for (const result of [ticketResult, eventResult, actionResult, stepResult]) {
+  for (const result of [
+    ticketResult,
+    reportTicketResult,
+    eventResult,
+    actionResult,
+    stepResult,
+  ]) {
     if (result.error) throw result.error;
   }
+  if (deviceJobResult.error && !isMissingDeviceJobsTable(deviceJobResult.error))
+    throw deviceJobResult.error;
   if (
     feedbackResult.error &&
     !isMissingOutcomeFeedbackTable(feedbackResult.error)
@@ -596,20 +1097,22 @@ export async function getAutonomyMetrics(
       endedAt: row.ended_at,
       lastUserMessage: await decryptAgentText(
         admin,
-        session.organizationId,
+        organizationId,
         "agent_sessions",
         "last_user_message",
         row.last_user_message
       ),
       resolutionSummary: await decryptAgentText(
         admin,
-        session.organizationId,
+        organizationId,
         "agent_sessions",
         "resolution_summary",
         row.resolution_summary
       ),
       backingTicketId: row.backing_ticket_id,
       escalationTicketId: row.escalation_ticket_id,
+      verifiedExecutionId: row.verified_execution_id ?? null,
+      userConfirmedAt: row.user_confirmed_at ?? null,
       ...(costTracking ? { costMicros: row.cost_micros ?? 0 } : {}),
     }))
   );
@@ -621,6 +1124,7 @@ export async function getAutonomyMetrics(
         tool_name: string | null;
         result_summary: string | null;
         seq: number;
+        capability_id: string | null;
       }>
     ).map(async (row) => ({
       sessionId: row.session_id,
@@ -628,12 +1132,13 @@ export async function getAutonomyMetrics(
       toolName: row.tool_name,
       resultSummary: await decryptAgentText(
         admin,
-        session.organizationId,
+        organizationId,
         "agent_steps",
         "result_summary",
         row.result_summary
       ),
       seq: row.seq,
+      capabilityId: row.capability_id,
     }))
   );
   const feedback = await Promise.all(
@@ -650,7 +1155,7 @@ export async function getAutonomyMetrics(
       createdAt: row.created_at,
       text: await decryptAgentText(
         admin,
-        session.organizationId,
+        organizationId,
         "agent_outcome_feedback",
         "free_text",
         row.free_text
@@ -666,11 +1171,13 @@ export async function getAutonomyMetrics(
           id: string;
           status: string | null;
           resolved_at: string | null;
+          category: string | null;
         }>
       ).map((row) => ({
         id: row.id,
         status: row.status,
         resolvedAt: row.resolved_at,
+        category: row.category,
       })),
       systemEvents: (
         (eventResult.data ?? []) as Array<{
@@ -689,13 +1196,37 @@ export async function getAutonomyMetrics(
         (actionResult.data ?? []) as Array<{
           ticket_id: string;
           agent_id: string | null;
+          created_at: string;
         }>
       ).map((row) => ({
         ticketId: row.ticket_id,
         agentId: row.agent_id,
+        createdAt: row.created_at,
       })),
       steps,
       feedback,
+      reportTickets: (
+        (reportTicketResult.data ?? []) as Array<{
+          id: string;
+          user_id: string | null;
+          category: string | null;
+          created_at: string;
+        }>
+      ).map((row) => ({
+        id: row.id,
+        userId: row.user_id,
+        category: row.category,
+        createdAt: row.created_at,
+      })),
+      deviceJobs: (
+        (deviceJobResult.error ? [] : (deviceJobResult.data ?? [])) as Array<{
+          ticket_id: string;
+          device_id: string;
+        }>
+      ).map((row) => ({
+        ticketId: row.ticket_id,
+        deviceId: row.device_id,
+      })),
       costTracking,
       orgEnvironment,
       investigationTurns:
@@ -716,4 +1247,14 @@ export async function getAutonomyMetrics(
     },
     window
   );
+}
+
+export async function getAutonomyMetrics(
+  session: AdminSession,
+  opts: { windowDays?: number; showExcluded?: boolean } = {}
+): Promise<AutonomyMetrics> {
+  return loadAutonomyMetrics(createAdminClient(), session.organizationId, {
+    windowDays: opts.windowDays,
+    includeExcluded: opts.showExcluded === true && session.role === "org_admin",
+  });
 }

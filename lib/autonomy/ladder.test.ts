@@ -1,13 +1,23 @@
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import {
   evaluateDemotion,
+  evaluateHonestPromotion,
   evaluatePromotion,
   isSnapshotReversible,
   listLadder,
   recordAutonomyOutcome,
+  setTier,
   type LadderStats,
 } from "./ladder";
 import type { CapabilityDefinition } from "./capabilities/types";
+import {
+  loadAutonomyMetrics,
+  type HonestBreakdown,
+} from "@/lib/analytics/autonomy-metrics";
+
+vi.mock("@/lib/analytics/autonomy-metrics", () => ({
+  loadAutonomyMetrics: vi.fn(),
+}));
 
 const stats = (overrides: Partial<LadderStats> = {}): LadderStats => ({
   organization_id: "org",
@@ -30,6 +40,8 @@ const reversible = {
   rollback: "handler:device_restore_snapshot",
   sideEffects: "internal_write",
 } as unknown as CapabilityDefinition;
+
+afterEach(() => vi.clearAllMocks());
 
 describe("autonomy ladder", () => {
   test("records outcomes without promoting a capability", async () => {
@@ -99,6 +111,138 @@ describe("autonomy ladder", () => {
       evaluatePromotion(stats({ tier: "autorun" }), reversible, undefined)
         .eligible
     ).toBe(false);
+  });
+
+  test("adds honest-metric reasons at the promotion limits", () => {
+    const thresholds = {
+      promoteMinRuns: 50,
+      promoteMinSuccess: 0.95,
+      demoteWindow: 20,
+      demoteMinSuccess: 0.9,
+    };
+    const row: HonestBreakdown = {
+      key: "device_flush_dns",
+      sessions: 20,
+      aiResolved: 18,
+      falseResolved: 2,
+      staffTouched: 1,
+      abandoned: 0,
+      escalated: 0,
+      aiResolutionRate: 0.9,
+      falseResolvedRate: 2 / 20,
+    };
+
+    expect(evaluateHonestPromotion(row, thresholds)).toEqual([
+      "AI-resolved sessions using this capability were later handled by staff.",
+      "False-resolved rate is above the promotion limit.",
+    ]);
+    expect(
+      evaluateHonestPromotion(
+        { ...row, staffTouched: 0, falseResolvedRate: 0.05 },
+        thresholds
+      )
+    ).toEqual([]);
+  });
+
+  test("refuses autorun promotion when honest metrics show staff handling", async () => {
+    vi.mocked(loadAutonomyMetrics).mockResolvedValue({
+      v2: {
+        byCapability: [
+          {
+            key: "device_flush_dns",
+            sessions: 1,
+            aiResolved: 0,
+            falseResolved: 0,
+            staffTouched: 1,
+            abandoned: 0,
+            escalated: 0,
+            aiResolutionRate: 0,
+            falseResolvedRate: 0,
+          },
+        ],
+      },
+    } as never);
+    const statsRow = stats({
+      live_runs: 50,
+      verified_successes: 50,
+      tier: "consent",
+    });
+    const admin = {
+      from(table: string) {
+        const query = {
+          select: () => query,
+          eq: () => query,
+          maybeSingle: async () => ({
+            data: table === "capability_autonomy_stats" ? statsRow : null,
+            error: null,
+          }),
+          upsert: vi.fn(),
+          insert: vi.fn(),
+        };
+        return query;
+      },
+    };
+
+    const result = await setTier(admin as never, {
+      organizationId: "org",
+      capabilityId: "device_flush_dns",
+      toTier: "autorun",
+      reason: "promotion",
+      actor: "admin",
+      actorUserId: "user-1",
+      kind: "promotion",
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      reasons: [
+        "AI-resolved sessions using this capability were later handled by staff.",
+      ],
+    });
+    expect(loadAutonomyMetrics).toHaveBeenCalledWith(admin, "org", {
+      windowDays: 30,
+    });
+  });
+
+  test("fails closed when honest metrics cannot be loaded for promotion", async () => {
+    vi.mocked(loadAutonomyMetrics).mockRejectedValue(
+      new Error("metrics query failed")
+    );
+    const statsRow = stats({
+      live_runs: 50,
+      verified_successes: 50,
+      tier: "consent",
+    });
+    const admin = {
+      from(table: string) {
+        const query = {
+          select: () => query,
+          eq: () => query,
+          maybeSingle: async () => ({
+            data: table === "capability_autonomy_stats" ? statsRow : null,
+            error: null,
+          }),
+          upsert: vi.fn(),
+          insert: vi.fn(),
+        };
+        return query;
+      },
+    };
+
+    await expect(
+      setTier(admin as never, {
+        organizationId: "org",
+        capabilityId: "device_flush_dns",
+        toTier: "autorun",
+        reason: "promotion",
+        actor: "admin",
+        actorUserId: "user-1",
+        kind: "promotion",
+      })
+    ).resolves.toEqual({
+      ok: false,
+      reasons: ["Honest metrics are unavailable."],
+    });
   });
 
   test("demotes on rollback, security incident, breaker, or poor window", () => {

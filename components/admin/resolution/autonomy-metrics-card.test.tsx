@@ -36,6 +36,60 @@ const metrics: AutonomyMetrics = {
   orgEnvironment: false,
   clarifiedTickets: 0,
   avgClarifyingQuestions: null,
+  v2: {
+    version: 2,
+    sessions: 10,
+    outcomes: {
+      ai_resolved: 6,
+      pending: 1,
+      false_resolved: 1,
+      staff_touched: 1,
+      unverified: 0,
+      abandoned: 1,
+      escalated: 0,
+    },
+    aiResolved: 6,
+    aiResolutionRate: 0.6,
+    falseResolved: 1,
+    falseResolvedRate: 1 / 7,
+    deflected: 7,
+    deflectionRate: 0.7,
+    abandoned: 1,
+    abandonmentRate: 0.1,
+    medianResolveMs: 120_000,
+    p90ResolveMs: 240_000,
+    pending: 1,
+    hiddenStaffTouch: 1,
+    repeatIssues: 2,
+    repeatIssueRate: 1 / 3,
+    sessionOutcomes: [],
+    byCategory: [
+      {
+        key: "network",
+        sessions: 6,
+        aiResolved: 4,
+        falseResolved: 1,
+        staffTouched: 0,
+        abandoned: 1,
+        escalated: 0,
+        aiResolutionRate: 4 / 6,
+        falseResolvedRate: 1 / 5,
+      },
+    ],
+    byCapability: [
+      {
+        key: "device_flush_dns",
+        sessions: 3,
+        aiResolved: 2,
+        falseResolved: 1,
+        staffTouched: 0,
+        abandoned: 0,
+        escalated: 0,
+        aiResolutionRate: 2 / 3,
+        falseResolvedRate: 1 / 3,
+      },
+    ],
+  },
 };
 
 afterEach(() => cleanup());
@@ -46,14 +100,35 @@ describe("AutonomyMetricsCard", () => {
     expect(
       screen.getByText("Requester-agent outcome metrics")
     ).toBeInTheDocument();
-    expect(screen.getByText("AI resolved")).toBeInTheDocument();
-    expect(screen.getByText("60%")).toBeInTheDocument();
+    expect(screen.getAllByText("AI resolved")).toHaveLength(3);
+    expect(screen.getAllByText("60%")).toHaveLength(1);
     expect(screen.getByText("budget")).toBeInTheDocument();
     expect(screen.getByText("Replies redacted:")).toBeInTheDocument();
     expect(screen.getByText("2 sessions")).toBeInTheDocument();
     expect(screen.getByText("Cannot connect")).toBeInTheDocument();
-    expect(screen.getByText("Median AI resolution: 2m")).toBeInTheDocument();
+    expect(screen.getByText("Median time to resolve")).toBeInTheDocument();
+    expect(screen.getByText("p90 time to resolve")).toBeInTheDocument();
     expect(screen.queryByText("AI spend (window)")).not.toBeInTheDocument();
+  });
+
+  test("renders all three v2 metric pairs, supporting tiles, and breakdowns", () => {
+    render(<AutonomyMetricsCard metrics={metrics} />);
+
+    expect(screen.getByText("Last 30 days · Metrics v2")).toBeInTheDocument();
+    expect(screen.getAllByText("AI resolved")).toHaveLength(3);
+    expect(screen.getAllByText("False resolved")).toHaveLength(3);
+    expect(screen.getByText("Deflection")).toBeInTheDocument();
+    expect(screen.getByText("Abandonment")).toBeInTheDocument();
+    expect(screen.getByText("Median time to resolve")).toBeInTheDocument();
+    expect(screen.getByText("p90 time to resolve")).toBeInTheDocument();
+    expect(screen.getByText("Pending (72 h)")).toBeInTheDocument();
+    expect(screen.getByText("Hidden staff touch")).toBeInTheDocument();
+    expect(screen.getByText("Repeat-issue rate (30 d)")).toBeInTheDocument();
+    expect(
+      screen.getByText("Metrics v1 (comparison): AI resolution rate 60%")
+    ).toBeInTheDocument();
+    expect(screen.getByText("By category")).toBeInTheDocument();
+    expect(screen.getByText("By capability")).toBeInTheDocument();
   });
 
   test("renders cost tiles only when cost tracking is enabled", () => {

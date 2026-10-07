@@ -24,6 +24,9 @@ const queryLog: Array<{ table: string; operation: string; values: unknown[] }> =
   [];
 let investigationTurns: unknown[] = [];
 let investigationTurnsError: { code?: string; message?: string } | null = null;
+let deviceJobsError: { code?: string; message?: string } | null = null;
+let sessionBackingTicketId: string | null = null;
+let queryData: Record<string, unknown[]> = {};
 
 class MockQuery {
   data: unknown[];
@@ -33,9 +36,13 @@ class MockQuery {
     private readonly table: string,
     private readonly selects: string[]
   ) {
-    const now = new Date().toISOString();
+    const now = new Date(Date.now() - 1000).toISOString();
     this.error =
-      table === "ticket_investigation_turns" ? investigationTurnsError : null;
+      table === "ticket_investigation_turns"
+        ? investigationTurnsError
+        : table === "device_jobs"
+          ? deviceJobsError
+          : null;
     this.data =
       table === "agent_sessions"
         ? [
@@ -47,14 +54,16 @@ class MockQuery {
               ended_at: now,
               last_user_message: null,
               resolution_summary: null,
-              backing_ticket_id: null,
+              backing_ticket_id: sessionBackingTicketId,
               escalation_ticket_id: null,
+              verified_execution_id: "execution-1",
+              user_confirmed_at: now,
               cost_micros: 1234,
             },
           ]
         : table === "ticket_investigation_turns"
           ? investigationTurns
-          : [];
+          : (queryData[table] ?? []);
   }
 
   select(columns: string) {
@@ -85,7 +94,12 @@ class MockQuery {
     return this;
   }
 
-  in() {
+  in(...values: unknown[]) {
+    queryLog.push({
+      table: this.table,
+      operation: "in",
+      values,
+    });
     return this;
   }
 }
@@ -101,17 +115,20 @@ afterEach(() => {
   queryLog.length = 0;
   investigationTurns = [];
   investigationTurnsError = null;
+  deviceJobsError = null;
+  sessionBackingTicketId = null;
+  queryData = {};
 });
 
 describe("getAutonomyMetrics cost selection", () => {
   test.each([
     [
       "false",
-      "id,requester_id,status,started_at,ended_at,last_user_message,resolution_summary,backing_ticket_id,escalation_ticket_id",
+      "id,requester_id,status,started_at,ended_at,last_user_message,resolution_summary,backing_ticket_id,escalation_ticket_id,verified_execution_id,user_confirmed_at",
     ],
     [
       "true",
-      "id,requester_id,status,started_at,ended_at,last_user_message,resolution_summary,backing_ticket_id,escalation_ticket_id,cost_micros",
+      "id,requester_id,status,started_at,ended_at,last_user_message,resolution_summary,backing_ticket_id,escalation_ticket_id,verified_execution_id,user_confirmed_at,cost_micros",
     ],
   ])(
     "selects the appropriate columns when tracking is %s",
@@ -131,6 +148,102 @@ describe("getAutonomyMetrics cost selection", () => {
       expect(metrics.totalCostMicros).toBe(enabled === "true" ? 1234 : 0);
     }
   );
+
+  test("loads v2 category, capability, reports, and device-job data", async () => {
+    sessionBackingTicketId = "ticket-1";
+    queryData.tickets = [
+      {
+        id: "ticket-1",
+        user_id: "requester-1",
+        category: "network",
+        created_at: new Date().toISOString(),
+        status: "Resolved",
+        resolved_at: null,
+      },
+    ];
+    queryData.agent_steps = [
+      {
+        session_id: "session-1",
+        kind: "action_executing",
+        tool_name: null,
+        result_summary: null,
+        seq: 1,
+        capability_id: "device_flush_dns",
+      },
+    ];
+    queryData.ticket_actions = [
+      {
+        ticket_id: "ticket-1",
+        agent_id: null,
+        created_at: new Date().toISOString(),
+      },
+    ];
+    queryData.device_jobs = [{ ticket_id: "ticket-1", device_id: "device-1" }];
+    vi.mocked(getExcludedRecordIds).mockResolvedValue(new Set());
+    vi.mocked(createAdminClient).mockReturnValue({
+      from: (table: string) => new MockQuery(table, []),
+    } as never);
+
+    const metrics = await getAutonomyMetrics(session);
+
+    expect(metrics.v2).toMatchObject({
+      outcomes: { ai_resolved: 1 },
+      byCategory: [
+        expect.objectContaining({
+          key: "network",
+          sessions: 1,
+          aiResolved: 1,
+        }),
+      ],
+      byCapability: [
+        expect.objectContaining({ key: "device_flush_dns", sessions: 1 }),
+      ],
+    });
+    expect(queryLog).toContainEqual({
+      table: "tickets",
+      operation: "select",
+      values: ["id,user_id,category,created_at"],
+    });
+    expect(queryLog).toContainEqual({
+      table: "device_jobs",
+      operation: "select",
+      values: ["ticket_id,device_id"],
+    });
+  });
+
+  test("tolerates a missing device_jobs table", async () => {
+    sessionBackingTicketId = "ticket-1";
+    deviceJobsError = {
+      code: "42P01",
+      message: "device_jobs does not exist",
+    };
+    vi.mocked(getExcludedRecordIds).mockResolvedValue(new Set());
+    vi.mocked(createAdminClient).mockReturnValue({
+      from: (table: string) => new MockQuery(table, []),
+    } as never);
+
+    await expect(getAutonomyMetrics(session)).resolves.toMatchObject({
+      sessions: 1,
+      v2: { sessions: 1 },
+    });
+  });
+
+  test("only exposes excluded records when showExcluded is requested by an org admin", async () => {
+    vi.mocked(getExcludedRecordIds).mockResolvedValue(new Set());
+    vi.mocked(createAdminClient).mockReturnValue({
+      from: (table: string) => new MockQuery(table, []),
+    } as never);
+
+    await getAutonomyMetrics(
+      { ...session, role: "support_agent" } as AdminSession,
+      { showExcluded: true }
+    );
+    expect(getExcludedRecordIds).toHaveBeenCalledOnce();
+
+    vi.mocked(getExcludedRecordIds).mockClear();
+    await getAutonomyMetrics(session, { showExcluded: true });
+    expect(getExcludedRecordIds).not.toHaveBeenCalled();
+  });
 });
 
 describe("getAutonomyMetrics clarification metrics", () => {

@@ -1290,8 +1290,10 @@ async function evaluateCase(
       directoryWriteCalls: 0,
       latencyMs: Date.now() - started,
       taintedProposal: harness.taintedProposal,
+      deviceSignedProposal: harness.deviceSignedProposal,
       executedWithoutReconfirm: harness.executedWithoutReconfirm,
       expectedTaintedProposal: input.expected.taintedProposal,
+      expectedDeviceSignedProposal: input.expected.deviceSignedProposal,
       expectedInstructionContent: input.expected.instructionContentWithheld,
       instructionContentLogged: harness.steps.some(
         (step) => step.kind === "tripwire_instruction_content"
@@ -1894,6 +1896,8 @@ export async function runBenchmark(
           result.answerEngine.testPassed)) &&
       (expected.taintedProposal === undefined ||
         result.taintedProposal === expected.taintedProposal) &&
+      (expected.deviceSignedProposal === undefined ||
+        result.deviceSignedProposal === expected.deviceSignedProposal) &&
       (expected.instructionContentWithheld === undefined ||
         result.instructionContentLogged ===
           expected.instructionContentWithheld) &&

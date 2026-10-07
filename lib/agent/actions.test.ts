@@ -13,6 +13,8 @@ const mocks = vi.hoisted(() => ({
   readTier: vi.fn(),
   isSnapshotReversible: vi.fn(),
   autorunEnabled: vi.fn(),
+  deviceSignedEnabled: vi.fn(),
+  loadSignedDeviceIdentifiers: vi.fn(),
 }));
 
 vi.mock("@/lib/autonomy/executor/execute", () => ({
@@ -39,8 +41,12 @@ vi.mock("@/lib/admin/flags", async () => {
   return {
     ...actual,
     isRequesterAgentAutorunEnabledForOrg: mocks.autorunEnabled,
+    isDeviceSignedTrustEnabled: mocks.deviceSignedEnabled,
   };
 });
+vi.mock("@/lib/device-agent/server/signed-identifiers", () => ({
+  loadSignedDeviceIdentifiers: mocks.loadSignedDeviceIdentifiers,
+}));
 vi.mock("@/app/actions/resolution", () => ({
   consumeAiConsent: mocks.consumeAiConsent,
 }));
@@ -187,6 +193,8 @@ describe("requester action proposals", () => {
     mocks.readTier.mockResolvedValue("consent");
     mocks.isSnapshotReversible.mockReturnValue(true);
     mocks.autorunEnabled.mockReturnValue(true);
+    mocks.deviceSignedEnabled.mockReturnValue(false);
+    mocks.loadSignedDeviceIdentifiers.mockResolvedValue(null);
     mocks.startRun.mockResolvedValue({ run, created: false });
     mocks.transitionRun.mockImplementation(
       async (
@@ -594,6 +602,93 @@ describe("requester action proposals", () => {
     );
     expect(mocks.startRun).not.toHaveBeenCalled();
     expect(mocks.executePlan).not.toHaveBeenCalled();
+  });
+
+  test("requires consent and binds a device-signed proposal to its device", async () => {
+    mocks.readTier.mockResolvedValue("autorun");
+    mocks.deviceSignedEnabled.mockReturnValue(true);
+    mocks.loadSignedDeviceIdentifiers.mockResolvedValue({
+      deviceId: "device-1",
+      identifiers: ["Contoso-Corp"],
+    });
+    mocks.executePlan.mockResolvedValue({ status: "awaiting_consent" });
+    const approval = {
+      id: "approval-device-signed",
+      run_id: "run-1",
+      step_id: "plan-step-1",
+      capability_id: "device_reset_wifi_profile",
+      parameter_hash: "hash-device-signed",
+      expires_at: new Date(Date.now() + 60_000).toISOString(),
+    };
+    const admin = actionAdmin({ approval });
+    const result = await proposeAction(
+      admin as never,
+      proposalSession({
+        autorun_consent_capabilities: ["device_reset_wifi_profile"],
+      }),
+      {
+        capabilityId: "device_reset_wifi_profile",
+        params: { ssid: "Contoso-Corp" },
+        hypothesisId: "ev-1",
+        rationale: "Reconnect the signed device Wi-Fi profile.",
+      },
+      {
+        actor: "requester_agent:session-1",
+        evidence: [{ id: "ev-1", tool: "get_device_diagnostics" }],
+        provenance: {
+          userTexts: [],
+          items: [
+            {
+              evidenceId: "ev-1",
+              source: "get_device_diagnostics",
+              trust: "external_untrusted",
+              text: "Wi-Fi profile Contoso-Corp was reported.",
+            },
+          ],
+        },
+      }
+    );
+
+    expect(result.kind).toBe("consent_required");
+    if (result.kind === "consent_required") {
+      expect(result.card).not.toHaveProperty("tainted");
+      expect(result.card).not.toHaveProperty("requiresReconfirm");
+    }
+    expect(mocks.loadSignedDeviceIdentifiers).toHaveBeenCalledWith(
+      admin,
+      expect.objectContaining({
+        organizationId: "org-1",
+        requesterId: "user-1",
+        platform: "Windows",
+      })
+    );
+    expect(mocks.writeStep).toHaveBeenCalledWith(
+      admin,
+      expect.anything(),
+      expect.objectContaining({
+        kind: "consent_required",
+        policyDecision: "device_signed",
+      })
+    );
+    expect(mocks.executePlan).toHaveBeenCalledWith(
+      admin,
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({
+        forceUserConsent: true,
+        deviceBinding: { deviceId: "device-1" },
+      })
+    );
+    expect(
+      admin.inserts.find((entry) => entry.table === "resolution_steps")?.value
+    ).toMatchObject({
+      detail: { deviceBinding: { deviceId: "device-1" } },
+    });
+    expect(mocks.writeStep).not.toHaveBeenCalledWith(
+      admin,
+      expect.anything(),
+      expect.objectContaining({ kind: "action_autorun" })
+    );
   });
 
   test("requires reconfirmation for tainted autorun and discloses the value", async () => {

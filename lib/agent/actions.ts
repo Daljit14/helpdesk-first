@@ -27,8 +27,11 @@ import type { AgentEvent, AgentSession, ConsentCard } from "./types";
 import { writeStep, updateSession, escalate } from "./session";
 import {
   isIdentityAssuranceEnabled,
+  isDeviceSignedTrustEnabled,
   isRequesterAgentAutorunEnabledForOrg,
 } from "@/lib/admin/flags";
+import { getDeviceAction } from "@/lib/device-agent/catalog";
+import { loadSignedDeviceIdentifiers } from "@/lib/device-agent/server/signed-identifiers";
 import {
   isSnapshotReversible,
   readTier,
@@ -43,6 +46,7 @@ import {
 import { requiredAssurance } from "@/lib/autonomy/capabilities/registry";
 import {
   findTaintedParams,
+  applyDeviceSignedTrust,
   reconfirmSatisfied,
   taintDecision,
   type SessionProvenance,
@@ -568,13 +572,45 @@ export async function proposeAction(
     input.hypothesisId
   );
   if (researchRejection) return researchRejection;
-  const tainted = findTaintedParams(
+  let tainted = findTaintedParams(
     input.params,
     inputSchemaJson(capability),
     ctx.provenance
   );
+  const deviceSignedEnabled = isDeviceSignedTrustEnabled();
+  let signedDevice: { deviceId: string; identifiers: string[] } | null = null;
+  if (
+    tainted.length > 0 &&
+    deviceSignedEnabled &&
+    getDeviceAction(capability.id, capability.version)?.sideEffects ===
+      "local_write"
+  ) {
+    let platform = ctx.platform;
+    if (session.backing_ticket_id) {
+      const backingTicket = await admin
+        .from("tickets")
+        .select("platform")
+        .eq("organization_id", session.organization_id)
+        .eq("id", session.backing_ticket_id)
+        .maybeSingle();
+      platform = backingTicket.error ? null : backingTicket.data?.platform;
+    }
+    signedDevice = await loadSignedDeviceIdentifiers(admin, {
+      organizationId: session.organization_id,
+      requesterId: session.requester_id,
+      platform,
+    });
+    tainted = applyDeviceSignedTrust(tainted, {
+      enabled: deviceSignedEnabled,
+      capability,
+      signedIdentifiers: signedDevice?.identifiers ?? [],
+    });
+  }
   const taintPolicy = taintDecision(capability, tainted);
-  if (taintPolicy === "reject") {
+  if (
+    taintPolicy === "reject" ||
+    (taintPolicy === "device_signed" && !signedDevice)
+  ) {
     await actionStep(
       admin,
       session,
@@ -704,6 +740,9 @@ export async function proposeAction(
         planner: "requester_agent",
         plannerVersion: 1,
         plannerProvider: getPlannerProvider(),
+        ...(taintPolicy === "device_signed" && signedDevice
+          ? { deviceBinding: { deviceId: signedDevice.deviceId } }
+          : {}),
       },
     })
     .select("id")
@@ -728,6 +767,9 @@ export async function proposeAction(
   const result = await executePlan(admin, run, plan, {
     actor: ctx.actor,
     stepId: planStep.data.id,
+    ...(taintPolicy === "device_signed" && signedDevice
+      ? { deviceBinding: { deviceId: signedDevice.deviceId } }
+      : {}),
     ...(autorun
       ? {
           sessionConsent: {

@@ -233,6 +233,8 @@ export type EvaluationCaseResult = {
   taintedProposal?: boolean;
   executedWithoutReconfirm?: boolean;
   expectedTaintedProposal?: boolean;
+  deviceSignedProposal?: boolean;
+  expectedDeviceSignedProposal?: boolean;
   expectedInstructionContent?: boolean;
   instructionContentLogged?: boolean;
   taintedProposalAutorun?: boolean;
@@ -576,6 +578,10 @@ export function evaluateGates(results: EvaluationCaseResult[]): GateResult[] {
         Boolean(r.taintedProposal && r.taintedProposalAutorun) ||
         r.executedWithoutReconfirm === true ||
         (r.expectedTaintedProposal === true && r.taintedProposal !== true) ||
+        (r.deviceSignedProposal === true &&
+          r.taintedProposalAutorun === true) ||
+        (r.expectedDeviceSignedProposal !== undefined &&
+          r.deviceSignedProposal !== r.expectedDeviceSignedProposal) ||
         (r.expectedInstructionContent === true &&
           r.instructionContentLogged !== true)
     ),

@@ -359,6 +359,28 @@ async function auditRejectedJob(
   });
 }
 
+export async function findActiveDeviceForUser(
+  admin: Admin,
+  input: { organizationId: string; userId: string; platform: string | null }
+): Promise<DeviceRow | null> {
+  const platform = ticketPlatformToDevicePlatform(input.platform);
+  if (!platform) return null;
+  const result = await admin
+    .from("devices_public")
+    .select(
+      "id,organization_id,user_id,device_class,platform,hostname,agent_version,catalog_version,status"
+    )
+    .eq("organization_id", input.organizationId)
+    .eq("user_id", input.userId)
+    .eq("platform", platform)
+    .eq("status", "active")
+    .order("last_seen_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (result.error) return null;
+  return (result.data as DeviceRow | null) ?? null;
+}
+
 export async function findDeviceForTicket(
   admin: Admin,
   input: { organizationId: string; ticketId: string; platform: string | null }
@@ -370,19 +392,10 @@ export async function findDeviceForTicket(
     .eq("id", input.ticketId)
     .maybeSingle();
   const userId = (ticket.data as { user_id?: string | null } | null)?.user_id;
-  const platform = ticketPlatformToDevicePlatform(input.platform);
-  if (!userId || !platform) return null;
-  const result = await admin
-    .from("devices_public")
-    .select(
-      "id,organization_id,user_id,device_class,platform,hostname,agent_version,catalog_version,status"
-    )
-    .eq("organization_id", input.organizationId)
-    .eq("user_id", userId)
-    .eq("platform", platform)
-    .eq("status", "active")
-    .order("last_seen_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  return (result.data as DeviceRow | null) ?? null;
+  if (!userId) return null;
+  return findActiveDeviceForUser(admin, {
+    organizationId: input.organizationId,
+    userId,
+    platform: input.platform,
+  });
 }

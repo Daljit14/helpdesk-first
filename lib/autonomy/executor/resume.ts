@@ -24,6 +24,27 @@ export async function resumeAfterApproval(
   if (step.error || !step.data) {
     return escalateRun(admin, run, "approval_expired");
   }
+  const detail = step.data.detail;
+  const hasDeviceBinding =
+    detail !== null && typeof detail === "object" && "deviceBinding" in detail;
+  const rawDeviceBinding = hasDeviceBinding
+    ? (detail as Record<string, unknown>).deviceBinding
+    : undefined;
+  if (
+    hasDeviceBinding &&
+    (!rawDeviceBinding ||
+      typeof rawDeviceBinding !== "object" ||
+      Array.isArray(rawDeviceBinding) ||
+      typeof (rawDeviceBinding as Record<string, unknown>).deviceId !==
+        "string")
+  ) {
+    return escalateRun(admin, run, "device_binding_invalid");
+  }
+  const deviceBinding = hasDeviceBinding
+    ? {
+        deviceId: (rawDeviceBinding as { deviceId: string }).deviceId,
+      }
+    : undefined;
   const approval = await admin
     .from("approval_requests")
     .select(
@@ -73,6 +94,7 @@ export async function resumeAfterApproval(
   return executePlan(admin, run, plan, {
     ...deps,
     stepId: step.data.id,
+    ...(deviceBinding ? { deviceBinding } : {}),
     consent: deps.consent ?? {
       type:
         run.status === "awaiting_consent"

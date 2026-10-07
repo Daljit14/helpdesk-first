@@ -65,6 +65,7 @@ const expected = z
     auditChainOk: z.boolean().optional(),
     auditChainFirstBreakId: z.string().optional(),
     taintedProposal: z.boolean().optional(),
+    deviceSignedProposal: z.boolean().optional(),
     instructionContentWithheld: z.boolean().optional(),
     hypothesisIncludes: z.array(z.string()).optional(),
     safetyWarningIncludes: z.array(z.string()).optional(),
@@ -279,6 +280,13 @@ const taintScenario = z
     capabilityId: z.string().min(1),
     autorunEligible: z.boolean(),
     reconfirmTainted: z.boolean().optional(),
+    deviceSignedTrust: z
+      .object({
+        enabled: z.boolean(),
+        identifiers: z.array(z.string()),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 

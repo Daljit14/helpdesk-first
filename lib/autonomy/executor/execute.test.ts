@@ -234,8 +234,19 @@ describe("executePlan", () => {
   });
 
   test("runs a safe plan through verification", async () => {
-    const result = await executePlan(admin() as never, run, plan);
+    const client = admin();
+    const result = await executePlan(client as never, run, plan, {
+      deviceBinding: { deviceId: "device-1" },
+    });
+    const executeStep = client.inserts.find(
+      (entry) =>
+        entry.table === "resolution_steps" &&
+        (entry.value as Record<string, unknown>).kind === "execute"
+    );
     expect(result?.status).toBe("verifying");
+    expect(executeStep?.value).toMatchObject({
+      detail: { deviceBinding: { deviceId: "device-1" } },
+    });
     expect(mocks.getHandler).toHaveBeenCalledWith(
       "search_approved_knowledge",
       1

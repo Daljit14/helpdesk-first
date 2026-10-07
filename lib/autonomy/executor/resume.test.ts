@@ -52,7 +52,11 @@ const run = {
   completed_at: null,
 };
 
-function admin(status: string, expiresAt: string | null = null) {
+function admin(
+  status: string,
+  expiresAt: string | null = null,
+  deviceBinding?: unknown
+) {
   const query = {
     select: vi.fn(() => query),
     eq: vi.fn(() => query),
@@ -80,6 +84,7 @@ function admin(status: string, expiresAt: string | null = null) {
               },
               verificationMethod: "none",
             },
+            ...(deviceBinding !== undefined ? { deviceBinding } : {}),
           },
         },
         error: null,
@@ -239,6 +244,34 @@ describe("resumeAfterApproval", () => {
     );
     expect(result?.status).toBe("verifying");
     expect(mocks.transitionRun).not.toHaveBeenCalled();
+  });
+
+  test("propagates a device binding when resuming a plan", async () => {
+    mocks.executePlan.mockResolvedValue({ ...run, status: "verifying" });
+    await resumeAfterApproval(
+      admin("granted", null, { deviceId: "device-1" }) as never,
+      run
+    );
+    expect(mocks.executePlan).toHaveBeenCalledWith(
+      expect.anything(),
+      run,
+      expect.anything(),
+      expect.objectContaining({
+        stepId: "step-1",
+        deviceBinding: { deviceId: "device-1" },
+      })
+    );
+  });
+
+  test("escalates when a resumed device binding is malformed", async () => {
+    mocks.escalateRun.mockResolvedValue({ ...run, status: "escalated" });
+    await resumeAfterApproval(admin("granted", null, "invalid") as never, run);
+    expect(mocks.escalateRun).toHaveBeenCalledWith(
+      expect.anything(),
+      run,
+      "device_binding_invalid"
+    );
+    expect(mocks.executePlan).not.toHaveBeenCalled();
   });
 
   test("granted consent executes through the real executor and consumes approval", async () => {

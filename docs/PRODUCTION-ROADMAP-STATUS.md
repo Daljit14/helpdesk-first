@@ -83,6 +83,14 @@ scenarios. This is code-only: no SQL was added or applied, and the production
 SQL run order remains at 16. See `SETUP-NOTES-E11b.md` for flags, budgets,
 safety screening, and provider-dependent rollout checks.
 
+## Phase E — device-signed identifier trust
+
+The default-off `HELP_DESK_DEVICE_SIGNED_TRUST_ENABLED` flag allows exact,
+recent identifiers from the requester's authenticated device diagnostics to
+avoid value reconfirmation while preserving normal user consent and execution
+binding. Only SSIDs and printer names qualify today; no SQL was added or
+applied. See `SETUP-NOTES-device-signed.md`.
+
 ## Phase E — E10 conversation quality
 
 E10 adds opt-in structured style-v2 replies, readable hand-off summaries,
@@ -540,6 +548,8 @@ Flags ON in Production: `HELP_DESK_ADMIN_DASHBOARD_ENABLED`,
 `HELP_DESK_SECURE_ATTACHMENTS_ENABLED`. `HELP_DESK_TICKET_WORKFLOW_ENABLED`
 is ON in Preview only. `HELP_DESK_AI_ENABLED` / `NEXT_PUBLIC_AI_ENABLED` exist
 in Production; the grounded provider (PR #29) runs Claude Haiku 4.5 in production.
+`HELP_DESK_DEVICE_SIGNED_TRUST_ENABLED` remains off by default and is not
+enabled in hosted environments.
 
 ---
 

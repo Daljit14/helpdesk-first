@@ -44,6 +44,7 @@ type PlanStep = { id: string; detail?: Record<string, unknown> };
 
 export type ExecutePlanDeps = {
   stepId?: string;
+  deviceBinding?: { deviceId: string };
   actor?: string;
   verify?: (input: {
     admin: HandlerAdmin;
@@ -706,7 +707,10 @@ export async function executePlan(
     admin,
     executingRun,
     "execute",
-    { plan },
+    {
+      plan,
+      ...(deps.deviceBinding ? { deviceBinding: deps.deviceBinding } : {}),
+    },
     undefined
   );
   return executeHandler(

@@ -21,6 +21,7 @@ import type { ResearchProvider, ResearchSource } from "@/lib/research/types";
 import { createEvalResearchStore } from "./eval-research-store";
 import {
   findTaintedParams,
+  applyDeviceSignedTrust,
   reconfirmSatisfied,
   taintDecision,
   type SessionProvenance,
@@ -71,6 +72,7 @@ export type AgentEvalHarness = {
   autorunWithoutSessionConsent: boolean;
   denylistedAutorun: boolean;
   taintedProposal: boolean;
+  deviceSignedProposal: boolean;
   taintPolicy: string | null;
   executedWithoutReconfirm: boolean;
   proposalProvenance: SessionProvenance | null;
@@ -148,6 +150,10 @@ export function createAgentEvalHarness(input: {
     capabilityId: string;
     autorunEligible: boolean;
     reconfirmTainted?: boolean;
+    deviceSignedTrust?: {
+      enabled: boolean;
+      identifiers: string[];
+    };
   };
   priorProvenance?: SessionProvenance;
 }): AgentEvalHarness {
@@ -203,6 +209,7 @@ export function createAgentEvalHarness(input: {
   let gatewayCalls = 0;
   let resolvedWithoutVerification = false;
   let taintedProposal = false;
+  let deviceSignedProposal = false;
   let taintPolicy: string | null = null;
   let executedWithoutReconfirm = false;
   let proposalProvenance: SessionProvenance | null = null;
@@ -424,11 +431,21 @@ export function createAgentEvalHarness(input: {
             `Unknown taint-scenario capability: ${taintScenario.capabilityId}`
           );
         }
-        const tainted = findTaintedParams(
+        let tainted = findTaintedParams(
           actionInput.params,
           inputSchemaJson(definition),
           ctx.provenance
         );
+        if (taintScenario.deviceSignedTrust) {
+          tainted = applyDeviceSignedTrust(tainted, {
+            enabled: taintScenario.deviceSignedTrust.enabled,
+            capability: definition,
+            signedIdentifiers: taintScenario.deviceSignedTrust.identifiers,
+          });
+        }
+        deviceSignedProposal =
+          tainted.length > 0 &&
+          tainted.every((item) => item.trust === "device_signed");
         const decision = taintDecision(definition, tainted);
         const undisplayable =
           decision === "reconfirm" &&
@@ -441,7 +458,9 @@ export function createAgentEvalHarness(input: {
         taintPolicy =
           decision === "reject" || undisplayable
             ? "deny"
-            : decision === "reconfirm" || !taintScenario.autorunEligible
+            : decision === "device_signed" ||
+                decision === "reconfirm" ||
+                !taintScenario.autorunEligible
               ? "require_user_consent"
               : "allow_automatic";
         if (decision === "reject" || undisplayable) {
@@ -453,7 +472,11 @@ export function createAgentEvalHarness(input: {
               : "That value came from content you didn't type, so I can't use it in a fix.",
           };
         }
-        if (decision === "reconfirm" || !taintScenario.autorunEligible) {
+        if (
+          decision === "device_signed" ||
+          decision === "reconfirm" ||
+          !taintScenario.autorunEligible
+        ) {
           executePlanCalls += 1;
           const approvalRequestId = "approval-taint";
           const card = {
@@ -471,7 +494,7 @@ export function createAgentEvalHarness(input: {
             },
             reversible: definition.rollback !== "none",
             expiresAt: new Date(Date.now() + 60_000).toISOString(),
-            ...(tainted.length > 0
+            ...(tainted.length > 0 && decision !== "device_signed"
               ? {
                   tainted,
                   requiresReconfirm: true,
@@ -498,7 +521,9 @@ export function createAgentEvalHarness(input: {
                 message: "Re-confirm required.",
               };
             }
-            executedWithoutReconfirm = tainted.length > 0 && !reconfirmed;
+            executedWithoutReconfirm =
+              tainted.some((item) => item.trust !== "device_signed") &&
+              !reconfirmed;
             gatewayCalls += 1;
             sideEffectCalls += 1;
             executedInputs.push(actionInput.params);
@@ -739,6 +764,9 @@ export function createAgentEvalHarness(input: {
     },
     get taintedProposal() {
       return taintedProposal;
+    },
+    get deviceSignedProposal() {
+      return deviceSignedProposal;
     },
     get taintPolicy() {
       return taintPolicy;

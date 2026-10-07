@@ -15,19 +15,26 @@ const REGISTRY_OR_POLICY =
 const SCRIPT_OR_COMMAND =
   /\b(?:powershell(?:\.exe)?|cmd(?:\.exe)?|command prompt|terminal|bash|shell|sudo|curl|wget|iwr|irm)\b|(?:^|\n)\s*(?:\$\s|>\s)|`|\b(?:run|execute|copy|paste|use)\b[^.\n]{0,60}\b(?:script|commands?)\b|\b[\w.-]+\.(?:ps1|bat|cmd|sh|bash|zsh|command|py|pyw|js|exe)\b/i;
 const OTHER_ACCOUNT =
-  /\b(?:another|other|different)\s+(?:user(?:'s|s)?\s+)?(?:accounts?|profiles?|devices?|computers?|emails?|mailboxes?|logins?)\b|\b(?:someone|somebody)\s+else(?:'s|s)\s+(?:accounts?|profiles?|devices?|computers?|emails?|mailboxes?|logins?)\b|\b(?:coworker|colleague|another person|other person)(?:'s|s)?\s+(?:accounts?|profiles?|devices?|computers?|emails?|mailboxes?|logins?)\b/i;
+  /\b(?:another|other|different)\s+(?:user(?:'s|s)?\s+)?(?:accounts?|profiles?|devices?|computers?|emails?|mailbox(?:es)?|logins?)\b|\b(?:someone|somebody)\s+else(?:'s|s)\s+(?:accounts?|profiles?|devices?|computers?|emails?|mailbox(?:es)?|logins?)\b|\b(?:coworker|colleague|another person|other person)(?:'s|s)?\s+(?:accounts?|profiles?|devices?|computers?|emails?|mailbox(?:es)?|logins?)\b|\btheir\s+(?:accounts?|passwords?|mailbox(?:es)?)\b|\b(?:as|for)\s+(?:(?:another|other|different)\s+user|someone\s+else)\b|\breset\s+(?:the\s+)?password\s+for\s+a\s+(?:coworker|colleague)\b/i;
 const ADMIN_RIGHTS =
   /\b(?:admin(?:istrator)?\s+(?:rights?|privileges?|accounts?|passwords?|approval)|administrator|local\s+admin(?:istrator)?|uac(?:\s+approval)?|elevat(?:ed|ion)|run\s+as\s+admin(?:istrator)?)\b/i;
 
+export function mapBlockedUserStepReason(
+  reason: string | null
+): StepSafetyReason | null {
+  if (reason === null) return null;
+  if (reason === "The step requests sensitive credentials.")
+    return "credentials";
+  if (reason === "The step asks to weaken a security tool.")
+    return "security_tool";
+  if (reason === "The step asks to install software that is not approved.")
+    return "unapproved_install";
+  return "security_tool";
+}
+
 function blockedReasonCode(text: string, approvedSoftware: readonly string[]) {
   const reason = blockedUserStepReason(text, approvedSoftware);
-  if (reason === "The step requests sensitive credentials.")
-    return "credentials" as const;
-  if (reason === "The step asks to weaken a security tool.")
-    return "security_tool" as const;
-  if (reason === "The step asks to install software that is not approved.")
-    return "unapproved_install" as const;
-  return null;
+  return mapBlockedUserStepReason(reason);
 }
 
 export function screenAnswerStep(

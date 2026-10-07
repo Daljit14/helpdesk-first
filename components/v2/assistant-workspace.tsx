@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState, type MouseEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type MouseEvent,
+} from "react";
 import Link from "next/link";
 import { Bot, Headset, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -39,6 +45,8 @@ import {
 import { classifyInput, inputHint } from "@/lib/assistant/input-quality";
 import { matchGuides } from "@/lib/assistant/guide-match";
 import { noticeText } from "@/lib/assistant/replies";
+import { AnswerCard } from "@/components/v2/answer-card";
+import type { AnswerCard as AnswerCardData } from "@/lib/answers/present";
 
 type StepOutcome = "worked" | "failed" | "could_not_perform";
 const OUTCOME_LABELS: Record<StepOutcome, string> = {
@@ -57,6 +65,7 @@ export function AssistantWorkspace({
   workflowEnabled = false,
   signedIn = false,
   stepPolicyEnabled = false,
+  answerEngineAvailable = false,
 }: {
   initialProblem?: string;
   initialPlatform?: Platform | null;
@@ -67,6 +76,7 @@ export function AssistantWorkspace({
   workflowEnabled?: boolean;
   signedIn?: boolean;
   stepPolicyEnabled?: boolean;
+  answerEngineAvailable?: boolean;
 }) {
   const intake = useAssistantIntake({
     initialProblem,
@@ -116,6 +126,7 @@ export function AssistantWorkspace({
   const [transcript, setTranscript] = useState<ChatTurn[]>(() =>
     initialTranscript(initialProblem)
   );
+  const noticeIdSequence = useRef(0);
   const userTurns = transcript
     .filter((turn) => turn.role === "user")
     .map((turn) => turn.text);
@@ -123,6 +134,37 @@ export function AssistantWorkspace({
   const ticketIntent =
     (intent === "ticket" || intent === "human") &&
     Boolean(initialProblem.trim());
+
+  const lookupAnswer = useCallback(
+    (noticeId: string, problem: string, platform: Platform | null) => {
+      if (!answerEngineAvailable) return;
+      void (async () => {
+        let update: Partial<ChatTurn> = {
+          answerLoading: false,
+          answerRateLimited: false,
+        };
+        try {
+          const response = await fetch("/api/answers", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ problem, platform }),
+          });
+          if (response.status === 429) {
+            update = { answerLoading: false, answerRateLimited: true };
+          } else if (response.ok) {
+            const card = answerCardFromResponse(await response.json());
+            if (card) update = { answerLoading: false, answerCard: card };
+          }
+        } catch {}
+        setTranscript((current) =>
+          current.map((turn) =>
+            turn.id === noticeId ? { ...turn, ...update } : turn
+          )
+        );
+      })();
+    },
+    [answerEngineAvailable]
+  );
 
   useEffect(() => {
     if (!outcomesLoaded || !outcomesDirty.current) return;
@@ -165,23 +207,36 @@ export function AssistantWorkspace({
       // mashing, secrets and unsupported problems get a local reply.
       const notice = preflightNotice(initialProblem);
       if (notice) {
+        const noticeId = `n-${noticeIdSequence.current++}`;
         queueMicrotask(() => {
           if (notice.kind === "sensitive") intake.setProblem("");
           setTranscript((current) => [
             ...current,
             {
-              id: `n-${current.length}`,
+              id: noticeId,
               role: "assistant",
               text: notice.text,
               notice,
+              answerLoading:
+                answerEngineAvailable && notice.kind === "no_match",
             },
           ]);
+          if (notice.kind === "no_match")
+            lookupAnswer(noticeId, initialProblem, initialPlatform);
         });
         return;
       }
       void intake.submitIntake(initialProblem, initialPlatform, [], true);
     }
-  }, [autoStart, initialPlatform, initialProblem, intake, ticketIntent]);
+  }, [
+    answerEngineAvailable,
+    autoStart,
+    initialPlatform,
+    initialProblem,
+    intake,
+    lookupAnswer,
+    ticketIntent,
+  ]);
 
   const sendToSupport = async (messageOverride?: string) => {
     setActionError(null);
@@ -214,20 +269,25 @@ export function AssistantWorkspace({
     notice: AssistantNoticeData,
     userText?: string,
     answerNotice = false
-  ) =>
+  ) => {
+    const noticeId = `n-${noticeIdSequence.current++}`;
     setTranscript((current) => {
       const next = [...current];
       if (userText)
         next.push({ id: `u-${next.length}`, role: "user", text: userText });
       next.push({
-        id: `n-${next.length}`,
+        id: noticeId,
         role: "assistant",
         text: notice.text,
         notice,
         answerNotice,
+        answerLoading: answerEngineAvailable && notice.kind === "no_match",
       });
       return next;
     });
+    if (notice.kind === "no_match")
+      lookupAnswer(noticeId, notice.source ?? userText ?? "", intake.platform);
+  };
 
   /** Start a brand-new problem (typed, or an example chip). */
   const startProblem = (raw: string) => {
@@ -519,28 +579,60 @@ export function AssistantWorkspace({
           )
           .map((turn, index) =>
             turn.notice ? (
-              <AssistantNotice
-                key={turn.id}
-                notice={turn.notice}
-                onExample={startProblem}
-                onRephrase={rephrase}
-                disabled={intake.loading}
-                guideHref={(id) =>
-                  `/issues/${id}/guide?platform=${platformSlug(intake.platform ?? "Other")}`
-                }
-                handoff={
-                  turn.notice.kind === "no_match" ? (
-                    <HandoffAction
-                      problem={turn.notice.source ?? ""}
-                      platform={intake.platform}
-                      signedIn={signedIn}
-                      workflowEnabled={workflowEnabled}
-                      pending={actionPending || intake.loading}
-                      onSend={sendToSupport}
-                    />
-                  ) : undefined
-                }
-              />
+              <div key={turn.id} className="space-y-3">
+                <AssistantNotice
+                  notice={turn.notice}
+                  onExample={startProblem}
+                  onRephrase={rephrase}
+                  disabled={intake.loading}
+                  guideHref={(id) =>
+                    `/issues/${id}/guide?platform=${platformSlug(intake.platform ?? "Other")}`
+                  }
+                  handoff={
+                    turn.notice.kind === "no_match" &&
+                    turn.answerCard?.outcome !== "needs_it" ? (
+                      <HandoffAction
+                        problem={turn.notice.source ?? ""}
+                        platform={intake.platform}
+                        signedIn={signedIn}
+                        workflowEnabled={workflowEnabled}
+                        pending={actionPending || intake.loading}
+                        onSend={sendToSupport}
+                      />
+                    ) : undefined
+                  }
+                />
+                {turn.answerLoading && (
+                  <Message
+                    side="assistant"
+                    text="There's no guide for this yet, so I'm checking trusted sources…"
+                    animate={false}
+                  />
+                )}
+                {turn.answerRateLimited && (
+                  <p className="pl-11 text-sm text-muted-foreground">
+                    You&apos;ve reached the answer limit for now. Sign in or try
+                    again later.
+                  </p>
+                )}
+                {turn.answerCard && (
+                  <AnswerCard
+                    card={turn.answerCard}
+                    handoff={
+                      turn.answerCard.outcome === "needs_it" ? (
+                        <HandoffAction
+                          problem={turn.notice.source ?? ""}
+                          platform={intake.platform}
+                          signedIn={signedIn}
+                          workflowEnabled={workflowEnabled}
+                          pending={actionPending || intake.loading}
+                          onSend={sendToSupport}
+                        />
+                      ) : undefined
+                    }
+                  />
+                )}
+              </div>
             ) : (
               <Message
                 key={turn.id}
@@ -754,12 +846,35 @@ type ChatTurn = {
   notice?: AssistantNoticeData;
   /** Notice about a clarifying answer; keeps the current question active. */
   answerNotice?: boolean;
+  answerLoading?: boolean;
+  answerRateLimited?: boolean;
+  answerCard?: AnswerCardData;
 };
 
 function initialTranscript(initialProblem: string): ChatTurn[] {
   if (!initialProblem) return [];
   if (classifyInput(initialProblem).kind === "sensitive") return [];
   return [{ id: "u-0", role: "user", text: initialProblem }];
+}
+
+function answerCardFromResponse(value: unknown): AnswerCardData | null {
+  if (!value || typeof value !== "object") return null;
+  const payload = value as Record<string, unknown>;
+  if (
+    payload.status !== "ok" ||
+    !payload.card ||
+    typeof payload.card !== "object"
+  )
+    return null;
+  const card = payload.card as Record<string, unknown>;
+  if (card.outcome !== "answer" && card.outcome !== "needs_it") return null;
+  if (
+    !Array.isArray(card.steps) ||
+    !Array.isArray(card.explanations) ||
+    !Array.isArray(card.sources)
+  )
+    return null;
+  return card as unknown as AnswerCardData;
 }
 
 /**

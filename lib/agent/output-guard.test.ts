@@ -268,6 +268,74 @@ describe("requester-agent output guard", () => {
     });
   });
 
+  test("guards answer-card text and drops non-HTTPS citations", () => {
+    const guarded = guardAgentEvent(
+      {
+        type: "answer_card",
+        card: {
+          runId: "run-1",
+          outcome: "answer",
+          likelyCause: {
+            text: "LAPTOP-ABC123 may need a restart.",
+            sourceIds: ["safe"],
+          },
+          explanations: [],
+          steps: [
+            {
+              kind: "official",
+              text: "Restart the app on LAPTOP-ABC123.",
+              sourceIds: ["safe"],
+            },
+          ],
+          withheldForIt: 0,
+          sources: [
+            {
+              id: "safe",
+              title: "Support for LAPTOP-ABC123",
+              domain: "support.example.test",
+              url: "https://support.example.test/article",
+              label: "Official docs",
+              attribution: "For LAPTOP-ABC123",
+            },
+            {
+              id: "unsafe",
+              title: "Unsafe source",
+              domain: "example.test",
+              url: "http://example.test/article",
+              label: "Community post",
+              attribution: null,
+            },
+          ],
+        },
+      },
+      context()
+    );
+
+    expect(guarded).toMatchObject({
+      type: "answer_card",
+      card: {
+        likelyCause: {
+          text: "[removed: device or network detail] may need a restart.",
+          sourceIds: ["safe"],
+        },
+        steps: [
+          {
+            text: "Restart the app on [removed: device or network detail].",
+            sourceIds: ["safe"],
+          },
+        ],
+        sources: [
+          {
+            id: "safe",
+            title: "Support for [removed: device or network detail]",
+            url: "https://support.example.test/article",
+            attribution: "For [removed: device or network detail]",
+          },
+        ],
+      },
+    });
+  });
+
   test("preserves the consent id on guarded error events", () => {
     const event = {
       type: "error" as const,

@@ -1146,6 +1146,7 @@ async function evaluateCase(
       serviceHealthEnabled: script.serviceHealthEnabled,
       orgEnvironmentEnabled: script.orgEnvironmentEnabled,
       diagnosticSourcesEnabled: script.diagnosticSourcesEnabled,
+      answerEngineEnabled: script.answerEngineEnabled,
       modelRoute: script.modelRoute,
       webSearch: script.webSearch,
       realEvidenceCheck: script.realEvidenceCheck,

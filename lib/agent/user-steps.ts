@@ -75,7 +75,7 @@ export function blockedUserStepReason(
   return null;
 }
 
-function containsUrl(text: string): boolean {
+export function containsUrl(text: string): boolean {
   return /(?:https?:\/\/|www\.)\S+|\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}(?:\/\S*)?\b/i.test(
     text
   );

@@ -72,6 +72,29 @@ describe("taint provenance", () => {
     ]);
   });
 
+  test("taints a proposal parameter copied from find_answer steps", () => {
+    const tip = "Sign out and back into the application.";
+    const items = provenanceFromTool("find_answer", "ev-1", {
+      steps: [{ kind: "community_tip", text: tip }],
+    });
+
+    expect(
+      findTaintedParams(
+        { params: { instruction: tip } },
+        {},
+        { userTexts: [], items }
+      )
+    ).toEqual([
+      {
+        param: "params.instruction",
+        value: tip,
+        evidenceId: "ev-1",
+        source: "find_answer",
+        trust: "external_untrusted",
+      },
+    ]);
+  });
+
   test("does not match unrelated text or normalized values shorter than four", () => {
     expect(
       findTaintedParams(

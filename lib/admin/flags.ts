@@ -109,6 +109,13 @@ export function isAnswerEnginePublicEnabled(): boolean {
   );
 }
 
+export function isCommunityTipsEnabled(): boolean {
+  return (
+    isAnswerEngineEnabled() &&
+    process.env.HELP_DESK_COMMUNITY_TIPS_ENABLED === "true"
+  );
+}
+
 export function isWikipediaSourceEnabled(): boolean {
   return process.env.HELP_DESK_SOURCE_WIKIPEDIA_ENABLED === "true";
 }

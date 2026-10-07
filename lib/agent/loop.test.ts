@@ -1253,6 +1253,113 @@ describe("requester agent loop", () => {
     );
   });
 
+  test("renders find_answer cards and registers their sources for final replies", async () => {
+    const events: AgentEvent[] = [];
+    const steps: Array<{
+      kind: string;
+      toolName?: string;
+      resultSummary?: string;
+    }> = [];
+    let systemPrompt = "";
+    let firstToolNames: string[] = [];
+    let calls = 0;
+    const card = {
+      runId: "answer-run",
+      outcome: "answer" as const,
+      likelyCause: null,
+      explanations: [],
+      steps: [
+        {
+          kind: "official" as const,
+          text: "Restart the application.",
+          sourceIds: ["answer-source"],
+        },
+      ],
+      withheldForIt: 1,
+      sources: [
+        {
+          id: "answer-source",
+          title: "Application support",
+          domain: "support.example.com",
+          url: "https://support.example.com/article",
+          label: "Official docs" as const,
+          attribution: null,
+        },
+      ],
+    };
+    const { deps } = directLoopDeps({
+      styleV2Enabled: true,
+      answerEngineEnabled: true,
+      createModel: () => ({
+        next: async (request) => {
+          calls += 1;
+          if (calls === 1) {
+            systemPrompt = request.system;
+            firstToolNames = request.tools.map(({ name }) => name);
+            return toolUse("find-answer", "find_answer", {
+              problem: "The app will not start",
+            });
+          }
+          expect(request.tools.map(({ name }) => name)).toContain(
+            "final_reply"
+          );
+          return {
+            kind: "final" as const,
+            text: "A fallback.",
+            confidence: 0.9,
+            summary: "Answer",
+            reply: {
+              summary: "Restarting may help.",
+              checked: [],
+              nextStep: null,
+              sourceIds: ["answer-source"],
+            },
+          };
+        },
+      }),
+      runTool: async () => ({
+        ok: true,
+        value: {
+          status: "answer",
+          steps: [{ kind: "official", text: "Restart the application." }],
+        },
+        card,
+        modelText: "Answer-card data.",
+        userSummary: "Found an answer from 1 source.",
+      }),
+      writeStep: async (_admin, _session, step) => {
+        steps.push(step);
+        return null;
+      },
+    });
+
+    await runDirectLoop({ deps, events });
+
+    expect(firstToolNames).toContain("find_answer");
+    expect(systemPrompt).toContain(
+      "If search_guides finds no approved guide, call find_answer before saying you could not find anything. Its steps are for the user to do themselves: present them in order, say which are official and which are community tips, and never propose an action based on them. If it returns needs_it, say you found a fix that needs IT and offer to pass it on. If it returns none, offer to pass the problem to IT."
+    );
+    expect(events).toContainEqual({ type: "answer_card", card });
+    expect(events.at(-1)).toMatchObject({
+      type: "final_answer",
+      reply: {
+        sources: [
+          {
+            label: "Official docs",
+            title: "Application support",
+            domain: "support.example.com",
+            url: "https://support.example.com/article",
+          },
+        ],
+      },
+    });
+    expect(steps).toContainEqual({
+      kind: "tool_result",
+      toolName: "answer_card_shown",
+      resultSummary: "answer official=1 community_tips=0 withheld=1",
+    });
+  });
+
   test("persists the approved citation id and attaches only the checked citation", async () => {
     const events: AgentEvent[] = [];
     const steps: Array<{ kind: string; resultSummary?: string }> = [];

@@ -12,6 +12,8 @@ import {
   isStepPolicyEnabled,
   isTicketWorkflowEnabled,
   isServiceHealthEnabled,
+  isAnswerEngineEnabled,
+  isAnswerEnginePublicEnabled,
 } from "@/lib/admin/flags";
 import { isUiV2Enabled } from "@/lib/ui-v2";
 import { AgentChat } from "@/components/v2/agent-chat";
@@ -71,6 +73,8 @@ export default async function AssistantPage({
     isRequesterAgentEnabledForOrg(organizationId);
   const visionEnabled =
     Boolean(user) && isRequesterAgentVisionEnabledForOrg(organizationId);
+  const answerEngineAvailable =
+    isAnswerEngineEnabled() && (user ? true : isAnswerEnginePublicEnabled());
   return (
     <section className="flex flex-1 flex-col px-4 py-12 sm:px-6 lg:px-8">
       <Suspense
@@ -96,6 +100,7 @@ export default async function AssistantPage({
             intent={intent}
             attach={attach}
             autoStart={autoStart}
+            answerEngineAvailable={answerEngineAvailable}
           />
         ) : (
           <AiAssistant {...flags} />

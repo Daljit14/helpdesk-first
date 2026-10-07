@@ -5,6 +5,7 @@ import type { TrustTier } from "@/lib/research/types";
 import type { AssuranceLevel } from "@/lib/identity/assurance";
 import type { TaintTrust } from "./taint";
 import type { RenderedReply } from "./reply";
+import type { AnswerCard } from "@/lib/answers/present";
 
 export type ConsentCard = {
   approvalRequestId: string;
@@ -56,6 +57,7 @@ export type AgentEvent =
       }>;
     }
   | { type: "user_step"; card: UserStepCard }
+  | { type: "answer_card"; card: AnswerCard }
   | {
       type: "web_sources";
       sources: Array<{

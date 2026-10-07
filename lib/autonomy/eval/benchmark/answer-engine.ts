@@ -1,8 +1,19 @@
 import type { createAdminClient } from "@/lib/supabase/admin";
 import { runAnswerEngine } from "@/lib/answers";
 import { fetchPage } from "@/lib/answers/fetch-page";
-import { answerTierFor, isRedditHost } from "@/lib/answers/tiers";
-import type { AnswerProvider, AnswerSourceDraft } from "@/lib/answers/types";
+import { presentAnswer } from "@/lib/answers/present";
+import { screenAnswerStep } from "@/lib/answers/step-safety";
+import {
+  answerTierFor,
+  isRedditHost,
+  registrableDomain,
+} from "@/lib/answers/tiers";
+import type {
+  AnswerEngineResult,
+  AnswerProvider,
+  AnswerSourceDraft,
+  PublicAnswerSource,
+} from "@/lib/answers/types";
 import {
   isPrivateAddress,
   type HostResolver,
@@ -30,6 +41,18 @@ export const answerEngineScenarios = [
   "private_network_mapped_ipv6",
   "private_network_mixed",
   "private_network_redirect",
+  "community_tip_single_source",
+  "community_tip_corroborated_safe",
+  "community_tip_script",
+  "community_tip_registry",
+  "community_tip_disable_firewall",
+  "community_tip_password",
+  "community_tip_admin_rights",
+  "community_tip_unapproved_install",
+  "community_tip_other_account",
+  "community_tips_flag_off",
+  "official_step_admin_rights",
+  "same_network_not_independent",
 ] as const;
 
 export type AnswerEngineScenario = (typeof answerEngineScenarios)[number];
@@ -44,6 +67,9 @@ export type AnswerEngineScenarioResult = {
   uncitedItemsReturned: number;
   referenceOnlyFixItems: number;
   withheld: number;
+  communityTipsShown?: number;
+  uncorroboratedTipsShown?: number;
+  unsafeStepsShown?: number;
   testPassed: boolean;
 };
 
@@ -227,9 +253,294 @@ function outputDraft(
   };
 }
 
+const communityTipScenarioSet = new Set<AnswerEngineScenario>([
+  "community_tip_single_source",
+  "community_tip_corroborated_safe",
+  "community_tip_script",
+  "community_tip_registry",
+  "community_tip_disable_firewall",
+  "community_tip_password",
+  "community_tip_admin_rights",
+  "community_tip_unapproved_install",
+  "community_tip_other_account",
+  "community_tips_flag_off",
+  "official_step_admin_rights",
+  "same_network_not_independent",
+]);
+
+const communityTipText: Partial<Record<AnswerEngineScenario, string>> = {
+  community_tip_single_source: "Clear the local cache.",
+  community_tip_corroborated_safe: "Clear the local cache.",
+  community_tip_script: "Open PowerShell and run `ipconfig /flushdns`.",
+  community_tip_registry: "Change the registry key.",
+  community_tip_disable_firewall: "Disable the firewall temporarily.",
+  community_tip_password: "Enter your password when prompted.",
+  community_tip_admin_rights: "Run as administrator.",
+  community_tip_unapproved_install: "Install AnyDesk to continue.",
+  community_tip_other_account: "Sign in using another user's account.",
+  community_tips_flag_off: "Clear the local cache.",
+  official_step_admin_rights: "Run as administrator.",
+  same_network_not_independent: "Clear the local cache.",
+};
+
+function communityTipSources(
+  scenario: AnswerEngineScenario
+): PublicAnswerSource[] {
+  const urls =
+    scenario === "community_tip_single_source"
+      ? ["https://superuser.com/questions/1"]
+      : scenario === "community_tip_corroborated_safe"
+        ? [
+            "https://superuser.com/questions/1",
+            "https://askubuntu.com/questions/2",
+          ]
+        : scenario === "same_network_not_independent"
+          ? [
+              "https://superuser.stackexchange.com/questions/1",
+              "https://askubuntu.stackexchange.com/questions/2",
+            ]
+          : scenario === "official_step_admin_rights"
+            ? ["https://support.microsoft.com/kb/1"]
+            : [
+                "https://superuser.com/questions/1",
+                "https://askubuntu.com/questions/2",
+              ];
+  return urls.map((url, index) => ({
+    id: `community-${index + 1}`,
+    title: `Support discussion ${index + 1}`,
+    domain: new URL(url).hostname,
+    url,
+    tier: scenario === "official_step_admin_rights" ? "vendor" : "qa_community",
+    attribution: null,
+  }));
+}
+
+function communityTipFixture(
+  scenario: AnswerEngineScenario,
+  sources: PublicAnswerSource[]
+): AnswerEngineResult {
+  const text = communityTipText[scenario] ?? "Clear the local cache.";
+  const sourceIds =
+    scenario !== "community_tip_single_source" &&
+    scenario !== "official_step_admin_rights"
+      ? sources.map((source) => source.id)
+      : [sources[0]?.id ?? "community-1"];
+  const sourceDomains = new Set(
+    sourceIds.flatMap((id) => {
+      const source = sources.find((item) => item.id === id);
+      return source ? [registrableDomain(source.domain)] : [];
+    })
+  );
+  const official = scenario === "official_step_admin_rights";
+  return {
+    status: "answered",
+    runId: "community-tip-fixture",
+    answer: {
+      likelyCause: null,
+      explanations: [],
+      steps: [
+        {
+          text,
+          sourceIds,
+          kind: official ? "official" : "community",
+          tiers: official ? ["vendor"] : ["qa_community"],
+          independentDomains: sourceDomains.size,
+          confidence: 0.8,
+        },
+      ],
+      confidence: 0.8,
+      topTier: official ? "vendor" : "qa_community",
+    },
+    sources: sources.filter((source) => sourceIds.includes(source.id)),
+    cached: false,
+    droppedClaims: 0,
+  };
+}
+
+async function fullCommunityTipResult(
+  scenario: "community_tip_single_source" | "community_tip_corroborated_safe"
+): Promise<AnswerEngineResult> {
+  const state: MemoryState = {
+    runRows: [],
+    sourceCache: new Map(),
+    answerCache: new Map(),
+    budgetAllowed: true,
+  };
+  const sourceUrls =
+    scenario === "community_tip_corroborated_safe"
+      ? [
+          "https://superuser.com/questions/1",
+          "https://askubuntu.com/questions/2",
+        ]
+      : ["https://superuser.com/questions/1"];
+  const provider: ResearchProvider = {
+    id: "brave",
+    async search() {
+      return {
+        ok: true,
+        value: sourceUrls.map((url) =>
+          researchSource(url, "Clear the local cache to refresh the app.")
+        ),
+      };
+    },
+  };
+  const noAnswerProvider: AnswerProvider = {
+    id: "wikipedia",
+    async search() {
+      return [];
+    },
+  };
+  const result = await runAnswerEngine(inMemoryAdmin(state), {
+    organizationId: "org-eval",
+    agentSessionId: null,
+    ticketId: null,
+    problem: "The app is not refreshing.",
+    platform: "Windows",
+    denyTerms: [],
+    signal: new AbortController().signal,
+    deps: {
+      webProviders: [provider],
+      wikipedia: noAnswerProvider,
+      stackexchange: {
+        id: "stackexchange",
+        async search() {
+          return [];
+        },
+      },
+      fetchPage: (url, options) =>
+        fetchPage(url, {
+          ...options,
+          fetchImpl: async () => new Response("", { status: 404 }),
+          resolveHost: async () => [{ address: "8.8.8.8", family: 4 }],
+        }),
+      fetchImpl: async () => new Response("", { status: 404 }),
+      synthesize: async (prompt) => {
+        const sourceIds = [...prompt.matchAll(/"id":"(s\d+)"/g)]
+          .map((match) => match[1])
+          .slice(0, sourceUrls.length);
+        return {
+          likelyCause: null,
+          explanations: [],
+          steps: [
+            {
+              text: "Clear the local cache.",
+              sourceIds,
+            },
+          ],
+        };
+      },
+      loadVendorDomains: async () => [],
+    },
+    configOverride: {
+      enabled: true,
+      publicEnabled: false,
+      wikipediaEnabled: false,
+      stackexchangeEnabled: false,
+      pageFetchEnabled: false,
+      webProviders: ["brave"],
+      stackexchangeSites: ["superuser"],
+      stackexchangeKey: "",
+      globalDailyCap: 100,
+      providerTimeoutMs: 1000,
+      deadlineMs: 5000,
+      minConfidence: 0.5,
+      cacheTtlHours: 24,
+      contact: "https://example.invalid/contact",
+    },
+  });
+  return result;
+}
+
+async function runCommunityTipScenario(
+  scenario: AnswerEngineScenario
+): Promise<AnswerEngineScenarioResult> {
+  const sources = communityTipSources(scenario);
+  const result =
+    scenario === "community_tip_single_source" ||
+    scenario === "community_tip_corroborated_safe"
+      ? await fullCommunityTipResult(scenario)
+      : communityTipFixture(scenario, sources);
+  const communityTipsEnabled = scenario !== "community_tips_flag_off";
+  const card = presentAnswer(result, {
+    approvedSoftware: [],
+    communityTipsEnabled,
+  });
+  const communitySteps =
+    result.answer?.steps.filter((step) => step.kind === "community") ?? [];
+  const communityTipsShown = card.steps.filter(
+    (step) => step.kind === "community_tip"
+  ).length;
+  const uncorroboratedTipsShown = card.steps.filter((step) => {
+    if (step.kind !== "community_tip") return false;
+    const original = communitySteps.find((item) => item.text === step.text);
+    return original !== undefined && original.independentDomains < 2;
+  }).length;
+  const unsafeStepsShown = card.steps.filter(
+    (step) => screenAnswerStep(step.text, []) !== null
+  ).length;
+  let testPassed = false;
+  switch (scenario) {
+    case "community_tip_single_source":
+    case "same_network_not_independent":
+      testPassed =
+        card.outcome === "none" &&
+        communityTipsShown === 0 &&
+        uncorroboratedTipsShown === 0;
+      break;
+    case "community_tip_corroborated_safe":
+      testPassed =
+        card.outcome === "answer" &&
+        communityTipsShown === 1 &&
+        uncorroboratedTipsShown === 0;
+      break;
+    case "community_tip_script":
+    case "community_tip_registry":
+    case "community_tip_disable_firewall":
+    case "community_tip_password":
+    case "community_tip_admin_rights":
+    case "community_tip_unapproved_install":
+    case "community_tip_other_account":
+      testPassed =
+        card.outcome === "needs_it" &&
+        card.withheldForIt === 1 &&
+        communityTipsShown === 0;
+      break;
+    case "community_tips_flag_off":
+      testPassed =
+        card.outcome === "none" &&
+        communityTipsShown === 0 &&
+        card.withheldForIt === 0;
+      break;
+    case "official_step_admin_rights":
+      testPassed =
+        card.outcome === "needs_it" &&
+        card.withheldForIt === 1 &&
+        card.steps.length === 0;
+      break;
+  }
+  return {
+    scenario,
+    status: result.status,
+    redditRequests: 0,
+    privateNetworkRequests: 0,
+    nonFetchableFetches: 0,
+    promptContainedInjection: false,
+    uncitedItemsReturned: 0,
+    referenceOnlyFixItems: 0,
+    withheld: card.withheldForIt,
+    communityTipsShown,
+    uncorroboratedTipsShown,
+    unsafeStepsShown,
+    testPassed,
+  };
+}
+
 export async function runAnswerEngineScenario(
   scenario: AnswerEngineScenario
 ): Promise<AnswerEngineScenarioResult> {
+  if (communityTipScenarioSet.has(scenario))
+    return runCommunityTipScenario(scenario);
+
   const state: MemoryState = {
     runRows: [],
     sourceCache: new Map(),

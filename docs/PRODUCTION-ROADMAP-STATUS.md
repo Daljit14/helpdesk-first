@@ -12,9 +12,10 @@
 10. `supabase/org-research-vendor-domains.sql` (7a #151) — after `research.sql`, `admin-dashboard.sql`, and `wave-3-organizations.sql`.
 11. `supabase/identity-assurance.sql` (E1a) — after `requester-agent.sql`, `org-environment-profile.sql`, and `agent-reply-guard.sql`.
 12. `supabase/agent-taint.sql` (E2a) — after identity assurance.
-13. `supabase/audit-chain.sql` (G3 #149) — always last, in a quiet window.
+13. `supabase/agent-session-abandon.sql` (E3) — after agent taint and before audit-chain.
+14. `supabase/audit-chain.sql` (G3 #149) — always last, in a quiet window.
 
-Prerequisite migrations listed in each SETUP-NOTES file must already be applied; none of these 13 has run on production.
+Prerequisite migrations listed in each SETUP-NOTES file must already be applied; none of these 14 has run on production.
 
 ## Phase E — E0 small follow-ups
 
@@ -40,6 +41,14 @@ or external content are rejected, while other tainted values require explicit
 reconfirmation. Instruction-shaped content is withheld and audited. The
 requester agent remains flag-off; `supabase/agent-taint.sql` is authored but
 has not been applied. See `SETUP-NOTES-E2a.md`.
+
+## Phase E — E3 honest metrics and abandoned sessions
+
+E3 adds organization-scoped Metrics v2 without changing v1, uses honest
+outcomes to refuse unsafe autorun promotions, and adds a default-off,
+conditional sweep for stale requester-agent sessions. The cron schedule is
+`45 4 * * *`. `supabase/agent-session-abandon.sql` is authored but has not
+been applied; see `SETUP-NOTES-E3.md` and `docs/METRICS.md`.
 
 ## Wave 2 G1 — blast-radius limits and automatic safety stops
 

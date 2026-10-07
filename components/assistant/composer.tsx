@@ -9,6 +9,7 @@ export function Composer({
   onChange,
   onSend,
   disabled = false,
+  sendDisabled = false,
   placeholder = "Describe your IT problem…",
   hint = null,
   hintTone = "muted",
@@ -17,6 +18,7 @@ export function Composer({
   onChange: (value: string) => void;
   onSend: () => void;
   disabled?: boolean;
+  sendDisabled?: boolean;
   placeholder?: string;
   /** Live, non-blocking hint shown under the textarea while typing. */
   hint?: string | null;
@@ -35,10 +37,9 @@ export function Composer({
           value={value}
           onChange={(event) => onChange(event.target.value)}
           onKeyDown={(event) => {
-            if (disabled) return;
             if (event.key === "Enter" && !event.shiftKey) {
               event.preventDefault();
-              onSend();
+              if (!disabled && !sendDisabled) onSend();
             }
           }}
           rows={2}
@@ -49,7 +50,12 @@ export function Composer({
             hint && hintTone === "danger" && "hf-asst-input-danger"
           )}
         />
-        <Button type="button" size="lg" onClick={onSend} disabled={disabled}>
+        <Button
+          type="button"
+          size="lg"
+          onClick={onSend}
+          disabled={disabled || sendDisabled}
+        >
           Send
         </Button>
       </div>

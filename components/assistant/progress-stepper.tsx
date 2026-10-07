@@ -75,6 +75,7 @@ export function ProgressStepper({ current }: { current: number }) {
               <span
                 className={cn(
                   "text-[11px] font-bold leading-tight sm:text-xs",
+                  !active && "hidden sm:block",
                   active ? "text-foreground" : "text-muted-foreground"
                 )}
               >

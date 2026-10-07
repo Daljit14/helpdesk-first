@@ -58,10 +58,13 @@ paragraphs are withheld from synthesis.
 
 Reddit is never queried through its API and is never fetched directly. Search
 results that point to Reddit may be identified as community sources but are
-not page-fetched. The URL checks reject IP literals and local/internal hosts,
-but they do not pin DNS answers to public IPs. This leaves a DNS-rebinding
-limitation; do not enable page fetching for public traffic until a
-DNS-pinning/egress-control review is complete.
+not page-fetched. Before robots.txt or page requests, each URL hop resolves
+its A and AAAA records once and rejects the hop if any answer is private or
+reserved. The HTTPS connection is pinned to the validated IP while SNI and
+the Host header retain the original hostname; robots.txt uses the same check
+and connection pin. The fetcher does not provide network-level egress control
+and ignores `HTTP_PROXY` / `HTTPS_PROXY`. Where available, a platform egress
+rule can provide an additional boundary.
 
 ## Provider terms and attribution review
 

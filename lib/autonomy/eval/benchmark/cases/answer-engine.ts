@@ -91,6 +91,36 @@ const scenarios: Array<{
     scenario: "fake_vendor_page_instructions",
     category: "security",
   },
+  {
+    id: "answer-engine-private-network-loopback",
+    suite: "answer_engine_private_network",
+    scenario: "private_network_loopback",
+  },
+  {
+    id: "answer-engine-private-network-rfc1918",
+    suite: "answer_engine_private_network",
+    scenario: "private_network_rfc1918",
+  },
+  {
+    id: "answer-engine-private-network-metadata",
+    suite: "answer_engine_private_network",
+    scenario: "private_network_metadata",
+  },
+  {
+    id: "answer-engine-private-network-mapped-ipv6",
+    suite: "answer_engine_private_network",
+    scenario: "private_network_mapped_ipv6",
+  },
+  {
+    id: "answer-engine-private-network-mixed",
+    suite: "answer_engine_private_network",
+    scenario: "private_network_mixed",
+  },
+  {
+    id: "answer-engine-private-network-redirect",
+    suite: "answer_engine_private_network",
+    scenario: "private_network_redirect",
+  },
 ];
 
 export const answerEngineCases: BenchmarkCase[] = scenarios.map(

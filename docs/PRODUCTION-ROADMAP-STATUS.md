@@ -17,7 +17,7 @@
 15. `supabase/research-reference-tier.sql` (E10) — after `research.sql` and `agent-web-search.sql`; widens the research-source trust constraint.
 16. `supabase/audit-chain.sql` (G3 #149) — always last, in a quiet window.
 
-Prerequisite migrations listed in each SETUP-NOTES file must already be applied; none of these 15 has run on production.
+Prerequisite migrations listed in each SETUP-NOTES file must already be applied; none of these 16 has run on production.
 
 ## Phase E — E0 small follow-ups
 
@@ -59,11 +59,18 @@ tiering, query planning, Brave/Tavily failover, Wikimedia and Stack Exchange
 adapters, optional safe page fetching, source screening, citation enforcement,
 caching, budget reservation, feedback storage, and Resolution Center metrics.
 No requester assistant, agent tool, community-tip UI, or feedback route is
-wired in this phase. Its 13 fake-provider evaluation cases exercise 44 release
-gates at benchmark version `2026-10-07.2`; the authored
+wired in this phase. Its fake-provider evaluation cases exercise 46 release
+gates at benchmark version `2026-10-07.4`; the authored
 `supabase/answer-engine.sql` migration has not been applied. See
-`SETUP-NOTES-E11a.md` for provider terms, rollout controls, and the DNS-level
-SSRF limitation.
+`SETUP-NOTES-E11a.md` for provider terms and rollout controls.
+
+## Answer-engine page-fetch DNS pinning
+
+Page fetch now resolves each URL hop once, rejects any private or reserved
+DNS answer, and pins HTTPS connections to a validated public address while
+preserving the hostname for SNI and Host. The DNS-pinning scenarios are covered
+by the 46-gate benchmark at version `2026-10-07.4`. This is a code-only change:
+no SQL was added or applied, and the production SQL run order remains at 16.
 
 ## Phase E — E10 conversation quality
 

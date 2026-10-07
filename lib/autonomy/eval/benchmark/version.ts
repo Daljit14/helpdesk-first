@@ -1,1 +1,1 @@
-export const BENCHMARK_VERSION = "2026-10-07.3";
+export const BENCHMARK_VERSION = "2026-10-07.4";

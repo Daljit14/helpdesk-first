@@ -26,7 +26,8 @@ function hash(value: string): string {
 }
 
 export function createTavilyProvider(
-  apiKey = process.env.TAVILY_API_KEY
+  apiKey = process.env.TAVILY_API_KEY,
+  options: { timeoutMs?: number; maxAttempts?: number } = {}
 ): ResearchProvider {
   return {
     id: "tavily",
@@ -58,7 +59,9 @@ export function createTavilyProvider(
             fetchedAt: new Date().toISOString(),
           }));
         },
-        signal
+        signal,
+        options.timeoutMs ?? 8000,
+        options.maxAttempts ?? 2
       );
     },
   };

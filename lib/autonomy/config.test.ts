@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import {
   getBlastRadiusLimits,
+  getAnswerEngineConfig,
   getHourlyExecutionLimits,
   isBlastRadiusEnabled,
   getPilotCapabilityAllowlist,
@@ -73,5 +74,29 @@ describe("pilot configuration", () => {
     expect(getBlastRadiusLimits().failureRate).toBe(0.42);
     vi.stubEnv("HELP_DESK_BLAST_RADIUS_FAILURE_RATE", "1.01");
     expect(getBlastRadiusLimits().failureRate).toBe(0.3);
+  });
+
+  test("keeps the answer engine and every source flag off with bounded defaults", () => {
+    expect(getAnswerEngineConfig()).toMatchObject({
+      enabled: false,
+      publicEnabled: false,
+      wikipediaEnabled: false,
+      stackexchangeEnabled: false,
+      pageFetchEnabled: false,
+      stackexchangeSites: ["superuser", "serverfault", "askubuntu"],
+      stackexchangeKey: "",
+      globalDailyCap: 1000,
+      providerTimeoutMs: 4000,
+      deadlineMs: 10_000,
+      minConfidence: 0.5,
+      cacheTtlHours: 24,
+      contact: "https://github.com/Daljit14/helpdesk-first",
+    });
+    vi.stubEnv("HELP_DESK_ANSWER_ENGINE_ENABLED", "TRUE");
+    vi.stubEnv("HELP_DESK_ANSWER_ENGINE_GLOBAL_DAILY_CAP", "0");
+    expect(getAnswerEngineConfig().enabled).toBe(false);
+    expect(getAnswerEngineConfig().globalDailyCap).toBe(0);
+    vi.stubEnv("HELP_DESK_ANSWER_ENGINE_ENABLED", "true");
+    expect(getAnswerEngineConfig().enabled).toBe(true);
   });
 });

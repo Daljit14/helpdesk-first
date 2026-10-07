@@ -10,6 +10,7 @@ import { blastRadiusCases } from "./blast-radius";
 import { auditChainCases } from "./audit-chain";
 import { identityAssuranceCases } from "./identity-assurance";
 import { honestMetricsCases } from "./honest-metrics";
+import { answerEngineCases } from "./answer-engine";
 
 const base = {
   version: BENCHMARK_VERSION,
@@ -101,6 +102,7 @@ export const benchmarkCases = [
   ...auditChainCases,
   ...identityAssuranceCases,
   ...honestMetricsCases,
+  ...answerEngineCases,
   ...catalogCases,
   ...redTeamCases,
   ...identityCases,

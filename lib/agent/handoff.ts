@@ -11,7 +11,7 @@ export type HandoffFacts = {
 };
 
 const READABLE_REASONS: Partial<Record<HandoffReason, string>> = {
-  user_requested_human: "You asked to speak with a person.",
+  user_requested_human: "The requester asked to speak with a person.",
   security_concern: "A safety check needs a person to review this.",
   repeated_failure: "Several attempts did not resolve the issue.",
   low_confidence: "The assistant could not confirm a reliable answer.",
@@ -59,7 +59,7 @@ export function buildHandoff(
 
   const problemForUser = cutAtWord(problem, 80);
   const checksPhrase = checked.length
-    ? `, and the ${facts.checked.length} check${facts.checked.length === 1 ? "" : "s"} I ran`
+    ? `, and the ${checked.length} check${checked.length === 1 ? "" : "s"} I ran`
     : "";
   const userLine = clean(
     `Here's what I passed on: "${problemForUser}"${checksPhrase}. A support person will pick this up, and you won't need to repeat yourself.`

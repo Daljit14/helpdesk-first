@@ -1,15 +1,25 @@
 import type {
   AccountStatus,
+  DirectoryRiskFacts,
   DirectoryProvider,
   IdentityDirectory,
 } from "./types";
+
+const unknownRiskFacts: DirectoryRiskFacts = {
+  privileged: null,
+  mfaChangedAt: null,
+  signIns: [],
+  directoryPhone: null,
+  managerName: null,
+};
 
 export class FakeDirectory implements IdentityDirectory {
   readonly provider: DirectoryProvider;
   writeCalls = 0;
   constructor(
     private readonly account: AccountStatus,
-    provider: DirectoryProvider = "google"
+    provider: DirectoryProvider = "google",
+    private readonly riskFacts: DirectoryRiskFacts = unknownRiskFacts
   ) {
     this.provider = provider;
   }
@@ -18,6 +28,11 @@ export class FakeDirectory implements IdentityDirectory {
   }
   async getUserById() {
     return { ok: true as const, value: this.account };
+  }
+  async getRiskFacts(_directoryUserId: string, _signal: AbortSignal) {
+    void _directoryUserId;
+    void _signal;
+    return { ok: true as const, value: this.riskFacts };
   }
   async revokeSessions() {
     this.writeCalls += 1;

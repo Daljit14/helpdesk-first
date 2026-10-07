@@ -80,6 +80,10 @@ import { RecordExclusionControl } from "@/components/admin/record-exclusion-cont
 import { isRecordExcluded } from "@/lib/admin/record-exclusions";
 import { trustLabel } from "@/lib/research/labels";
 import type { TrustTier } from "@/lib/research/types";
+import { CallerVerificationPanel } from "@/components/admin/caller-verification-panel";
+import { isStaffVerificationEnabled } from "@/lib/admin/flags";
+import { loadCallerDirectoryFacts } from "@/lib/identity/risk-server";
+import { loadStaffVerification } from "@/lib/identity/staff-verification";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -425,6 +429,71 @@ export default async function AdminTicketPage({
   if (error || !ticket) return <TicketAccessDenied />;
   if (workflowEnabled && !canAccessTicket(session, ticket))
     return <TicketAccessDenied />;
+  const staffVerificationEnabled = isStaffVerificationEnabled();
+  let callerPanel: {
+    directoryPhone: string | null;
+    managerName: string | null;
+    privileged: boolean;
+    verifiedUntil: string | null;
+    verificationRows: Array<{
+      method: "directory_callback" | "manager_confirmed" | "idp_push";
+      createdAt: string;
+    }>;
+    pendingApprovals: Array<{
+      id: string;
+      capabilityId: string;
+      expiresAt: string;
+    }>;
+  } | null = null;
+  if (staffVerificationEnabled && ticket.user_id) {
+    const now = new Date();
+    const cutoff = new Date(now.getTime() - 15 * 60_000).toISOString();
+    const [directoryFacts, verificationResult, approvalResult] =
+      await Promise.all([
+        loadCallerDirectoryFacts(admin, session.organizationId, ticket.user_id),
+        admin
+          .from("staff_caller_verifications")
+          .select("method,created_at")
+          .eq("organization_id", session.organizationId)
+          .eq("ticket_id", ticket.id)
+          .eq("subject_user_id", ticket.user_id)
+          .gte("created_at", cutoff)
+          .lte("created_at", now.toISOString())
+          .order("created_at", { ascending: false }),
+        admin
+          .from("approval_requests")
+          .select("id,capability_id,expires_at")
+          .eq("organization_id", session.organizationId)
+          .eq("ticket_id", ticket.id)
+          .eq("type", "technician_approval")
+          .eq("status", "requested")
+          .gt("expires_at", now.toISOString())
+          .order("created_at", { ascending: false }),
+      ]);
+    const staffAssurance = await loadStaffVerification(admin, {
+      organizationId: session.organizationId,
+      ticketId: ticket.id,
+      subjectUserId: ticket.user_id,
+      privileged: directoryFacts?.privileged === true,
+      now,
+    });
+    callerPanel = {
+      directoryPhone: directoryFacts?.directoryPhone ?? null,
+      managerName: directoryFacts?.managerName ?? null,
+      privileged: directoryFacts?.privileged === true,
+      verifiedUntil: staffAssurance?.expiresAt ?? null,
+      verificationRows: (verificationResult.data ?? []).map((row) => ({
+        method: row.method as
+          "directory_callback" | "manager_confirmed" | "idp_push",
+        createdAt: row.created_at,
+      })),
+      pendingApprovals: (approvalResult.data ?? []).map((row) => ({
+        id: row.id,
+        capabilityId: row.capability_id,
+        expiresAt: row.expires_at,
+      })),
+    };
+  }
   const exceptionDetails = verificationExceptionDetails(
     ticket.resolution_report
   );
@@ -1467,6 +1536,10 @@ export default async function AdminTicketPage({
               />
             </div>
           </Panel>
+
+          {callerPanel && (
+            <CallerVerificationPanel ticketId={ticket.id} {...callerPanel} />
+          )}
 
           <TicketUpdateForm
             ticketId={uuid}

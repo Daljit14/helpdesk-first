@@ -100,6 +100,43 @@ const identityAssurance = z
     capabilityId: z.string().optional(),
     expired: z.boolean().default(false),
     invalidParameters: z.boolean().default(false),
+    consentType: z
+      .enum(["user_consent", "technician_approval"])
+      .default("user_consent"),
+    risk: z
+      .object({
+        signals: z.array(
+          z.enum([
+            "repeat_account_request_24h",
+            "mfa_changed_7d",
+            "new_sign_in_country",
+            "impossible_travel",
+            "new_device_24h",
+            "names_other_person",
+            "privileged_account",
+            "risk_unavailable",
+          ])
+        ),
+        enabled: z.boolean(),
+      })
+      .strict()
+      .optional(),
+    staff: z
+      .object({
+        enabled: z.boolean(),
+        verification: z.enum([
+          "none",
+          "other_ticket",
+          "other_subject",
+          "expired",
+          "missing_manager",
+          "valid",
+          "valid_with_manager",
+        ]),
+        privileged: z.boolean(),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 

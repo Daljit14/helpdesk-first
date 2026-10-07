@@ -12,6 +12,14 @@ export type AccountStatus = {
   groups: string[];
 };
 
+export type DirectoryRiskFacts = {
+  privileged: boolean | null;
+  mfaChangedAt: string | null;
+  signIns: { at: string; country: string }[];
+  directoryPhone: string | null;
+  managerName: string | null;
+};
+
 export type ConnectorError = {
   kind:
     | "not_found"
@@ -36,6 +44,10 @@ export interface IdentityDirectory {
     directoryUserId: string,
     signal: AbortSignal
   ): Promise<ConnectorResult<AccountStatus>>;
+  getRiskFacts(
+    directoryUserId: string,
+    signal: AbortSignal
+  ): Promise<ConnectorResult<DirectoryRiskFacts>>;
   revokeSessions(
     directoryUserId: string,
     signal: AbortSignal

@@ -13,6 +13,10 @@ const mocks = vi.hoisted(() => ({
   transitionRun: vi.fn(),
   checkHourlyLimits: vi.fn(),
   recordBlastRadiusOutcome: vi.fn(),
+  isOrganizationPrivileged: vi.fn(),
+  loadAccountRiskFacts: vi.fn(),
+  loadStaffVerification: vi.fn(),
+  getIdentityBinding: vi.fn(),
 }));
 
 vi.mock("../alerts", () => ({ alertSecurityEvent: mocks.alertSecurityEvent }));
@@ -33,6 +37,16 @@ vi.mock("../orchestrator", () => ({ transitionRun: mocks.transitionRun }));
 vi.mock("../blast-radius", () => ({
   checkHourlyLimits: mocks.checkHourlyLimits,
   recordBlastRadiusOutcome: mocks.recordBlastRadiusOutcome,
+}));
+vi.mock("@/lib/identity/risk-server", () => ({
+  isOrganizationPrivileged: mocks.isOrganizationPrivileged,
+  loadAccountRiskFacts: mocks.loadAccountRiskFacts,
+}));
+vi.mock("@/lib/identity/staff-verification", () => ({
+  loadStaffVerification: mocks.loadStaffVerification,
+}));
+vi.mock("../connectors/binding", () => ({
+  getIdentityBinding: mocks.getIdentityBinding,
 }));
 
 import type { HandlerAdmin } from "../executor/handlers/types";
@@ -99,7 +113,11 @@ function makeAdmin(
           : table === "tickets"
             ? options.ticket === false
               ? null
-              : { id: run.ticket_id, organization_id: run.organization_id }
+              : {
+                  id: run.ticket_id,
+                  organization_id: run.organization_id,
+                  user_id: "user-1",
+                }
             : null,
       error: null,
     };
@@ -258,6 +276,10 @@ describe("executeThroughGateway", () => {
     mocks.isCapabilityEnabled.mockResolvedValue(true);
     mocks.verifyConsent.mockResolvedValue({ ok: true, id: "approval-1" });
     mocks.checkHourlyLimits.mockResolvedValue({ ok: true });
+    mocks.isOrganizationPrivileged.mockResolvedValue(false);
+    mocks.loadAccountRiskFacts.mockResolvedValue(null);
+    mocks.loadStaffVerification.mockResolvedValue(null);
+    mocks.getIdentityBinding.mockResolvedValue(null);
     mocks.transitionRun.mockImplementation(
       async (_admin: unknown, value: ResolutionRun, status: string) => ({
         ...value,
@@ -322,6 +344,66 @@ describe("executeThroughGateway", () => {
       })
     );
     expect(result).toMatchObject({ ok: false, code: "identity_unbound" });
+    expect(handler.run).not.toHaveBeenCalled();
+  });
+
+  test("denies high-risk account actions before inserting an execution", async () => {
+    vi.stubEnv("HELP_DESK_IDENTITY_ASSURANCE_ENABLED", "true");
+    vi.stubEnv("HELP_DESK_IDENTITY_RISK_SIGNALS_ENABLED", "true");
+    mocks.getIdentityBinding.mockResolvedValue({
+      organizationId: "org-1",
+      ticketId: "ticket-1",
+      userId: "user-1",
+    });
+    mocks.loadAccountRiskFacts.mockResolvedValue({
+      priorAccountRequests24h: 2,
+      mfaChangedAt: null,
+      signIns: [],
+      newestDeviceEnrolledAt: null,
+      namesAnotherPerson: false,
+      privileged: false,
+    });
+    const capability = {
+      ...baseCapability(),
+      id: "send_password_reset_link",
+      minAssurance: "A3" as const,
+      requiresIdentityBinding: true,
+    };
+    const { admin, handler, inserts } = makeAdmin();
+    const result = await executeThroughGateway(admin, request({ capability }));
+    expect(result).toMatchObject({ ok: false, code: "identity_risk_high" });
+    expect(handler.run).not.toHaveBeenCalled();
+    expect(inserts.some((row) => "idempotency_key" in row)).toBe(false);
+  });
+
+  test("requires staff verification for technician-approved account actions", async () => {
+    vi.stubEnv("HELP_DESK_IDENTITY_ASSURANCE_ENABLED", "true");
+    vi.stubEnv("HELP_DESK_STAFF_VERIFICATION_ENABLED", "true");
+    mocks.getIdentityBinding.mockResolvedValue({
+      organizationId: "org-1",
+      ticketId: "ticket-1",
+      userId: "user-1",
+    });
+    const capability = {
+      ...baseCapability(),
+      id: "send_password_reset_link",
+      minAssurance: "A3" as const,
+      requiresIdentityBinding: true,
+    };
+    const { admin, handler } = makeAdmin();
+    const result = await executeThroughGateway(
+      admin,
+      request({
+        capability,
+        policy: {
+          consent: { type: "technician_approval", userId: "staff-1" },
+        },
+      })
+    );
+    expect(result).toMatchObject({
+      ok: false,
+      code: "staff_verification_required",
+    });
     expect(handler.run).not.toHaveBeenCalled();
   });
 

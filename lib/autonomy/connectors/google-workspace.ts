@@ -5,6 +5,7 @@ import type {
   AccountStatus,
   ConnectorConfig,
   ConnectorResult,
+  DirectoryRiskFacts,
   IdentityDirectory,
 } from "./types";
 
@@ -163,6 +164,73 @@ export class GoogleWorkspaceDirectory implements IdentityDirectory {
         recentSignInErrors: [],
         mfaRegistered: result.value.isEnrolledIn2Sv ?? null,
         groups: [],
+      },
+    };
+  }
+
+  async getRiskFacts(
+    directoryUserId: string,
+    signal: AbortSignal
+  ): Promise<ConnectorResult<DirectoryRiskFacts>> {
+    const result = await this.api(
+      `https://admin.googleapis.com/admin/directory/v1/users/${encodeURIComponent(directoryUserId)}?projection=full`,
+      signal,
+      (raw) =>
+        z
+          .object({
+            isAdmin: z.boolean().optional(),
+            isDelegatedAdmin: z.boolean().optional(),
+            phones: z
+              .array(
+                z.object({
+                  value: z.string().optional(),
+                  type: z.string().optional(),
+                  primary: z.boolean().optional(),
+                })
+              )
+              .optional(),
+            relations: z
+              .array(
+                z.object({
+                  type: z.string().optional(),
+                  value: z.string().optional(),
+                })
+              )
+              .optional(),
+          })
+          .passthrough()
+          .parse(raw)
+    );
+    if (!result.ok) return result;
+    const phones = (result.value.phones ?? []).filter((phone) =>
+      phone.value?.trim()
+    );
+    const primaryPhone = phones.find((phone) => phone.primary);
+    const workPhone = phones.find(
+      (phone) => phone.type?.toLowerCase() === "work"
+    );
+    const hasAdminStatus =
+      result.value.isAdmin !== undefined ||
+      result.value.isDelegatedAdmin !== undefined;
+    const privileged =
+      result.value.isAdmin === true || result.value.isDelegatedAdmin === true
+        ? true
+        : result.value.isAdmin === false &&
+            result.value.isDelegatedAdmin === false
+          ? false
+          : null;
+    return {
+      ok: true,
+      value: {
+        privileged: hasAdminStatus ? privileged : null,
+        mfaChangedAt: null,
+        signIns: [],
+        directoryPhone:
+          primaryPhone?.value ?? workPhone?.value ?? phones[0]?.value ?? null,
+        managerName:
+          result.value.relations?.find(
+            (relation) => relation.type === "manager"
+          )?.value ?? null,
       },
     };
   }

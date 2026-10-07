@@ -4,6 +4,7 @@ import type {
   AccountStatus,
   ConnectorConfig,
   ConnectorResult,
+  DirectoryRiskFacts,
   IdentityDirectory,
 } from "./types";
 
@@ -249,6 +250,125 @@ export class EntraDirectory implements IdentityDirectory {
         recentSignInErrors: [],
         mfaRegistered: null,
         groups: [],
+      },
+    };
+  }
+
+  async getRiskFacts(
+    directoryUserId: string,
+    signal: AbortSignal
+  ): Promise<ConnectorResult<DirectoryRiskFacts>> {
+    const id = graphId.safeParse(directoryUserId);
+    if (!id.success) {
+      return {
+        ok: false,
+        error: { kind: "invalid_response", message: "Invalid directory user" },
+      };
+    }
+
+    const token = await this.accessToken(signal);
+    if (!token.ok) {
+      return {
+        ok: true,
+        value: {
+          privileged: null,
+          mfaChangedAt: null,
+          signIns: [],
+          directoryPhone: null,
+          managerName: null,
+        },
+      };
+    }
+
+    const userPath = `/users/${encodeURIComponent(id.data)}`;
+    const read = async <T>(
+      path: string,
+      parse: (value: unknown) => T
+    ): Promise<T | null> => {
+      try {
+        const result = await this.graph(path, signal, parse);
+        return result.ok ? result.value : null;
+      } catch {
+        return null;
+      }
+    };
+    const cutoff = new Date(
+      Date.now() - 30 * 24 * 60 * 60 * 1_000
+    ).toISOString();
+    const [user, manager, roles, methods, signIns] = await Promise.all([
+      read(`${userPath}?$select=businessPhones,mobilePhone`, (raw) =>
+        z
+          .object({
+            businessPhones: z.array(z.string()).optional(),
+            mobilePhone: z.string().nullable().optional(),
+          })
+          .parse(raw)
+      ),
+      read(`${userPath}/manager?$select=displayName`, (raw) =>
+        z.object({ displayName: z.string().nullable().optional() }).parse(raw)
+      ),
+      read(
+        `${userPath}/memberOf/microsoft.graph.directoryRole?$select=id`,
+        (raw) =>
+          z.object({ value: z.array(z.object({ id: graphId })) }).parse(raw)
+      ),
+      read(`${userPath}/authentication/methods`, (raw) =>
+        z
+          .object({
+            value: z.array(
+              z.object({ createdDateTime: z.string().optional() }).passthrough()
+            ),
+          })
+          .parse(raw)
+      ),
+      read(
+        `/auditLogs/signIns?$filter=${encodeURIComponent(
+          `userId eq '${escapeFilter(id.data)}' and createdDateTime ge ${cutoff}`
+        )}&$top=50&$select=createdDateTime,location`,
+        (raw) =>
+          z
+            .object({
+              value: z.array(
+                z.object({
+                  createdDateTime: z.string(),
+                  location: z
+                    .object({
+                      countryOrRegion: z.string().optional(),
+                    })
+                    .nullable()
+                    .optional(),
+                })
+              ),
+            })
+            .parse(raw)
+      ),
+    ]);
+
+    const methodDates =
+      methods?.value.flatMap((method) => {
+        const at = method.createdDateTime;
+        return at && Number.isFinite(Date.parse(at)) ? [at] : [];
+      }) ?? [];
+    const mfaChangedAt =
+      methodDates.sort(
+        (left, right) => Date.parse(right) - Date.parse(left)
+      )[0] ?? null;
+
+    return {
+      ok: true,
+      value: {
+        privileged: roles === null ? null : roles.value.length > 0,
+        mfaChangedAt,
+        signIns:
+          signIns?.value.flatMap((item) => {
+            const country = item.location?.countryOrRegion?.trim();
+            return country ? [{ at: item.createdDateTime, country }] : [];
+          }) ?? [],
+        directoryPhone:
+          user?.businessPhones?.find((phone) => phone.trim()) ??
+          user?.mobilePhone ??
+          null,
+        managerName: manager?.displayName ?? null,
       },
     };
   }

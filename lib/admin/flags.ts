@@ -30,6 +30,20 @@ export function isIdentityAssuranceEnabled(): boolean {
   return process.env.HELP_DESK_IDENTITY_ASSURANCE_ENABLED === "true";
 }
 
+export function isIdentityRiskSignalsEnabled(): boolean {
+  return (
+    process.env.HELP_DESK_IDENTITY_RISK_SIGNALS_ENABLED === "true" &&
+    isIdentityAssuranceEnabled()
+  );
+}
+
+export function isStaffVerificationEnabled(): boolean {
+  return (
+    process.env.HELP_DESK_STAFF_VERIFICATION_ENABLED === "true" &&
+    isIdentityAssuranceEnabled()
+  );
+}
+
 export function getIdentityAssuranceFreshMinutes(): number {
   const parsed = Number(process.env.HELP_DESK_IDENTITY_ASSURANCE_FRESH_MINUTES);
   if (!Number.isFinite(parsed)) return 10;

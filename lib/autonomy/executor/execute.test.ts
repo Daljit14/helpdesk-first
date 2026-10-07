@@ -15,6 +15,8 @@ const mocks = vi.hoisted(() => ({
   isEvidenceEngineEnabled: vi.fn(),
   isIdentityAssuranceEnabled: vi.fn(() => false),
   getIdentityAssuranceFreshMinutes: vi.fn(() => 10),
+  isIdentityRiskSignalsEnabled: vi.fn(() => false),
+  isStaffVerificationEnabled: vi.fn(() => false),
 }));
 
 vi.mock("../orchestrator", () => ({
@@ -43,6 +45,8 @@ vi.mock("@/lib/admin/flags", () => ({
   isEvidenceEngineEnabled: mocks.isEvidenceEngineEnabled,
   isIdentityAssuranceEnabled: mocks.isIdentityAssuranceEnabled,
   getIdentityAssuranceFreshMinutes: mocks.getIdentityAssuranceFreshMinutes,
+  isIdentityRiskSignalsEnabled: mocks.isIdentityRiskSignalsEnabled,
+  isStaffVerificationEnabled: mocks.isStaffVerificationEnabled,
 }));
 
 import { executePlan, verifyExecution } from "./execute";

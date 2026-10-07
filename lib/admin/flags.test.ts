@@ -15,6 +15,8 @@ import {
   isAgentAbandonSweepEnabled,
   getIdentityAssuranceFreshMinutes,
   isIdentityAssuranceEnabled,
+  isIdentityRiskSignalsEnabled,
+  isStaffVerificationEnabled,
   isDeviceSignedTrustEnabled,
 } from "./flags";
 
@@ -108,5 +110,17 @@ describe("requester agent flags", () => {
     vi.stubEnv("HELP_DESK_IDENTITY_ASSURANCE_FRESH_MINUTES", "120");
     expect(isIdentityAssuranceEnabled()).toBe(true);
     expect(getIdentityAssuranceFreshMinutes()).toBe(60);
+  });
+
+  test("gates risk signals and staff verification behind identity assurance", () => {
+    expect(isIdentityRiskSignalsEnabled()).toBe(false);
+    expect(isStaffVerificationEnabled()).toBe(false);
+    vi.stubEnv("HELP_DESK_IDENTITY_RISK_SIGNALS_ENABLED", "true");
+    vi.stubEnv("HELP_DESK_STAFF_VERIFICATION_ENABLED", "true");
+    expect(isIdentityRiskSignalsEnabled()).toBe(false);
+    expect(isStaffVerificationEnabled()).toBe(false);
+    vi.stubEnv("HELP_DESK_IDENTITY_ASSURANCE_ENABLED", "true");
+    expect(isIdentityRiskSignalsEnabled()).toBe(true);
+    expect(isStaffVerificationEnabled()).toBe(true);
   });
 });

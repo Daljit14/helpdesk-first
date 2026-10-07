@@ -29,6 +29,33 @@ const RECENT_ERROR_EVENT_COUNTS = [
   "other",
 ] as const;
 
+export const DEVICE_SIGNED_IDENTIFIER_FIELDS: Readonly<
+  Record<string, readonly string[]>
+> = { wifi_status: ["ssid"], printers: ["names"] };
+
+export function signedIdentifiersFromRecord(
+  kind: string,
+  data: unknown
+): string[] {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return [];
+  const record = data as Record<string, unknown>;
+  const identifiers: string[] = [];
+  for (const field of DEVICE_SIGNED_IDENTIFIER_FIELDS[kind] ?? []) {
+    const value = record[field];
+    if (typeof value === "string") {
+      if (value.length >= 1 && value.length <= 80) identifiers.push(value);
+      continue;
+    }
+    if (Array.isArray(value)) {
+      for (const item of value.slice(0, 40)) {
+        if (typeof item === "string" && item.length >= 1 && item.length <= 80)
+          identifiers.push(item);
+      }
+    }
+  }
+  return identifiers;
+}
+
 export function sanitizeDiagnosticRecord(
   kind: string,
   summary: string,

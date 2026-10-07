@@ -140,6 +140,10 @@ export function isDeviceExecutionEnabled(): boolean {
   return process.env.HELP_DESK_DEVICE_EXECUTION_ENABLED === "true";
 }
 
+export function isDeviceSignedTrustEnabled(): boolean {
+  return process.env.HELP_DESK_DEVICE_SIGNED_TRUST_ENABLED === "true";
+}
+
 export function isRequesterAgentEnabled(): boolean {
   return process.env.HELP_DESK_REQUESTER_AGENT_ENABLED === "true";
 }

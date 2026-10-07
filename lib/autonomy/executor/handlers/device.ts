@@ -27,6 +27,30 @@ export function deviceHandlers(): CapabilityHandler[] {
         platform: ticket.data.platform,
       });
       if (!device) return failed("no_active_device");
+      const step = await ctx.admin
+        .from("resolution_steps")
+        .select("detail")
+        .eq("id", ctx.stepId)
+        .eq("organization_id", ctx.organizationId)
+        .eq("run_id", ctx.runId)
+        .maybeSingle();
+      if (step.error || !step.data) return failed("device_binding_unreadable");
+      const detail =
+        step.data.detail &&
+        typeof step.data.detail === "object" &&
+        !Array.isArray(step.data.detail)
+          ? (step.data.detail as Record<string, unknown>)
+          : null;
+      const deviceBinding = detail?.deviceBinding;
+      if (
+        deviceBinding &&
+        typeof deviceBinding === "object" &&
+        !Array.isArray(deviceBinding) &&
+        typeof (deviceBinding as Record<string, unknown>).deviceId ===
+          "string" &&
+        (deviceBinding as { deviceId: string }).deviceId !== device.id
+      )
+        return failed("device_binding_mismatch");
       const approval = await ctx.admin
         .from("approval_requests")
         .select("id")

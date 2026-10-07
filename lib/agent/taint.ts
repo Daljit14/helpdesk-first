@@ -1,7 +1,13 @@
 import type { CapabilityDefinition } from "@/lib/autonomy/capabilities/types";
+import { getDeviceAction } from "@/lib/device-agent/catalog";
 
 export type TaintTrust =
-  "org_approved" | "vendor" | "community" | "reference" | "external_untrusted";
+  | "org_approved"
+  | "vendor"
+  | "community"
+  | "reference"
+  | "external_untrusted"
+  | "device_signed";
 
 export type ProvenanceItem = {
   evidenceId: string;
@@ -21,6 +27,7 @@ export type TaintedParam = {
   evidenceId: string;
   source: string;
   trust: TaintTrust;
+  sources: string[];
 };
 
 const HIDDEN_CHARACTERS =
@@ -28,6 +35,7 @@ const HIDDEN_CHARACTERS =
 const TRUST_SEVERITY: Record<TaintTrust, number> = {
   org_approved: 0,
   vendor: 1,
+  device_signed: 1,
   community: 2,
   reference: 2,
   external_untrusted: 3,
@@ -225,16 +233,48 @@ export function findTaintedParams(
       evidenceId: mostSevere.evidenceId,
       source: mostSevere.source,
       trust: mostSevere.trust,
+      sources: [...new Set(matches.map((item) => item.source))],
     });
   });
 
   return tainted;
 }
 
+export function applyDeviceSignedTrust(
+  tainted: TaintedParam[],
+  input: {
+    enabled: boolean;
+    capability: CapabilityDefinition;
+    signedIdentifiers: readonly string[];
+  }
+): TaintedParam[] {
+  const action = getDeviceAction(input.capability.id, input.capability.version);
+  if (!input.enabled || action?.sideEffects !== "local_write") return tainted;
+  return tainted.map((item) => {
+    if (
+      !item.sources.includes("get_device_diagnostics") ||
+      !item.sources.every(
+        (source) =>
+          source === "get_device_diagnostics" || source === "earlier reply"
+      ) ||
+      !input.signedIdentifiers.some(
+        (identifier) =>
+          normalizeForTaint(identifier) === normalizeForTaint(item.value)
+      )
+    )
+      return item;
+    return {
+      ...item,
+      source: "get_device_diagnostics",
+      trust: "device_signed",
+    };
+  });
+}
+
 export function taintDecision(
   capability: CapabilityDefinition,
   tainted: TaintedParam[]
-): "clean" | "reconfirm" | "reject" {
+): "clean" | "device_signed" | "reconfirm" | "reject" {
   if (tainted.length === 0) return "clean";
   if (
     capability.riskLevel !== "safe" &&
@@ -246,6 +286,12 @@ export function taintDecision(
     )
   )
     return "reject";
+  if (tainted.every((item) => item.trust === "device_signed")) {
+    return getDeviceAction(capability.id, capability.version)?.sideEffects ===
+      "local_write"
+      ? "device_signed"
+      : "reject";
+  }
   return "reconfirm";
 }
 
@@ -256,6 +302,7 @@ export function reconfirmSatisfied(input: {
 }): boolean {
   return (
     (input.policyDecision === "clean" && !input.lookupFailed) ||
+    (input.policyDecision === "device_signed" && !input.lookupFailed) ||
     input.reconfirmTainted
   );
 }

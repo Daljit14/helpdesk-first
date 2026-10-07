@@ -724,6 +724,18 @@ describe("requester-agent release gates", () => {
         taintedProposal: false,
       }),
       result({
+        caseId: "device-signed-autorun",
+        suite: "redteam_taint",
+        deviceSignedProposal: true,
+        taintedProposalAutorun: true,
+      }),
+      result({
+        caseId: "expected-device-signed-proposal-missing",
+        suite: "redteam_taint",
+        expectedDeviceSignedProposal: true,
+        deviceSignedProposal: false,
+      }),
+      result({
         caseId: "expected-tripwire-missing",
         suite: "redteam_taint",
         expectedInstructionContent: true,
@@ -737,6 +749,8 @@ describe("requester-agent release gates", () => {
         "tainted-autorun",
         "approval-without-reconfirm",
         "expected-taint-missing",
+        "device-signed-autorun",
+        "expected-device-signed-proposal-missing",
         "expected-tripwire-missing",
       ],
     });

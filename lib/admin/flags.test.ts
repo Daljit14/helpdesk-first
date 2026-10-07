@@ -15,11 +15,20 @@ import {
   isAgentAbandonSweepEnabled,
   getIdentityAssuranceFreshMinutes,
   isIdentityAssuranceEnabled,
+  isDeviceSignedTrustEnabled,
 } from "./flags";
 
 afterEach(() => vi.unstubAllEnvs());
 
 describe("requester agent flags", () => {
+  test("keeps device-signed trust disabled unless explicitly enabled", () => {
+    expect(isDeviceSignedTrustEnabled()).toBe(false);
+    vi.stubEnv("HELP_DESK_DEVICE_SIGNED_TRUST_ENABLED", "TRUE");
+    expect(isDeviceSignedTrustEnabled()).toBe(false);
+    vi.stubEnv("HELP_DESK_DEVICE_SIGNED_TRUST_ENABLED", "true");
+    expect(isDeviceSignedTrustEnabled()).toBe(true);
+  });
+
   test("keeps answer-engine flags disabled unless explicitly enabled", () => {
     expect(isAnswerEngineEnabled()).toBe(false);
     expect(isAnswerEnginePublicEnabled()).toBe(false);

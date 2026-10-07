@@ -2,8 +2,47 @@ import { describe, expect, test } from "vitest";
 import { APP_DISPLAY_NAMES } from "../../agent/src/collectors/error-events";
 import {
   DIAGNOSTIC_CRASHED_APP_DISPLAY_NAMES,
+  signedIdentifiersFromRecord,
   sanitizeDiagnosticRecord,
 } from "./diagnostic-data";
+
+describe("signedIdentifiersFromRecord", () => {
+  test("extracts only allowlisted strings and bounded string arrays", () => {
+    expect(
+      signedIdentifiersFromRecord("wifi_status", {
+        ssid: "Contoso-Corp",
+        summary: "Guest-Open",
+        names: ["ignored"],
+      })
+    ).toEqual(["Contoso-Corp"]);
+    expect(
+      signedIdentifiersFromRecord("printers", {
+        names: ["Office Printer", 42, "x".repeat(81), "Lab Printer"],
+        summary: "Guest-Open",
+      })
+    ).toEqual(["Office Printer", "Lab Printer"]);
+    expect(
+      signedIdentifiersFromRecord("printers", {
+        names: Array.from({ length: 41 }, (_, index) => `printer-${index}`),
+      })
+    ).toHaveLength(40);
+  });
+
+  test("never extracts free text or recent error app names", () => {
+    expect(
+      signedIdentifiersFromRecord("recent_error_events", {
+        crashedApps: ["Outlook"],
+        summary: "Use Guest-Open",
+      })
+    ).toEqual([]);
+    expect(
+      signedIdentifiersFromRecord("wifi_status", {
+        ssid: "",
+        summary: "Guest-Open",
+      })
+    ).toEqual([]);
+  });
+});
 
 describe("sanitizeDiagnosticRecord", () => {
   test("keeps only approved recent error counts and app names", () => {

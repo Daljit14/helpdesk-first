@@ -40,7 +40,7 @@ function BreakdownTable({
   rows: HonestBreakdown[];
 }) {
   return (
-    <div className="rounded-2xl border border-border p-4">
+    <div className="min-w-0 rounded-2xl border border-border p-4">
       <h3 className="mb-3 font-extrabold">{title}</h3>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[34rem] text-left text-xs">
@@ -189,7 +189,7 @@ export function AutonomyMetricsCard({ metrics }: { metrics: AutonomyMetrics }) {
         Metrics v1 (comparison): AI resolution rate{" "}
         {percent(metrics.aiResolutionRate)}
       </p>
-      <div className="mt-5 grid gap-4 lg:grid-cols-2">
+      <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
         <BreakdownTable title="By category" rows={metrics.v2.byCategory} />
         <BreakdownTable title="By capability" rows={metrics.v2.byCapability} />
       </div>

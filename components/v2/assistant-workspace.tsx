@@ -57,6 +57,23 @@ const CHAT_NOTICE_KINDS = new Set([
   "too_short",
   "off_topic",
 ]);
+const VAGUE_TERMS = new Set([
+  "stuck",
+  "work",
+  "works",
+  "working",
+  "broken",
+  "issue",
+  "issues",
+  "problem",
+  "problems",
+  "help",
+  "error",
+  "wrong",
+  "fix",
+  "not",
+  "nothing",
+]);
 const OUTCOME_LABELS: Record<StepOutcome, string> = {
   worked: "Worked",
   failed: "Did not work",
@@ -271,7 +288,7 @@ export function AssistantWorkspace({
       autoStarted.current = true;
       // Screen the linked problem the same way as typed input: greetings,
       // mashing, secrets and unsupported problems get a local reply.
-      const notice = preflightNotice(initialProblem);
+      const notice = preflightNotice(initialProblem, { chatAvailable });
       if (notice) {
         const noticeId = `n-${noticeIdSequence.current++}`;
         queueMicrotask(() => {
@@ -328,7 +345,7 @@ export function AssistantWorkspace({
     const quality = classifyInput(message);
     if (quality.kind === "sensitive") {
       intake.setProblem("");
-      const notice = preflightNotice(message);
+      const notice = preflightNotice(message, { chatAvailable });
       if (notice) pushNotice(notice);
       return;
     }
@@ -390,7 +407,14 @@ export function AssistantWorkspace({
       });
       return;
     }
-    const notice = preflightNotice(text);
+    const previousAssistantChatReply = transcript
+      .slice()
+      .reverse()
+      .find((turn) => turn.role === "assistant")?.chatReply;
+    const notice = preflightNotice(text, {
+      chatAvailable,
+      previousAssistantChatReply: Boolean(previousAssistantChatReply),
+    });
     if (notice) {
       intake.setProblem("");
       // Never echo a secret into the transcript (and never send it).
@@ -722,7 +746,9 @@ export function AssistantWorkspace({
                       )}
                     {turn.notice.kind === "no_match" && handoff}
                     {(turn.notice.kind === "greeting" ||
-                      turn.notice.kind === "small_talk") && (
+                      turn.notice.kind === "small_talk" ||
+                      (turn.notice.kind === "no_match" &&
+                        !turn.notice.suggestions?.length)) && (
                       <div className="ml-11">
                         <ExampleChips
                           onPick={startProblem}
@@ -1015,11 +1041,25 @@ function answerCardFromResponse(value: unknown): AnswerCardData | null {
  * Screens a new problem before the intake pipeline runs. Returns a local
  * notice when the text is not a real, supported IT problem description.
  */
-function preflightNotice(text: string): AssistantNoticeData | null {
+function preflightNotice(
+  text: string,
+  {
+    chatAvailable = false,
+    previousAssistantChatReply = false,
+  }: {
+    chatAvailable?: boolean;
+    previousAssistantChatReply?: boolean;
+  } = {}
+): AssistantNoticeData | null {
   const quality = classifyInput(text);
   if (quality.kind === "ok") {
     const match = matchGuides(text);
-    if (match.status !== "none") return null;
+    const vague = quality.itTerms.every((term) => VAGUE_TERMS.has(term));
+    const chatForWeakMatch =
+      chatAvailable &&
+      match.status === "weak" &&
+      (vague || previousAssistantChatReply);
+    if (match.status !== "none" && !chatForWeakMatch) return null;
     return {
       kind: "no_match",
       text: noticeText("no_match"),

@@ -1139,4 +1139,147 @@ describe("AssistantWorkspace", () => {
       screen.getByText("Community tip — not official")
     ).toBeInTheDocument();
   });
+
+  it("routes a vague weak match to chat instead of intake", async () => {
+    const reply = "I can help. Which device is affected?";
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ status: "ok", reply }),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    mocks.currentOutput = null;
+    mocks.problem = "i am stuck";
+    expect(matchGuides(mocks.problem).status).toBe("weak");
+    render(<AssistantWorkspace chatAvailable />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(await screen.findByText(reply)).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/assistant/chat",
+      expect.objectContaining({ method: "POST" })
+    );
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      "/api/ai/intake",
+      expect.anything()
+    );
+    expect(mocks.handleStart).not.toHaveBeenCalled();
+  });
+
+  it("keeps a confident Wi-Fi match on the intake path when chat is available", () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    mocks.currentOutput = null;
+    mocks.problem = "wifi keeps dropping on my laptop";
+    expect(matchGuides(mocks.problem).status).toBe("confident");
+    render(<AssistantWorkspace chatAvailable />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(mocks.handleStart).toHaveBeenCalledWith(
+      "wifi keeps dropping on my laptop"
+    );
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      "/api/assistant/chat",
+      expect.anything()
+    );
+  });
+
+  it("keeps a weak follow-up in chat with the previous three turns", async () => {
+    const reply = "Which computer do you mean?";
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ status: "ok", reply }),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    mocks.currentOutput = null;
+    mocks.problem = "i am stuck";
+    expect(matchGuides(mocks.problem).status).toBe("weak");
+    const { rerender } = render(<AssistantWorkspace chatAvailable />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    expect(await screen.findByText(reply)).toBeInTheDocument();
+
+    mocks.problem = "the one on my computer";
+    expect(matchGuides(mocks.problem).status).toBe("weak");
+    rerender(<AssistantWorkspace chatAvailable />);
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/assistant/chat",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          turns: [
+            { role: "user", text: "i am stuck" },
+            { role: "assistant", text: reply },
+            { role: "user", text: "the one on my computer" },
+          ],
+          platform: mocks.platform,
+        }),
+      })
+    );
+    expect(mocks.handleStart).not.toHaveBeenCalled();
+  });
+
+  it("keeps vague weak matches on intake when chat is unavailable", () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    mocks.currentOutput = null;
+    mocks.problem = "i am stuck";
+    render(<AssistantWorkspace chatAvailable={false} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(mocks.handleStart).toHaveBeenCalledWith("i am stuck");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("shows example chips after a chat reply with no guide suggestions", async () => {
+    const reply = "Glad to hear it. Let me know if you need help.";
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ status: "ok", reply }),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    mocks.currentOutput = null;
+    mocks.problem = "i am good";
+    render(<AssistantWorkspace chatAvailable />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(await screen.findByText(reply)).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("button", { name: "Printer is offline" }).length
+    ).toBeGreaterThan(0);
+  });
+
+  it("shows suggested guides under a chat reply for a vague weak match", async () => {
+    const reply = "Let's narrow that down. What stops working?";
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ status: "ok", reply }),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    mocks.currentOutput = null;
+    mocks.problem = "nothing works";
+    expect(matchGuides(mocks.problem).status).toBe("weak");
+    render(<AssistantWorkspace chatAvailable />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(await screen.findByText(reply)).toBeInTheDocument();
+    expect(screen.getByText("Guides that might help")).toBeInTheDocument();
+    expect(
+      screen
+        .getAllByRole("link")
+        .some((link) => link.getAttribute("href")?.startsWith("/issues/"))
+    ).toBe(true);
+  });
 });

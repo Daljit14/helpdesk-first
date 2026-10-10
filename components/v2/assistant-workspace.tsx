@@ -49,6 +49,31 @@ import { AnswerCard } from "@/components/v2/answer-card";
 import type { AnswerCard as AnswerCardData } from "@/lib/answers/present";
 
 type StepOutcome = "worked" | "failed" | "could_not_perform";
+type ChatRequestTurn = { role: "user" | "assistant"; text: string };
+const CHAT_NOTICE_KINDS = new Set([
+  "no_match",
+  "greeting",
+  "small_talk",
+  "too_short",
+  "off_topic",
+]);
+const VAGUE_TERMS = new Set([
+  "stuck",
+  "work",
+  "works",
+  "working",
+  "broken",
+  "issue",
+  "issues",
+  "problem",
+  "problems",
+  "help",
+  "error",
+  "wrong",
+  "fix",
+  "not",
+  "nothing",
+]);
 const OUTCOME_LABELS: Record<StepOutcome, string> = {
   worked: "Worked",
   failed: "Did not work",
@@ -66,6 +91,7 @@ export function AssistantWorkspace({
   signedIn = false,
   stepPolicyEnabled = false,
   answerEngineAvailable = false,
+  chatAvailable = false,
 }: {
   initialProblem?: string;
   initialPlatform?: Platform | null;
@@ -77,6 +103,7 @@ export function AssistantWorkspace({
   signedIn?: boolean;
   stepPolicyEnabled?: boolean;
   answerEngineAvailable?: boolean;
+  chatAvailable?: boolean;
 }) {
   const intake = useAssistantIntake({
     initialProblem,
@@ -166,6 +193,62 @@ export function AssistantWorkspace({
     [answerEngineAvailable]
   );
 
+  const lookupChat = useCallback(
+    (noticeId: string, turns: ChatRequestTurn[], platform: Platform | null) => {
+      if (!chatAvailable) return;
+      void (async () => {
+        let update: Partial<ChatTurn> = { chatLoading: false };
+        try {
+          const response = await fetch("/api/assistant/chat", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ turns, platform }),
+          });
+          if (response.ok) {
+            const payload: unknown = await response.json();
+            if (payload && typeof payload === "object") {
+              const reply = (payload as { reply?: unknown }).reply;
+              if (
+                (payload as { status?: unknown }).status === "ok" &&
+                typeof reply === "string" &&
+                reply.trim() &&
+                reply.length <= 700
+              ) {
+                update = { chatLoading: false, chatReply: reply };
+              }
+            }
+          }
+        } catch {}
+        setTranscript((current) =>
+          current.map((turn) =>
+            turn.id === noticeId ? { ...turn, ...update } : turn
+          )
+        );
+      })();
+    },
+    [chatAvailable]
+  );
+
+  const chatTurnsForNotice = useCallback(
+    (userText: string, userAlreadyInTranscript = false): ChatRequestTurn[] => {
+      const turns = transcript.flatMap((turn, index): ChatRequestTurn[] => {
+        if (
+          turn.notice?.kind === "sensitive" ||
+          (turn.role === "user" &&
+            transcript[index + 1]?.notice?.kind === "sensitive")
+        )
+          return [];
+        const text =
+          turn.role === "assistant" ? (turn.chatReply ?? turn.text) : turn.text;
+        return text.trim() ? [{ role: turn.role, text: text.trim() }] : [];
+      });
+      if (!userAlreadyInTranscript && userText.trim())
+        turns.push({ role: "user", text: userText.trim() });
+      return turns.slice(-10);
+    },
+    [transcript]
+  );
+
   useEffect(() => {
     if (!outcomesLoaded || !outcomesDirty.current) return;
     try {
@@ -205,7 +288,7 @@ export function AssistantWorkspace({
       autoStarted.current = true;
       // Screen the linked problem the same way as typed input: greetings,
       // mashing, secrets and unsupported problems get a local reply.
-      const notice = preflightNotice(initialProblem);
+      const notice = preflightNotice(initialProblem, { chatAvailable });
       if (notice) {
         const noticeId = `n-${noticeIdSequence.current++}`;
         queueMicrotask(() => {
@@ -219,10 +302,20 @@ export function AssistantWorkspace({
               notice,
               answerLoading:
                 answerEngineAvailable && notice.kind === "no_match",
+              chatLoading:
+                chatAvailable &&
+                CHAT_NOTICE_KINDS.has(notice.kind) &&
+                Boolean(initialProblem.trim()),
             },
           ]);
           if (notice.kind === "no_match")
             lookupAnswer(noticeId, initialProblem, initialPlatform);
+          if (chatAvailable && CHAT_NOTICE_KINDS.has(notice.kind))
+            lookupChat(
+              noticeId,
+              chatTurnsForNotice(initialProblem, true),
+              initialPlatform
+            );
         });
         return;
       }
@@ -231,9 +324,12 @@ export function AssistantWorkspace({
   }, [
     answerEngineAvailable,
     autoStart,
+    chatAvailable,
+    chatTurnsForNotice,
     initialPlatform,
     initialProblem,
     intake,
+    lookupChat,
     lookupAnswer,
     ticketIntent,
   ]);
@@ -249,7 +345,7 @@ export function AssistantWorkspace({
     const quality = classifyInput(message);
     if (quality.kind === "sensitive") {
       intake.setProblem("");
-      const notice = preflightNotice(message);
+      const notice = preflightNotice(message, { chatAvailable });
       if (notice) pushNotice(notice);
       return;
     }
@@ -271,6 +367,12 @@ export function AssistantWorkspace({
     answerNotice = false
   ) => {
     const noticeId = `n-${noticeIdSequence.current++}`;
+    const chatText = userText ?? notice.source ?? "";
+    const shouldLookupChat =
+      chatAvailable &&
+      !answerNotice &&
+      CHAT_NOTICE_KINDS.has(notice.kind) &&
+      Boolean(chatText.trim());
     setTranscript((current) => {
       const next = [...current];
       if (userText)
@@ -282,11 +384,14 @@ export function AssistantWorkspace({
         notice,
         answerNotice,
         answerLoading: answerEngineAvailable && notice.kind === "no_match",
+        chatLoading: shouldLookupChat,
       });
       return next;
     });
     if (notice.kind === "no_match")
       lookupAnswer(noticeId, notice.source ?? userText ?? "", intake.platform);
+    if (shouldLookupChat)
+      lookupChat(noticeId, chatTurnsForNotice(chatText), intake.platform);
   };
 
   /** Start a brand-new problem (typed, or an example chip). */
@@ -302,7 +407,14 @@ export function AssistantWorkspace({
       });
       return;
     }
-    const notice = preflightNotice(text);
+    const previousAssistantChatReply = transcript
+      .slice()
+      .reverse()
+      .find((turn) => turn.role === "assistant")?.chatReply;
+    const notice = preflightNotice(text, {
+      chatAvailable,
+      previousAssistantChatReply: Boolean(previousAssistantChatReply),
+    });
     if (notice) {
       intake.setProblem("");
       // Never echo a secret into the transcript (and never send it).
@@ -577,31 +689,86 @@ export function AssistantWorkspace({
                 turn.id.startsWith("q-")
               )
           )
-          .map((turn, index) =>
-            turn.notice ? (
-              <div key={turn.id} className="space-y-3">
-                <AssistantNotice
-                  notice={turn.notice}
-                  onExample={startProblem}
-                  onRephrase={rephrase}
-                  disabled={intake.loading}
-                  guideHref={(id) =>
-                    `/issues/${id}/guide?platform=${platformSlug(intake.platform ?? "Other")}`
-                  }
-                  handoff={
-                    turn.notice.kind === "no_match" &&
-                    turn.answerCard?.outcome !== "needs_it" ? (
-                      <HandoffAction
-                        problem={turn.notice.source ?? ""}
-                        platform={intake.platform}
-                        signedIn={signedIn}
-                        workflowEnabled={workflowEnabled}
-                        pending={actionPending || intake.loading}
-                        onSend={sendToSupport}
-                      />
-                    ) : undefined
+          .map((turn, index) => {
+            if (!turn.notice)
+              return (
+                <Message
+                  key={turn.id}
+                  side={turn.role}
+                  text={turn.text}
+                  animate={
+                    turn.role === "assistant" && index === transcript.length - 1
                   }
                 />
+              );
+            const handoff =
+              turn.notice.kind === "no_match" &&
+              turn.answerCard?.outcome !== "needs_it" ? (
+                <HandoffAction
+                  problem={turn.notice.source ?? ""}
+                  platform={intake.platform}
+                  signedIn={signedIn}
+                  workflowEnabled={workflowEnabled}
+                  pending={actionPending || intake.loading}
+                  onSend={sendToSupport}
+                />
+              ) : undefined;
+            return (
+              <div key={turn.id} className="space-y-3">
+                {turn.chatLoading ? (
+                  <TypingIndicator />
+                ) : turn.chatReply ? (
+                  <>
+                    <Message
+                      side="assistant"
+                      text={turn.chatReply}
+                      animate={index === transcript.length - 1}
+                    />
+                    {turn.notice.kind === "no_match" &&
+                      Boolean(turn.notice.suggestions?.length) && (
+                        <div className="ml-11 space-y-1.5">
+                          <p className="text-xs font-medium text-muted-foreground">
+                            Guides that might help
+                          </p>
+                          <ul className="space-y-1">
+                            {turn.notice.suggestions?.map(({ id, title }) => (
+                              <li key={id}>
+                                <Link
+                                  href={`/issues/${id}/guide?platform=${platformSlug(intake.platform ?? "Other")}`}
+                                  className="text-sm text-primary underline underline-offset-4"
+                                >
+                                  {title}
+                                </Link>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    {turn.notice.kind === "no_match" && handoff}
+                    {(turn.notice.kind === "greeting" ||
+                      turn.notice.kind === "small_talk" ||
+                      (turn.notice.kind === "no_match" &&
+                        !turn.notice.suggestions?.length)) && (
+                      <div className="ml-11">
+                        <ExampleChips
+                          onPick={startProblem}
+                          disabled={intake.loading}
+                        />
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <AssistantNotice
+                    notice={turn.notice}
+                    onExample={startProblem}
+                    onRephrase={rephrase}
+                    disabled={intake.loading}
+                    guideHref={(id) =>
+                      `/issues/${id}/guide?platform=${platformSlug(intake.platform ?? "Other")}`
+                    }
+                    handoff={handoff}
+                  />
+                )}
                 {turn.answerLoading && (
                   <Message
                     side="assistant"
@@ -633,17 +800,8 @@ export function AssistantWorkspace({
                   />
                 )}
               </div>
-            ) : (
-              <Message
-                key={turn.id}
-                side={turn.role}
-                text={turn.text}
-                animate={
-                  turn.role === "assistant" && index === transcript.length - 1
-                }
-              />
-            )
-          )}
+            );
+          })}
         {ticketIntent ? (
           <div className="space-y-4">
             <Message
@@ -849,6 +1007,8 @@ type ChatTurn = {
   answerLoading?: boolean;
   answerRateLimited?: boolean;
   answerCard?: AnswerCardData;
+  chatLoading?: boolean;
+  chatReply?: string;
 };
 
 function initialTranscript(initialProblem: string): ChatTurn[] {
@@ -881,11 +1041,25 @@ function answerCardFromResponse(value: unknown): AnswerCardData | null {
  * Screens a new problem before the intake pipeline runs. Returns a local
  * notice when the text is not a real, supported IT problem description.
  */
-function preflightNotice(text: string): AssistantNoticeData | null {
+function preflightNotice(
+  text: string,
+  {
+    chatAvailable = false,
+    previousAssistantChatReply = false,
+  }: {
+    chatAvailable?: boolean;
+    previousAssistantChatReply?: boolean;
+  } = {}
+): AssistantNoticeData | null {
   const quality = classifyInput(text);
   if (quality.kind === "ok") {
     const match = matchGuides(text);
-    if (match.status !== "none") return null;
+    const vague = quality.itTerms.every((term) => VAGUE_TERMS.has(term));
+    const chatForWeakMatch =
+      chatAvailable &&
+      match.status === "weak" &&
+      (vague || previousAssistantChatReply);
+    if (match.status !== "none" && !chatForWeakMatch) return null;
     return {
       kind: "no_match",
       text: noticeText("no_match"),

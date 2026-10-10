@@ -14,7 +14,9 @@ import {
   isServiceHealthEnabled,
   isAnswerEngineEnabled,
   isAnswerEnginePublicEnabled,
+  isAssistantChatEnabled,
 } from "@/lib/admin/flags";
+import { isAiEnabled } from "@/lib/ai/safety-policy";
 import { isUiV2Enabled } from "@/lib/ui-v2";
 import { AgentChat } from "@/components/v2/agent-chat";
 import { resolveOrganizationForUser } from "@/lib/org/membership";
@@ -101,6 +103,7 @@ export default async function AssistantPage({
             attach={attach}
             autoStart={autoStart}
             answerEngineAvailable={answerEngineAvailable}
+            chatAvailable={isAssistantChatEnabled() && isAiEnabled().enabled}
           />
         ) : (
           <AiAssistant {...flags} />

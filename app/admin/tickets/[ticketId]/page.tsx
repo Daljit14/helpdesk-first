@@ -45,12 +45,14 @@ import {
 } from "@/lib/operations/transform";
 import {
   isEscalationPackageEnabled,
+  isKnowledgeCaptureEnabled,
   isInvestigationEnabled,
   isResolutionTrackingEnabled,
   isSecureAttachmentsEnabled,
   isTicketWorkflowEnabled,
 } from "@/lib/admin/flags";
 import { getIssueBySlug } from "@/lib/search";
+import { ISSUES } from "@/lib/issues";
 import { TicketWorkflowActions } from "@/components/admin/ticket-workflow-actions";
 import { canAccessTicket } from "@/lib/admin/auth";
 import { getCitation } from "@/lib/knowledge/governance";
@@ -401,6 +403,10 @@ export default async function AdminTicketPage({
 
   const admin = createAdminClient();
   const workflowEnabled = isTicketWorkflowEnabled();
+  const knowledgeCaptureEnabled = isKnowledgeCaptureEnabled();
+  const guideOptions = knowledgeCaptureEnabled
+    ? ISSUES.map(({ id, title }) => ({ id, title }))
+    : undefined;
   const secureAttachmentsEnabled = isSecureAttachmentsEnabled();
   const organizationPolicy = await getOrganizationPolicy(
     session.organizationId
@@ -1582,6 +1588,8 @@ export default async function AdminTicketPage({
               allowVerificationException={
                 organizationPolicy.allowVerificationException
               }
+              knowledgeCaptureEnabled={knowledgeCaptureEnabled}
+              guideOptions={guideOptions}
             />
           )}
         </aside>

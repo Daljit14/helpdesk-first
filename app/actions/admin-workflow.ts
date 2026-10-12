@@ -10,6 +10,7 @@ import {
 import {
   isEscalationPackageEnabled,
   isTicketWorkflowEnabled,
+  isKnowledgeCaptureEnabled,
 } from "@/lib/admin/flags";
 import { getOrganizationPolicy } from "@/lib/admin/policies";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -35,6 +36,8 @@ import {
 import { createKnowledgeDraftForTicket } from "@/lib/knowledge/learning";
 import { credentialPattern } from "@/lib/tickets/scrub";
 import { encryptCommentForWrite } from "@/lib/security/ticket-crypto";
+import { getAllIssueSlugs } from "@/lib/search";
+import { recordGuideReportedWrongFinding } from "@/lib/knowledge/health";
 
 type Result = { error: string } | { success: true };
 const id = z.string().uuid();
@@ -371,22 +374,48 @@ export const requestVerification = async (
   return { success: true };
 };
 
-const resolutionSchema = z.object({
-  rootCause: z.string().trim().min(3).max(1000),
-  actionsPerformed: z.string().trim().min(3).max(1000),
-  toolsUsed: z.string().trim().min(3).max(1000),
-  result: z.string().trim().min(3).max(1000),
-  verificationMethod: z.enum([
-    "user_confirmed",
-    "screen_shared",
-    "remote_test",
-    "other",
-  ]),
-  userExplanation: z.string().trim().min(3).max(1000),
-  preventiveRecommendation: z.string().trim().min(3).max(1000),
-  verificationReason: z.string().trim().min(10).max(1000).optional(),
-  verificationEvidence: z.string().trim().min(10).max(2000).optional(),
-});
+const resolutionSchema = z
+  .object({
+    rootCause: z.string().trim().min(3).max(1000),
+    actionsPerformed: z.string().trim().min(3).max(1000),
+    toolsUsed: z.string().trim().min(3).max(1000),
+    result: z.string().trim().min(3).max(1000),
+    verificationMethod: z.enum([
+      "user_confirmed",
+      "screen_shared",
+      "remote_test",
+      "other",
+    ]),
+    userExplanation: z.string().trim().min(3).max(1000),
+    preventiveRecommendation: z.string().trim().min(3).max(1000),
+    verificationReason: z.string().trim().min(10).max(1000).optional(),
+    verificationEvidence: z.string().trim().min(10).max(2000).optional(),
+    reuse: z.enum(["reusable", "one_off"]).optional(),
+    helpedGuideSlug: z
+      .string()
+      .trim()
+      .refine((slug) => getAllIssueSlugs().includes(slug), {
+        message: "Choose a guide from the catalog.",
+      })
+      .optional(),
+    helpedStep: z.coerce.number().int().min(1).optional(),
+    guideWasWrong: z.boolean().optional(),
+    guideIssue: z.string().trim().max(500).optional(),
+  })
+  .superRefine((value, context) => {
+    if (!!value.helpedGuideSlug !== (value.helpedStep !== undefined)) {
+      context.addIssue({
+        code: "custom",
+        message: "Choose both a guide and its step.",
+      });
+    }
+    if (value.guideWasWrong && (!value.helpedGuideSlug || !value.guideIssue)) {
+      context.addIssue({
+        code: "custom",
+        message: "A guide and issue description are required.",
+      });
+    }
+  });
 
 async function aiResolutionVerificationMissing(
   organizationId: string,
@@ -473,6 +502,7 @@ export async function submitResolution(
   const parsed = resolutionSchema.safeParse(report);
   if (!parsed.success) return { error: "Complete every resolution field." };
   const isUserConfirmed = parsed.data.verificationMethod === "user_confirmed";
+  const captureEnabled = isKnowledgeCaptureEnabled();
   const policy = isUserConfirmed
     ? null
     : await getOrganizationPolicy(found.session.organizationId);
@@ -490,10 +520,27 @@ export async function submitResolution(
     };
   }
   const now = new Date().toISOString();
+  const {
+    reuse,
+    helpedGuideSlug,
+    helpedStep,
+    guideWasWrong,
+    guideIssue,
+    ...baseReport
+  } = parsed.data;
+  const extraReport = captureEnabled
+    ? {
+        reuse: reuse ?? "reusable",
+        ...(helpedGuideSlug ? { helpedGuideSlug, helpedStep } : {}),
+        ...(guideWasWrong !== undefined ? { guideWasWrong } : {}),
+        ...(guideIssue ? { guideIssue } : {}),
+      }
+    : {};
   const resolutionReport = isUserConfirmed
-    ? parsed.data
+    ? { ...baseReport, ...extraReport }
     : {
-        ...parsed.data,
+        ...baseReport,
+        ...extraReport,
         verificationException: {
           method: parsed.data.verificationMethod,
           reason: parsed.data.verificationReason,
@@ -524,6 +571,14 @@ export async function submitResolution(
     verification_requested_at: isUserConfirmed ? now : null,
   });
   if (result.error) return { error: "Unable to save resolution." };
+  if (captureEnabled && guideWasWrong && helpedGuideSlug && guideIssue) {
+    await recordGuideReportedWrongFinding({
+      organizationId: found.session.organizationId,
+      ticketId,
+      guideSlug: helpedGuideSlug,
+      guideIssue,
+    });
+  }
   if (!isUserConfirmed) {
     await createKnowledgeDraftForTicket(
       createAdminClient(),

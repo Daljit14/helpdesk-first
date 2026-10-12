@@ -20,11 +20,24 @@ import {
   isStaffVerificationEnabled,
   isDeviceSignedTrustEnabled,
   isOrgActionPolicyEnabled,
+  isKnowledgeCaptureEnabled,
+  isKnowledgeLearningEnabled,
 } from "./flags";
 
 afterEach(() => vi.unstubAllEnvs());
 
 describe("requester agent flags", () => {
+  test("knowledge capture requires both explicit flags", () => {
+    expect(isKnowledgeCaptureEnabled()).toBe(false);
+    vi.stubEnv("HELP_DESK_KNOWLEDGE_CAPTURE_ENABLED", "true");
+    expect(isKnowledgeCaptureEnabled()).toBe(false);
+    vi.stubEnv("HELP_DESK_KNOWLEDGE_LEARNING_ENABLED", "true");
+    expect(isKnowledgeCaptureEnabled()).toBe(true);
+    vi.stubEnv("HELP_DESK_KNOWLEDGE_CAPTURE_ENABLED", "TRUE");
+    expect(isKnowledgeCaptureEnabled()).toBe(false);
+    expect(isKnowledgeLearningEnabled()).toBe(true);
+  });
+
   test("keeps assistant chat disabled unless exactly enabled", () => {
     expect(isAssistantChatEnabled()).toBe(false);
     vi.stubEnv("HELP_DESK_ASSISTANT_CHAT_ENABLED", "TRUE");

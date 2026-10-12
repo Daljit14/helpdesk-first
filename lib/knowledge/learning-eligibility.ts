@@ -15,6 +15,11 @@ export type LearningIneligibleReason =
   | "reopened"
   | "not_user_confirmed"
   | "verification_exception"
+  | "staff_one_off"
+  | "session_not_confirmed"
+  | "verification_not_passed"
+  | "security_flagged"
+  | "tainted_session"
   | "incomplete_report"
   | "sensitive_topic"
   | "credentials_present"
@@ -91,6 +96,13 @@ export function detectSensitiveTopic(text: string): string | null {
 export function evaluateLearningEligibility(
   input: LearningEligibilityInput
 ): LearningEligibility {
+  if (
+    input.resolutionReport &&
+    typeof input.resolutionReport === "object" &&
+    (input.resolutionReport as Record<string, unknown>).reuse === "one_off"
+  ) {
+    return { eligible: false, reason: "staff_one_off", manualReview: false };
+  }
   if (input.status !== "Resolved") {
     return { eligible: false, reason: "not_resolved", manualReview: false };
   }
@@ -134,6 +146,40 @@ export function evaluateLearningEligibility(
       manualReview: true,
       detail: topic,
     };
+  }
+  return { eligible: true };
+}
+
+export function evaluateAgentSessionEligibility(input: {
+  status: string;
+  userConfirmedAt: string | null | undefined;
+  latestVerificationOutcome: string | null | undefined;
+  securityFlag: boolean;
+  tainted: boolean;
+  backingTicketReopenCount: number | null;
+}): LearningEligibility {
+  if (input.status !== "resolved" || !input.userConfirmedAt) {
+    return {
+      eligible: false,
+      reason: "session_not_confirmed",
+      manualReview: false,
+    };
+  }
+  if (input.latestVerificationOutcome !== "passed") {
+    return {
+      eligible: false,
+      reason: "verification_not_passed",
+      manualReview: false,
+    };
+  }
+  if (input.securityFlag) {
+    return { eligible: false, reason: "security_flagged", manualReview: false };
+  }
+  if (input.tainted) {
+    return { eligible: false, reason: "tainted_session", manualReview: false };
+  }
+  if (input.backingTicketReopenCount !== 0) {
+    return { eligible: false, reason: "reopened", manualReview: false };
   }
   return { eligible: true };
 }

@@ -4,10 +4,12 @@ import { recordAnswerFeedback } from "./feedback";
 
 const mocked = vi.hoisted(() => ({
   enqueueLearningEvent: vi.fn(),
+  bumpOpenKnowledgeClusterForAnswer: vi.fn(),
 }));
 
 vi.mock("@/lib/knowledge/learning", () => ({
   enqueueLearningEvent: mocked.enqueueLearningEvent,
+  bumpOpenKnowledgeClusterForAnswer: mocked.bumpOpenKnowledgeClusterForAnswer,
 }));
 
 afterEach(() => {
@@ -17,8 +19,22 @@ afterEach(() => {
 
 function feedbackAdmin(error: { code?: string } | null = null) {
   const insert = vi.fn(async () => ({ error }));
+  const runQuery = {
+    select: vi.fn(() => runQuery),
+    eq: vi.fn(() => runQuery),
+    maybeSingle: vi.fn(async () => ({
+      data: {
+        organization_id: "org-1",
+        problem_label: "Network drops",
+        platform: "Windows",
+      },
+      error: null,
+    })),
+  };
   const admin = {
-    from: vi.fn(() => ({ insert })),
+    from: vi.fn((table: string) =>
+      table === "answer_engine_runs" ? runQuery : { insert }
+    ),
   };
   return {
     admin: admin as unknown as ReturnType<typeof createAdminClient>,
@@ -28,6 +44,43 @@ function feedbackAdmin(error: { code?: string } | null = null) {
 }
 
 describe("answer feedback", () => {
+  test("labels ticket-backed fixed feedback as an answer-run source when capture is on", async () => {
+    vi.stubEnv("HELP_DESK_KNOWLEDGE_LEARNING_ENABLED", "true");
+    vi.stubEnv("HELP_DESK_KNOWLEDGE_CAPTURE_ENABLED", "true");
+    const { admin } = feedbackAdmin();
+    await recordAnswerFeedback(admin, {
+      runId: "run-answer",
+      organizationId: "org-1",
+      outcome: "fixed",
+      ticketId: "ticket-1",
+    });
+    expect(mocked.enqueueLearningEvent).toHaveBeenCalledWith(
+      admin,
+      "ticket-1",
+      "org-1",
+      { sourceKind: "answer_run" }
+    );
+  });
+
+  test("fixed feedback without a ticket only bumps a matching cluster", async () => {
+    vi.stubEnv("HELP_DESK_KNOWLEDGE_LEARNING_ENABLED", "true");
+    vi.stubEnv("HELP_DESK_KNOWLEDGE_CAPTURE_ENABLED", "true");
+    const { admin } = feedbackAdmin();
+    await recordAnswerFeedback(admin, {
+      runId: "run-community",
+      organizationId: "org-1",
+      outcome: "fixed",
+      ticketId: null,
+    });
+    expect(mocked.bumpOpenKnowledgeClusterForAnswer).toHaveBeenCalledWith(
+      admin,
+      "org-1",
+      "Windows",
+      "Network drops"
+    );
+    expect(mocked.enqueueLearningEvent).not.toHaveBeenCalled();
+  });
+
   test("treats duplicate run feedback as success without learning enqueue", async () => {
     const { admin, insert } = feedbackAdmin({ code: "23505" });
     const result = await recordAnswerFeedback(admin, {
@@ -59,7 +112,8 @@ describe("answer feedback", () => {
     expect(mocked.enqueueLearningEvent).toHaveBeenCalledWith(
       admin,
       "ticket-1",
-      "org-1"
+      "org-1",
+      { sourceKind: "ticket" }
     );
   });
 

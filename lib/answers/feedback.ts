@@ -1,5 +1,11 @@
-import { isKnowledgeLearningEnabled } from "@/lib/admin/flags";
-import { enqueueLearningEvent } from "@/lib/knowledge/learning";
+import {
+  isKnowledgeCaptureEnabled,
+  isKnowledgeLearningEnabled,
+} from "@/lib/admin/flags";
+import {
+  bumpOpenKnowledgeClusterForAnswer,
+  enqueueLearningEvent,
+} from "@/lib/knowledge/learning";
 import type { createAdminClient } from "@/lib/supabase/admin";
 
 type Admin = ReturnType<typeof createAdminClient>;
@@ -34,7 +40,39 @@ export async function recordAnswerFeedback(
     isKnowledgeLearningEnabled()
   ) {
     try {
-      await enqueueLearningEvent(admin, input.ticketId, input.organizationId);
+      await enqueueLearningEvent(admin, input.ticketId, input.organizationId, {
+        sourceKind: isKnowledgeCaptureEnabled() ? "answer_run" : "ticket",
+      });
+    } catch {
+      return { ok: true };
+    }
+  }
+  if (
+    input.outcome === "fixed" &&
+    input.organizationId &&
+    !input.ticketId &&
+    isKnowledgeCaptureEnabled()
+  ) {
+    try {
+      const run = await admin
+        .from("answer_engine_runs")
+        .select("organization_id,problem_label,platform")
+        .eq("id", input.runId)
+        .eq("organization_id", input.organizationId)
+        .maybeSingle();
+      if (
+        !run.error &&
+        run.data?.organization_id === input.organizationId &&
+        typeof run.data.problem_label === "string" &&
+        typeof run.data.platform === "string"
+      ) {
+        await bumpOpenKnowledgeClusterForAnswer(
+          admin,
+          input.organizationId,
+          run.data.platform,
+          run.data.problem_label
+        );
+      }
     } catch {
       return { ok: true };
     }

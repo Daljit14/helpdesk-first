@@ -34,6 +34,11 @@ type ResolutionValues = {
   preventiveRecommendation: string;
   verificationReason: string;
   verificationEvidence: string;
+  reuse: "reusable" | "one_off";
+  helpedGuideSlug: string;
+  helpedStep: string;
+  guideWasWrong: boolean;
+  guideIssue: string;
 };
 
 const initialResolution: ResolutionValues = {
@@ -46,6 +51,11 @@ const initialResolution: ResolutionValues = {
   preventiveRecommendation: "",
   verificationReason: "",
   verificationEvidence: "",
+  reuse: "reusable",
+  helpedGuideSlug: "",
+  helpedStep: "",
+  guideWasWrong: false,
+  guideIssue: "",
 };
 
 const fieldClass =
@@ -63,6 +73,8 @@ export function TicketWorkflowActions({
   status,
   assignedAgentId,
   allowVerificationException = false,
+  knowledgeCaptureEnabled = false,
+  guideOptions = [],
 }: {
   ticketId: string;
   canClaim: boolean;
@@ -71,6 +83,8 @@ export function TicketWorkflowActions({
   status: string;
   assignedAgentId?: string | null;
   allowVerificationException?: boolean;
+  knowledgeCaptureEnabled?: boolean;
+  guideOptions?: { id: string; title: string }[];
 }) {
   const [publicMessage, setPublicMessage] = useState("");
   const [internalMessage, setInternalMessage] = useState("");
@@ -143,7 +157,13 @@ export function TicketWorkflowActions({
           "verificationMethod",
           "verificationReason",
           "verificationEvidence",
-        ].includes(key) && !value.trim()
+          "reuse",
+          "helpedGuideSlug",
+          "helpedStep",
+          "guideWasWrong",
+          "guideIssue",
+        ].includes(key) &&
+        (typeof value !== "string" || !value.trim())
     );
     if (missing) {
       setResolutionError("Complete every resolution field.");
@@ -157,7 +177,16 @@ export function TicketWorkflowActions({
             verificationEvidence: undefined,
           }
         : resolution;
-    run(() => submitResolution(ticketId, report));
+    const captureFields = knowledgeCaptureEnabled
+      ? {
+          reuse: resolution.reuse,
+          helpedGuideSlug: resolution.helpedGuideSlug || undefined,
+          helpedStep: resolution.helpedStep || undefined,
+          guideWasWrong: resolution.guideWasWrong,
+          guideIssue: resolution.guideIssue || undefined,
+        }
+      : {};
+    run(() => submitResolution(ticketId, { ...report, ...captureFields }));
   };
 
   return (
@@ -764,6 +793,84 @@ export function TicketWorkflowActions({
           className={fieldClass}
           required
         />
+        {knowledgeCaptureEnabled && (
+          <>
+            <label htmlFor="knowledge-reuse">Reuse</label>
+            <select
+              id="knowledge-reuse"
+              value={resolution.reuse}
+              onChange={(event) =>
+                updateResolution(
+                  "reuse",
+                  event.target.value as "reusable" | "one_off"
+                )
+              }
+              className={fieldClass}
+            >
+              <option value="reusable">Reusable</option>
+              <option value="one_off">One-off resolution</option>
+            </select>
+            <label htmlFor="helped-guide">Guide that helped (optional)</label>
+            <select
+              id="helped-guide"
+              value={resolution.helpedGuideSlug}
+              onChange={(event) =>
+                updateResolution("helpedGuideSlug", event.target.value)
+              }
+              className={fieldClass}
+            >
+              <option value="">No guide selected</option>
+              {guideOptions.map((guide) => (
+                <option key={guide.id} value={guide.id}>
+                  {guide.title}
+                </option>
+              ))}
+            </select>
+            <label htmlFor="helped-step">Guide step (optional)</label>
+            <input
+              id="helped-step"
+              type="number"
+              min={1}
+              value={resolution.helpedStep}
+              onChange={(event) =>
+                updateResolution("helpedStep", event.target.value)
+              }
+              className={fieldClass}
+            />
+            <label
+              className="flex items-center gap-2"
+              htmlFor="guide-was-wrong"
+            >
+              <input
+                id="guide-was-wrong"
+                type="checkbox"
+                checked={resolution.guideWasWrong}
+                onChange={(event) =>
+                  setResolution((current) => ({
+                    ...current,
+                    guideWasWrong: event.target.checked,
+                  }))
+                }
+              />
+              This guide may be wrong or out of date
+            </label>
+            {resolution.guideWasWrong && (
+              <>
+                <label htmlFor="guide-issue">What was wrong? (max 500)</label>
+                <textarea
+                  id="guide-issue"
+                  maxLength={500}
+                  value={resolution.guideIssue}
+                  onChange={(event) =>
+                    updateResolution("guideIssue", event.target.value)
+                  }
+                  className={fieldClass}
+                  required
+                />
+              </>
+            )}
+          </>
+        )}
         <button
           type="submit"
           disabled={pending}

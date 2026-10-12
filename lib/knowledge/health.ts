@@ -1,5 +1,9 @@
-import { isKnowledgeHealthEnabled } from "@/lib/admin/flags";
+import {
+  isKnowledgeCaptureEnabled,
+  isKnowledgeHealthEnabled,
+} from "@/lib/admin/flags";
 import { listGuides } from "@/lib/knowledge/governance";
+import { redactForLearning } from "@/lib/knowledge/learning-redaction";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export type GuideStats = {
@@ -33,6 +37,49 @@ export type FindingInput = {
   summary: string;
   evidence: Record<string, number | string | null>;
 };
+
+export async function recordGuideReportedWrongFinding(input: {
+  organizationId: string;
+  ticketId: string;
+  guideSlug: string;
+  guideIssue: string;
+}): Promise<void> {
+  if (!isKnowledgeCaptureEnabled()) return;
+  try {
+    const admin = createAdminClient();
+    const guideIssue = redactForLearning(input.guideIssue, 500).text;
+    const evidence = { ticketId: input.ticketId, guideIssue };
+    const existing = await admin
+      .from("knowledge_health_findings")
+      .select("id,status")
+      .eq("organization_id", input.organizationId)
+      .eq("kind", "guide_reported_wrong")
+      .eq("guide_slug", input.guideSlug)
+      .maybeSingle();
+    if (existing.error) return;
+    if (existing.data?.status === "open") {
+      await admin
+        .from("knowledge_health_findings")
+        .update({ evidence, last_seen_at: new Date().toISOString() })
+        .eq("id", existing.data.id)
+        .eq("organization_id", input.organizationId)
+        .eq("status", "open");
+    } else if (!existing.data) {
+      await admin.from("knowledge_health_findings").insert({
+        organization_id: input.organizationId,
+        guide_slug: input.guideSlug,
+        kind: "guide_reported_wrong",
+        severity: "warning",
+        summary:
+          "Staff reported this guide was wrong while resolving a ticket.",
+        evidence,
+        status: "open",
+      });
+    }
+  } catch {
+    return;
+  }
+}
 
 export type KnowledgeHealthFinding = {
   id: string;

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  after: vi.fn(),
   executePlan: vi.fn(),
   readKillSwitches: vi.fn(),
   consumeAiConsent: vi.fn(),
@@ -18,13 +19,22 @@ const mocks = vi.hoisted(() => ({
   loadAccountRiskFacts: vi.fn(),
   isOrgActionPolicyEnabled: vi.fn(() => false),
   loadOrgPolicyDecision: vi.fn(),
+  captureAgentResolution: vi.fn(),
+  verifyRun: vi.fn(),
 }));
 
+vi.mock("next/server", () => ({ after: mocks.after }));
 vi.mock("@/lib/autonomy/executor/execute", () => ({
   executePlan: mocks.executePlan,
 }));
 vi.mock("@/lib/autonomy/kill-switches", () => ({
   readKillSwitches: mocks.readKillSwitches,
+}));
+vi.mock("@/lib/autonomy/verification/engine", () => ({
+  verifyRun: mocks.verifyRun,
+}));
+vi.mock("@/lib/knowledge/capture", () => ({
+  captureAgentResolution: mocks.captureAgentResolution,
 }));
 vi.mock("@/lib/autonomy/ladder", async () => {
   const actual = await vi.importActual<typeof import("@/lib/autonomy/ladder")>(
@@ -82,7 +92,12 @@ vi.mock("./session", () => ({
   escalate: mocks.escalate,
 }));
 
-import { decideConsent, ensureBackingRun, proposeAction } from "./actions";
+import {
+  confirmOutcome,
+  decideConsent,
+  ensureBackingRun,
+  proposeAction,
+} from "./actions";
 import type { ResolutionRun } from "@/lib/autonomy/orchestrator";
 import { canTransition } from "@/lib/autonomy/state-machine";
 import type { AgentSession } from "./types";
@@ -128,7 +143,12 @@ const run: ResolutionRun = {
   completed_at: null,
 };
 
-function actionAdmin(options: { approval?: Record<string, unknown> } = {}) {
+function actionAdmin(
+  options: {
+    approval?: Record<string, unknown>;
+    verificationPass?: boolean;
+  } = {}
+) {
   const inserts: Array<{ table: string; value: unknown }> = [];
   const query = (table: string) => {
     const chain: Record<string, (...args: unknown[]) => unknown> = {};
@@ -150,11 +170,15 @@ function actionAdmin(options: { approval?: Record<string, unknown> } = {}) {
           ? (options.approval ?? null)
           : table === "agent_steps"
             ? { policy_decision: "clean" }
-            : table === "tickets"
-              ? { platform: "Windows", user_id: "user-1" }
-              : table === "devices_public"
-                ? { hostname: "laptop-1" }
-                : null,
+            : table === "verification_results" && options.verificationPass
+              ? { outcome: "passed" }
+              : table === "resolution_runs"
+                ? run
+                : table === "tickets"
+                  ? { platform: "Windows", user_id: "user-1" }
+                  : table === "devices_public"
+                    ? { hostname: "laptop-1" }
+                    : null,
       error: null,
     });
     chain.then = ((resolve: (value: unknown) => unknown) =>
@@ -1538,5 +1562,41 @@ describe("requester action proposals", () => {
       target,
       expect.objectContaining({ kind: "step_up_required" })
     );
+  });
+});
+
+describe("requester resolution confirmation", () => {
+  test("schedules knowledge capture without delaying session resolution", async () => {
+    vi.stubEnv("HELP_DESK_KNOWLEDGE_LEARNING_ENABLED", "true");
+    vi.stubEnv("HELP_DESK_KNOWLEDGE_CAPTURE_ENABLED", "true");
+    let finishCapture!: () => void;
+    mocks.captureAgentResolution.mockReturnValue(
+      new Promise<void>((resolve) => {
+        finishCapture = resolve;
+      })
+    );
+    const admin = actionAdmin({ verificationPass: true });
+    const target = proposalSession({
+      resolution_run_id: "run-1",
+      verified_execution_id: "execution-1",
+    });
+
+    await expect(confirmOutcome(admin as never, target, "yes")).resolves.toBe(
+      "resolved"
+    );
+    expect(mocks.after).toHaveBeenCalledOnce();
+    expect(mocks.captureAgentResolution).not.toHaveBeenCalled();
+    const scheduleCapture = mocks.after.mock
+      .calls[0]?.[0] as () => Promise<void>;
+    const captureTask = scheduleCapture();
+    expect(mocks.captureAgentResolution).toHaveBeenCalledWith(
+      admin,
+      expect.objectContaining({
+        status: "resolved",
+        user_confirmed_at: expect.any(String),
+      })
+    );
+    finishCapture();
+    await captureTask;
   });
 });

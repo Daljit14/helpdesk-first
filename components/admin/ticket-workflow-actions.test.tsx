@@ -61,4 +61,17 @@ describe("TicketWorkflowActions", () => {
     );
     expect(mocks.addPublicComment).not.toHaveBeenCalled();
   });
+
+  test("renders server-provided guide options when capture is enabled", () => {
+    render(
+      <TicketWorkflowActions
+        {...props}
+        knowledgeCaptureEnabled
+        guideOptions={[{ id: "no-internet", title: "No internet" }]}
+      />
+    );
+    expect(screen.getByRole("option", { name: "No internet" })).toHaveValue(
+      "no-internet"
+    );
+  });
 });

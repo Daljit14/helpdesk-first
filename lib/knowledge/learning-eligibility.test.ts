@@ -1,5 +1,8 @@
 import { describe, expect, test } from "vitest";
-import { evaluateLearningEligibility } from "./learning-eligibility";
+import {
+  evaluateAgentSessionEligibility,
+  evaluateLearningEligibility,
+} from "./learning-eligibility";
 
 const report = {
   rootCause: "The adapter was disabled.",
@@ -90,5 +93,99 @@ describe("evaluateLearningEligibility", () => {
       reason: "credentials_present",
       manualReview: true,
     });
+  });
+
+  test("staff one-off close-out is not promoted or sent to manual review", () => {
+    expect(
+      evaluateLearningEligibility(
+        eligibleInput({
+          resolutionReport: { ...report, reuse: "one_off" },
+        })
+      )
+    ).toEqual({
+      eligible: false,
+      reason: "staff_one_off",
+      manualReview: false,
+    });
+  });
+});
+
+describe("evaluateAgentSessionEligibility", () => {
+  const valid = {
+    status: "resolved",
+    userConfirmedAt: "2026-01-01T00:00:00Z",
+    latestVerificationOutcome: "passed",
+    securityFlag: false,
+    tainted: false,
+    backingTicketReopenCount: 0,
+  };
+
+  test("requires resolved and requester-confirmed session", () => {
+    expect(
+      evaluateAgentSessionEligibility({
+        ...valid,
+        status: "active",
+        userConfirmedAt: null,
+      })
+    ).toMatchObject({
+      eligible: false,
+      reason: "session_not_confirmed",
+      manualReview: false,
+    });
+  });
+
+  test("requires the latest stored verification to pass", () => {
+    expect(
+      evaluateAgentSessionEligibility({
+        ...valid,
+        latestVerificationOutcome: "failed",
+      })
+    ).toMatchObject({
+      eligible: false,
+      reason: "verification_not_passed",
+      manualReview: false,
+    });
+  });
+
+  test("rejects security-flagged sessions", () => {
+    expect(
+      evaluateAgentSessionEligibility({ ...valid, securityFlag: true })
+    ).toMatchObject({
+      eligible: false,
+      reason: "security_flagged",
+      manualReview: false,
+    });
+  });
+
+  test("rejects tainted sessions", () => {
+    expect(
+      evaluateAgentSessionEligibility({ ...valid, tainted: true })
+    ).toMatchObject({
+      eligible: false,
+      reason: "tainted_session",
+      manualReview: false,
+    });
+  });
+
+  test("still rejects reopened backing tickets", () => {
+    expect(
+      evaluateAgentSessionEligibility({
+        ...valid,
+        backingTicketReopenCount: 1,
+      })
+    ).toMatchObject({ eligible: false, reason: "reopened" });
+  });
+
+  test("rejects agent sessions when backing-ticket reopen count is unknown", () => {
+    expect(
+      evaluateAgentSessionEligibility({
+        status: "resolved",
+        userConfirmedAt: "2026-01-01T00:00:00.000Z",
+        latestVerificationOutcome: "passed",
+        securityFlag: false,
+        tainted: false,
+        backingTicketReopenCount: null,
+      })
+    ).toMatchObject({ eligible: false, reason: "reopened" });
   });
 });

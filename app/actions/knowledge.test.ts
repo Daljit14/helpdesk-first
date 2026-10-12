@@ -13,6 +13,9 @@ const {
   transitionGuide,
   updateGuideMetadata,
   reviewDraft,
+  isKnowledgeCaptureEnabled,
+  closeKnowledgeDraftClusterForGuide,
+  createAdminClient,
 } = vi.hoisted(() => ({
   getAdminSession: vi.fn(),
   recordAudit: vi.fn(),
@@ -21,12 +24,16 @@ const {
   transitionGuide: vi.fn(),
   updateGuideMetadata: vi.fn(),
   reviewDraft: vi.fn(),
+  isKnowledgeCaptureEnabled: vi.fn(() => false),
+  closeKnowledgeDraftClusterForGuide: vi.fn(),
+  createAdminClient: vi.fn(),
 }));
 
 vi.mock("@/lib/admin/auth", () => ({ getAdminSession, recordAudit }));
 vi.mock("@/lib/admin/flags", () => ({
   isKnowledgeGovernanceEnabled: governanceEnabled,
   isKnowledgeLearningEnabled: learningEnabled,
+  isKnowledgeCaptureEnabled,
 }));
 vi.mock("@/lib/knowledge/governance", () => ({
   transitionGuide,
@@ -34,7 +41,9 @@ vi.mock("@/lib/knowledge/governance", () => ({
 }));
 vi.mock("@/lib/knowledge/learning", () => ({
   reviewKnowledgeDraft: reviewDraft,
+  closeKnowledgeDraftClusterForGuide,
 }));
+vi.mock("@/lib/supabase/admin", () => ({ createAdminClient }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
 const admin = {
@@ -113,6 +122,26 @@ describe("knowledge actions", () => {
     expect(recordAudit).toHaveBeenCalledWith(
       admin,
       "knowledge.transition",
+      validId
+    );
+  });
+
+  test("closes a published primary cluster through the audited transition action", async () => {
+    isKnowledgeCaptureEnabled.mockReturnValue(true);
+    createAdminClient.mockReturnValue({ from: vi.fn() });
+    await transitionKnowledgeGuide({
+      guideId: validId,
+      to: "approved",
+      reviewer: "Reviewer",
+    });
+    expect(recordAudit).toHaveBeenCalledWith(
+      admin,
+      "knowledge.transition",
+      validId
+    );
+    expect(closeKnowledgeDraftClusterForGuide).toHaveBeenCalledWith(
+      expect.anything(),
+      admin.organizationId,
       validId
     );
   });

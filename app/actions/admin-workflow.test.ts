@@ -10,6 +10,8 @@ const mocks = vi.hoisted(() => ({
   notifyAssignedStaff: vi.fn(),
   getOrganizationPolicy: vi.fn(),
   createKnowledgeDraftForTicket: vi.fn(),
+  isKnowledgeCaptureEnabled: vi.fn(() => false),
+  recordGuideReportedWrongFinding: vi.fn(),
 }));
 
 vi.mock("@/lib/admin/auth", async () => {
@@ -25,6 +27,7 @@ vi.mock("@/lib/admin/auth", async () => {
 });
 vi.mock("@/lib/admin/flags", () => ({
   isTicketWorkflowEnabled: vi.fn(() => true),
+  isKnowledgeCaptureEnabled: mocks.isKnowledgeCaptureEnabled,
 }));
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: mocks.createAdminClient,
@@ -42,6 +45,9 @@ vi.mock("@/lib/admin/policies", () => ({
 }));
 vi.mock("@/lib/knowledge/learning", () => ({
   createKnowledgeDraftForTicket: mocks.createKnowledgeDraftForTicket,
+}));
+vi.mock("@/lib/knowledge/health", () => ({
+  recordGuideReportedWrongFinding: mocks.recordGuideReportedWrongFinding,
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
@@ -225,6 +231,32 @@ describe("admin workflow actions", () => {
     expect(mocks.createKnowledgeDraftForTicket).not.toHaveBeenCalled();
   });
 
+  test.each([false, true])(
+    "submits blank optional capture fields when capture is %s",
+    async (captureEnabled) => {
+      mocks.getAdminSession.mockResolvedValue(session);
+      mocks.isKnowledgeCaptureEnabled.mockReturnValue(captureEnabled);
+      const { updates } = setup();
+      await expect(
+        submitResolution(ticketId, {
+          rootCause: "DNS cache",
+          actionsPerformed: "Flushed DNS cache",
+          toolsUsed: "Terminal",
+          result: "Internet restored",
+          verificationMethod: "user_confirmed",
+          userExplanation: "The connection is restored.",
+          preventiveRecommendation: "Restart the router monthly.",
+          reuse: "reusable",
+          helpedGuideSlug: "",
+          helpedStep: "",
+          guideWasWrong: false,
+          guideIssue: "",
+        })
+      ).resolves.toEqual({ success: true });
+      expect(updates).toHaveLength(1);
+    }
+  );
+
   test("clears verification exception when an admin reopens a resolved ticket", async () => {
     mocks.getAdminSession.mockResolvedValue(session);
     const { updates } = setup({
@@ -332,6 +364,50 @@ describe("admin workflow actions", () => {
       ticketId,
       session.organizationId
     );
+  });
+
+  test("stores gated reuse and guide feedback and records the wrong-guide report", async () => {
+    mocks.getAdminSession.mockResolvedValue(session);
+    mocks.getOrganizationPolicy.mockResolvedValue({
+      allowVerificationException: true,
+    });
+    mocks.isKnowledgeCaptureEnabled.mockReturnValue(true);
+    const { updates } = setup();
+    await expect(
+      submitResolution(ticketId, {
+        rootCause: "DNS cache",
+        actionsPerformed: "Flushed DNS cache",
+        toolsUsed: "Terminal",
+        result: "Internet restored",
+        verificationMethod: "remote_test",
+        verificationReason: "The user was unavailable for confirmation.",
+        verificationEvidence: "A remote connectivity test passed twice.",
+        userExplanation: "The connection is restored.",
+        preventiveRecommendation: "Restart the router monthly.",
+        reuse: "one_off",
+        helpedGuideSlug: "no-internet",
+        helpedStep: 2,
+        guideWasWrong: true,
+        guideIssue: "The guide asks for secret@example.com.",
+      })
+    ).resolves.toEqual({ success: true });
+    expect(updates[0]).toEqual(
+      expect.objectContaining({
+        resolution_report: expect.objectContaining({
+          reuse: "one_off",
+          helpedGuideSlug: "no-internet",
+          helpedStep: 2,
+          guideWasWrong: true,
+          guideIssue: "The guide asks for secret@example.com.",
+        }),
+      })
+    );
+    expect(mocks.recordGuideReportedWrongFinding).toHaveBeenCalledWith({
+      organizationId: session.organizationId,
+      ticketId,
+      guideSlug: "no-internet",
+      guideIssue: "The guide asks for secret@example.com.",
+    });
   });
 
   test("rejects manual resolved status", async () => {

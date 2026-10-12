@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { after } from "next/server";
 import { createWorkflowTicket } from "@/app/actions/tickets";
 import { consumeAiConsent } from "@/app/actions/resolution";
 import { alertSecurityEvent } from "@/lib/autonomy/alerts";
@@ -31,6 +32,7 @@ import {
   isRequesterAgentAutorunEnabledForOrg,
   isIdentityRiskSignalsEnabled,
   isOrgActionPolicyEnabled,
+  isKnowledgeCaptureEnabled,
 } from "@/lib/admin/flags";
 import { getDeviceAction } from "@/lib/device-agent/catalog";
 import { loadSignedDeviceIdentifiers } from "@/lib/device-agent/server/signed-identifiers";
@@ -64,6 +66,7 @@ import {
 } from "@/lib/identity/risk";
 import { loadAccountRiskFacts } from "@/lib/identity/risk-server";
 import { decryptTicketRow } from "@/lib/security/ticket-crypto";
+import { captureAgentResolution } from "@/lib/knowledge/capture";
 
 type Admin = ReturnType<
   typeof import("@/lib/supabase/admin").createAdminClient
@@ -1292,12 +1295,30 @@ export async function confirmOutcome(
     kind: "resolved",
     resultSummary: "Resolved after verification and requester confirmation.",
   });
+  const confirmedAt = new Date().toISOString();
   await updateSession(admin, session, {
     status: "resolved",
     ended_at: new Date().toISOString(),
-    user_confirmed_at: new Date().toISOString(),
+    user_confirmed_at: confirmedAt,
     resolution_summary:
       "Resolved after a passing verification check and requester confirmation.",
   });
+  if (isKnowledgeCaptureEnabled()) {
+    try {
+      after(() =>
+        captureAgentResolution(admin, {
+          ...session,
+          status: "resolved",
+          user_confirmed_at: confirmedAt,
+        })
+      );
+    } catch {
+      void captureAgentResolution(admin, {
+        ...session,
+        status: "resolved",
+        user_confirmed_at: confirmedAt,
+      });
+    }
+  }
   return "resolved";
 }

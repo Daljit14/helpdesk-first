@@ -12,6 +12,7 @@ import {
 import { requireAdminPage } from "@/lib/admin/auth";
 import {
   isKnowledgeGovernanceEnabled,
+  isKnowledgeCaptureEnabled,
   isKnowledgeHealthEnabled,
   isKnowledgeLearningEnabled,
 } from "@/lib/admin/flags";
@@ -23,7 +24,10 @@ import {
 import { KnowledgeTable } from "@/components/admin/knowledge-table";
 import { KnowledgeDrafts } from "@/components/admin/knowledge-drafts";
 import { KnowledgeHealth } from "@/components/admin/knowledge-health";
-import { listKnowledgeDrafts } from "@/lib/knowledge/learning";
+import {
+  listKnowledgeDraftClusters,
+  listKnowledgeDrafts,
+} from "@/lib/knowledge/learning";
 import { listKnowledgeHealthFindings } from "@/lib/knowledge/health";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
@@ -84,6 +88,10 @@ export default async function KnowledgePage({
   ) as Record<string, GuideRevision[]>;
   const drafts = isKnowledgeLearningEnabled()
     ? await listKnowledgeDrafts(session.organizationId)
+    : [];
+  const captureEnabled = isKnowledgeCaptureEnabled();
+  const clusters = captureEnabled
+    ? await listKnowledgeDraftClusters(session.organizationId)
     : [];
   const healthFindings = isKnowledgeHealthEnabled()
     ? await listKnowledgeHealthFindings(session.organizationId)
@@ -217,6 +225,8 @@ export default async function KnowledgePage({
         <KnowledgeDrafts
           drafts={drafts}
           canWrite={session.role === "org_admin"}
+          clusters={clusters}
+          captureEnabled={captureEnabled}
         />
       )}
       {isKnowledgeHealthEnabled() && (

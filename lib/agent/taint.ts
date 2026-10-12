@@ -30,6 +30,14 @@ export type TaintedParam = {
   sources: string[];
 };
 
+export function isSessionTainted(
+  policyDecisions: readonly (string | null)[]
+): boolean {
+  return policyDecisions.some(
+    (decision) => decision !== null && decision !== "clean"
+  );
+}
+
 const HIDDEN_CHARACTERS =
   /[\u200B-\u200F\u202A-\u202E\u2060-\u2064\uFEFF\u{E0000}-\u{E007F}]/gu;
 const TRUST_SEVERITY: Record<TaintTrust, number> = {

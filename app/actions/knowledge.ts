@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getAdminSession, recordAudit } from "@/lib/admin/auth";
 import {
+  isKnowledgeCaptureEnabled,
   isKnowledgeGovernanceEnabled,
   isKnowledgeLearningEnabled,
 } from "@/lib/admin/flags";
@@ -11,8 +12,13 @@ import {
   transitionGuide,
   updateGuideMetadata,
 } from "@/lib/knowledge/governance";
-import { reviewKnowledgeDraft as reviewDraft } from "@/lib/knowledge/learning";
+import {
+  closeKnowledgeDraftClusterForGuide,
+  reviewKnowledgeDraft as reviewDraft,
+  splitKnowledgeDraftMember,
+} from "@/lib/knowledge/learning";
 import { MemoryRateLimiter } from "@/lib/ai/rate-limit";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 const limiter = new MemoryRateLimiter({ windowMs: 60_000, maxRequests: 30 });
 const transitionSchema = z.object({
@@ -82,6 +88,13 @@ export async function transitionKnowledgeGuide(
   });
   if ("success" in result) {
     await recordAudit(session, "knowledge.transition", parsed.data.guideId);
+    if (parsed.data.to === "approved" && isKnowledgeCaptureEnabled()) {
+      await closeKnowledgeDraftClusterForGuide(
+        createAdminClient(),
+        session.organizationId,
+        parsed.data.guideId
+      );
+    }
     revalidatePath("/admin/knowledge");
   }
   return result;
@@ -138,6 +151,30 @@ export async function reviewKnowledgeDraft(
       `knowledge.draft_${parsed.data.decision}`,
       parsed.data.draftId
     );
+    revalidatePath("/admin/knowledge");
+  }
+  return result;
+}
+
+export async function splitKnowledgeDraft(
+  input: unknown
+): Promise<{ error: string } | { success: true }> {
+  if (!isKnowledgeCaptureEnabled()) return { error: "Not available." };
+  const session = await getAdminSession();
+  if (!session || session.role !== "org_admin") {
+    return { error: "Not authorized." };
+  }
+  if (!(await limiter.check(`knowledge:${session.userId}`)).allowed) {
+    return { error: "Too many requests. Please try again later." };
+  }
+  const parsed = z.object({ draftId }).safeParse(input);
+  if (!parsed.success) return { error: "Invalid cluster member." };
+  const result = await splitKnowledgeDraftMember(
+    session.organizationId,
+    parsed.data.draftId
+  );
+  if ("success" in result) {
+    await recordAudit(session, "knowledge.draft_split", parsed.data.draftId);
     revalidatePath("/admin/knowledge");
   }
   return result;

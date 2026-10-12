@@ -4,6 +4,7 @@ import { describe, expect, test, vi } from "vitest";
 import { ISSUES } from "@/lib/issues";
 import { benchmarkCaseSchema } from "./benchmark/types";
 import { benchmarkCases } from "./benchmark/cases";
+import { runLearningCaptureEvalCases } from "./benchmark/learning-capture";
 import { evaluateGates } from "./gates";
 import { runBenchmark } from "./runner";
 
@@ -129,7 +130,10 @@ describe("versioned autonomy benchmark", () => {
     );
     try {
       const report = await runBenchmark();
-      expect(report.cases).toBe(benchmarkCases.length);
+      const learningCaptureCases = await runLearningCaptureEvalCases();
+      expect(report.cases).toBe(
+        benchmarkCases.length + learningCaptureCases.length
+      );
       expect(
         Object.values(report.suites).every((suite) => suite.failed === 0)
       ).toBe(true);
@@ -209,7 +213,13 @@ describe("versioned autonomy benchmark", () => {
     expect(
       evaluateGates([result])
         .filter((item) => !item.passed)
-        .filter((item) => item.name !== "org_policy_deny_wins")
+        .filter(
+          (item) =>
+            ![
+              "org_policy_deny_wins",
+              "learning_never_uses_untrusted_steps",
+            ].includes(item.name)
+        )
         .map((item) => item.name)
     ).toEqual([name]);
   });

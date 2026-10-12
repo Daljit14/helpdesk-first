@@ -6,16 +6,19 @@ import {
   detectLowSuccess,
   detectMissingGuides,
   detectOutdated,
+  recordGuideReportedWrongFinding,
   runKnowledgeHealthScan,
 } from "./health";
 
-const { enabled, createAdminClient } = vi.hoisted(() => ({
+const { enabled, captureEnabled, createAdminClient } = vi.hoisted(() => ({
   enabled: vi.fn(),
+  captureEnabled: vi.fn(),
   createAdminClient: vi.fn(),
 }));
 
 vi.mock("@/lib/admin/flags", () => ({
   isKnowledgeHealthEnabled: enabled,
+  isKnowledgeCaptureEnabled: captureEnabled,
 }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient }));
 vi.mock("@/lib/knowledge/governance", () => ({
@@ -53,6 +56,37 @@ describe("knowledge health detectors", () => {
       { kind: "outdated", severity: "critical", guideSlug: "expired" },
       { kind: "outdated", severity: "warning", guideSlug: "stale" },
     ]);
+  });
+
+  test("stores a warning finding with the guide issue redacted", async () => {
+    captureEnabled.mockReturnValue(true);
+    const query = {
+      select: vi.fn(() => query),
+      eq: vi.fn(() => query),
+      maybeSingle: vi.fn(async () => ({ data: null, error: null })),
+      insert: vi.fn(async () => ({ error: null })),
+    };
+    createAdminClient.mockReturnValue({
+      from: vi.fn(() => query),
+    });
+    await recordGuideReportedWrongFinding({
+      organizationId: "org-1",
+      ticketId: "ticket-1",
+      guideSlug: "no-internet",
+      guideIssue: "The guide asks me to send secret@example.com.",
+    });
+    expect(query.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "guide_reported_wrong",
+        severity: "warning",
+        summary:
+          "Staff reported this guide was wrong while resolving a ticket.",
+        evidence: {
+          ticketId: "ticket-1",
+          guideIssue: "The guide asks me to send [email removed]",
+        },
+      })
+    );
   });
 
   test("detects low success at warning and critical thresholds", () => {

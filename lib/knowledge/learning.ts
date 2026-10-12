@@ -4,10 +4,17 @@ import { getAllIssueSlugs, getIssueBySlug } from "@/lib/search";
 import { ISSUES } from "@/lib/issues";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isRecordExcluded } from "@/lib/admin/record-exclusions";
+import { isSessionTainted } from "@/lib/agent/taint";
 import { decryptTicketRow } from "@/lib/security/ticket-crypto";
-import { isKnowledgeLearningEnabled } from "@/lib/admin/flags";
+import {
+  isKnowledgeCaptureEnabled,
+  isKnowledgeLearningEnabled,
+} from "@/lib/admin/flags";
 import { scrubLearningText } from "@/lib/tickets/scrub";
-import { evaluateLearningEligibility } from "@/lib/knowledge/learning-eligibility";
+import {
+  evaluateAgentSessionEligibility,
+  evaluateLearningEligibility,
+} from "@/lib/knowledge/learning-eligibility";
 import {
   mergeRedactionSummaries,
   redactForLearning,
@@ -15,6 +22,7 @@ import {
 } from "@/lib/knowledge/learning-redaction";
 import {
   findSimilarGuides,
+  tokenize,
   validateLearnedArticle,
   type LearnedArticle,
 } from "@/lib/knowledge/learning-article";
@@ -38,6 +46,7 @@ export type KnowledgeDraftStatus =
   | "queued"
   | "generating"
   | "draft"
+  | "clustered"
   | "needs_security_review"
   | "approved"
   | "rejected"
@@ -80,6 +89,24 @@ export type KnowledgeDraft = {
   publishedRevisionId: number | null;
   createdAt: string;
   updatedAt: string;
+  clusterId: string | null;
+  sourceKind: "ticket" | "agent_session" | "answer_run";
+  agentSessionId: string | null;
+};
+
+export type KnowledgeDraftCluster = {
+  id: string;
+  organizationId: string;
+  clusterKey: string;
+  platform: string;
+  title: string;
+  tokens: string[];
+  memberCount: number;
+  answerFixedCount: number;
+  primaryDraftId: string;
+  status: "open" | "closed";
+  lastSeenAt: string;
+  createdAt: string;
 };
 
 export type KnowledgeDraftInputs = {
@@ -150,7 +177,17 @@ export function buildKnowledgeDraft(inputs: KnowledgeDraftInputs): {
   );
   if (!report.success) return null;
   const relatedSlug =
-    [inputs.ticket.issue_id, inputs.ticket.ai_recommended_issue_id].find(
+    [
+      typeof (inputs.ticket.resolution_report as Record<string, unknown> | null)
+        ?.helpedGuideSlug === "string" &&
+      (inputs.ticket.resolution_report as Record<string, unknown>)
+        .guideWasWrong === true
+        ? ((inputs.ticket.resolution_report as Record<string, unknown>)
+            .helpedGuideSlug as string)
+        : null,
+      inputs.ticket.issue_id,
+      inputs.ticket.ai_recommended_issue_id,
+    ].find(
       (slug): slug is string =>
         typeof slug === "string" && inputs.approvedSlugs.includes(slug)
     ) ?? null;
@@ -208,6 +245,20 @@ export function hashResolution(
   return createHash("sha256")
     .update(JSON.stringify([organizationId, ticketId, report ?? null]))
     .digest("hex");
+}
+
+export function clusterTokens(platform: string, text: string): string[] {
+  return [...new Set(tokenize(`${platform} ${text}`))].sort();
+}
+
+export function jaccard(a: readonly string[], b: readonly string[]): number {
+  const left = new Set(a);
+  const right = new Set(b);
+  const union = new Set([...left, ...right]);
+  if (union.size === 0) return 0;
+  let intersection = 0;
+  for (const token of left) if (right.has(token)) intersection += 1;
+  return intersection / union.size;
 }
 
 /**
@@ -304,6 +355,9 @@ type DraftRow = {
   reviewed_at: string | null;
   created_guide_id: string | null;
   published_revision_id: number | null;
+  cluster_id: string | null;
+  source_kind?: "ticket" | "agent_session" | "answer_run" | null;
+  agent_session_id?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -338,6 +392,9 @@ function mapDraft(row: DraftRow): KnowledgeDraft {
     publishedRevisionId: row.published_revision_id ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    clusterId: row.cluster_id ?? null,
+    sourceKind: row.source_kind ?? "ticket",
+    agentSessionId: row.agent_session_id ?? null,
   };
 }
 
@@ -364,7 +421,11 @@ export async function generateCandidate(
   admin: LearningAdminClient,
   ticketId: string,
   organizationId: string,
-  options: { reviewerInstructions?: string | null } = {}
+  options: {
+    reviewerInstructions?: string | null;
+    sourceKind?: "ticket" | "agent_session" | "answer_run";
+    agentSessionId?: string | null;
+  } = {}
 ): Promise<
   | { outcome: Exclude<GenerationOutcome, { kind: "created" }> }
   | {
@@ -391,12 +452,68 @@ export async function generateCandidate(
   if (await isRecordExcluded(admin, organizationId, "tickets", ticketId))
     return { outcome: { kind: "skipped", reason: "excluded_record" } };
 
+  if (options.sourceKind === "agent_session") {
+    if (!options.agentSessionId)
+      return { outcome: { kind: "skipped", reason: "session_not_confirmed" } };
+    const sessionResult = await admin
+      .from("agent_sessions")
+      .select("id,status,user_confirmed_at,security_flag,resolution_run_id")
+      .eq("id", options.agentSessionId)
+      .eq("organization_id", organizationId)
+      .maybeSingle();
+    if (sessionResult.error) throw sessionResult.error;
+    if (!sessionResult.data)
+      return { outcome: { kind: "skipped", reason: "session_not_confirmed" } };
+    const runId = sessionResult.data.resolution_run_id;
+    const [verification, steps] = await Promise.all([
+      runId
+        ? admin
+            .from("verification_results")
+            .select("outcome")
+            .eq("organization_id", organizationId)
+            .eq("run_id", runId)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
+      admin
+        .from("agent_steps")
+        .select("policy_decision")
+        .eq("session_id", options.agentSessionId),
+    ]);
+    if (verification.error) throw verification.error;
+    if (steps.error) throw steps.error;
+    const sessionEligibility = evaluateAgentSessionEligibility({
+      status: sessionResult.data.status,
+      userConfirmedAt: sessionResult.data.user_confirmed_at,
+      latestVerificationOutcome: verification.data?.outcome ?? null,
+      securityFlag: sessionResult.data.security_flag === true,
+      tainted: isSessionTainted(
+        (steps.data ?? []).map((row) =>
+          typeof row.policy_decision === "string" ? row.policy_decision : null
+        )
+      ),
+      backingTicketReopenCount: ticket.reopen_count,
+    });
+    if (!sessionEligibility.eligible) {
+      return {
+        outcome: { kind: "skipped", reason: sessionEligibility.reason },
+      };
+    }
+  }
+
   const report = resolutionReportSchema.safeParse(ticket.resolution_report);
   const eligibility = evaluateLearningEligibility({
-    status: ticket.status,
+    status: options.sourceKind === "agent_session" ? "Resolved" : ticket.status,
     reopenCount: ticket.reopen_count,
-    verificationMethod: ticket.verification_method,
-    verificationException: ticket.verification_exception,
+    verificationMethod:
+      options.sourceKind === "agent_session"
+        ? "user_confirmed"
+        : ticket.verification_method,
+    verificationException:
+      options.sourceKind === "agent_session"
+        ? false
+        : ticket.verification_exception,
     verifiedByUser: ticket.verified_by_user,
     resolutionReport: ticket.resolution_report,
     textForScreening: [
@@ -432,7 +549,14 @@ export async function generateCandidate(
   if (outcomes.error) throw outcomes.error;
 
   const inputs: KnowledgeDraftInputs = {
-    ticket,
+    ticket:
+      options.sourceKind === "agent_session"
+        ? {
+            ...ticket,
+            verification_method: "user_confirmed",
+            verification_exception: false,
+          }
+        : ticket,
     stepOutcomes: (outcomes.data ?? []) as KnowledgeDraftInputs["stepOutcomes"],
     approvedSlugs: getAllIssueSlugs(),
   };
@@ -471,6 +595,15 @@ export async function generateCandidate(
     row: {
       organization_id: organizationId,
       ticket_id: ticketId,
+      ...(options.sourceKind === "agent_session" ||
+      options.sourceKind === "answer_run"
+        ? {
+            source_kind: options.sourceKind,
+            ...(options.sourceKind === "agent_session"
+              ? { agent_session_id: options.agentSessionId ?? null }
+              : {}),
+          }
+        : {}),
       kind: draft.kind,
       related_slug: draft.relatedSlug,
       title: validation.article?.title.slice(0, 160) ?? draft.title,
@@ -503,23 +636,235 @@ type LearningEvent = {
   ticket_id: string;
   organization_id: string;
   attempts: number;
+  source_kind?: "ticket" | "agent_session" | "answer_run";
+  agent_session_id?: string | null;
+};
+
+type LearningEventQueryResult = {
+  data: LearningEvent | null;
+  error: { code?: string; message?: string } | null;
 };
 
 export async function enqueueLearningEvent(
   admin: LearningAdminClient,
   ticketId: string,
-  organizationId: string
+  organizationId: string,
+  source: {
+    sourceKind?: "ticket" | "agent_session" | "answer_run";
+    agentSessionId?: string | null;
+  } = {}
 ): Promise<LearningEvent | null> {
-  const { data, error } = await admin
-    .from("knowledge_learning_events")
-    .upsert(
-      { organization_id: organizationId, ticket_id: ticketId },
-      { onConflict: "ticket_id", ignoreDuplicates: true }
+  const sourceKind = source.sourceKind ?? "ticket";
+  const usesCaptureSource = sourceKind !== "ticket";
+  const captureEnabled = isKnowledgeCaptureEnabled();
+  const captureSchema = captureEnabled || usesCaptureSource;
+  const payload = {
+    organization_id: organizationId,
+    ticket_id: ticketId,
+  };
+  const request = captureSchema
+    ? (() => {
+        const query = admin.from("knowledge_learning_events");
+        const capturePayload = {
+          ...payload,
+          source_kind: sourceKind,
+          agent_session_id:
+            sourceKind === "agent_session"
+              ? (source.agentSessionId ?? null)
+              : null,
+        };
+        return sourceKind === "agent_session"
+          ? query.insert(capturePayload)
+          : query.upsert(capturePayload, {
+              onConflict: "ticket_id,source_kind",
+              ignoreDuplicates: true,
+            });
+      })()
+    : admin.from("knowledge_learning_events").upsert(payload, {
+        onConflict: "ticket_id",
+        ignoreDuplicates: true,
+      });
+  let { data, error } = (await request
+    .select(
+      captureSchema
+        ? "id,ticket_id,organization_id,attempts,source_kind,agent_session_id"
+        : "id,ticket_id,organization_id,attempts"
     )
-    .select("id,ticket_id,organization_id,attempts")
-    .maybeSingle();
+    .maybeSingle()) as unknown as LearningEventQueryResult;
+  if (error && !captureEnabled && !usesCaptureSource) {
+    const fallback = (await admin
+      .from("knowledge_learning_events")
+      .upsert(
+        { ...payload, source_kind: "ticket", agent_session_id: null },
+        {
+          onConflict: "ticket_id,source_kind",
+          ignoreDuplicates: true,
+        }
+      )
+      .select(
+        "id,ticket_id,organization_id,attempts,source_kind,agent_session_id"
+      )
+      .maybeSingle()) as unknown as LearningEventQueryResult;
+    data = fallback.data;
+    error = fallback.error;
+  }
+  if (error?.code === "23505" && source.sourceKind === "agent_session") {
+    return null;
+  }
   if (error) throw error;
   return (data as LearningEvent | null) ?? null;
+}
+
+type ClusterRow = {
+  id: string;
+  organization_id: string;
+  cluster_key: string;
+  platform: string;
+  title: string;
+  tokens: string[];
+  member_count: number;
+  answer_fixed_count: number;
+  primary_draft_id: string;
+  status: "open" | "closed";
+  last_seen_at: string;
+  created_at: string;
+};
+
+export async function listOpenKnowledgeClustersForCapture(
+  admin: LearningAdminClient,
+  organizationId: string,
+  platform: string
+): Promise<ClusterRow[]> {
+  const result = await admin
+    .from("knowledge_draft_clusters")
+    .select("*")
+    .eq("organization_id", organizationId)
+    .eq("platform", platform)
+    .eq("status", "open")
+    .order("last_seen_at", { ascending: false })
+    .limit(500);
+  if (result.error) throw result.error;
+  return ((result.data ?? []) as ClusterRow[]).filter(
+    (row) =>
+      row.organization_id === organizationId &&
+      row.platform === platform &&
+      row.status === "open"
+  );
+}
+
+function bestCluster(
+  clusters: ClusterRow[],
+  tokens: string[]
+): ClusterRow | null {
+  let best: ClusterRow | null = null;
+  let bestScore = 0.6;
+  for (const cluster of clusters) {
+    const score = jaccard(tokens, cluster.tokens ?? []);
+    if (score >= bestScore) {
+      best = cluster;
+      bestScore = score;
+    }
+  }
+  return best;
+}
+
+export async function bumpOpenKnowledgeClusterForAnswer(
+  admin: LearningAdminClient,
+  organizationId: string,
+  platform: string,
+  problemLabel: string
+): Promise<boolean> {
+  const tokens = clusterTokens(platform, problemLabel);
+  const cluster = bestCluster(
+    await listOpenKnowledgeClustersForCapture(admin, organizationId, platform),
+    tokens
+  );
+  if (!cluster) return false;
+  const result = await admin
+    .from("knowledge_draft_clusters")
+    .update({
+      answer_fixed_count: (cluster.answer_fixed_count ?? 0) + 1,
+      last_seen_at: new Date().toISOString(),
+    })
+    .eq("id", cluster.id)
+    .eq("organization_id", organizationId)
+    .eq("status", "open");
+  if (result.error) throw result.error;
+  return true;
+}
+
+async function persistClusterForCandidate(
+  admin: LearningAdminClient,
+  organizationId: string,
+  row: Record<string, unknown>,
+  draftId: string
+): Promise<void> {
+  const content = row.content as KnowledgeDraftContent;
+  const article = row.article as LearnedArticle | null;
+  const platform = content.platform ?? article?.platforms[0] ?? "Any";
+  const text = [
+    String(row.title ?? ""),
+    article?.problemSummary ?? "",
+    content.rootCause,
+    ...content.symptoms,
+  ].join(" ");
+  const tokens = clusterTokens(platform, text);
+  const cluster = bestCluster(
+    await listOpenKnowledgeClustersForCapture(admin, organizationId, platform),
+    tokens
+  );
+  if (cluster) {
+    const updated = await admin
+      .from("knowledge_draft_clusters")
+      .update({
+        member_count: (cluster.member_count ?? 1) + 1,
+        last_seen_at: new Date().toISOString(),
+      })
+      .eq("id", cluster.id)
+      .eq("organization_id", organizationId)
+      .eq("status", "open");
+    if (updated.error) throw updated.error;
+    const attached = await admin
+      .from("knowledge_drafts")
+      .update({
+        cluster_id: cluster.id,
+        status:
+          row.status === "needs_security_review"
+            ? "needs_security_review"
+            : "clustered",
+      })
+      .eq("id", draftId)
+      .eq("organization_id", organizationId);
+    if (attached.error) throw attached.error;
+    return;
+  }
+
+  const clusterKey = createHash("sha256")
+    .update(JSON.stringify([platform, tokens]))
+    .digest("hex");
+  const created = await admin
+    .from("knowledge_draft_clusters")
+    .insert({
+      organization_id: organizationId,
+      cluster_key: clusterKey,
+      platform,
+      title: String(row.title ?? "").slice(0, 160),
+      tokens,
+      member_count: 1,
+      answer_fixed_count: 0,
+      primary_draft_id: draftId,
+      status: "open",
+      last_seen_at: new Date().toISOString(),
+    })
+    .select("id")
+    .single();
+  if (created.error) throw created.error;
+  const attached = await admin
+    .from("knowledge_drafts")
+    .update({ cluster_id: created.data?.id ?? null })
+    .eq("id", draftId)
+    .eq("organization_id", organizationId);
+  if (attached.error) throw attached.error;
 }
 
 export async function processLearningEvent(
@@ -528,16 +873,33 @@ export async function processLearningEvent(
 ): Promise<GenerationOutcome | { kind: "retry" | "failed"; error: string }> {
   const attempts = event.attempts + 1;
   const startedAt = Date.now();
+  const captureEnabled = isKnowledgeCaptureEnabled();
   await admin
     .from("knowledge_learning_events")
     .update({ status: "processing", attempts })
     .eq("id", event.id);
   try {
-    const generated = await generateCandidate(
-      admin,
-      event.ticket_id,
-      event.organization_id
-    );
+    const generated =
+      !captureEnabled && event.source_kind === "agent_session"
+        ? {
+            outcome: {
+              kind: "skipped" as const,
+              reason: "knowledge_capture_disabled",
+            },
+          }
+        : await generateCandidate(
+            admin,
+            event.ticket_id,
+            event.organization_id,
+            {
+              sourceKind: captureEnabled
+                ? (event.source_kind ?? "ticket")
+                : "ticket",
+              agentSessionId: captureEnabled
+                ? event.agent_session_id
+                : undefined,
+            }
+          );
     let outcome: GenerationOutcome = generated.outcome;
     if (generated.outcome.kind === "created" && "row" in generated) {
       const inserted = await admin
@@ -549,7 +911,16 @@ export async function processLearningEvent(
         .select("id")
         .maybeSingle();
       if (inserted.error) throw inserted.error;
-      if (!inserted.data) outcome = { kind: "duplicate" };
+      if (!inserted.data) {
+        outcome = { kind: "duplicate" };
+      } else if (isKnowledgeCaptureEnabled()) {
+        await persistClusterForCandidate(
+          admin,
+          event.organization_id,
+          generated.row,
+          inserted.data.id
+        );
+      }
     }
     const status =
       outcome.kind === "created" || outcome.kind === "duplicate"
@@ -595,11 +966,20 @@ export async function processLearningEvent(
 export async function createKnowledgeDraftForTicket(
   admin: LearningAdminClient,
   ticketId: string,
-  organizationId: string
+  organizationId: string,
+  source: {
+    sourceKind?: "ticket" | "agent_session" | "answer_run";
+    agentSessionId?: string | null;
+  } = {}
 ): Promise<void> {
   if (!isKnowledgeLearningEnabled()) return;
   try {
-    const event = await enqueueLearningEvent(admin, ticketId, organizationId);
+    const event = await enqueueLearningEvent(
+      admin,
+      ticketId,
+      organizationId,
+      source
+    );
     if (event) await processLearningEvent(admin, event);
   } catch {
     console.warn("knowledge learning event not recorded");
@@ -610,15 +990,26 @@ export async function processPendingLearningEvents(
   admin: LearningAdminClient,
   limit = 25
 ): Promise<{ processed: number; created: number; retried: number }> {
-  const { data, error } = await admin
-    .from("knowledge_learning_events")
-    .select("id,ticket_id,organization_id,attempts")
-    .eq("status", "pending")
-    .order("created_at", { ascending: true })
-    .limit(limit);
-  if (error) throw error;
+  const captureEnabled = isKnowledgeCaptureEnabled();
+  const selectEvents = async (columns: string) =>
+    (await admin
+      .from("knowledge_learning_events")
+      .select(columns)
+      .eq("status", "pending")
+      .order("created_at", { ascending: true })
+      .limit(limit)) as unknown as {
+      data: unknown[] | null;
+      error: { code?: string; message?: string } | null;
+    };
+  let result = await selectEvents(
+    "id,ticket_id,organization_id,attempts,source_kind,agent_session_id"
+  );
+  if (result.error && !captureEnabled) {
+    result = await selectEvents("id,ticket_id,organization_id,attempts");
+  }
+  if (result.error) throw result.error;
   const summary = { processed: 0, created: 0, retried: 0 };
-  for (const event of (data ?? []) as LearningEvent[]) {
+  for (const event of (result.data ?? []) as unknown as LearningEvent[]) {
     const outcome = await processLearningEvent(admin, event);
     summary.processed += 1;
     if (outcome.kind === "created") summary.created += 1;
@@ -642,6 +1033,115 @@ export async function listKnowledgeDrafts(
   const { data, error } = await query;
   if (error) throw error;
   return ((data ?? []) as DraftRow[]).map(mapDraft);
+}
+
+export async function listKnowledgeDraftClusters(
+  organizationId: string
+): Promise<KnowledgeDraftCluster[]> {
+  if (!isKnowledgeCaptureEnabled()) return [];
+  const { data, error } = await createAdminClient()
+    .from("knowledge_draft_clusters")
+    .select("*")
+    .eq("organization_id", organizationId)
+    .order("last_seen_at", { ascending: false })
+    .limit(200);
+  if (error) throw error;
+  return ((data ?? []) as ClusterRow[]).map((row) => ({
+    id: row.id,
+    organizationId: row.organization_id,
+    clusterKey: row.cluster_key,
+    platform: row.platform,
+    title: row.title,
+    tokens: row.tokens ?? [],
+    memberCount: row.member_count,
+    answerFixedCount: row.answer_fixed_count,
+    primaryDraftId: row.primary_draft_id,
+    status: row.status,
+    lastSeenAt: row.last_seen_at,
+    createdAt: row.created_at,
+  }));
+}
+
+export async function splitKnowledgeDraftMember(
+  organizationId: string,
+  draftId: string
+): Promise<{ success: true } | { error: string }> {
+  if (!isKnowledgeCaptureEnabled()) return { error: "Not available." };
+  const admin = createAdminClient();
+  const draftResult = await admin
+    .from("knowledge_drafts")
+    .select("id,cluster_id,status")
+    .eq("id", draftId)
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+  if (draftResult.error || !draftResult.data?.cluster_id) {
+    return { error: "Cluster member not found." };
+  }
+  const clusterResult = await admin
+    .from("knowledge_draft_clusters")
+    .select("id,primary_draft_id,member_count")
+    .eq("id", draftResult.data.cluster_id)
+    .eq("organization_id", organizationId)
+    .eq("status", "open")
+    .maybeSingle();
+  if (
+    clusterResult.error ||
+    !clusterResult.data ||
+    clusterResult.data.primary_draft_id === draftId
+  ) {
+    return { error: "Only a non-primary cluster member can be split." };
+  }
+  const detached = await admin
+    .from("knowledge_drafts")
+    .update({
+      cluster_id: null,
+      status:
+        draftResult.data.status === "needs_security_review"
+          ? "needs_security_review"
+          : "draft",
+    })
+    .eq("id", draftId)
+    .eq("organization_id", organizationId)
+    .eq("cluster_id", draftResult.data.cluster_id)
+    .select("id")
+    .maybeSingle();
+  if (detached.error || !detached.data) {
+    return { error: "Unable to split cluster member." };
+  }
+  const updated = await admin
+    .from("knowledge_draft_clusters")
+    .update({
+      member_count: Math.max(1, clusterResult.data.member_count - 1),
+      last_seen_at: new Date().toISOString(),
+    })
+    .eq("id", draftResult.data.cluster_id)
+    .eq("organization_id", organizationId)
+    .eq("status", "open");
+  return updated.error
+    ? { error: "Unable to update cluster." }
+    : { success: true };
+}
+
+export async function closeKnowledgeDraftClusterForGuide(
+  admin: LearningAdminClient,
+  organizationId: string,
+  guideId: string
+): Promise<void> {
+  const draft = await admin
+    .from("knowledge_drafts")
+    .select("id,cluster_id")
+    .eq("organization_id", organizationId)
+    .eq("created_guide_id", guideId)
+    .eq("status", "approved")
+    .maybeSingle();
+  if (draft.error || !draft.data?.cluster_id) return;
+  await admin
+    .from("knowledge_draft_clusters")
+    .update({ status: "closed", last_seen_at: new Date().toISOString() })
+    .eq("id", draft.data.cluster_id)
+    .eq("organization_id", organizationId)
+    .eq("primary_draft_id", draft.data.id)
+    .eq("status", "open");
 }
 
 function slugify(value: string): string {
@@ -744,14 +1244,71 @@ export async function reviewKnowledgeDraft(
       if (!editableStatuses.has(draft.status)) {
         return { error: "Draft not found or already reviewed." };
       }
-      return update(
+      const rejected = await update(
         {
           status: "rejected",
           rejection_reason: reason.slice(0, 1000),
+          ...(draft.clusterId ? { cluster_id: null } : {}),
           ...reviewed,
         },
         REVIEWABLE_STATUSES
       );
+      if ("error" in rejected || !draft.clusterId) return rejected;
+      const cluster = await admin
+        .from("knowledge_draft_clusters")
+        .select("id,primary_draft_id,member_count")
+        .eq("id", draft.clusterId)
+        .eq("organization_id", input.organizationId)
+        .eq("status", "open")
+        .maybeSingle();
+      if (cluster.error || !cluster.data) return rejected;
+      await admin
+        .from("knowledge_draft_clusters")
+        .update({
+          member_count: Math.max(1, cluster.data.member_count - 1),
+        })
+        .eq("id", draft.clusterId)
+        .eq("organization_id", input.organizationId)
+        .eq("status", "open");
+      const newest = await admin
+        .from("knowledge_drafts")
+        .select("id,status")
+        .eq("cluster_id", draft.clusterId)
+        .eq("organization_id", input.organizationId)
+        .neq("id", draft.id)
+        .in("status", ["clustered", ...REVIEWABLE_STATUSES])
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (newest.error) return rejected;
+      if (newest.data) {
+        if (cluster.data.primary_draft_id === draft.id) {
+          await admin
+            .from("knowledge_drafts")
+            .update({
+              status:
+                newest.data.status === "needs_security_review"
+                  ? "needs_security_review"
+                  : "draft",
+            })
+            .eq("id", newest.data.id)
+            .eq("organization_id", input.organizationId);
+          await admin
+            .from("knowledge_draft_clusters")
+            .update({ primary_draft_id: newest.data.id })
+            .eq("id", draft.clusterId)
+            .eq("organization_id", input.organizationId)
+            .eq("status", "open");
+        }
+      } else {
+        await admin
+          .from("knowledge_draft_clusters")
+          .update({ status: "closed" })
+          .eq("id", draft.clusterId)
+          .eq("organization_id", input.organizationId)
+          .eq("status", "open");
+      }
+      return rejected;
     }
     case "security_review": {
       if (draft.status !== "draft") {
@@ -815,7 +1372,11 @@ export async function reviewKnowledgeDraft(
         admin,
         draft.ticketId,
         input.organizationId,
-        { reviewerInstructions: instructions }
+        {
+          reviewerInstructions: instructions,
+          sourceKind: draft.sourceKind,
+          agentSessionId: draft.agentSessionId,
+        }
       );
       if (generated.outcome.kind !== "created" || !("row" in generated)) {
         return {

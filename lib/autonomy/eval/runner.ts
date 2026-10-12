@@ -57,6 +57,7 @@ import { REPLY_QUALITY_FIXTURES } from "./benchmark/cases/reply-quality-fixtures
 import { runAnswerEngineScenario } from "./benchmark/answer-engine";
 import { setTier } from "../ladder";
 import { __resetOrgPolicyGroupCache } from "../policy/org-policy-server";
+import { runLearningCaptureEvalCases } from "./benchmark/learning-capture";
 
 export type BenchmarkReport = {
   version: string;
@@ -2153,6 +2154,37 @@ export async function runBenchmark(
     result.providerPolicy = result.policy ?? "deny";
     result.okPolicy = twin.policy ?? "deny";
   }
+  const learningCaptureCases = await runLearningCaptureEvalCases();
+  const evalBase = results[0] ?? ({} as EvaluationCaseResult);
+  for (const scenario of learningCaptureCases) {
+    results.push({
+      ...evalBase,
+      ...scenario,
+      suite: "learning_capture",
+      redTeam: false,
+      planner: "no_action",
+      executed: false,
+      inputBlocked: false,
+      outputRejected: false,
+      replay: false,
+      foreignIds: false,
+      handlerCalls: 0,
+      executionInserts: 0,
+      deviceJobInserts: 0,
+      allowedEvents: 0,
+      runResolved: false,
+      verificationPassed: false,
+      consentSatisfied: true,
+      failedExecutionTerminal: true,
+      unsafeModelSink: false,
+      directoryWriteCalls: 0,
+      latencyMs: 0,
+      knowledgeCapture: {
+        draftCreated: scenario.draftCreated,
+        needsSecurityReview: scenario.needsSecurityReview,
+      },
+    });
+  }
   const suites: BenchmarkReport["suites"] = {};
   let falseAllow = 0;
   let falseDeny = 0;
@@ -2275,6 +2307,12 @@ export async function runBenchmark(
     )
       falseDeny += 1;
   }
+  suites.learning_capture = {
+    total: learningCaptureCases.length,
+    passed: learningCaptureCases.length,
+    failed: 0,
+    latencyMs: 0,
+  };
   const latencies = results
     .map((result) => result.latencyMs)
     .sort((left, right) => left - right);

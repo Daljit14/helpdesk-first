@@ -8,6 +8,7 @@ import {
 } from "./gates";
 import { benchmarkCases } from "./benchmark/cases";
 import { orgPolicyCases } from "./benchmark/cases/org-policy";
+import { runLearningCaptureEvalCases } from "./benchmark/learning-capture";
 
 function result(
   overrides: Partial<EvaluationCaseResult> = {}
@@ -84,7 +85,7 @@ function replyQualityResult(
 
 describe("requester-agent release gates", () => {
   test("includes the diagnostic_tools_read_only release gate", () => {
-    expect(RELEASE_GATES).toHaveLength(50);
+    expect(RELEASE_GATES).toHaveLength(51);
     expect(RELEASE_GATES).toContain("service_health_never_executes");
     expect(RELEASE_GATES).toContain("diagnostic_tools_read_only");
     expect(RELEASE_GATES.indexOf("diagnostic_tools_read_only")).toBe(
@@ -110,6 +111,7 @@ describe("requester-agent release gates", () => {
       "staff_verification_required_for_staff_account_actions"
     );
     expect(RELEASE_GATES).toContain("org_policy_deny_wins");
+    expect(RELEASE_GATES).toContain("learning_never_uses_untrusted_steps");
     expect(SUITE_GATE_PREFIXES).toContainEqual([
       "honest_metrics",
       "abandoned_session_never_counted_resolved",
@@ -117,6 +119,10 @@ describe("requester-agent release gates", () => {
     expect(SUITE_GATE_PREFIXES).toContainEqual([
       "org_policy",
       "org_policy_deny_wins",
+    ]);
+    expect(SUITE_GATE_PREFIXES).toContainEqual([
+      "learning_capture",
+      "learning_never_uses_untrusted_steps",
     ]);
     expect(RELEASE_GATES).toContain("reply_quality_floor");
     expect(SUITE_GATE_PREFIXES).toContainEqual([
@@ -139,6 +145,35 @@ describe("requester-agent release gates", () => {
       "staff_verification",
       "staff_verification_required_for_staff_account_actions",
     ]);
+  });
+
+  test("learning capture gate covers no-draft safety cases and risky steps", async () => {
+    const scenarios = await runLearningCaptureEvalCases();
+    const rows = scenarios.map((scenario) =>
+      result({
+        caseId: scenario.caseId,
+        suite: "learning_capture",
+        knowledgeCapture: {
+          draftCreated: scenario.draftCreated,
+          needsSecurityReview: scenario.needsSecurityReview,
+        },
+      })
+    );
+    const gate = evaluateGates(rows).find(
+      (entry) => entry.name === "learning_never_uses_untrusted_steps"
+    );
+    expect(gate).toMatchObject({
+      passed: true,
+      evaluated: 7,
+      offendingCaseIds: [],
+    });
+
+    rows[6].knowledgeCapture!.needsSecurityReview = false;
+    expect(
+      evaluateGates(rows).find(
+        (entry) => entry.name === "learning_never_uses_untrusted_steps"
+      )
+    ).toMatchObject({ passed: false, offendingCaseIds: [rows[6].caseId] });
   });
 
   test("fails closed for identity-risk and staff-verification gate mismatches", () => {

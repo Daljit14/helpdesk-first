@@ -2,9 +2,13 @@
 
 import Link from "next/link";
 import { useState, useTransition } from "react";
-import { reviewKnowledgeDraft } from "@/app/actions/knowledge";
+import {
+  reviewKnowledgeDraft,
+  splitKnowledgeDraft,
+} from "@/app/actions/knowledge";
 import type {
   KnowledgeDraft,
+  KnowledgeDraftCluster,
   KnowledgeDraftStatus,
 } from "@/lib/knowledge/learning";
 import { describeRedactions } from "@/lib/knowledge/learning-redaction";
@@ -37,6 +41,7 @@ const statusTone: Record<KnowledgeDraftStatus, StatTone> = {
   queued: "neutral",
   generating: "info",
   draft: "warn",
+  clustered: "neutral",
   needs_security_review: "danger",
   approved: "good",
   rejected: "neutral",
@@ -75,6 +80,7 @@ const statusLabels: Record<KnowledgeDraftStatus, string> = {
   queued: "Queued",
   generating: "Generating",
   draft: "Awaiting review",
+  clustered: "Clustered",
   needs_security_review: "Needs security review",
   approved: "Approved",
   rejected: "Rejected",
@@ -87,9 +93,13 @@ type Panel = "edit" | "revision" | "reject" | "regenerate" | null;
 export function KnowledgeDrafts({
   drafts,
   canWrite,
+  clusters = [],
+  captureEnabled = false,
 }: {
   drafts: KnowledgeDraft[];
   canWrite: boolean;
+  clusters?: KnowledgeDraftCluster[];
+  captureEnabled?: boolean;
 }) {
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
@@ -99,6 +109,42 @@ export function KnowledgeDrafts({
     (draft) =>
       draft.status === "draft" || draft.status === "needs_security_review"
   ).length;
+  const clusterGroups = clusters
+    .filter((cluster) => cluster.status === "open")
+    .map((cluster) => {
+      const members = drafts.filter((draft) => draft.clusterId === cluster.id);
+      const primary =
+        members.find((draft) => draft.id === cluster.primaryDraftId) ??
+        members[0];
+      return primary ? { cluster, members, draft: primary } : null;
+    })
+    .filter(
+      (
+        group
+      ): group is {
+        cluster: KnowledgeDraftCluster;
+        members: KnowledgeDraft[];
+        draft: KnowledgeDraft;
+      } => group !== null
+    )
+    .sort(
+      (left, right) =>
+        right.cluster.memberCount +
+          right.cluster.answerFixedCount -
+          (left.cluster.memberCount + left.cluster.answerFixedCount) ||
+        right.cluster.lastSeenAt.localeCompare(left.cluster.lastSeenAt)
+    );
+  const clusteredDraftIds = new Set(
+    clusterGroups.flatMap((group) => group.members.map((member) => member.id))
+  );
+  const displayGroups = captureEnabled
+    ? [
+        ...clusterGroups,
+        ...drafts
+          .filter((draft) => !clusteredDraftIds.has(draft.id))
+          .map((draft) => ({ draft, cluster: null, members: [draft] })),
+      ]
+    : drafts.map((draft) => ({ draft, cluster: null, members: [draft] }));
 
   function submit(input: Parameters<typeof reviewKnowledgeDraft>[0]) {
     startTransition(async () => {
@@ -138,6 +184,36 @@ export function KnowledgeDrafts({
           {message}
         </p>
       )}
+      {captureEnabled && (
+        <div className="mb-4 grid gap-2 rounded-2xl border border-border bg-card/50 p-3 text-xs font-semibold sm:grid-cols-3">
+          <span>
+            Sources: ticket{" "}
+            {drafts.filter((draft) => draft.sourceKind === "ticket").length}
+            {" · "}agent{" "}
+            {
+              drafts.filter((draft) => draft.sourceKind === "agent_session")
+                .length
+            }
+            {" · "}answer{" "}
+            {drafts.filter((draft) => draft.sourceKind === "answer_run").length}
+          </span>
+          <span>
+            Open clusters:{" "}
+            {clusters.filter((cluster) => cluster.status === "open").length}
+          </span>
+          <span>
+            Approved:{" "}
+            {
+              drafts.filter(
+                (draft) =>
+                  draft.status === "approved" || draft.status === "published"
+              ).length
+            }
+            {" · "}rejected:{" "}
+            {drafts.filter((draft) => draft.status === "rejected").length}
+          </span>
+        </div>
+      )}
       {drafts.length === 0 ? (
         <EmptyState
           icon={Lightbulb}
@@ -146,7 +222,7 @@ export function KnowledgeDrafts({
         />
       ) : (
         <div className="space-y-4">
-          {drafts.map((draft, draftIndex) => {
+          {displayGroups.map(({ draft, cluster, members }, draftIndex) => {
             const reviewable =
               canWrite &&
               (draft.status === "draft" ||
@@ -216,6 +292,64 @@ export function KnowledgeDrafts({
                     Source ticket
                   </Link>
                 </p>
+                {captureEnabled && cluster && (
+                  <div className="mt-3 rounded-xl border border-border bg-background/50 p-3 text-xs font-semibold">
+                    <p>
+                      Cluster: {cluster.memberCount} candidates ·{" "}
+                      {cluster.answerFixedCount} fixed-answer reports
+                    </p>
+                    <p className="mt-1 text-muted-foreground">
+                      Sources: ticket{" "}
+                      {
+                        members.filter(
+                          (member) => member.sourceKind === "ticket"
+                        ).length
+                      }
+                      {" · "}agent{" "}
+                      {
+                        members.filter(
+                          (member) => member.sourceKind === "agent_session"
+                        ).length
+                      }
+                      {" · "}answer{" "}
+                      {
+                        members.filter(
+                          (member) => member.sourceKind === "answer_run"
+                        ).length
+                      }
+                    </p>
+                    {canWrite &&
+                      members
+                        .filter((member) => member.id !== draft.id)
+                        .map((member) => (
+                          <div
+                            key={member.id}
+                            className="mt-2 flex flex-wrap items-center justify-between gap-2"
+                          >
+                            <span>{member.title}</span>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              disabled={pending}
+                              onClick={() =>
+                                startTransition(async () => {
+                                  const result = await splitKnowledgeDraft({
+                                    draftId: member.id,
+                                  });
+                                  setMessage(
+                                    "error" in result
+                                      ? result.error
+                                      : "Cluster member split."
+                                  );
+                                })
+                              }
+                            >
+                              Split
+                            </Button>
+                          </div>
+                        ))}
+                  </div>
+                )}
                 <p className="mt-1 text-xs text-muted-foreground">
                   Generated{" "}
                   {draft.generatedAt

@@ -5,20 +5,32 @@ import {
   createKnowledgeDraftForTicket,
   processLearningEvent,
   reviewKnowledgeDraft,
+  clusterTokens,
+  closeKnowledgeDraftClusterForGuide,
+  enqueueLearningEvent,
+  jaccard,
+  listOpenKnowledgeClustersForCapture,
   type KnowledgeDraftInputs,
 } from "./learning";
 import type { LearnedArticleProvider } from "./learning-provider";
 
-const { learningEnabled, createAdminClient, getProvider, generate } =
-  vi.hoisted(() => ({
-    learningEnabled: vi.fn(),
-    createAdminClient: vi.fn(),
-    getProvider: vi.fn(),
-    generate: vi.fn(),
-  }));
+const {
+  learningEnabled,
+  captureEnabled,
+  createAdminClient,
+  getProvider,
+  generate,
+} = vi.hoisted(() => ({
+  learningEnabled: vi.fn(),
+  captureEnabled: vi.fn(),
+  createAdminClient: vi.fn(),
+  getProvider: vi.fn(),
+  generate: vi.fn(),
+}));
 
 vi.mock("@/lib/admin/flags", () => ({
   isKnowledgeLearningEnabled: learningEnabled,
+  isKnowledgeCaptureEnabled: captureEnabled,
 }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient }));
 vi.mock("@/lib/knowledge/learning-provider", () => ({
@@ -106,6 +118,7 @@ function makeQuery(options: {
   type Query = {
     select: (...args: unknown[]) => Query;
     eq: (...args: unknown[]) => Query;
+    neq: (...args: unknown[]) => Query;
     in: (...args: unknown[]) => Query;
     or: (...args: unknown[]) => Query;
     order: (...args: unknown[]) => Query;
@@ -125,6 +138,7 @@ function makeQuery(options: {
   for (const method of [
     "select",
     "eq",
+    "neq",
     "in",
     "or",
     "order",
@@ -140,10 +154,12 @@ function makeQuery(options: {
   query.single = vi.fn(
     async () => options.single ?? options.maybeSingle ?? result
   );
-  query.then = (
-    resolve: (value: unknown) => unknown,
-    reject?: (reason: unknown) => unknown
-  ) => Promise.resolve(result).then(resolve, reject);
+  query.then = vi.fn(
+    (
+      resolve: (value: unknown) => unknown,
+      reject?: (reason: unknown) => unknown
+    ) => Promise.resolve(result).then(resolve, reject)
+  );
   return query;
 }
 
@@ -153,6 +169,9 @@ function makeWorkflowAdmin(options: {
   outcomes?: KnowledgeDraftInputs["stepOutcomes"];
   draftInsert?: { id: string } | null;
   ticketComments?: boolean;
+  agentSession?: Record<string, unknown> | null;
+  verification?: Record<string, unknown> | null;
+  agentSteps?: Record<string, unknown>[];
 }) {
   const events = makeQuery({
     result: { data: null, error: null },
@@ -168,23 +187,59 @@ function makeWorkflowAdmin(options: {
   const drafts = makeQuery({
     result: { data: null, error: null },
     maybeSingle: {
-      data: options.draftInsert ?? { id: "draft-1" },
+      data:
+        options.draftInsert === null
+          ? null
+          : (options.draftInsert ?? { id: "draft-1" }),
       error: null,
     },
+  });
+  const clusters = makeQuery({
+    result: { data: [], error: null },
+    single: { data: { id: "cluster-1" }, error: null },
   });
   const comments = makeQuery({ result: { data: [], error: null } });
   const exclusions = makeQuery({
     maybeSingle: { data: null, error: null },
   });
+  const agentSessions = makeQuery({
+    maybeSingle: {
+      data: options.agentSession ?? {
+        id: "session-1",
+        status: "resolved",
+        user_confirmed_at: "2026-01-01T00:00:00.000Z",
+        security_flag: false,
+        resolution_run_id: "run-1",
+      },
+      error: null,
+    },
+  });
+  const verifications = makeQuery({
+    maybeSingle: {
+      data: options.verification ?? { outcome: "passed" },
+      error: null,
+    },
+  });
+  const agentSteps = makeQuery({
+    result: {
+      data: options.agentSteps ?? [{ policy_decision: "clean" }],
+      error: null,
+    },
+  });
   const admin = {
     events,
     drafts,
+    clusters,
     from: vi.fn((table: string) => {
       if (table === "knowledge_learning_events") return events;
       if (table === "tickets") return tickets;
       if (table === "ticket_step_outcomes") return outcomes;
       if (table === "knowledge_drafts") return drafts;
+      if (table === "knowledge_draft_clusters") return clusters;
       if (table === "record_exclusions") return exclusions;
+      if (table === "agent_sessions") return agentSessions;
+      if (table === "verification_results") return verifications;
+      if (table === "agent_steps") return agentSteps;
       if (table === "ticket_comments") {
         if (options.ticketComments === false) {
           throw new Error("ticket_comments must not be read");
@@ -239,7 +294,10 @@ function reviewRow(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function makeReviewAdmin(row: Record<string, unknown> | null) {
+function makeReviewAdmin(
+  row: Record<string, unknown> | null,
+  cluster: Record<string, unknown> | null = null
+) {
   const drafts = makeQuery({
     result: { data: null, error: null },
     maybeSingle: { data: row, error: null },
@@ -265,10 +323,14 @@ function makeReviewAdmin(row: Record<string, unknown> | null) {
   const exclusions = makeQuery({
     maybeSingle: { data: null, error: null },
   });
+  const clusters = makeQuery({
+    maybeSingle: { data: cluster, error: null },
+  });
   const admin = {
     drafts,
     guides,
     revisions,
+    clusters,
     from: vi.fn((table: string) => {
       if (table === "knowledge_drafts") return drafts;
       if (table === "knowledge_guides") return guides;
@@ -276,6 +338,7 @@ function makeReviewAdmin(row: Record<string, unknown> | null) {
       if (table === "tickets") return tickets;
       if (table === "ticket_step_outcomes") return outcomes;
       if (table === "record_exclusions") return exclusions;
+      if (table === "knowledge_draft_clusters") return clusters;
       throw new Error(`Unexpected table: ${table}`);
     }),
   };
@@ -323,6 +386,27 @@ describe("buildKnowledgeDraft", () => {
     expect(draft?.relatedSlug).toBe("no-internet");
   });
 
+  test("uses the reported-wrong guide as a guide-update candidate", () => {
+    const draft = buildKnowledgeDraft(
+      inputs({
+        ticket: {
+          ...inputs().ticket,
+          issue_id: null,
+          ai_recommended_issue_id: null,
+          resolution_report: {
+            ...report,
+            helpedGuideSlug: "no-internet",
+            guideWasWrong: true,
+          },
+        },
+      })
+    );
+    expect(draft).toMatchObject({
+      kind: "guide_update",
+      relatedSlug: "no-internet",
+    });
+  });
+
   test("creates a new guide draft when no catalog slug matches", () => {
     const draft = buildKnowledgeDraft(
       inputs({
@@ -360,6 +444,15 @@ describe("buildKnowledgeDraft", () => {
 });
 
 describe("learning event workflow", () => {
+  test("cluster tokens are unique, sorted, and compare with Jaccard", () => {
+    expect(clusterTokens("Windows", "adapter disabled adapter")).toEqual([
+      "adapter",
+      "disabled",
+      "windows",
+    ]);
+    expect(jaccard(["a", "b"], ["b", "c"])).toBeCloseTo(1 / 3);
+  });
+
   test("duplicate events are idempotent", async () => {
     learningEnabled.mockReturnValue(true);
     const admin = makeWorkflowAdmin({ event: null });
@@ -367,6 +460,66 @@ describe("learning event workflow", () => {
     expect(admin.from).toHaveBeenCalledWith("knowledge_learning_events");
     expect(admin.from).not.toHaveBeenCalledWith("tickets");
     expect(admin.from).not.toHaveBeenCalledWith("knowledge_drafts");
+  });
+
+  test("keeps ticket events compatible with the pre-capture schema when disabled", async () => {
+    captureEnabled.mockReturnValue(false);
+    const event = {
+      id: "event-legacy",
+      ticket_id: "ticket-1",
+      organization_id: "org-1",
+      attempts: 0,
+    };
+    const admin = makeWorkflowAdmin({ event });
+
+    await expect(
+      enqueueLearningEvent(admin as never, "ticket-1", "org-1")
+    ).resolves.toMatchObject(event);
+    expect(admin.events.upsert).toHaveBeenCalledWith(
+      { organization_id: "org-1", ticket_id: "ticket-1" },
+      { onConflict: "ticket_id", ignoreDuplicates: true }
+    );
+    expect(admin.events.select).toHaveBeenCalledWith(
+      "id,ticket_id,organization_id,attempts"
+    );
+  });
+
+  test("falls back to source-keyed ticket events after the E4 migration", async () => {
+    captureEnabled.mockReturnValue(false);
+    const event = {
+      id: "event-ticket",
+      ticket_id: "ticket-1",
+      organization_id: "org-1",
+      attempts: 0,
+      source_kind: "ticket",
+      agent_session_id: null,
+    };
+    const admin = makeWorkflowAdmin({ event: null });
+    (admin.events.maybeSingle as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({
+        data: null,
+        error: { code: "42P10", message: "no matching unique constraint" },
+      })
+      .mockResolvedValueOnce({ data: event, error: null });
+
+    await expect(
+      enqueueLearningEvent(admin as never, "ticket-1", "org-1")
+    ).resolves.toMatchObject(event);
+    expect(admin.events.upsert).toHaveBeenNthCalledWith(
+      1,
+      { organization_id: "org-1", ticket_id: "ticket-1" },
+      { onConflict: "ticket_id", ignoreDuplicates: true }
+    );
+    expect(admin.events.upsert).toHaveBeenNthCalledWith(
+      2,
+      {
+        organization_id: "org-1",
+        ticket_id: "ticket-1",
+        source_kind: "ticket",
+        agent_session_id: null,
+      },
+      { onConflict: "ticket_id,source_kind", ignoreDuplicates: true }
+    );
   });
 
   test("provider outage does not affect resolution and retries before review", async () => {
@@ -514,6 +667,282 @@ describe("learning event workflow", () => {
       })
     );
   });
+
+  test("agent-session events use session eligibility without changing ticket status semantics", async () => {
+    learningEnabled.mockReturnValue(true);
+    captureEnabled.mockReturnValue(true);
+    getProvider.mockReturnValue(provider);
+    generate.mockResolvedValue(validArticle);
+    const agentReport = {
+      ...report,
+      source: "agent_session",
+    };
+    const event = {
+      id: "agent-event",
+      ticket_id: "ticket-1",
+      organization_id: "org-1",
+      attempts: 0,
+      source_kind: "agent_session" as const,
+      agent_session_id: "session-1",
+    };
+    const admin = makeWorkflowAdmin({
+      ticket: ticketRow({
+        status: "AI Resolving",
+        verification_method: null,
+        verification_exception: true,
+        resolution_report: agentReport,
+      }),
+      event,
+    });
+    await expect(
+      processLearningEvent(admin as never, event)
+    ).resolves.toMatchObject({
+      kind: "created",
+      status: "draft",
+    });
+    expect(admin.drafts.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        source_kind: "agent_session",
+        agent_session_id: "session-1",
+        status: "draft",
+      }),
+      expect.anything()
+    );
+  });
+
+  test("does not process pending agent-session events while capture is disabled", async () => {
+    learningEnabled.mockReturnValue(true);
+    captureEnabled.mockReturnValue(false);
+    const admin = makeWorkflowAdmin({});
+    const event = {
+      id: "agent-event",
+      ticket_id: "ticket-1",
+      organization_id: "org-1",
+      attempts: 0,
+      source_kind: "agent_session" as const,
+      agent_session_id: "session-1",
+    };
+
+    await expect(processLearningEvent(admin as never, event)).resolves.toEqual({
+      kind: "skipped",
+      reason: "knowledge_capture_disabled",
+    });
+    expect(admin.from).not.toHaveBeenCalledWith("tickets");
+    expect(admin.events.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        status: "skipped",
+        last_error: "knowledge_capture_disabled",
+      })
+    );
+  });
+
+  test("same-ticket duplicate does not create another cluster member", async () => {
+    learningEnabled.mockReturnValue(true);
+    captureEnabled.mockReturnValue(true);
+    getProvider.mockReturnValue(provider);
+    generate.mockResolvedValue(validArticle);
+    const admin = makeWorkflowAdmin({ draftInsert: null });
+    const outcome = await processLearningEvent(admin as never, {
+      id: "event-duplicate",
+      ticket_id: "ticket-1",
+      organization_id: "org-1",
+      attempts: 0,
+      source_kind: "ticket",
+    });
+    expect(outcome).toEqual({ kind: "duplicate" });
+    expect(admin.from).not.toHaveBeenCalledWith("knowledge_draft_clusters");
+  });
+
+  test("creates a new cluster with the first candidate as primary", async () => {
+    learningEnabled.mockReturnValue(true);
+    captureEnabled.mockReturnValue(true);
+    getProvider.mockReturnValue(provider);
+    generate.mockResolvedValue(validArticle);
+    const admin = makeWorkflowAdmin({});
+
+    await expect(
+      processLearningEvent(admin as never, {
+        id: "event-primary",
+        ticket_id: "ticket-1",
+        organization_id: "org-1",
+        attempts: 0,
+        source_kind: "ticket",
+      })
+    ).resolves.toMatchObject({ kind: "created" });
+    expect(admin.clusters.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organization_id: "org-1",
+        platform: "Windows",
+        member_count: 1,
+        answer_fixed_count: 0,
+        primary_draft_id: "draft-1",
+        status: "open",
+      })
+    );
+    expect(admin.drafts.update).toHaveBeenCalledWith({
+      cluster_id: "cluster-1",
+    });
+  });
+
+  test("clusters a matching candidate and increments the open cluster", async () => {
+    learningEnabled.mockReturnValue(true);
+    captureEnabled.mockReturnValue(true);
+    getProvider.mockReturnValue(provider);
+    generate.mockResolvedValue(validArticle);
+    const draft = buildKnowledgeDraft(inputs())!;
+    const tokens = clusterTokens(
+      "Windows",
+      [
+        draft.title,
+        validArticle.problemSummary,
+        draft.content.rootCause,
+        ...draft.content.symptoms,
+      ].join(" ")
+    );
+    const admin = makeWorkflowAdmin({});
+    (admin.clusters.then as ReturnType<typeof vi.fn>).mockImplementation(
+      (resolve: (value: unknown) => unknown) =>
+        Promise.resolve({
+          data: [
+            {
+              id: "cluster-existing",
+              organization_id: "org-1",
+              platform: "Windows",
+              status: "open",
+              tokens,
+              member_count: 2,
+              answer_fixed_count: 1,
+            },
+          ],
+          error: null,
+        }).then(resolve)
+    );
+
+    await expect(
+      processLearningEvent(admin as never, {
+        id: "event-clustered",
+        ticket_id: "ticket-2",
+        organization_id: "org-1",
+        attempts: 0,
+        source_kind: "answer_run",
+      })
+    ).resolves.toMatchObject({ kind: "created" });
+    expect(admin.clusters.update).toHaveBeenCalledWith(
+      expect.objectContaining({ member_count: 3 })
+    );
+    expect(admin.drafts.update).toHaveBeenCalledWith({
+      cluster_id: "cluster-existing",
+      status: "clustered",
+    });
+  });
+
+  test("keeps security review required when a risky candidate joins a cluster", async () => {
+    learningEnabled.mockReturnValue(true);
+    captureEnabled.mockReturnValue(true);
+    getProvider.mockReturnValue(provider);
+    const riskyArticle = {
+      ...validArticle,
+      steps: [{ text: "Check the DNS settings.", risk: "safe" as const }],
+    };
+    generate.mockResolvedValue(riskyArticle);
+    const draft = buildKnowledgeDraft(inputs())!;
+    const tokens = clusterTokens(
+      "Windows",
+      [
+        draft.title,
+        riskyArticle.problemSummary,
+        draft.content.rootCause,
+        ...draft.content.symptoms,
+      ].join(" ")
+    );
+    const admin = makeWorkflowAdmin({});
+    (admin.clusters.then as ReturnType<typeof vi.fn>).mockImplementation(
+      (resolve: (value: unknown) => unknown) =>
+        Promise.resolve({
+          data: [
+            {
+              id: "cluster-existing",
+              organization_id: "org-1",
+              platform: "Windows",
+              status: "open",
+              tokens,
+              member_count: 2,
+              answer_fixed_count: 0,
+            },
+          ],
+          error: null,
+        }).then(resolve)
+    );
+
+    await processLearningEvent(admin as never, {
+      id: "event-risky-clustered",
+      ticket_id: "ticket-2",
+      organization_id: "org-1",
+      attempts: 0,
+      source_kind: "answer_run",
+    });
+
+    expect(admin.drafts.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "needs_security_review" }),
+      expect.anything()
+    );
+    expect(admin.drafts.update).toHaveBeenCalledWith({
+      cluster_id: "cluster-existing",
+      status: "needs_security_review",
+    });
+  });
+
+  test("cluster lookup scopes by organization and ignores a foreign cluster", async () => {
+    const admin = makeWorkflowAdmin({});
+    const clusters = admin.clusters;
+    (clusters.then as ReturnType<typeof vi.fn>).mockImplementation(
+      (resolve: (value: unknown) => unknown) =>
+        Promise.resolve({
+          data: [
+            {
+              id: "foreign-cluster",
+              organization_id: "org-2",
+              platform: "Windows",
+              status: "open",
+              tokens: ["windows", "adapter", "disabled"],
+              member_count: 2,
+              answer_fixed_count: 0,
+            },
+          ],
+          error: null,
+        }).then(resolve)
+    );
+    await expect(
+      listOpenKnowledgeClustersForCapture(admin as never, "org-1", "Windows")
+    ).resolves.toEqual([]);
+    expect(clusters.eq).toHaveBeenCalledWith("organization_id", "org-1");
+    expect(clusters.update).not.toHaveBeenCalled();
+  });
+
+  test("closes an approved primary's cluster after guide publication", async () => {
+    const draftQuery = makeQuery({
+      maybeSingle: {
+        data: { id: "draft-1", cluster_id: "cluster-1" },
+        error: null,
+      },
+    });
+    const clusterQuery = makeQuery({ result: { data: null, error: null } });
+    const admin = {
+      from: vi.fn((table: string) =>
+        table === "knowledge_drafts" ? draftQuery : clusterQuery
+      ),
+    };
+    await closeKnowledgeDraftClusterForGuide(
+      admin as never,
+      "org-1",
+      "guide-1"
+    );
+    expect(draftQuery.eq).toHaveBeenCalledWith("created_guide_id", "guide-1");
+    expect(clusterQuery.update).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "closed" })
+    );
+    expect(clusterQuery.eq).toHaveBeenCalledWith("primary_draft_id", "draft-1");
+  });
 });
 
 describe("reviewKnowledgeDraft", () => {
@@ -588,6 +1017,106 @@ describe("reviewKnowledgeDraft", () => {
         reviewed_at: expect.any(String),
       })
     );
+  });
+
+  test("rejecting a primary promotes the newest eligible cluster member", async () => {
+    learningEnabled.mockReturnValue(true);
+    const primary = reviewRow({ cluster_id: "cluster-1" });
+    const admin = makeReviewAdmin(primary, {
+      id: "cluster-1",
+      primary_draft_id: primary.id,
+      member_count: 2,
+    });
+    (admin.drafts.maybeSingle as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({ data: primary, error: null })
+      .mockResolvedValueOnce({ data: { id: primary.id }, error: null })
+      .mockResolvedValueOnce({
+        data: { id: "newest-member", status: "clustered" },
+        error: null,
+      });
+    createAdminClient.mockReturnValue(admin);
+    await expect(
+      reviewKnowledgeDraft({
+        draftId: primary.id,
+        organizationId: "org-1",
+        actorId: "actor-1",
+        decision: "reject",
+        reason: "Not suitable.",
+      })
+    ).resolves.toEqual({ success: true });
+    expect(admin.drafts.update).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ status: "rejected", cluster_id: null })
+    );
+    expect(admin.drafts.update).toHaveBeenCalledWith({ status: "draft" });
+    expect(admin.clusters.update).toHaveBeenNthCalledWith(1, {
+      member_count: 1,
+    });
+    expect(admin.clusters.update).toHaveBeenNthCalledWith(2, {
+      primary_draft_id: "newest-member",
+    });
+  });
+
+  test("rejecting a non-primary detaches it and decrements the cluster count", async () => {
+    learningEnabled.mockReturnValue(true);
+    const member = reviewRow({ id: "member-1", cluster_id: "cluster-1" });
+    const admin = makeReviewAdmin(member, {
+      id: "cluster-1",
+      primary_draft_id: "primary-1",
+      member_count: 2,
+    });
+    (admin.drafts.maybeSingle as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({ data: member, error: null })
+      .mockResolvedValueOnce({ data: { id: member.id }, error: null })
+      .mockResolvedValueOnce({
+        data: { id: "primary-1", status: "draft" },
+        error: null,
+      });
+    createAdminClient.mockReturnValue(admin);
+    await expect(
+      reviewKnowledgeDraft({
+        draftId: member.id,
+        organizationId: "org-1",
+        actorId: "actor-1",
+        decision: "reject",
+        reason: "Not suitable.",
+      })
+    ).resolves.toEqual({ success: true });
+    expect(admin.drafts.update).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "rejected", cluster_id: null })
+    );
+    expect(admin.clusters.update).toHaveBeenCalledTimes(1);
+    expect(admin.clusters.update).toHaveBeenCalledWith({ member_count: 1 });
+  });
+
+  test("rejecting the last clustered draft closes the cluster", async () => {
+    learningEnabled.mockReturnValue(true);
+    const primary = reviewRow({ cluster_id: "cluster-1" });
+    const admin = makeReviewAdmin(primary, {
+      id: "cluster-1",
+      primary_draft_id: primary.id,
+      member_count: 1,
+    });
+    (admin.drafts.maybeSingle as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({ data: primary, error: null })
+      .mockResolvedValueOnce({ data: { id: primary.id }, error: null })
+      .mockResolvedValueOnce({ data: null, error: null });
+    createAdminClient.mockReturnValue(admin);
+    await expect(
+      reviewKnowledgeDraft({
+        draftId: primary.id,
+        organizationId: "org-1",
+        actorId: "actor-1",
+        decision: "reject",
+        reason: "Not suitable.",
+      })
+    ).resolves.toEqual({ success: true });
+    expect(admin.clusters.update).toHaveBeenNthCalledWith(1, {
+      member_count: 1,
+    });
+    expect(admin.clusters.update).toHaveBeenNthCalledWith(2, {
+      status: "closed",
+    });
   });
 
   test("empty rejection reason returns an error", async () => {

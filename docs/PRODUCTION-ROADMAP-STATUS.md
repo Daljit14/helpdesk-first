@@ -14,12 +14,16 @@
 12. `supabase/agent-taint.sql` (E2a) — after identity assurance.
 13. `supabase/agent-session-abandon.sql` (E3) — after agent taint and before audit-chain.
 14. `supabase/answer-engine.sql` (E11a) — after `agent-session-abandon.sql`.
-15. `supabase/research-reference-tier.sql` (E10) — after `research.sql` and `agent-web-search.sql`; widens the research-source trust constraint.
-16. `supabase/identity-risk.sql` (E1b) — after identity assurance and before audit-chain.
-17. `supabase/org-action-policy.sql` (G5) — after identity risk and before audit-chain.
-18. `supabase/audit-chain.sql` (G3 #149) — always last, in a quiet window.
+15. `supabase/knowledge-health.sql` — after the organization and knowledge-governance schema.
+16. `supabase/knowledge-learning.sql` — after knowledge governance and ticket workflow.
+17. `supabase/knowledge-learning-candidates.sql` — after `knowledge-learning.sql`.
+18. `supabase/knowledge-capture.sql` (E4) — after `knowledge-learning-candidates.sql`.
+19. `supabase/research-reference-tier.sql` (E10) — after `research.sql` and `agent-web-search.sql`; widens the research-source trust constraint.
+20. `supabase/identity-risk.sql` (E1b) — after identity assurance and before audit-chain.
+21. `supabase/org-action-policy.sql` (G5) — after identity risk and before audit-chain.
+22. `supabase/audit-chain.sql` (G3 #149) — always last, in a quiet window.
 
-Prerequisite migrations listed in each SETUP-NOTES file must already be applied; none of these 18 has run on production.
+Prerequisite migrations listed in each SETUP-NOTES file must already be applied; none of these 22 has run on production.
 
 ## Phase E — E0 small follow-ups
 
@@ -83,7 +87,8 @@ Page fetch now resolves each URL hop once, rejects any private or reserved
 DNS answer, and pins HTTPS connections to a validated public address while
 preserving the hostname for SNI and Host. The DNS-pinning scenarios are covered
 by the 46-gate benchmark at version `2026-10-07.4`. This is a code-only change:
-no SQL was added or applied, and the production SQL run order remains at 17.
+no SQL was added or applied; the current production SQL run order is listed at
+the top of this document.
 
 ## Phase E — E11b answer-first assistant and community tips
 
@@ -92,9 +97,21 @@ requester agent, with a separately gated public endpoint and feedback route.
 Community tips require independent-domain corroboration and deterministic
 step-safety screening; answer content remains external and cannot become an
 agent action. Benchmark version `2026-10-07.5` adds the community-tip gate and
-scenarios. This is code-only: no SQL was added or applied, and the production
-SQL run order remains at 17. See `SETUP-NOTES-E11b.md` for flags, budgets,
-safety screening, and provider-dependent rollout checks.
+scenarios. This is code-only: no SQL was added or applied; the current
+production SQL run order is listed at the top of this document. See
+`SETUP-NOTES-E11b.md` for flags, budgets, safety screening, and provider-
+dependent rollout checks.
+
+## Phase E — E4 knowledge capture
+
+E4 adds a default-off capture flag that depends on knowledge learning. It
+captures verified requester-agent resolutions from stored session evidence,
+answer-run fixed feedback against matching open clusters, and staff reuse and
+guide-quality signals. Candidate clustering is organization- and
+platform-scoped; clustered drafts remain administrator-reviewed and do not
+publish automatically. Session capture does not alter backing-ticket status.
+`supabase/knowledge-capture.sql` is authored but has not been applied. See
+`SETUP-NOTES-E4.md` for prerequisites, flags, safety behavior, and rollback.
 
 ## Phase E — Support Assistant conversational replies
 

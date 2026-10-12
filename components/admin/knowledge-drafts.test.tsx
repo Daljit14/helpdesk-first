@@ -2,9 +2,13 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { KnowledgeDrafts } from "./knowledge-drafts";
 
-const { review } = vi.hoisted(() => ({ review: vi.fn() }));
+const { review, split } = vi.hoisted(() => ({
+  review: vi.fn(),
+  split: vi.fn(),
+}));
 vi.mock("@/app/actions/knowledge", () => ({
   reviewKnowledgeDraft: review,
+  splitKnowledgeDraft: split,
 }));
 
 const draft = {
@@ -58,6 +62,9 @@ const draft = {
   publishedRevisionId: null,
   createdAt: "2026-01-01T00:00:00Z",
   updatedAt: "2026-01-01T00:00:00Z",
+  clusterId: null,
+  sourceKind: "ticket" as const,
+  agentSessionId: null,
 };
 
 afterEach(() => {
@@ -105,6 +112,52 @@ describe("KnowledgeDrafts", () => {
         decision: "reject",
         reason: "Contains unsafe guidance.",
       })
+    );
+  });
+
+  test("groups cluster sources, summarizes the primary and splits a member", async () => {
+    split.mockResolvedValue({ success: true });
+    const primary = { ...draft, clusterId: "cluster-1" };
+    const member = {
+      ...draft,
+      id: "33333333-3333-4333-8333-333333333333",
+      title: "Another network candidate",
+      status: "clustered" as const,
+      clusterId: "cluster-1",
+      sourceKind: "agent_session" as const,
+    };
+    render(
+      <KnowledgeDrafts
+        drafts={[member, primary]}
+        canWrite
+        captureEnabled
+        clusters={[
+          {
+            id: "cluster-1",
+            organizationId: "org-1",
+            clusterKey: "key-1",
+            platform: "Windows",
+            title: "Network issue",
+            tokens: ["network"],
+            memberCount: 2,
+            answerFixedCount: 1,
+            primaryDraftId: primary.id,
+            status: "open",
+            lastSeenAt: "2026-01-02T00:00:00Z",
+            createdAt: "2026-01-01T00:00:00Z",
+          },
+        ]}
+      />
+    );
+    expect(screen.getByText(/Cluster: 2 candidates/)).toBeInTheDocument();
+    expect(
+      screen.getAllByText("Sources: ticket 1 · agent 1 · answer 0")
+    ).toHaveLength(2);
+    expect(screen.getByText("Privacy: Nothing removed.")).toBeInTheDocument();
+    expect(screen.getByText("Open clusters: 1")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Split" }));
+    await vi.waitFor(() =>
+      expect(split).toHaveBeenCalledWith({ draftId: member.id })
     );
   });
 });

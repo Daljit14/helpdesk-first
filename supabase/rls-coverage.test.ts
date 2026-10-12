@@ -214,6 +214,36 @@ describe("Supabase RLS coverage", () => {
     );
   });
 
+  test("restricts E4 cluster writes and indexes agent-session events", async () => {
+    const source = await readFile(
+      join(process.cwd(), "supabase/knowledge-capture.sql"),
+      "utf8"
+    );
+    expect(source).toMatch(/do not run automatically/i);
+    expect(source).toMatch(
+      /agent_session_id uuid\s+references public\.agent_sessions\(id\) on delete cascade/i
+    );
+    expect(source).toMatch(
+      /create unique index if not exists knowledge_learning_events_agent_session_idx[\s\S]*?on public\.knowledge_learning_events\(agent_session_id\)\s+where agent_session_id is not null/i
+    );
+    expect(source).toMatch(/status in \([^;]*'clustered'/i);
+    expect(source).toMatch(
+      /knowledge_draft_clusters_member_select[\s\S]*?for select\s+using \(public\.is_org_member\(organization_id\)\)/i
+    );
+    expect(source).toMatch(
+      /revoke all on public\.knowledge_draft_clusters from public, anon, authenticated/i
+    );
+    expect(source).toMatch(
+      /grant select on public\.knowledge_draft_clusters to authenticated/i
+    );
+    expect(source).toMatch(
+      /grant all on public\.knowledge_draft_clusters to service_role/i
+    );
+    expect(source).toMatch(
+      /create unique index if not exists knowledge_draft_clusters_open_key_idx[\s\S]*?on public\.knowledge_draft_clusters\(organization_id, cluster_key\)\s+where status = 'open'/i
+    );
+  });
+
   test("restricts trusted vendor domains to org members and admins", async () => {
     const source = await readFile(
       join(process.cwd(), "supabase/org-research-vendor-domains.sql"),
@@ -287,6 +317,35 @@ describe("Supabase RLS coverage", () => {
     );
     expect(deviceAgent).toMatch(
       /grant select on public\.devices_public to authenticated, service_role;/i
+    );
+  });
+
+  test("knowledge clusters are member-readable and service-role writable", async () => {
+    const source = await readFile(
+      join(process.cwd(), "supabase/knowledge-capture.sql"),
+      "utf8"
+    );
+    expect(source).toMatch(
+      /alter table public\.knowledge_draft_clusters enable row level security/i
+    );
+    expect(source).toMatch(
+      /create policy knowledge_draft_clusters_member_select[\s\S]*?for select[\s\S]*?public\.is_org_member\(organization_id\)/i
+    );
+    expect(source).toMatch(
+      /revoke all on public\.knowledge_draft_clusters from public, anon, authenticated;/i
+    );
+    expect(source).toMatch(
+      /grant select on public\.knowledge_draft_clusters to authenticated;/i
+    );
+    expect(source).toMatch(
+      /grant all on public\.knowledge_draft_clusters to service_role;/i
+    );
+    const policies = source.match(/create policy[\s\S]*?;/gi)?.join("\n") ?? "";
+    expect(policies).not.toMatch(
+      /knowledge_draft_clusters[\s\S]*?for (?:insert|update|delete)/i
+    );
+    expect(source).toMatch(
+      /create unique index if not exists knowledge_learning_events_agent_session_idx[\s\S]*?on public\.knowledge_learning_events\(agent_session_id\)\s+where agent_session_id is not null/i
     );
   });
 });

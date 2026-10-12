@@ -18,6 +18,13 @@ export function isKnowledgeLearningEnabled(): boolean {
   return process.env.HELP_DESK_KNOWLEDGE_LEARNING_ENABLED === "true";
 }
 
+export function isKnowledgeCaptureEnabled(): boolean {
+  return (
+    process.env.HELP_DESK_KNOWLEDGE_CAPTURE_ENABLED === "true" &&
+    isKnowledgeLearningEnabled()
+  );
+}
+
 export function isKnowledgeHealthEnabled(): boolean {
   return process.env.HELP_DESK_KNOWLEDGE_HEALTH_ENABLED === "true";
 }

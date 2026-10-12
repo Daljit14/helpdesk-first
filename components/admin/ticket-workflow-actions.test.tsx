@@ -1,4 +1,11 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -47,6 +54,40 @@ describe("TicketWorkflowActions", () => {
       "Complete every resolution field."
     );
     expect(mocks.submitResolution).not.toHaveBeenCalled();
+  });
+
+  test("omits capture fields from the resolution payload when capture is off", async () => {
+    render(<TicketWorkflowActions {...props} />);
+    const form = screen
+      .getByRole("button", { name: "Submit resolution" })
+      .closest("form")!;
+    for (const [label, value] of [
+      ["Root cause", "DNS cache"],
+      ["Actions performed", "Flushed DNS cache"],
+      ["Tools used", "Terminal"],
+      ["Result", "Internet restored"],
+      ["User explanation", "The connection is restored."],
+      ["Preventive recommendation", "Restart the router monthly."],
+    ]) {
+      fireEvent.change(within(form).getByLabelText(label), {
+        target: { value },
+      });
+    }
+    fireEvent.submit(form);
+    await waitFor(() => expect(mocks.submitResolution).toHaveBeenCalled());
+    const [, report] = mocks.submitResolution.mock.calls[0] as [
+      string,
+      Record<string, unknown>,
+    ];
+    expect(Object.keys(report)).not.toEqual(
+      expect.arrayContaining([
+        "reuse",
+        "helpedGuideSlug",
+        "helpedStep",
+        "guideWasWrong",
+        "guideIssue",
+      ])
+    );
   });
 
   test("sends internal notes to the internal action", () => {

@@ -169,21 +169,29 @@ export function TicketWorkflowActions({
       setResolutionError("Complete every resolution field.");
       return;
     }
+    const {
+      reuse,
+      helpedGuideSlug,
+      helpedStep,
+      guideWasWrong,
+      guideIssue,
+      ...baseReport
+    } = resolution;
     const report =
-      resolution.verificationMethod === "user_confirmed"
+      baseReport.verificationMethod === "user_confirmed"
         ? {
-            ...resolution,
+            ...baseReport,
             verificationReason: undefined,
             verificationEvidence: undefined,
           }
-        : resolution;
+        : baseReport;
     const captureFields = knowledgeCaptureEnabled
       ? {
-          reuse: resolution.reuse,
-          helpedGuideSlug: resolution.helpedGuideSlug || undefined,
-          helpedStep: resolution.helpedStep || undefined,
-          guideWasWrong: resolution.guideWasWrong,
-          guideIssue: resolution.guideIssue || undefined,
+          reuse,
+          helpedGuideSlug: helpedGuideSlug || undefined,
+          helpedStep: helpedStep || undefined,
+          guideWasWrong,
+          guideIssue: guideIssue || undefined,
         }
       : {};
     run(() => submitResolution(ticketId, { ...report, ...captureFields }));

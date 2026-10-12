@@ -231,6 +231,32 @@ describe("admin workflow actions", () => {
     expect(mocks.createKnowledgeDraftForTicket).not.toHaveBeenCalled();
   });
 
+  test.each([false, true])(
+    "submits blank optional capture fields when capture is %s",
+    async (captureEnabled) => {
+      mocks.getAdminSession.mockResolvedValue(session);
+      mocks.isKnowledgeCaptureEnabled.mockReturnValue(captureEnabled);
+      const { updates } = setup();
+      await expect(
+        submitResolution(ticketId, {
+          rootCause: "DNS cache",
+          actionsPerformed: "Flushed DNS cache",
+          toolsUsed: "Terminal",
+          result: "Internet restored",
+          verificationMethod: "user_confirmed",
+          userExplanation: "The connection is restored.",
+          preventiveRecommendation: "Restart the router monthly.",
+          reuse: "reusable",
+          helpedGuideSlug: "",
+          helpedStep: "",
+          guideWasWrong: false,
+          guideIssue: "",
+        })
+      ).resolves.toEqual({ success: true });
+      expect(updates).toHaveLength(1);
+    }
+  );
+
   test("clears verification exception when an admin reopens a resolved ticket", async () => {
     mocks.getAdminSession.mockResolvedValue(session);
     const { updates } = setup({

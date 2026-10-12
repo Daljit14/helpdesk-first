@@ -1030,7 +1030,10 @@ describe("reviewKnowledgeDraft", () => {
     (admin.drafts.maybeSingle as ReturnType<typeof vi.fn>)
       .mockResolvedValueOnce({ data: primary, error: null })
       .mockResolvedValueOnce({ data: { id: primary.id }, error: null })
-      .mockResolvedValueOnce({ data: { id: "newest-member" }, error: null });
+      .mockResolvedValueOnce({
+        data: { id: "newest-member", status: "clustered" },
+        error: null,
+      });
     createAdminClient.mockReturnValue(admin);
     await expect(
       reviewKnowledgeDraft({
@@ -1041,9 +1044,78 @@ describe("reviewKnowledgeDraft", () => {
         reason: "Not suitable.",
       })
     ).resolves.toEqual({ success: true });
+    expect(admin.drafts.update).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ status: "rejected", cluster_id: null })
+    );
     expect(admin.drafts.update).toHaveBeenCalledWith({ status: "draft" });
-    expect(admin.clusters.update).toHaveBeenCalledWith({
+    expect(admin.clusters.update).toHaveBeenNthCalledWith(1, {
+      member_count: 1,
+    });
+    expect(admin.clusters.update).toHaveBeenNthCalledWith(2, {
       primary_draft_id: "newest-member",
+    });
+  });
+
+  test("rejecting a non-primary detaches it and decrements the cluster count", async () => {
+    learningEnabled.mockReturnValue(true);
+    const member = reviewRow({ id: "member-1", cluster_id: "cluster-1" });
+    const admin = makeReviewAdmin(member, {
+      id: "cluster-1",
+      primary_draft_id: "primary-1",
+      member_count: 2,
+    });
+    (admin.drafts.maybeSingle as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({ data: member, error: null })
+      .mockResolvedValueOnce({ data: { id: member.id }, error: null })
+      .mockResolvedValueOnce({
+        data: { id: "primary-1", status: "draft" },
+        error: null,
+      });
+    createAdminClient.mockReturnValue(admin);
+    await expect(
+      reviewKnowledgeDraft({
+        draftId: member.id,
+        organizationId: "org-1",
+        actorId: "actor-1",
+        decision: "reject",
+        reason: "Not suitable.",
+      })
+    ).resolves.toEqual({ success: true });
+    expect(admin.drafts.update).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "rejected", cluster_id: null })
+    );
+    expect(admin.clusters.update).toHaveBeenCalledTimes(1);
+    expect(admin.clusters.update).toHaveBeenCalledWith({ member_count: 1 });
+  });
+
+  test("rejecting the last clustered draft closes the cluster", async () => {
+    learningEnabled.mockReturnValue(true);
+    const primary = reviewRow({ cluster_id: "cluster-1" });
+    const admin = makeReviewAdmin(primary, {
+      id: "cluster-1",
+      primary_draft_id: primary.id,
+      member_count: 1,
+    });
+    (admin.drafts.maybeSingle as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({ data: primary, error: null })
+      .mockResolvedValueOnce({ data: { id: primary.id }, error: null })
+      .mockResolvedValueOnce({ data: null, error: null });
+    createAdminClient.mockReturnValue(admin);
+    await expect(
+      reviewKnowledgeDraft({
+        draftId: primary.id,
+        organizationId: "org-1",
+        actorId: "actor-1",
+        decision: "reject",
+        reason: "Not suitable.",
+      })
+    ).resolves.toEqual({ success: true });
+    expect(admin.clusters.update).toHaveBeenNthCalledWith(1, {
+      member_count: 1,
+    });
+    expect(admin.clusters.update).toHaveBeenNthCalledWith(2, {
+      status: "closed",
     });
   });
 

@@ -1248,6 +1248,7 @@ export async function reviewKnowledgeDraft(
         {
           status: "rejected",
           rejection_reason: reason.slice(0, 1000),
+          ...(draft.clusterId ? { cluster_id: null } : {}),
           ...reviewed,
         },
         REVIEWABLE_STATUSES
@@ -1255,23 +1256,33 @@ export async function reviewKnowledgeDraft(
       if ("error" in rejected || !draft.clusterId) return rejected;
       const cluster = await admin
         .from("knowledge_draft_clusters")
-        .select("id,primary_draft_id")
+        .select("id,primary_draft_id,member_count")
         .eq("id", draft.clusterId)
         .eq("organization_id", input.organizationId)
         .eq("status", "open")
         .maybeSingle();
-      if (!cluster.error && cluster.data?.primary_draft_id === draft.id) {
-        const newest = await admin
-          .from("knowledge_drafts")
-          .select("id,status")
-          .eq("cluster_id", draft.clusterId)
-          .eq("organization_id", input.organizationId)
-          .neq("id", draft.id)
-          .in("status", ["clustered", ...REVIEWABLE_STATUSES])
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        if (!newest.error && newest.data) {
+      if (cluster.error || !cluster.data) return rejected;
+      await admin
+        .from("knowledge_draft_clusters")
+        .update({
+          member_count: Math.max(1, cluster.data.member_count - 1),
+        })
+        .eq("id", draft.clusterId)
+        .eq("organization_id", input.organizationId)
+        .eq("status", "open");
+      const newest = await admin
+        .from("knowledge_drafts")
+        .select("id,status")
+        .eq("cluster_id", draft.clusterId)
+        .eq("organization_id", input.organizationId)
+        .neq("id", draft.id)
+        .in("status", ["clustered", ...REVIEWABLE_STATUSES])
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (newest.error) return rejected;
+      if (newest.data) {
+        if (cluster.data.primary_draft_id === draft.id) {
           await admin
             .from("knowledge_drafts")
             .update({
@@ -1289,6 +1300,13 @@ export async function reviewKnowledgeDraft(
             .eq("organization_id", input.organizationId)
             .eq("status", "open");
         }
+      } else {
+        await admin
+          .from("knowledge_draft_clusters")
+          .update({ status: "closed" })
+          .eq("id", draft.clusterId)
+          .eq("organization_id", input.organizationId)
+          .eq("status", "open");
       }
       return rejected;
     }

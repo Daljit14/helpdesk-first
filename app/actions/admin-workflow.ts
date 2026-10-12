@@ -391,16 +391,25 @@ const resolutionSchema = z
     verificationReason: z.string().trim().min(10).max(1000).optional(),
     verificationEvidence: z.string().trim().min(10).max(2000).optional(),
     reuse: z.enum(["reusable", "one_off"]).optional(),
-    helpedGuideSlug: z
-      .string()
-      .trim()
-      .refine((slug) => getAllIssueSlugs().includes(slug), {
-        message: "Choose a guide from the catalog.",
-      })
-      .optional(),
-    helpedStep: z.coerce.number().int().min(1).optional(),
+    helpedGuideSlug: z.preprocess(
+      (slug) => (slug === "" ? undefined : slug),
+      z
+        .string()
+        .trim()
+        .refine((slug) => getAllIssueSlugs().includes(slug), {
+          message: "Choose a guide from the catalog.",
+        })
+        .optional()
+    ),
+    helpedStep: z.preprocess(
+      (step) => (step === "" ? undefined : step),
+      z.coerce.number().int().min(1).optional()
+    ),
     guideWasWrong: z.boolean().optional(),
-    guideIssue: z.string().trim().max(500).optional(),
+    guideIssue: z.preprocess(
+      (issue) => (issue === "" ? undefined : issue),
+      z.string().trim().max(500).optional()
+    ),
   })
   .superRefine((value, context) => {
     if (!!value.helpedGuideSlug !== (value.helpedStep !== undefined)) {

@@ -187,6 +187,28 @@ describe("AdminShell", () => {
     expect(push).toHaveBeenCalledWith("/admin/tickets?ref=TCK-12345678");
   });
 
+  it("scrolls to the #hash target once the page has rendered", () => {
+    const scrollTo = vi
+      .spyOn(window, "scrollTo")
+      .mockImplementation(() => undefined);
+    window.history.replaceState(null, "", "/admin/operations#main-content");
+    try {
+      renderShell();
+      expect(scrollTo).toHaveBeenCalledTimes(1);
+      expect(scrollTo).toHaveBeenCalledWith({ top: 0 });
+    } finally {
+      scrollTo.mockRestore();
+      window.history.replaceState(null, "", "/");
+    }
+  });
+
+  it("does not move focus to the navigation button on first render", () => {
+    renderShell();
+    expect(
+      screen.getByRole("button", { name: "Open navigation" })
+    ).not.toHaveFocus();
+  });
+
   it("opens the mobile drawer and closes it with Escape, restoring focus", () => {
     renderShell();
     const open = screen.getByRole("button", { name: "Open navigation" });

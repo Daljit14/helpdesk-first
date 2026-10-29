@@ -178,6 +178,7 @@ export function AdminShell({
   const router = useRouter();
   const hamburgerRef = useRef<HTMLButtonElement>(null);
   const drawerRef = useRef<HTMLElement>(null);
+  const drawerWasOpen = useRef(false);
   const [collapsed, setCollapsed] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -230,9 +231,11 @@ export function AdminShell({
 
   useEffect(() => {
     if (!drawerOpen) {
-      hamburgerRef.current?.focus();
+      if (drawerWasOpen.current) hamburgerRef.current?.focus();
+      drawerWasOpen.current = false;
       return;
     }
+    drawerWasOpen.current = true;
     const previous = document.activeElement as HTMLElement | null;
     const bodyOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -266,6 +269,51 @@ export function AdminShell({
       previous?.focus();
     };
   }, [drawerOpen]);
+
+  // Streamed pages miss the browser's initial #hash jump, so redo it once the
+  // target exists. Layout offsets are used because entrance animations
+  // transform sections while they render.
+  useEffect(() => {
+    const id = decodeURIComponent(window.location.hash.slice(1));
+    if (!id) return;
+    let done = false;
+    const jump = () => {
+      const target = document.getElementById(id);
+      if (done || !target) return;
+      stop();
+      let top = 0;
+      for (
+        let element: HTMLElement | null = target;
+        element;
+        element = element.offsetParent as HTMLElement | null
+      ) {
+        top += element.offsetTop;
+      }
+      const padding =
+        parseFloat(
+          getComputedStyle(document.documentElement).scrollPaddingTop
+        ) || 0;
+      window.scrollTo({ top: Math.max(0, top - padding) });
+    };
+    const observer = new MutationObserver(jump);
+    observer.observe(document.body, { childList: true, subtree: true });
+    function stop() {
+      done = true;
+      observer.disconnect();
+    }
+    const timeout = window.setTimeout(stop, 3000);
+    window.addEventListener("wheel", stop, { once: true, passive: true });
+    window.addEventListener("touchmove", stop, { once: true, passive: true });
+    window.addEventListener("keydown", stop, { once: true });
+    jump();
+    return () => {
+      stop();
+      window.clearTimeout(timeout);
+      window.removeEventListener("wheel", stop);
+      window.removeEventListener("touchmove", stop);
+      window.removeEventListener("keydown", stop);
+    };
+  }, []);
 
   function submitTicketSearch(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();

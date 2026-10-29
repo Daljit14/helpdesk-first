@@ -1817,6 +1817,11 @@ body {
     @apply font-sans;
   }
 
+  /* Keep #anchor targets clear of the sticky v2 admin header. */
+  html:has(.hf-adm-shell) {
+    scroll-padding-top: 5rem;
+  }
+
   h1,
   h2,
   h3 {

@@ -1,4 +1,8 @@
-## Production SQL run order (not yet applied)
+## Production SQL run order (applied to production on 2026-10-29)
+
+All 22 files below were applied to the hosted project in this order: files 1–21 in one
+transaction, then `audit-chain.sql` on its own. No feature flags were changed. New SQL
+added after this point should be listed in a new section.
 
 1. `supabase/agent-outcome-feedback.sql` (D1 #131) — requester outcome feedback.
 2. `supabase/service-health.sql` (D3 #133) — service-health incidents.
@@ -23,7 +27,7 @@
 21. `supabase/org-action-policy.sql` (G5) — after identity risk and before audit-chain.
 22. `supabase/audit-chain.sql` (G3 #149) — always last, in a quiet window.
 
-Prerequisite migrations listed in each SETUP-NOTES file must already be applied; none of these 22 has run on production.
+Prerequisite migrations listed in each SETUP-NOTES file must already be applied.
 
 ## Phase E — E0 small follow-ups
 

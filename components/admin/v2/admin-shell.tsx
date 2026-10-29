@@ -449,7 +449,7 @@ export function AdminShell({
   };
 
   return (
-    <div className="flex min-h-full flex-1 flex-col">
+    <div className="hf-adm-shell flex min-h-full flex-1 flex-col">
       <header className="sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur">
         <div className="flex min-h-16 items-center gap-3 px-4">
           <button
@@ -597,7 +597,12 @@ export function AdminShell({
             </aside>
           </div>
         )}
-        <div role="main" className="min-w-0 flex-1 overflow-x-clip">
+        <div
+          id="main-content"
+          role="main"
+          tabIndex={-1}
+          className="min-w-0 flex-1 overflow-x-clip focus:outline-none"
+        >
           {children}
         </div>
       </div>

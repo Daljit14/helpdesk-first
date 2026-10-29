@@ -245,4 +245,12 @@ describe("AdminShell", () => {
       )
     ).toBe(true);
   });
+
+  it("gives the skip link a focusable main target and offsets anchor scrolls", () => {
+    const { container } = renderShell();
+    const target = container.querySelector("#main-content");
+    expect(target?.getAttribute("role")).toBe("main");
+    expect(target?.getAttribute("tabindex")).toBe("-1");
+    expect(container.querySelector(".hf-adm-shell")).not.toBeNull();
+  });
 });

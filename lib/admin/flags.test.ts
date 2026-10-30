@@ -21,12 +21,23 @@ import {
   isDeviceSignedTrustEnabled,
   isOrgActionPolicyEnabled,
   isKnowledgeCaptureEnabled,
+  isKnowledgeFreshnessEnabled,
   isKnowledgeLearningEnabled,
 } from "./flags";
 
 afterEach(() => vi.unstubAllEnvs());
 
 describe("requester agent flags", () => {
+  test("knowledge freshness requires knowledge health", () => {
+    expect(isKnowledgeFreshnessEnabled()).toBe(false);
+    vi.stubEnv("HELP_DESK_KNOWLEDGE_FRESHNESS_ENABLED", "true");
+    expect(isKnowledgeFreshnessEnabled()).toBe(false);
+    vi.stubEnv("HELP_DESK_KNOWLEDGE_HEALTH_ENABLED", "true");
+    expect(isKnowledgeFreshnessEnabled()).toBe(true);
+    vi.stubEnv("HELP_DESK_KNOWLEDGE_FRESHNESS_ENABLED", "TRUE");
+    expect(isKnowledgeFreshnessEnabled()).toBe(false);
+  });
+
   test("knowledge capture requires both explicit flags", () => {
     expect(isKnowledgeCaptureEnabled()).toBe(false);
     vi.stubEnv("HELP_DESK_KNOWLEDGE_CAPTURE_ENABLED", "true");

@@ -29,6 +29,10 @@ added after this point should be listed in a new section.
 
 Prerequisite migrations listed in each SETUP-NOTES file must already be applied.
 
+## Production SQL added after 2026-10-29 (not yet applied)
+
+1. `supabase/knowledge-freshness.sql` (E5a) — after `knowledge-governance.sql` and `knowledge-health.sql`.
+
 ## Phase E — E0 small follow-ups
 
 Implemented in E0 (#152). E0 filters the stored `tool_started` note and marks the 18 verified read-only
@@ -114,8 +118,18 @@ answer-run fixed feedback against matching open clusters, and staff reuse and
 guide-quality signals. Candidate clustering is organization- and
 platform-scoped; clustered drafts remain administrator-reviewed and do not
 publish automatically. Session capture does not alter backing-ticket status.
-`supabase/knowledge-capture.sql` is authored but has not been applied. See
+`supabase/knowledge-capture.sql` was applied to production on 2026-10-29. See
 `SETUP-NOTES-E4.md` for prerequisites, flags, safety behavior, and rollback.
+
+## Phase E — E5a knowledge freshness
+
+E5a adds a default-off freshness flag that depends on knowledge health. Each
+approved guide gets a 0–100 freshness score and a review-due date from its
+expiry, source date, last admin review, and open health findings. The
+`/admin/knowledge` page shows a "Needs re-check" queue, and organization admins
+can mark a guide reviewed, which restarts the 180-day review clock and is
+audited. Requester visibility is unchanged. `supabase/knowledge-freshness.sql`
+has not been applied. See `SETUP-NOTES-E5.md`.
 
 ## Phase E — Support Assistant conversational replies
 

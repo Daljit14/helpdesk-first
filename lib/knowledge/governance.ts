@@ -1,3 +1,4 @@
+import { applyGuideHold } from "@/lib/knowledge/guide-hold";
 import { getAllIssueSlugs } from "@/lib/search";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -98,14 +99,17 @@ function mapGuide(row: GuideRow): KnowledgeGuide {
 export async function getApprovedSlugs(
   orgId: string | null
 ): Promise<string[]> {
-  if (!isGovernanceEnabled()) return getAllIssueSlugs();
+  if (!isGovernanceEnabled()) return applyGuideHold(orgId, getAllIssueSlugs());
   const { data, error } = await createAdminClient().rpc(
     "approved_guide_slugs",
     { org: orgId }
   );
   if (error) throw error;
-  return ((data ?? []) as (string | { approved_guide_slugs: string })[]).map(
-    (row) => (typeof row === "string" ? row : row.approved_guide_slugs)
+  return applyGuideHold(
+    orgId,
+    ((data ?? []) as (string | { approved_guide_slugs: string })[]).map(
+      (row) => (typeof row === "string" ? row : row.approved_guide_slugs)
+    )
   );
 }
 

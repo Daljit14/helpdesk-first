@@ -29,6 +29,14 @@ export function isKnowledgeHealthEnabled(): boolean {
   return process.env.HELP_DESK_KNOWLEDGE_HEALTH_ENABLED === "true";
 }
 
+export type KnowledgeGuideHoldMode = "off" | "watch" | "enforce";
+
+export function getKnowledgeGuideHoldMode(): KnowledgeGuideHoldMode {
+  if (!isKnowledgeHealthEnabled()) return "off";
+  const mode = process.env.HELP_DESK_KNOWLEDGE_GUIDE_HOLD_MODE;
+  return mode === "watch" || mode === "enforce" ? mode : "off";
+}
+
 export function isAuditChainCheckEnabled(): boolean {
   return process.env.HELP_DESK_AUDIT_CHAIN_CHECK_ENABLED === "true";
 }

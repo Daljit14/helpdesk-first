@@ -106,6 +106,15 @@ production SQL run order is listed at the top of this document. See
 `SETUP-NOTES-E11b.md` for flags, budgets, safety screening, and provider-
 dependent rollout checks.
 
+## Phase E — E5b requester guide hold
+
+E5b adds `HELP_DESK_KNOWLEDGE_GUIDE_HOLD_MODE` (`off` by default; needs
+knowledge health). Guides with an open critical health finding, or an open
+"reported wrong" finding, are held back from the requester-facing approved
+guide list (`getApprovedSlugs`) for that organization. `watch` only logs
+`knowledge.guide_hold.watch` with the slugs that would be held; `enforce`
+removes them. Lookup errors fail open. No SQL. See `SETUP-NOTES-E5b.md`.
+
 ## Phase E — E4 knowledge capture
 
 E4 adds a default-off capture flag that depends on knowledge learning. It

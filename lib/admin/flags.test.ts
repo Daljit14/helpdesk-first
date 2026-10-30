@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import {
+  getKnowledgeGuideHoldMode,
   isAgentDiagnosticSourcesEnabled,
   isAgentUserStepsEnabled,
   isAgentCostTrackingEnabled,
@@ -27,6 +28,18 @@ import {
 afterEach(() => vi.unstubAllEnvs());
 
 describe("requester agent flags", () => {
+  test("guide hold mode is off unless knowledge health is on and the mode is exact", () => {
+    expect(getKnowledgeGuideHoldMode()).toBe("off");
+    vi.stubEnv("HELP_DESK_KNOWLEDGE_GUIDE_HOLD_MODE", "enforce");
+    expect(getKnowledgeGuideHoldMode()).toBe("off");
+    vi.stubEnv("HELP_DESK_KNOWLEDGE_HEALTH_ENABLED", "true");
+    expect(getKnowledgeGuideHoldMode()).toBe("enforce");
+    vi.stubEnv("HELP_DESK_KNOWLEDGE_GUIDE_HOLD_MODE", "watch");
+    expect(getKnowledgeGuideHoldMode()).toBe("watch");
+    vi.stubEnv("HELP_DESK_KNOWLEDGE_GUIDE_HOLD_MODE", "Enforce");
+    expect(getKnowledgeGuideHoldMode()).toBe("off");
+  });
+
   test("knowledge capture requires both explicit flags", () => {
     expect(isKnowledgeCaptureEnabled()).toBe(false);
     vi.stubEnv("HELP_DESK_KNOWLEDGE_CAPTURE_ENABLED", "true");

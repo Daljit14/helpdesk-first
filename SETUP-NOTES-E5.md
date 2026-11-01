@@ -34,5 +34,5 @@ does not change in E5a.
 `supabase/knowledge-freshness.sql` is additive and idempotent. Apply it manually
 after `knowledge-governance.sql` and `knowledge-health.sql`. It adds
 `knowledge_guide_verifications` (review history, member-read-only RLS; writes go
-through the service role). It has not been run against production. Rollback is
+through the service role). It was applied to production on 2026-11-01. Rollback is
 in the file's comments and drops review history.

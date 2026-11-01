@@ -29,9 +29,9 @@ added after this point should be listed in a new section.
 
 Prerequisite migrations listed in each SETUP-NOTES file must already be applied.
 
-## Production SQL added after 2026-10-29 (not yet applied)
+## Production SQL added after 2026-10-29
 
-1. `supabase/knowledge-freshness.sql` (E5a) — after `knowledge-governance.sql` and `knowledge-health.sql`.
+1. `supabase/knowledge-freshness.sql` (E5a, #168/#170) — after `knowledge-governance.sql` and `knowledge-health.sql`. Applied to production on 2026-11-01 in one transaction; no feature flags were changed.
 
 ## Phase E — E0 small follow-ups
 
@@ -138,7 +138,7 @@ expiry, source date, last admin review, and open health findings. The
 `/admin/knowledge` page shows a "Needs re-check" queue, and organization admins
 can mark a guide reviewed, which restarts the 180-day review clock and is
 audited. Requester visibility is unchanged. `supabase/knowledge-freshness.sql`
-has not been applied. See `SETUP-NOTES-E5.md`.
+was applied to production on 2026-11-01; the flag is still off. See `SETUP-NOTES-E5.md`.
 
 ## Phase E — Support Assistant conversational replies
 

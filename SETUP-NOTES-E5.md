@@ -20,7 +20,9 @@ does not change in E5a.
   14 days −10, and each open health finding for the guide −40 critical,
   −20 warning, −5 info. Clamped to 0–100.
 - States: expired, at risk (open critical finding or score below 50), overdue,
-  due soon, fresh. Everything except fresh appears in the queue.
+  due soon (review due within 14 days), needs attention (open non-critical
+  findings or no usable date, review not due soon), fresh. Everything except
+  fresh appears in the queue.
 - Marking reviewed never clears an explicit expiry date or critical/other
   findings. It acknowledges only the open `outdated` warning for that guide.
   Each review is written to the admin audit log as `knowledge.guide_verified`.

@@ -114,6 +114,27 @@ describe("computeGuideFreshness", () => {
     expect(result).toMatchObject({ score: 100, state: "fresh" });
   });
 
+  test("open warnings with a distant review date need attention, not due soon", () => {
+    const result = computeGuideFreshness(
+      guide(),
+      [finding("warning"), finding("warning")],
+      null,
+      now
+    );
+    expect(result).toMatchObject({ score: 60, state: "needs_attention" });
+    expect(result.reviewDueAt).toBe(daysAgo(30 - 180));
+  });
+
+  test("a review due within two weeks stays due soon even with warnings", () => {
+    const result = computeGuideFreshness(
+      guide({ retrievedAt: daysAgo(170) }),
+      [finding("warning")],
+      null,
+      now
+    );
+    expect(result).toMatchObject({ score: 70, state: "due_soon" });
+  });
+
   test("score never drops below zero", () => {
     const result = computeGuideFreshness(
       guide({ expiresAt: daysAgo(1) }),
@@ -139,7 +160,7 @@ describe("computeGuideFreshness", () => {
       now
     );
     expect(undated).toMatchObject({ score: 80, reviewDueAt: null });
-    expect(undated.state).toBe("due_soon");
+    expect(undated.state).toBe("needs_attention");
   });
 });
 

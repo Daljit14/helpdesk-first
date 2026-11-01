@@ -20,6 +20,7 @@ vi.mock("@/lib/admin/flags", () => ({
   isEvidenceEngineEnabled: mocks.isEvidenceEngineEnabled,
   isOrgEnvironmentEnabled: vi.fn(() => false),
   isSecureAttachmentsEnabled: vi.fn(() => false),
+  getKnowledgeGuideHoldMode: vi.fn(() => "off"),
 }));
 vi.mock("@/lib/supabase/user", () => ({
   getCurrentUser: mocks.getCurrentUser,

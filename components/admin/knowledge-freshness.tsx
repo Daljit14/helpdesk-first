@@ -18,6 +18,7 @@ const SMALL_PRIMARY =
 const stateLabel: Record<FreshnessState, string> = {
   fresh: "Fresh",
   due_soon: "Due soon",
+  needs_attention: "Needs attention",
   overdue: "Overdue",
   expired: "Expired",
   at_risk: "At risk",
@@ -25,6 +26,7 @@ const stateLabel: Record<FreshnessState, string> = {
 const stateTone: Record<FreshnessState, StatTone> = {
   fresh: "good",
   due_soon: "info",
+  needs_attention: "warn",
   overdue: "warn",
   expired: "danger",
   at_risk: "danger",

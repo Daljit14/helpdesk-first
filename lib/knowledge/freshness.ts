@@ -15,7 +15,7 @@ const FINDING_PENALTY: Record<string, number> = {
 };
 
 export type FreshnessState =
-  "fresh" | "due_soon" | "overdue" | "expired" | "at_risk";
+  "fresh" | "due_soon" | "needs_attention" | "overdue" | "expired" | "at_risk";
 
 export type GuideFreshness = {
   slug: string;
@@ -98,9 +98,11 @@ export function computeGuideFreshness(
       ? "at_risk"
       : dueMs !== null && dueMs <= nowMs
         ? "overdue"
-        : reasons.length > 0
+        : dueMs !== null && dueMs - nowMs <= DUE_SOON_DAYS * DAY_MS
           ? "due_soon"
-          : "fresh";
+          : reasons.length > 0
+            ? "needs_attention"
+            : "fresh";
 
   return {
     slug: guide.slug,

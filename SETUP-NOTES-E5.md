@@ -24,6 +24,10 @@ does not change in E5a.
 - Marking reviewed never clears an explicit expiry date or critical/other
   findings. It acknowledges only the open `outdated` warning for that guide.
   Each review is written to the admin audit log as `knowledge.guide_verified`.
+- Each review is tied to the guide's id and version. Re-approving a guide (which
+  bumps its version) restarts from the source date until it is reviewed again.
+- One entry per slug, using the same rules as the requester catalog: an approved
+  org guide replaces the global one, and a retired org guide hides it.
 
 ## SQL
 

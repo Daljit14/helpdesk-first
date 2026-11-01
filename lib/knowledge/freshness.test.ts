@@ -1,7 +1,9 @@
 import { describe, expect, test, vi } from "vitest";
+import { listGuides } from "@/lib/knowledge/governance";
 import {
   computeGuideFreshness,
   listGuideFreshness,
+  resolveEffectiveGuides,
   verifyGuide,
 } from "./freshness";
 
@@ -143,10 +145,183 @@ describe("computeGuideFreshness", () => {
 
 describe("flag off", () => {
   test("lists nothing and refuses to verify without touching the database", async () => {
-    await expect(listGuideFreshness("org", [])).resolves.toEqual([]);
+    await expect(listGuideFreshness("org")).resolves.toEqual([]);
     await expect(
       verifyGuide({ orgId: "org", guideSlug: "vpn-reset", actorId: "u" })
     ).resolves.toEqual({ error: "Not available." });
     expect(createAdminClient).not.toHaveBeenCalled();
+  });
+});
+
+type Page = { data: unknown; error: unknown };
+
+function tableQuery(pages: Page[], awaited: Page = { data: [], error: null }) {
+  let call = 0;
+  const query = {
+    select: vi.fn(() => query),
+    eq: vi.fn(() => query),
+    not: vi.fn(() => query),
+    order: vi.fn(() => query),
+    or: vi.fn(() => query),
+    update: vi.fn(() => query),
+    range: vi.fn(async () => pages[Math.min(call++, pages.length - 1)]),
+    insert: vi.fn<(row: Record<string, unknown>) => Promise<Page>>(
+      async () => ({ data: null, error: null })
+    ),
+    then: (resolve: (value: Page) => unknown) => resolve(awaited),
+  };
+  return query;
+}
+
+function adminWith(tables: Record<string, ReturnType<typeof tableQuery>>) {
+  createAdminClient.mockReturnValue({
+    from: vi.fn((table: string) => tables[table]),
+  });
+}
+
+const row = (
+  id: string,
+  slug: string,
+  organizationId: string | null,
+  status: "draft" | "in_review" | "approved" | "retired",
+  version = 1
+) => ({
+  ...guide({ slug }),
+  id,
+  organizationId,
+  status,
+  version,
+});
+
+describe("resolveEffectiveGuides", () => {
+  test("follows the approved catalog's override rules", () => {
+    const effective = resolveEffectiveGuides([
+      row("g-vpn", "vpn", null, "approved"),
+      row("o-vpn", "vpn", "org", "approved"),
+      row("g-wifi", "wifi", null, "approved"),
+      row("o-wifi", "wifi", "org", "retired"),
+      row("g-mail", "mail", null, "approved"),
+      row("o-mail", "mail", "org", "draft"),
+      row("g-old", "old", null, "retired"),
+    ]);
+    expect(effective.map((g) => g.id).sort()).toEqual(["g-mail", "o-vpn"]);
+  });
+});
+
+describe("listGuideFreshness", () => {
+  test("scores one guide per slug with every open finding and only reviews of the current version", async () => {
+    enabled.mockReturnValue(true);
+    vi.mocked(listGuides).mockResolvedValue([
+      row("g-vpn", "vpn-reset", null, "approved", 2),
+      row("g-wifi", "wifi", null, "approved"),
+      row("o-wifi", "wifi", "org", "approved"),
+    ] as never);
+    const filler = Array.from({ length: 1000 }, () => ({
+      guide_slug: "other",
+      kind: "low_success",
+      severity: "info",
+    }));
+    const findings = tableQuery([
+      { data: filler, error: null },
+      {
+        data: [
+          {
+            guide_slug: "vpn-reset",
+            kind: "low_success",
+            severity: "critical",
+          },
+        ],
+        error: null,
+      },
+    ]);
+    const verifications = tableQuery([
+      {
+        data: [
+          { guide_id: "g-vpn", guide_version: 1, verified_at: daysAgo(1) },
+          { guide_id: "o-wifi", guide_version: 1, verified_at: daysAgo(2) },
+        ],
+        error: null,
+      },
+    ]);
+    adminWith({
+      knowledge_health_findings: findings,
+      knowledge_guide_verifications: verifications,
+    });
+    const result = await listGuideFreshness("org", now);
+    expect(result.map((r) => r.slug)).toEqual(["vpn-reset", "wifi"]);
+    expect(result[0]).toMatchObject({
+      state: "at_risk",
+      lastVerifiedAt: null,
+      openFindings: 1,
+    });
+    expect(result[1].lastVerifiedAt).toBe(daysAgo(2));
+    expect(findings.range).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("verifyGuide", () => {
+  test("records the effective guide id and version", async () => {
+    enabled.mockReturnValue(true);
+    const guides = tableQuery([], {
+      data: [
+        {
+          id: "g-vpn",
+          organization_id: null,
+          slug: "vpn-reset",
+          status: "approved",
+          version: 3,
+        },
+        {
+          id: "o-vpn",
+          organization_id: "org",
+          slug: "vpn-reset",
+          status: "draft",
+          version: 1,
+        },
+      ],
+      error: null,
+    });
+    const verifications = tableQuery([]);
+    adminWith({
+      knowledge_guides: guides,
+      knowledge_guide_verifications: verifications,
+      knowledge_health_findings: tableQuery([]),
+    });
+    await expect(
+      verifyGuide({ orgId: "org", guideSlug: "vpn-reset", actorId: "u" })
+    ).resolves.toEqual({ success: true });
+    expect(verifications.insert.mock.calls[0][0]).toMatchObject({
+      guide_id: "g-vpn",
+      guide_version: 3,
+      guide_slug: "vpn-reset",
+    });
+  });
+
+  test("refuses a slug the organization retired", async () => {
+    enabled.mockReturnValue(true);
+    adminWith({
+      knowledge_guides: tableQuery([], {
+        data: [
+          {
+            id: "g-vpn",
+            organization_id: null,
+            slug: "vpn-reset",
+            status: "approved",
+            version: 1,
+          },
+          {
+            id: "o-vpn",
+            organization_id: "org",
+            slug: "vpn-reset",
+            status: "retired",
+            version: 1,
+          },
+        ],
+        error: null,
+      }),
+    });
+    await expect(
+      verifyGuide({ orgId: "org", guideSlug: "vpn-reset", actorId: "u" })
+    ).resolves.toEqual({ error: "Guide not found." });
   });
 });

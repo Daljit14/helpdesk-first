@@ -100,7 +100,7 @@ export default async function KnowledgePage({
     ? await listKnowledgeHealthFindings(session.organizationId)
     : [];
   const freshness = isKnowledgeFreshnessEnabled()
-    ? await listGuideFreshness(session.organizationId, healthFindings)
+    ? await listGuideFreshness(session.organizationId)
     : [];
 
   const approved = guides.filter((guide) => guide.status === "approved").length;

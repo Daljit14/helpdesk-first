@@ -114,37 +114,114 @@ export function computeGuideFreshness(
   };
 }
 
+const PAGE_SIZE = 1000;
+
+type EffectiveCandidate = Pick<
+  KnowledgeGuide,
+  "organizationId" | "slug" | "status"
+>;
+
+// Mirrors approved_guide_slugs: an approved org row overrides the global row,
+// a retired org row hides it, and any other org status leaves the global row.
+export function resolveEffectiveGuides<T extends EffectiveCandidate>(
+  guides: T[]
+): T[] {
+  const bySlug = new Map<string, { global?: T; org?: T }>();
+  for (const guide of guides) {
+    const entry = bySlug.get(guide.slug) ?? {};
+    if (guide.organizationId) entry.org = guide;
+    else entry.global = guide;
+    bySlug.set(guide.slug, entry);
+  }
+  const effective: T[] = [];
+  for (const { global, org } of bySlug.values()) {
+    if (org?.status === "approved") effective.push(org);
+    else if (org?.status !== "retired" && global?.status === "approved") {
+      effective.push(global);
+    }
+  }
+  return effective;
+}
+
+async function readPages<T>(
+  page: (
+    from: number,
+    to: number
+  ) => PromiseLike<{ data: unknown; error: unknown }>,
+  done: (batch: T[]) => boolean = () => false
+): Promise<T[]> {
+  const rows: T[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await page(from, from + PAGE_SIZE - 1);
+    if (error) throw error;
+    const batch = (data ?? []) as T[];
+    rows.push(...batch);
+    const finished = done(batch);
+    if (finished || batch.length < PAGE_SIZE) return rows;
+  }
+}
+
+const reviewKey = (guideId: string, version: number) => `${guideId}:${version}`;
+
 export async function listGuideFreshness(
   orgId: string,
-  findings: FreshnessFinding[],
   now: Date = new Date()
 ): Promise<GuideFreshness[]> {
   if (!isKnowledgeFreshnessEnabled()) return [];
-  const [guides, verifications] = await Promise.all([
-    listGuides(orgId, { status: "approved" }),
-    createAdminClient()
-      .from("knowledge_guide_verifications")
-      .select("guide_slug,verified_at")
-      .eq("organization_id", orgId)
-      .order("verified_at", { ascending: false })
-      .limit(2000),
-  ]);
-  if (verifications.error) throw verifications.error;
+  const admin = createAdminClient();
+  const guides = resolveEffectiveGuides(await listGuides(orgId));
+  const wanted = new Set(guides.map((g) => reviewKey(g.id, g.version)));
   const lastVerified = new Map<string, string>();
-  for (const row of (verifications.data ?? []) as Array<{
-    guide_slug: string;
-    verified_at: string;
-  }>) {
-    if (!lastVerified.has(row.guide_slug)) {
-      lastVerified.set(row.guide_slug, row.verified_at);
-    }
-  }
+  const [findingRows] = await Promise.all([
+    readPages<{ guide_slug: string; kind: string; severity: string }>(
+      (from, to) =>
+        admin
+          .from("knowledge_health_findings")
+          .select("guide_slug,kind,severity")
+          .eq("organization_id", orgId)
+          .eq("status", "open")
+          .not("guide_slug", "is", null)
+          .order("id")
+          .range(from, to)
+    ),
+    wanted.size === 0
+      ? Promise.resolve([])
+      : readPages<{
+          guide_id: string;
+          guide_version: number;
+          verified_at: string;
+        }>(
+          (from, to) =>
+            admin
+              .from("knowledge_guide_verifications")
+              .select("guide_id,guide_version,verified_at")
+              .eq("organization_id", orgId)
+              .order("verified_at", { ascending: false })
+              .order("id")
+              .range(from, to),
+          (rows) => {
+            for (const row of rows) {
+              const key = reviewKey(row.guide_id, row.guide_version);
+              if (wanted.has(key) && !lastVerified.has(key)) {
+                lastVerified.set(key, row.verified_at);
+              }
+            }
+            return lastVerified.size === wanted.size;
+          }
+        ),
+  ]);
+  const findings: FreshnessFinding[] = findingRows.map((row) => ({
+    guideSlug: row.guide_slug,
+    kind: row.kind,
+    severity: row.severity,
+    status: "open",
+  }));
   return guides
     .map((guide) =>
       computeGuideFreshness(
         guide,
         findings,
-        lastVerified.get(guide.slug) ?? null,
+        lastVerified.get(reviewKey(guide.id, guide.version)) ?? null,
         now
       )
     )
@@ -159,21 +236,39 @@ export async function verifyGuide(input: {
 }): Promise<{ success: true } | { error: string }> {
   if (!isKnowledgeFreshnessEnabled()) return { error: "Not available." };
   const admin = createAdminClient();
-  const guide = await admin
+  const candidates = await admin
     .from("knowledge_guides")
-    .select("slug")
+    .select("id,organization_id,slug,status,version")
     .eq("slug", input.guideSlug)
-    .eq("status", "approved")
-    .or(`organization_id.is.null,organization_id.eq.${input.orgId}`)
-    .limit(1);
-  if (guide.error || !guide.data?.length) return { error: "Guide not found." };
+    .or(`organization_id.is.null,organization_id.eq.${input.orgId}`);
+  if (candidates.error) return { error: "Guide not found." };
+  const [guide] = resolveEffectiveGuides(
+    (
+      (candidates.data ?? []) as Array<{
+        id: string;
+        organization_id: string | null;
+        slug: string;
+        status: KnowledgeGuide["status"];
+        version: number;
+      }>
+    ).map((row) => ({
+      id: row.id,
+      organizationId: row.organization_id,
+      slug: row.slug,
+      status: row.status,
+      version: row.version,
+    }))
+  );
+  if (!guide) return { error: "Guide not found." };
   const note = input.note?.trim()
     ? redactForLearning(input.note.trim(), 500).text
     : null;
   const verifiedAt = new Date().toISOString();
   const inserted = await admin.from("knowledge_guide_verifications").insert({
     organization_id: input.orgId,
-    guide_slug: input.guideSlug,
+    guide_id: guide.id,
+    guide_version: guide.version,
+    guide_slug: guide.slug,
     verified_by: input.actorId,
     note,
     verified_at: verifiedAt,

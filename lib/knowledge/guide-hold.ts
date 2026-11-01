@@ -1,6 +1,8 @@
 import { getKnowledgeGuideHoldMode } from "@/lib/admin/flags";
 import { createAdminClient } from "@/lib/supabase/admin";
 
+const HOLD_PAGE_SIZE = 1000;
+
 type HoldRow = { guide_slug: string | null; kind: string; severity: string };
 
 export function isHoldWorthy(row: Pick<HoldRow, "kind" | "severity">) {
@@ -15,19 +17,25 @@ export async function applyGuideHold(
   if (mode === "off" || !orgId || slugs.length === 0) return slugs;
   let held: Set<string>;
   try {
-    const { data, error } = await createAdminClient()
-      .from("knowledge_health_findings")
-      .select("guide_slug,kind,severity")
-      .eq("organization_id", orgId)
-      .eq("status", "open")
-      .not("guide_slug", "is", null)
-      .limit(1000);
-    if (error) throw error;
-    held = new Set(
-      ((data ?? []) as HoldRow[])
-        .filter(isHoldWorthy)
-        .map((row) => row.guide_slug as string)
-    );
+    held = new Set();
+    const admin = createAdminClient();
+    for (let from = 0; ; from += HOLD_PAGE_SIZE) {
+      const { data, error } = await admin
+        .from("knowledge_health_findings")
+        .select("guide_slug,kind,severity")
+        .eq("organization_id", orgId)
+        .eq("status", "open")
+        .in("guide_slug", slugs)
+        .or("severity.eq.critical,kind.eq.guide_reported_wrong")
+        .order("id")
+        .range(from, from + HOLD_PAGE_SIZE - 1);
+      if (error) throw error;
+      const rows = (data ?? []) as HoldRow[];
+      for (const row of rows) {
+        if (row.guide_slug && isHoldWorthy(row)) held.add(row.guide_slug);
+      }
+      if (rows.length < HOLD_PAGE_SIZE) break;
+    }
   } catch {
     console.warn(
       JSON.stringify({

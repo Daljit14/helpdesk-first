@@ -9,12 +9,17 @@ const { mode, createAdminClient } = vi.hoisted(() => ({
 vi.mock("@/lib/admin/flags", () => ({ getKnowledgeGuideHoldMode: mode }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient }));
 
-function adminWith(result: { data: unknown; error: unknown }) {
+type Page = { data: unknown; error: unknown };
+
+function adminWith(...pages: Page[]) {
+  let call = 0;
   const query = {
     select: vi.fn(() => query),
     eq: vi.fn(() => query),
-    not: vi.fn(() => query),
-    limit: vi.fn(async () => result),
+    in: vi.fn(() => query),
+    or: vi.fn(() => query),
+    order: vi.fn(() => query),
+    range: vi.fn(async () => pages[Math.min(call++, pages.length - 1)]),
   };
   const admin = { from: vi.fn(() => query) };
   createAdminClient.mockReturnValue(admin);
@@ -62,6 +67,10 @@ describe("applyGuideHold", () => {
     await expect(applyGuideHold("org-1", slugs)).resolves.toEqual(slugs);
     expect(query.eq).toHaveBeenCalledWith("organization_id", "org-1");
     expect(query.eq).toHaveBeenCalledWith("status", "open");
+    expect(query.in).toHaveBeenCalledWith("guide_slug", slugs);
+    expect(query.or).toHaveBeenCalledWith(
+      "severity.eq.critical,kind.eq.guide_reported_wrong"
+    );
     expect(JSON.parse(info.mock.calls[0][0] as string)).toEqual({
       event: "knowledge.guide_hold.watch",
       organizationId: "org-1",
@@ -77,6 +86,22 @@ describe("applyGuideHold", () => {
       "printer",
       "email",
     ]);
+  });
+
+  test("reads every page so findings past the first 1,000 still hold", async () => {
+    mode.mockReturnValue("enforce");
+    const fullPage = Array.from({ length: 1000 }, () => rows[0]);
+    const { query } = adminWith(
+      { data: fullPage, error: null },
+      { data: [rows[1]], error: null }
+    );
+    vi.spyOn(console, "info").mockImplementation(() => undefined);
+    await expect(applyGuideHold("org-1", slugs)).resolves.toEqual([
+      "printer",
+      "email",
+    ]);
+    expect(query.range).toHaveBeenNthCalledWith(1, 0, 999);
+    expect(query.range).toHaveBeenNthCalledWith(2, 1000, 1999);
   });
 
   test("no matching findings returns the list without logging", async () => {

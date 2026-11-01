@@ -13,6 +13,7 @@ import { requireAdminPage } from "@/lib/admin/auth";
 import {
   isKnowledgeGovernanceEnabled,
   isKnowledgeCaptureEnabled,
+  isKnowledgeFreshnessEnabled,
   isKnowledgeHealthEnabled,
   isKnowledgeLearningEnabled,
 } from "@/lib/admin/flags";
@@ -24,11 +25,13 @@ import {
 import { KnowledgeTable } from "@/components/admin/knowledge-table";
 import { KnowledgeDrafts } from "@/components/admin/knowledge-drafts";
 import { KnowledgeHealth } from "@/components/admin/knowledge-health";
+import { KnowledgeFreshness } from "@/components/admin/knowledge-freshness";
 import {
   listKnowledgeDraftClusters,
   listKnowledgeDrafts,
 } from "@/lib/knowledge/learning";
 import { listKnowledgeHealthFindings } from "@/lib/knowledge/health";
+import { listGuideFreshness } from "@/lib/knowledge/freshness";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   getAiModel,
@@ -95,6 +98,9 @@ export default async function KnowledgePage({
     : [];
   const healthFindings = isKnowledgeHealthEnabled()
     ? await listKnowledgeHealthFindings(session.organizationId)
+    : [];
+  const freshness = isKnowledgeFreshnessEnabled()
+    ? await listGuideFreshness(session.organizationId, healthFindings)
     : [];
 
   const approved = guides.filter((guide) => guide.status === "approved").length;
@@ -227,6 +233,12 @@ export default async function KnowledgePage({
           canWrite={session.role === "org_admin"}
           clusters={clusters}
           captureEnabled={captureEnabled}
+        />
+      )}
+      {isKnowledgeFreshnessEnabled() && (
+        <KnowledgeFreshness
+          items={freshness}
+          canWrite={session.role === "org_admin"}
         />
       )}
       {isKnowledgeHealthEnabled() && (

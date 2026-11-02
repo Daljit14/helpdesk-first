@@ -3071,9 +3071,7 @@
       "honestMetrics": {
         "scenario": "mixed",
         "testPassed": true,
-        "countedResolvedIds": [
-          "mixed-ai"
-        ],
+        "countedResolvedIds": ["mixed-ai"],
         "fixtureStatuses": {
           "mixed-abandoned": "abandoned",
           "mixed-pending": "resolved",
@@ -5734,9 +5732,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely slow computer"
-      ],
+      "hypothesisCauses": ["Likely slow computer"],
       "safetyWarnings": []
     },
     {
@@ -5779,9 +5775,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely computer will not start"
-      ],
+      "hypothesisCauses": ["Likely computer will not start"],
       "safetyWarnings": []
     },
     {
@@ -5824,9 +5818,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely computer freezing"
-      ],
+      "hypothesisCauses": ["Likely computer freezing"],
       "safetyWarnings": []
     },
     {
@@ -5869,9 +5861,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely low storage"
-      ],
+      "hypothesisCauses": ["Likely low storage"],
       "safetyWarnings": []
     },
     {
@@ -5914,9 +5904,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely blue screen or unexpected restart"
-      ],
+      "hypothesisCauses": ["Likely blue screen or unexpected restart"],
       "safetyWarnings": []
     },
     {
@@ -5959,9 +5947,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely no internet connection"
-      ],
+      "hypothesisCauses": ["Likely no internet connection"],
       "safetyWarnings": []
     },
     {
@@ -6004,9 +5990,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely wi-fi keeps disconnecting"
-      ],
+      "hypothesisCauses": ["Likely wi-fi keeps disconnecting"],
       "safetyWarnings": []
     },
     {
@@ -6049,9 +6033,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely slow internet"
-      ],
+      "hypothesisCauses": ["Likely slow internet"],
       "safetyWarnings": []
     },
     {
@@ -6094,9 +6076,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely ethernet not working"
-      ],
+      "hypothesisCauses": ["Likely ethernet not working"],
       "safetyWarnings": []
     },
     {
@@ -6139,9 +6119,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely vpn connection problem"
-      ],
+      "hypothesisCauses": ["Likely vpn connection problem"],
       "safetyWarnings": []
     },
     {
@@ -6184,9 +6162,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely printer showing offline"
-      ],
+      "hypothesisCauses": ["Likely printer showing offline"],
       "safetyWarnings": []
     },
     {
@@ -6229,9 +6205,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely print job stuck"
-      ],
+      "hypothesisCauses": ["Likely print job stuck"],
       "safetyWarnings": []
     },
     {
@@ -6274,9 +6248,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely paper jam"
-      ],
+      "hypothesisCauses": ["Likely paper jam"],
       "safetyWarnings": []
     },
     {
@@ -6319,9 +6291,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely poor print quality"
-      ],
+      "hypothesisCauses": ["Likely poor print quality"],
       "safetyWarnings": []
     },
     {
@@ -6364,9 +6334,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely wrong default printer"
-      ],
+      "hypothesisCauses": ["Likely wrong default printer"],
       "safetyWarnings": []
     },
     {
@@ -6409,9 +6377,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely email not syncing"
-      ],
+      "hypothesisCauses": ["Likely email not syncing"],
       "safetyWarnings": []
     },
     {
@@ -6454,9 +6420,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely cannot send email"
-      ],
+      "hypothesisCauses": ["Likely cannot send email"],
       "safetyWarnings": []
     },
     {
@@ -6499,9 +6463,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely not receiving email"
-      ],
+      "hypothesisCauses": ["Likely not receiving email"],
       "safetyWarnings": []
     },
     {
@@ -6544,9 +6506,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely attachment problem"
-      ],
+      "hypothesisCauses": ["Likely attachment problem"],
       "safetyWarnings": []
     },
     {
@@ -6589,9 +6549,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely email sign-in problem"
-      ],
+      "hypothesisCauses": ["Likely email sign-in problem"],
       "safetyWarnings": []
     },
     {
@@ -6634,9 +6592,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely application will not open"
-      ],
+      "hypothesisCauses": ["Likely application will not open"],
       "safetyWarnings": []
     },
     {
@@ -6679,9 +6635,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely software installation problem"
-      ],
+      "hypothesisCauses": ["Likely software installation problem"],
       "safetyWarnings": []
     },
     {
@@ -6724,9 +6678,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely application frozen"
-      ],
+      "hypothesisCauses": ["Likely application frozen"],
       "safetyWarnings": []
     },
     {
@@ -6769,9 +6721,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely update failure"
-      ],
+      "hypothesisCauses": ["Likely update failure"],
       "safetyWarnings": []
     },
     {
@@ -6814,9 +6764,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely wrong default application"
-      ],
+      "hypothesisCauses": ["Likely wrong default application"],
       "safetyWarnings": []
     },
     {
@@ -6859,9 +6807,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely no sound from speakers or headphones"
-      ],
+      "hypothesisCauses": ["Likely no sound from speakers or headphones"],
       "safetyWarnings": []
     },
     {
@@ -6949,9 +6895,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely microphone not working (all apps)"
-      ],
+      "hypothesisCauses": ["Likely microphone not working (all apps)"],
       "safetyWarnings": []
     },
     {
@@ -6994,9 +6938,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely bluetooth headset problem"
-      ],
+      "hypothesisCauses": ["Likely bluetooth headset problem"],
       "safetyWarnings": []
     },
     {
@@ -7039,9 +6981,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely screen sharing not working (any app)"
-      ],
+      "hypothesisCauses": ["Likely screen sharing not working (any app)"],
       "safetyWarnings": []
     },
     {
@@ -7084,9 +7024,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely forgot password"
-      ],
+      "hypothesisCauses": ["Likely forgot password"],
       "safetyWarnings": []
     },
     {
@@ -7129,9 +7067,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely account locked out"
-      ],
+      "hypothesisCauses": ["Likely account locked out"],
       "safetyWarnings": []
     },
     {
@@ -7174,9 +7110,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely two-factor authentication not working"
-      ],
+      "hypothesisCauses": ["Likely two-factor authentication not working"],
       "safetyWarnings": []
     },
     {
@@ -7216,9 +7150,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely password expired"
-      ],
+      "hypothesisCauses": ["Likely password expired"],
       "safetyWarnings": []
     },
     {
@@ -7261,9 +7193,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely suspicious sign-in alert"
-      ],
+      "hypothesisCauses": ["Likely suspicious sign-in alert"],
       "safetyWarnings": []
     },
     {
@@ -7306,9 +7236,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely cannot reset password"
-      ],
+      "hypothesisCauses": ["Likely cannot reset password"],
       "safetyWarnings": []
     },
     {
@@ -7351,9 +7279,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely single sign-on login failure"
-      ],
+      "hypothesisCauses": ["Likely single sign-on login failure"],
       "safetyWarnings": []
     },
     {
@@ -7396,9 +7322,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely account shows wrong name or details"
-      ],
+      "hypothesisCauses": ["Likely account shows wrong name or details"],
       "safetyWarnings": []
     },
     {
@@ -7441,9 +7365,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely security question not accepted"
-      ],
+      "hypothesisCauses": ["Likely security question not accepted"],
       "safetyWarnings": []
     },
     {
@@ -7531,9 +7453,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely cannot access shared drive"
-      ],
+      "hypothesisCauses": ["Likely cannot access shared drive"],
       "safetyWarnings": []
     },
     {
@@ -7576,9 +7496,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely file sync error"
-      ],
+      "hypothesisCauses": ["Likely file sync error"],
       "safetyWarnings": []
     },
     {
@@ -7621,9 +7539,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely file will not upload"
-      ],
+      "hypothesisCauses": ["Likely file will not upload"],
       "safetyWarnings": []
     },
     {
@@ -7666,9 +7582,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely permission denied on shared file"
-      ],
+      "hypothesisCauses": ["Likely permission denied on shared file"],
       "safetyWarnings": []
     },
     {
@@ -7711,9 +7625,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely lost or deleted file recovery"
-      ],
+      "hypothesisCauses": ["Likely lost or deleted file recovery"],
       "safetyWarnings": []
     },
     {
@@ -7756,9 +7668,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely cannot share a file externally"
-      ],
+      "hypothesisCauses": ["Likely cannot share a file externally"],
       "safetyWarnings": []
     },
     {
@@ -7801,9 +7711,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely cloud storage quota exceeded"
-      ],
+      "hypothesisCauses": ["Likely cloud storage quota exceeded"],
       "safetyWarnings": []
     },
     {
@@ -7846,9 +7754,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely duplicate files appearing after sync"
-      ],
+      "hypothesisCauses": ["Likely duplicate files appearing after sync"],
       "safetyWarnings": []
     },
     {
@@ -7891,9 +7797,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely shared folder will not open"
-      ],
+      "hypothesisCauses": ["Likely shared folder will not open"],
       "safetyWarnings": []
     },
     {
@@ -7936,9 +7840,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely version history missing"
-      ],
+      "hypothesisCauses": ["Likely version history missing"],
       "safetyWarnings": []
     },
     {
@@ -7981,9 +7883,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely cannot join a meeting"
-      ],
+      "hypothesisCauses": ["Likely cannot join a meeting"],
       "safetyWarnings": []
     },
     {
@@ -8026,9 +7926,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely no video in meeting"
-      ],
+      "hypothesisCauses": ["Likely no video in meeting"],
       "safetyWarnings": []
     },
     {
@@ -8071,9 +7969,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely echo or audio feedback in calls"
-      ],
+      "hypothesisCauses": ["Likely echo or audio feedback in calls"],
       "safetyWarnings": []
     },
     {
@@ -8116,9 +8012,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely screen share not showing in a meeting"
-      ],
+      "hypothesisCauses": ["Likely screen share not showing in a meeting"],
       "safetyWarnings": []
     },
     {
@@ -8161,9 +8055,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely meeting recording issue"
-      ],
+      "hypothesisCauses": ["Likely meeting recording issue"],
       "safetyWarnings": []
     },
     {
@@ -8206,9 +8098,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely no audio in a meeting app"
-      ],
+      "hypothesisCauses": ["Likely no audio in a meeting app"],
       "safetyWarnings": []
     },
     {
@@ -8251,9 +8141,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely virtual background not working"
-      ],
+      "hypothesisCauses": ["Likely virtual background not working"],
       "safetyWarnings": []
     },
     {
@@ -8296,9 +8184,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely meeting invite not received"
-      ],
+      "hypothesisCauses": ["Likely meeting invite not received"],
       "safetyWarnings": []
     },
     {
@@ -8341,9 +8227,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely breakout rooms not working"
-      ],
+      "hypothesisCauses": ["Likely breakout rooms not working"],
       "safetyWarnings": []
     },
     {
@@ -8386,9 +8270,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely meeting app keeps crashing"
-      ],
+      "hypothesisCauses": ["Likely meeting app keeps crashing"],
       "safetyWarnings": []
     },
     {
@@ -8431,9 +8313,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely work email not syncing on phone"
-      ],
+      "hypothesisCauses": ["Likely work email not syncing on phone"],
       "safetyWarnings": []
     },
     {
@@ -8476,9 +8356,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely mobile app crashing"
-      ],
+      "hypothesisCauses": ["Likely mobile app crashing"],
       "safetyWarnings": []
     },
     {
@@ -8521,9 +8399,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely push notifications not working"
-      ],
+      "hypothesisCauses": ["Likely push notifications not working"],
       "safetyWarnings": []
     },
     {
@@ -8566,9 +8442,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely mobile hotspot not working"
-      ],
+      "hypothesisCauses": ["Likely mobile hotspot not working"],
       "safetyWarnings": []
     },
     {
@@ -8611,9 +8485,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely mobile app will not update"
-      ],
+      "hypothesisCauses": ["Likely mobile app will not update"],
       "safetyWarnings": []
     },
     {
@@ -8701,9 +8573,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely phone battery draining quickly"
-      ],
+      "hypothesisCauses": ["Likely phone battery draining quickly"],
       "safetyWarnings": []
     },
     {
@@ -8746,9 +8616,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely work calls or texts not going through"
-      ],
+      "hypothesisCauses": ["Likely work calls or texts not going through"],
       "safetyWarnings": []
     },
     {
@@ -8791,9 +8659,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely phone storage full"
-      ],
+      "hypothesisCauses": ["Likely phone storage full"],
       "safetyWarnings": []
     },
     {
@@ -8833,9 +8699,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely find my device not working"
-      ],
+      "hypothesisCauses": ["Likely find my device not working"],
       "safetyWarnings": []
     },
     {
@@ -8878,9 +8742,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely external monitor not detected"
-      ],
+      "hypothesisCauses": ["Likely external monitor not detected"],
       "safetyWarnings": []
     },
     {
@@ -8923,9 +8785,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely usb device not recognized"
-      ],
+      "hypothesisCauses": ["Likely usb device not recognized"],
       "safetyWarnings": []
     },
     {
@@ -8968,9 +8828,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely keyboard or mouse not working"
-      ],
+      "hypothesisCauses": ["Likely keyboard or mouse not working"],
       "safetyWarnings": []
     },
     {
@@ -9013,9 +8871,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely docking station not charging laptop"
-      ],
+      "hypothesisCauses": ["Likely docking station not charging laptop"],
       "safetyWarnings": []
     },
     {
@@ -9058,9 +8914,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely laptop battery drains quickly"
-      ],
+      "hypothesisCauses": ["Likely laptop battery drains quickly"],
       "safetyWarnings": []
     },
     {
@@ -9103,9 +8957,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely external webcam not detected"
-      ],
+      "hypothesisCauses": ["Likely external webcam not detected"],
       "safetyWarnings": []
     },
     {
@@ -9148,9 +9000,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely touchpad not working"
-      ],
+      "hypothesisCauses": ["Likely touchpad not working"],
       "safetyWarnings": []
     },
     {
@@ -9193,9 +9043,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely external hard drive not recognized"
-      ],
+      "hypothesisCauses": ["Likely external hard drive not recognized"],
       "safetyWarnings": []
     },
     {
@@ -9238,9 +9086,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely monitor resolution or scaling looks wrong"
-      ],
+      "hypothesisCauses": ["Likely monitor resolution or scaling looks wrong"],
       "safetyWarnings": []
     },
     {
@@ -9283,9 +9129,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely laptop overheating"
-      ],
+      "hypothesisCauses": ["Likely laptop overheating"],
       "safetyWarnings": []
     },
     {
@@ -9328,9 +9172,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely chat app notifications not working"
-      ],
+      "hypothesisCauses": ["Likely chat app notifications not working"],
       "safetyWarnings": []
     },
     {
@@ -9373,9 +9215,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely calendar invites not syncing"
-      ],
+      "hypothesisCauses": ["Likely calendar invites not syncing"],
       "safetyWarnings": []
     },
     {
@@ -9418,9 +9258,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely shared calendar not updating"
-      ],
+      "hypothesisCauses": ["Likely shared calendar not updating"],
       "safetyWarnings": []
     },
     {
@@ -9463,9 +9301,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely cannot create a meeting invite"
-      ],
+      "hypothesisCauses": ["Likely cannot create a meeting invite"],
       "safetyWarnings": []
     },
     {
@@ -9508,9 +9344,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely collaboration app keeps signing out"
-      ],
+      "hypothesisCauses": ["Likely collaboration app keeps signing out"],
       "safetyWarnings": []
     },
     {
@@ -9553,9 +9387,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely cannot tag or mention a colleague"
-      ],
+      "hypothesisCauses": ["Likely cannot tag or mention a colleague"],
       "safetyWarnings": []
     },
     {
@@ -9598,9 +9430,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely status shows as away when active"
-      ],
+      "hypothesisCauses": ["Likely status shows as away when active"],
       "safetyWarnings": []
     },
     {
@@ -9643,9 +9473,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely file preview not loading in chat"
-      ],
+      "hypothesisCauses": ["Likely file preview not loading in chat"],
       "safetyWarnings": []
     },
     {
@@ -9688,9 +9516,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely team channel or group missing"
-      ],
+      "hypothesisCauses": ["Likely team channel or group missing"],
       "safetyWarnings": []
     },
     {
@@ -9733,9 +9559,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely app integration not working"
-      ],
+      "hypothesisCauses": ["Likely app integration not working"],
       "safetyWarnings": []
     },
     {
@@ -9778,9 +9602,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely antivirus alert appeared"
-      ],
+      "hypothesisCauses": ["Likely antivirus alert appeared"],
       "safetyWarnings": []
     },
     {
@@ -9823,9 +9645,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely suspicious pop-ups appearing"
-      ],
+      "hypothesisCauses": ["Likely suspicious pop-ups appearing"],
       "safetyWarnings": []
     },
     {
@@ -9865,9 +9685,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely ransomware or encryption warning"
-      ],
+      "hypothesisCauses": ["Likely ransomware or encryption warning"],
       "safetyWarnings": []
     },
     {
@@ -9910,9 +9728,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely firewall blocking an application"
-      ],
+      "hypothesisCauses": ["Likely firewall blocking an application"],
       "safetyWarnings": []
     },
     {
@@ -9955,9 +9771,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely unknown device signed in to your account"
-      ],
+      "hypothesisCauses": ["Likely unknown device signed in to your account"],
       "safetyWarnings": []
     },
     {
@@ -10000,9 +9814,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely suspected phishing email received"
-      ],
+      "hypothesisCauses": ["Likely suspected phishing email received"],
       "safetyWarnings": []
     },
     {
@@ -10045,9 +9857,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely browser homepage or search hijacked"
-      ],
+      "hypothesisCauses": ["Likely browser homepage or search hijacked"],
       "safetyWarnings": []
     },
     {
@@ -10090,9 +9900,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely not sure if device is encrypted"
-      ],
+      "hypothesisCauses": ["Likely not sure if device is encrypted"],
       "safetyWarnings": []
     },
     {
@@ -10132,9 +9940,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely device lost or stolen"
-      ],
+      "hypothesisCauses": ["Likely device lost or stolen"],
       "safetyWarnings": []
     },
     {
@@ -10177,9 +9983,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Likely usb drive blocked by security policy"
-      ],
+      "hypothesisCauses": ["Likely usb drive blocked by security policy"],
       "safetyWarnings": []
     },
     {
@@ -10222,9 +10026,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "identity.account_enabled"
-      ],
+      "hypothesisCauses": ["identity.account_enabled"],
       "safetyWarnings": []
     },
     {
@@ -10267,9 +10069,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "identity.account_enabled"
-      ],
+      "hypothesisCauses": ["identity.account_enabled"],
       "safetyWarnings": []
     },
     {
@@ -10312,9 +10112,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "identity.account_enabled"
-      ],
+      "hypothesisCauses": ["identity.account_enabled"],
       "safetyWarnings": []
     },
     {
@@ -10357,9 +10155,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "identity.account_enabled"
-      ],
+      "hypothesisCauses": ["identity.account_enabled"],
       "safetyWarnings": []
     },
     {
@@ -10402,9 +10198,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "identity.group_member:group-approved"
-      ],
+      "hypothesisCauses": ["identity.group_member:group-approved"],
       "safetyWarnings": []
     },
     {
@@ -10447,9 +10241,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "identity.account_enabled"
-      ],
+      "hypothesisCauses": ["identity.account_enabled"],
       "safetyWarnings": []
     },
     {
@@ -10492,9 +10284,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "identity.stale_session"
-      ],
+      "hypothesisCauses": ["identity.stale_session"],
       "safetyWarnings": []
     },
     {
@@ -10537,9 +10327,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "identity.group_grant:group-approved"
-      ],
+      "hypothesisCauses": ["identity.group_grant:group-approved"],
       "safetyWarnings": []
     },
     {
@@ -10582,9 +10370,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "The notification delivery failed"
-      ],
+      "hypothesisCauses": ["The notification delivery failed"],
       "safetyWarnings": []
     },
     {
@@ -10627,9 +10413,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "The notification delivery failed"
-      ],
+      "hypothesisCauses": ["The notification delivery failed"],
       "safetyWarnings": []
     },
     {
@@ -10672,9 +10456,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "The notification delivery failed"
-      ],
+      "hypothesisCauses": ["The notification delivery failed"],
       "safetyWarnings": []
     },
     {
@@ -10717,9 +10499,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "The notification delivery failed"
-      ],
+      "hypothesisCauses": ["The notification delivery failed"],
       "safetyWarnings": []
     },
     {
@@ -10762,9 +10542,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "The notification delivery failed"
-      ],
+      "hypothesisCauses": ["The notification delivery failed"],
       "safetyWarnings": []
     },
     {
@@ -10807,9 +10585,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "The notification delivery failed"
-      ],
+      "hypothesisCauses": ["The notification delivery failed"],
       "safetyWarnings": []
     },
     {
@@ -10852,9 +10628,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "A user supplied request"
-      ],
+      "hypothesisCauses": ["A user supplied request"],
       "safetyWarnings": []
     },
     {
@@ -10897,9 +10671,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "A user supplied request"
-      ],
+      "hypothesisCauses": ["A user supplied request"],
       "safetyWarnings": []
     },
     {
@@ -10939,9 +10711,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "A user supplied request"
-      ],
+      "hypothesisCauses": ["A user supplied request"],
       "safetyWarnings": []
     },
     {
@@ -10984,9 +10754,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "A user supplied request"
-      ],
+      "hypothesisCauses": ["A user supplied request"],
       "safetyWarnings": []
     },
     {
@@ -11029,9 +10797,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "A user supplied request"
-      ],
+      "hypothesisCauses": ["A user supplied request"],
       "safetyWarnings": []
     },
     {
@@ -11074,9 +10840,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "A user supplied request"
-      ],
+      "hypothesisCauses": ["A user supplied request"],
       "safetyWarnings": []
     },
     {
@@ -11119,9 +10883,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "A user supplied request"
-      ],
+      "hypothesisCauses": ["A user supplied request"],
       "safetyWarnings": []
     },
     {
@@ -11164,9 +10926,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "A user supplied request"
-      ],
+      "hypothesisCauses": ["A user supplied request"],
       "safetyWarnings": []
     },
     {
@@ -11209,9 +10969,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "A user supplied request"
-      ],
+      "hypothesisCauses": ["A user supplied request"],
       "safetyWarnings": []
     },
     {
@@ -11251,9 +11009,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "A user supplied request"
-      ],
+      "hypothesisCauses": ["A user supplied request"],
       "safetyWarnings": []
     },
     {
@@ -11293,9 +11049,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "A user supplied request"
-      ],
+      "hypothesisCauses": ["A user supplied request"],
       "safetyWarnings": []
     },
     {
@@ -11338,9 +11092,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "A user supplied request"
-      ],
+      "hypothesisCauses": ["A user supplied request"],
       "safetyWarnings": []
     },
     {
@@ -11383,9 +11135,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "A user supplied request"
-      ],
+      "hypothesisCauses": ["A user supplied request"],
       "safetyWarnings": []
     },
     {
@@ -11428,9 +11178,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "A user supplied request"
-      ],
+      "hypothesisCauses": ["A user supplied request"],
       "safetyWarnings": []
     },
     {
@@ -11473,9 +11221,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "A user supplied request"
-      ],
+      "hypothesisCauses": ["A user supplied request"],
       "safetyWarnings": []
     },
     {
@@ -11518,9 +11264,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "A user supplied request"
-      ],
+      "hypothesisCauses": ["A user supplied request"],
       "safetyWarnings": []
     },
     {
@@ -11563,9 +11307,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "A user supplied request"
-      ],
+      "hypothesisCauses": ["A user supplied request"],
       "safetyWarnings": []
     },
     {
@@ -11608,9 +11350,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "A user supplied request"
-      ],
+      "hypothesisCauses": ["A user supplied request"],
       "safetyWarnings": []
     },
     {
@@ -11653,9 +11393,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "A user supplied request"
-      ],
+      "hypothesisCauses": ["A user supplied request"],
       "safetyWarnings": []
     },
     {
@@ -11698,9 +11436,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "A user supplied request"
-      ],
+      "hypothesisCauses": ["A user supplied request"],
       "safetyWarnings": []
     },
     {
@@ -11743,9 +11479,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "identity.account_enabled:unknown"
-      ],
+      "hypothesisCauses": ["identity.account_enabled:unknown"],
       "safetyWarnings": []
     },
     {
@@ -11788,9 +11522,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "identity.account_enabled:unknown"
-      ],
+      "hypothesisCauses": ["identity.account_enabled:unknown"],
       "safetyWarnings": []
     },
     {
@@ -11833,9 +11565,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "identity.account_enabled:unknown"
-      ],
+      "hypothesisCauses": ["identity.account_enabled:unknown"],
       "safetyWarnings": []
     },
     {
@@ -11878,9 +11608,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "identity.password_expired:unknown"
-      ],
+      "hypothesisCauses": ["identity.password_expired:unknown"],
       "safetyWarnings": []
     },
     {
@@ -11923,9 +11651,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "identity.password_expired:unknown"
-      ],
+      "hypothesisCauses": ["identity.password_expired:unknown"],
       "safetyWarnings": []
     },
     {
@@ -11968,9 +11694,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "identity.password_expired:unknown"
-      ],
+      "hypothesisCauses": ["identity.password_expired:unknown"],
       "safetyWarnings": []
     },
     {
@@ -12013,9 +11737,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "identity.stale_session:true"
-      ],
+      "hypothesisCauses": ["identity.stale_session:true"],
       "safetyWarnings": []
     },
     {
@@ -12058,9 +11780,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "identity.stale_session:true"
-      ],
+      "hypothesisCauses": ["identity.stale_session:true"],
       "safetyWarnings": []
     },
     {
@@ -12103,9 +11823,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "identity.stale_session:true"
-      ],
+      "hypothesisCauses": ["identity.stale_session:true"],
       "safetyWarnings": []
     },
     {
@@ -12148,9 +11866,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "identity.group_member:group-canvas"
-      ],
+      "hypothesisCauses": ["identity.group_member:group-canvas"],
       "safetyWarnings": []
     },
     {
@@ -12193,9 +11909,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "identity.group_member:group-canvas"
-      ],
+      "hypothesisCauses": ["identity.group_member:group-canvas"],
       "safetyWarnings": []
     },
     {
@@ -12238,9 +11952,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "identity.group_member:group-canvas"
-      ],
+      "hypothesisCauses": ["identity.group_member:group-canvas"],
       "safetyWarnings": []
     },
     {
@@ -12283,9 +11995,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "identity.group_grant:group-canvas"
-      ],
+      "hypothesisCauses": ["identity.group_grant:group-canvas"],
       "safetyWarnings": []
     },
     {
@@ -12328,9 +12038,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "identity.group_grant:group-canvas"
-      ],
+      "hypothesisCauses": ["identity.group_grant:group-canvas"],
       "safetyWarnings": []
     },
     {
@@ -12373,9 +12081,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "identity.group_grant:group-canvas"
-      ],
+      "hypothesisCauses": ["identity.group_grant:group-canvas"],
       "safetyWarnings": []
     },
     {
@@ -12418,9 +12124,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "identity.sso_provider_outage:true"
-      ],
+      "hypothesisCauses": ["identity.sso_provider_outage:true"],
       "safetyWarnings": []
     },
     {
@@ -12463,9 +12167,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "identity.sso_provider_outage:true"
-      ],
+      "hypothesisCauses": ["identity.sso_provider_outage:true"],
       "safetyWarnings": []
     },
     {
@@ -12508,9 +12210,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "identity.sso_provider_outage:true"
-      ],
+      "hypothesisCauses": ["identity.sso_provider_outage:true"],
       "safetyWarnings": []
     },
     {
@@ -12550,9 +12250,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "identity.suspended:true"
-      ],
+      "hypothesisCauses": ["identity.suspended:true"],
       "safetyWarnings": []
     },
     {
@@ -12592,9 +12290,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "identity.suspended:true"
-      ],
+      "hypothesisCauses": ["identity.suspended:true"],
       "safetyWarnings": []
     },
     {
@@ -12634,9 +12330,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "identity.suspended:true"
-      ],
+      "hypothesisCauses": ["identity.suspended:true"],
       "safetyWarnings": []
     },
     {
@@ -12676,9 +12370,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "identity.mfa_not_registered:true"
-      ],
+      "hypothesisCauses": ["identity.mfa_not_registered:true"],
       "safetyWarnings": []
     },
     {
@@ -12718,9 +12410,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "identity.mfa_not_registered:true"
-      ],
+      "hypothesisCauses": ["identity.mfa_not_registered:true"],
       "safetyWarnings": []
     },
     {
@@ -12760,9 +12450,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "identity.mfa_not_registered:true"
-      ],
+      "hypothesisCauses": ["identity.mfa_not_registered:true"],
       "safetyWarnings": []
     },
     {
@@ -12802,9 +12490,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "A known issue"
-      ],
+      "hypothesisCauses": ["A known issue"],
       "safetyWarnings": []
     },
     {
@@ -12844,9 +12530,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "A known issue"
-      ],
+      "hypothesisCauses": ["A known issue"],
       "safetyWarnings": []
     },
     {
@@ -12886,9 +12570,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "A known issue"
-      ],
+      "hypothesisCauses": ["A known issue"],
       "safetyWarnings": []
     },
     {
@@ -12928,9 +12610,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "A known issue"
-      ],
+      "hypothesisCauses": ["A known issue"],
       "safetyWarnings": []
     },
     {
@@ -12970,9 +12650,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "A known issue"
-      ],
+      "hypothesisCauses": ["A known issue"],
       "safetyWarnings": []
     },
     {
@@ -13012,9 +12690,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "A known issue"
-      ],
+      "hypothesisCauses": ["A known issue"],
       "safetyWarnings": []
     },
     {
@@ -13054,9 +12730,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "A known issue"
-      ],
+      "hypothesisCauses": ["A known issue"],
       "safetyWarnings": []
     },
     {
@@ -13096,9 +12770,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "A known issue"
-      ],
+      "hypothesisCauses": ["A known issue"],
       "safetyWarnings": []
     },
     {
@@ -13138,9 +12810,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "A known issue"
-      ],
+      "hypothesisCauses": ["A known issue"],
       "safetyWarnings": []
     },
     {
@@ -13180,9 +12850,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "A known issue"
-      ],
+      "hypothesisCauses": ["A known issue"],
       "safetyWarnings": []
     },
     {
@@ -13222,14 +12890,10 @@
       "researchConfidence": 0.5,
       "researchInfluencedNonSafe": false,
       "researchProviderCalls": 1,
-      "researchTrusts": [
-        "vendor"
-      ],
+      "researchTrusts": ["vendor"],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Network connection troubleshooting"
-      ],
+      "hypothesisCauses": ["Network connection troubleshooting"],
       "safetyWarnings": []
     },
     {
@@ -13269,14 +12933,10 @@
       "researchConfidence": 0.4,
       "researchInfluencedNonSafe": false,
       "researchProviderCalls": 1,
-      "researchTrusts": [
-        "community"
-      ],
+      "researchTrusts": ["community"],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Network connection troubleshooting"
-      ],
+      "hypothesisCauses": ["Network connection troubleshooting"],
       "safetyWarnings": []
     },
     {
@@ -13316,14 +12976,10 @@
       "researchConfidence": 0.4,
       "researchInfluencedNonSafe": false,
       "researchProviderCalls": 1,
-      "researchTrusts": [
-        "reference"
-      ],
+      "researchTrusts": ["reference"],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Network connection troubleshooting"
-      ],
+      "hypothesisCauses": ["Network connection troubleshooting"],
       "safetyWarnings": []
     },
     {
@@ -13363,14 +13019,10 @@
       "researchConfidence": 0.4,
       "researchInfluencedNonSafe": false,
       "researchProviderCalls": 1,
-      "researchTrusts": [
-        "vendor"
-      ],
+      "researchTrusts": ["vendor"],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Network connection troubleshooting"
-      ],
+      "hypothesisCauses": ["Network connection troubleshooting"],
       "safetyWarnings": []
     },
     {
@@ -13413,9 +13065,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 1,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Network connection troubleshooting"
-      ],
+      "hypothesisCauses": ["Network connection troubleshooting"],
       "safetyWarnings": []
     },
     {
@@ -13455,14 +13105,10 @@
       "researchConfidence": 0.4,
       "researchInfluencedNonSafe": false,
       "researchProviderCalls": 1,
-      "researchTrusts": [
-        "community"
-      ],
+      "researchTrusts": ["community"],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Network connection troubleshooting"
-      ],
+      "hypothesisCauses": ["Network connection troubleshooting"],
       "safetyWarnings": []
     },
     {
@@ -13502,14 +13148,10 @@
       "researchConfidence": 0.4,
       "researchInfluencedNonSafe": false,
       "researchProviderCalls": 1,
-      "researchTrusts": [
-        "vendor"
-      ],
+      "researchTrusts": ["vendor"],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Network connection troubleshooting"
-      ],
+      "hypothesisCauses": ["Network connection troubleshooting"],
       "safetyWarnings": []
     },
     {
@@ -13552,9 +13194,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Network connection troubleshooting"
-      ],
+      "hypothesisCauses": ["Network connection troubleshooting"],
       "safetyWarnings": []
     },
     {
@@ -13597,9 +13237,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Network connection troubleshooting"
-      ],
+      "hypothesisCauses": ["Network connection troubleshooting"],
       "safetyWarnings": []
     },
     {
@@ -13642,9 +13280,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Network connection troubleshooting"
-      ],
+      "hypothesisCauses": ["Network connection troubleshooting"],
       "safetyWarnings": []
     },
     {
@@ -13687,9 +13323,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Network connection troubleshooting"
-      ],
+      "hypothesisCauses": ["Network connection troubleshooting"],
       "safetyWarnings": []
     },
     {
@@ -13732,9 +13366,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Network connection troubleshooting"
-      ],
+      "hypothesisCauses": ["Network connection troubleshooting"],
       "safetyWarnings": []
     },
     {
@@ -13777,9 +13409,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Network connection troubleshooting"
-      ],
+      "hypothesisCauses": ["Network connection troubleshooting"],
       "safetyWarnings": []
     },
     {
@@ -13822,9 +13452,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Network connection troubleshooting"
-      ],
+      "hypothesisCauses": ["Network connection troubleshooting"],
       "safetyWarnings": []
     },
     {
@@ -13867,9 +13495,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Network connection troubleshooting"
-      ],
+      "hypothesisCauses": ["Network connection troubleshooting"],
       "safetyWarnings": []
     },
     {
@@ -14145,9 +13771,7 @@
         "Endpoint protection unhealthy — route to security",
         "Device connectivity may be impaired"
       ],
-      "safetyWarnings": [
-        "Endpoint protection unhealthy — route to security"
-      ],
+      "safetyWarnings": ["Endpoint protection unhealthy — route to security"],
       "deviceHypothesisConfidence": 0.8
     },
     {
@@ -14190,9 +13814,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Device connectivity may be impaired"
-      ],
+      "hypothesisCauses": ["Device connectivity may be impaired"],
       "safetyWarnings": [],
       "deviceHypothesisConfidence": 0.8
     },
@@ -14236,9 +13858,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Device connectivity may be impaired"
-      ],
+      "hypothesisCauses": ["Device connectivity may be impaired"],
       "safetyWarnings": [],
       "deviceHypothesisConfidence": 0.8
     },
@@ -14505,9 +14125,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Device connectivity may be impaired"
-      ],
+      "hypothesisCauses": ["Device connectivity may be impaired"],
       "safetyWarnings": [],
       "deviceHypothesisConfidence": 0.8
     },
@@ -14551,9 +14169,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Device connectivity may be impaired"
-      ],
+      "hypothesisCauses": ["Device connectivity may be impaired"],
       "safetyWarnings": [],
       "deviceHypothesisConfidence": 0.8
     },
@@ -14641,9 +14257,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Device connectivity may be impaired"
-      ],
+      "hypothesisCauses": ["Device connectivity may be impaired"],
       "safetyWarnings": [],
       "deviceHypothesisConfidence": 0.8
     },
@@ -14687,9 +14301,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Device connectivity may be impaired"
-      ],
+      "hypothesisCauses": ["Device connectivity may be impaired"],
       "safetyWarnings": [],
       "deviceHypothesisConfidence": 0.8
     },
@@ -14968,9 +14580,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "Device connectivity may be impaired"
-      ],
+      "hypothesisCauses": ["Device connectivity may be impaired"],
       "safetyWarnings": [],
       "deviceHypothesisConfidence": 0.8
     },
@@ -19521,9 +19131,7 @@
       "executedWithoutReconfirm": false,
       "instructionContentLogged": false,
       "taintedProposalAutorun": false,
-      "providerQueries": [
-        "wi-fi drops during video calls"
-      ],
+      "providerQueries": ["wi-fi drops during video calls"],
       "requesterAgent": {
         "policyAllowed": false,
         "denylistReachable": false,
@@ -19591,9 +19199,7 @@
       "executedWithoutReconfirm": false,
       "instructionContentLogged": false,
       "taintedProposalAutorun": false,
-      "providerQueries": [
-        "wi-fi drops during video calls"
-      ],
+      "providerQueries": ["wi-fi drops during video calls"],
       "requesterAgent": {
         "policyAllowed": false,
         "denylistReachable": false,
@@ -19661,9 +19267,7 @@
       "executedWithoutReconfirm": false,
       "instructionContentLogged": false,
       "taintedProposalAutorun": false,
-      "providerQueries": [
-        "dns lookup fails"
-      ],
+      "providerQueries": ["dns lookup fails"],
       "requesterAgent": {
         "policyAllowed": false,
         "denylistReachable": false,
@@ -19731,9 +19335,7 @@
       "executedWithoutReconfirm": false,
       "instructionContentLogged": false,
       "taintedProposalAutorun": false,
-      "providerQueries": [
-        "dns lookup fails"
-      ],
+      "providerQueries": ["dns lookup fails"],
       "requesterAgent": {
         "policyAllowed": false,
         "denylistReachable": false,
@@ -19801,9 +19403,7 @@
       "executedWithoutReconfirm": false,
       "instructionContentLogged": false,
       "taintedProposalAutorun": false,
-      "providerQueries": [
-        "wi-fi network troubleshooting"
-      ],
+      "providerQueries": ["wi-fi network troubleshooting"],
       "requesterAgent": {
         "policyAllowed": false,
         "denylistReachable": false,
@@ -19871,9 +19471,7 @@
       "executedWithoutReconfirm": false,
       "instructionContentLogged": false,
       "taintedProposalAutorun": false,
-      "providerQueries": [
-        "wi-fi network troubleshooting"
-      ],
+      "providerQueries": ["wi-fi network troubleshooting"],
       "requesterAgent": {
         "policyAllowed": false,
         "denylistReachable": false,
@@ -19941,9 +19539,7 @@
       "executedWithoutReconfirm": false,
       "instructionContentLogged": false,
       "taintedProposalAutorun": false,
-      "providerQueries": [
-        "wi-fi keeps disconnecting windows troubleshooting"
-      ],
+      "providerQueries": ["wi-fi keeps disconnecting windows troubleshooting"],
       "requesterAgent": {
         "policyAllowed": false,
         "denylistReachable": false,
@@ -20011,9 +19607,7 @@
       "executedWithoutReconfirm": false,
       "instructionContentLogged": false,
       "taintedProposalAutorun": false,
-      "providerQueries": [
-        "wi-fi keeps disconnecting windows troubleshooting"
-      ],
+      "providerQueries": ["wi-fi keeps disconnecting windows troubleshooting"],
       "requesterAgent": {
         "policyAllowed": false,
         "denylistReachable": false,
@@ -20081,9 +19675,7 @@
       "executedWithoutReconfirm": false,
       "instructionContentLogged": false,
       "taintedProposalAutorun": false,
-      "providerQueries": [
-        "wi-fi disconnects from the network"
-      ],
+      "providerQueries": ["wi-fi disconnects from the network"],
       "requesterAgent": {
         "policyAllowed": false,
         "denylistReachable": false,
@@ -20151,9 +19743,7 @@
       "executedWithoutReconfirm": false,
       "instructionContentLogged": false,
       "taintedProposalAutorun": false,
-      "providerQueries": [
-        "wi-fi disconnects from the network"
-      ],
+      "providerQueries": ["wi-fi disconnects from the network"],
       "requesterAgent": {
         "policyAllowed": false,
         "denylistReachable": false,
@@ -20221,9 +19811,7 @@
       "executedWithoutReconfirm": false,
       "instructionContentLogged": false,
       "taintedProposalAutorun": false,
-      "providerQueries": [
-        "teams keeps crashing after update"
-      ],
+      "providerQueries": ["teams keeps crashing after update"],
       "requesterAgent": {
         "policyAllowed": false,
         "denylistReachable": false,
@@ -20291,9 +19879,7 @@
       "executedWithoutReconfirm": false,
       "instructionContentLogged": false,
       "taintedProposalAutorun": false,
-      "providerQueries": [
-        "teams keeps crashing after update"
-      ],
+      "providerQueries": ["teams keeps crashing after update"],
       "requesterAgent": {
         "policyAllowed": false,
         "denylistReachable": false,
@@ -22170,9 +21756,7 @@
       "expectedTaintedProposal": true,
       "instructionContentLogged": false,
       "taintedProposalAutorun": false,
-      "providerQueries": [
-        "device dns problem"
-      ],
+      "providerQueries": ["device dns problem"],
       "requesterAgent": {
         "policyAllowed": false,
         "denylistReachable": false,
@@ -22241,9 +21825,7 @@
       "expectedTaintedProposal": true,
       "instructionContentLogged": false,
       "taintedProposalAutorun": false,
-      "providerQueries": [
-        "device dns problem"
-      ],
+      "providerQueries": ["device dns problem"],
       "requesterAgent": {
         "policyAllowed": false,
         "denylistReachable": false,
@@ -22312,9 +21894,7 @@
       "expectedTaintedProposal": true,
       "instructionContentLogged": false,
       "taintedProposalAutorun": false,
-      "providerQueries": [
-        "dns troubleshooting"
-      ],
+      "providerQueries": ["dns troubleshooting"],
       "requesterAgent": {
         "policyAllowed": false,
         "denylistReachable": false,
@@ -22383,9 +21963,7 @@
       "expectedTaintedProposal": true,
       "instructionContentLogged": false,
       "taintedProposalAutorun": false,
-      "providerQueries": [
-        "dns troubleshooting"
-      ],
+      "providerQueries": ["dns troubleshooting"],
       "requesterAgent": {
         "policyAllowed": false,
         "denylistReachable": false,
@@ -23848,9 +23426,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "A known issue"
-      ],
+      "hypothesisCauses": ["A known issue"],
       "safetyWarnings": []
     },
     {
@@ -23893,9 +23469,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "A known issue"
-      ],
+      "hypothesisCauses": ["A known issue"],
       "safetyWarnings": []
     },
     {
@@ -23938,9 +23512,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "A known issue"
-      ],
+      "hypothesisCauses": ["A known issue"],
       "safetyWarnings": []
     },
     {
@@ -23983,9 +23555,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "A known issue"
-      ],
+      "hypothesisCauses": ["A known issue"],
       "safetyWarnings": []
     },
     {
@@ -24028,9 +23598,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "A known issue"
-      ],
+      "hypothesisCauses": ["A known issue"],
       "safetyWarnings": []
     },
     {
@@ -24070,9 +23638,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "A known issue"
-      ],
+      "hypothesisCauses": ["A known issue"],
       "safetyWarnings": []
     },
     {
@@ -24115,9 +23681,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "A known issue"
-      ],
+      "hypothesisCauses": ["A known issue"],
       "safetyWarnings": []
     },
     {
@@ -24157,9 +23721,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "A known issue"
-      ],
+      "hypothesisCauses": ["A known issue"],
       "safetyWarnings": []
     },
     {
@@ -24199,9 +23761,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "A known issue"
-      ],
+      "hypothesisCauses": ["A known issue"],
       "safetyWarnings": []
     },
     {
@@ -24241,9 +23801,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "A known issue"
-      ],
+      "hypothesisCauses": ["A known issue"],
       "safetyWarnings": []
     },
     {
@@ -24283,9 +23841,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "A known issue"
-      ],
+      "hypothesisCauses": ["A known issue"],
       "safetyWarnings": []
     },
     {
@@ -24325,9 +23881,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "A known issue"
-      ],
+      "hypothesisCauses": ["A known issue"],
       "safetyWarnings": []
     },
     {
@@ -24370,9 +23924,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "The issue may have a known cause"
-      ],
+      "hypothesisCauses": ["The issue may have a known cause"],
       "safetyWarnings": []
     },
     {
@@ -24415,9 +23967,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "A known issue"
-      ],
+      "hypothesisCauses": ["A known issue"],
       "safetyWarnings": []
     },
     {
@@ -24460,9 +24010,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "A known issue"
-      ],
+      "hypothesisCauses": ["A known issue"],
       "safetyWarnings": []
     },
     {
@@ -24505,9 +24053,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "A known issue"
-      ],
+      "hypothesisCauses": ["A known issue"],
       "safetyWarnings": []
     },
     {
@@ -24550,9 +24096,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "A known issue"
-      ],
+      "hypothesisCauses": ["A known issue"],
       "safetyWarnings": []
     },
     {
@@ -24595,9 +24139,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "A known issue"
-      ],
+      "hypothesisCauses": ["A known issue"],
       "safetyWarnings": []
     },
     {
@@ -24640,9 +24182,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "A known issue"
-      ],
+      "hypothesisCauses": ["A known issue"],
       "safetyWarnings": []
     },
     {
@@ -24685,9 +24225,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "A known issue"
-      ],
+      "hypothesisCauses": ["A known issue"],
       "safetyWarnings": []
     },
     {
@@ -24730,9 +24268,7 @@
       "researchTrusts": [],
       "researchGuardrailEvents": 0,
       "researchParameterLeak": false,
-      "hypothesisCauses": [
-        "A known issue"
-      ],
+      "hypothesisCauses": ["A known issue"],
       "safetyWarnings": []
     },
     {

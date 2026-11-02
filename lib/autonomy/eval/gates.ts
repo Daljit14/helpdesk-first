@@ -61,6 +61,7 @@ export const RELEASE_GATES = [
   "staff_verification_required_for_staff_account_actions",
   "org_policy_deny_wins",
   "learning_never_uses_untrusted_steps",
+  "reroute_events_recorded",
 ] as const;
 
 export type ReleaseGate = (typeof RELEASE_GATES)[number];
@@ -152,6 +153,7 @@ export const SUITE_GATE_PREFIXES: ReadonlyArray<
   ["honest_metrics", "abandoned_session_never_counted_resolved"],
   ["org_policy", "org_policy_deny_wins"],
   ["learning_capture", "learning_never_uses_untrusted_steps"],
+  ["route_events", "reroute_events_recorded"],
 ];
 
 export type EvaluationCaseResult = {
@@ -281,6 +283,7 @@ export type EvaluationCaseResult = {
     draftCreated: boolean;
     needsSecurityReview: boolean;
   };
+  routeEventsOk?: boolean;
 };
 
 export function evaluateGates(results: EvaluationCaseResult[]): GateResult[] {
@@ -439,6 +442,27 @@ export function evaluateGates(results: EvaluationCaseResult[]): GateResult[] {
                 !learningCaptureRows.some((result) => result.caseId === caseId)
             ),
           ],
+  };
+  const routeEventExpected = [
+    "route_events_claim_recorded",
+    "route_events_reassign_recorded",
+    "route_events_ping_pong_alert",
+    "route_events_flag_off_records_nothing",
+  ];
+  const routeEventRows = results.filter(
+    (result) => result.suite === "route_events"
+  );
+  const routeEventMissing = routeEventExpected.filter(
+    (caseId) => !routeEventRows.some((result) => result.caseId === caseId)
+  );
+  const routeEventOffenders = routeEventRows
+    .filter((result) => result.routeEventsOk !== true)
+    .map((result) => result.caseId);
+  const routeEventGate: GateResult = {
+    name: "reroute_events_recorded",
+    passed: routeEventMissing.length === 0 && routeEventOffenders.length === 0,
+    evaluated: routeEventRows.length,
+    offendingCaseIds: [...routeEventOffenders, ...routeEventMissing],
   };
   return [
     make(
@@ -811,5 +835,6 @@ export function evaluateGates(results: EvaluationCaseResult[]): GateResult[] {
     ),
     orgPolicyGate,
     learningCaptureGate,
+    routeEventGate,
   ];
 }

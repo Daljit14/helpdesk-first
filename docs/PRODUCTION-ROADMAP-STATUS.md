@@ -32,6 +32,7 @@ Prerequisite migrations listed in each SETUP-NOTES file must already be applied.
 ## Production SQL added after 2026-10-29
 
 1. `supabase/knowledge-freshness.sql` (E5a, #168/#170) — after `knowledge-governance.sql` and `knowledge-health.sql`. Applied to production on 2026-11-01 in one transaction; no feature flags were changed.
+2. `supabase/ticket-route-events.sql` (E6a) — after `ticket-workflow.sql` and `wave-3-organizations.sql`. Not yet applied.
 
 ## Phase E — E0 small follow-ups
 
@@ -109,6 +110,16 @@ scenarios. This is code-only: no SQL was added or applied; the current
 production SQL run order is listed at the top of this document. See
 `SETUP-NOTES-E11b.md` for flags, budgets, safety screening, and provider-
 dependent rollout checks.
+
+## Phase E — E6a ticket route events
+
+E6a adds a default-off flag (`HELP_DESK_TICKET_ROUTE_EVENTS_ENABLED`) that
+records each claim/assign ownership change in `ticket_route_events`, computes
+the reroute rate, and writes a one-time `routing.ping_pong` event when a ticket
+is rerouted 3 times. Recording fails open. Release gate
+`reroute_events_recorded` (benchmark `2026-11-01.1`).
+`supabase/ticket-route-events.sql` has not been applied. See
+`SETUP-NOTES-E6a.md`.
 
 ## Phase E — E5b requester guide hold
 

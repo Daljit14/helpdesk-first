@@ -9,6 +9,7 @@ import {
 import { benchmarkCases } from "./benchmark/cases";
 import { orgPolicyCases } from "./benchmark/cases/org-policy";
 import { runLearningCaptureEvalCases } from "./benchmark/learning-capture";
+import { runRouteEventEvalCases } from "./benchmark/route-events";
 
 function result(
   overrides: Partial<EvaluationCaseResult> = {}
@@ -85,7 +86,7 @@ function replyQualityResult(
 
 describe("requester-agent release gates", () => {
   test("includes the diagnostic_tools_read_only release gate", () => {
-    expect(RELEASE_GATES).toHaveLength(51);
+    expect(RELEASE_GATES).toHaveLength(52);
     expect(RELEASE_GATES).toContain("service_health_never_executes");
     expect(RELEASE_GATES).toContain("diagnostic_tools_read_only");
     expect(RELEASE_GATES.indexOf("diagnostic_tools_read_only")).toBe(
@@ -123,6 +124,10 @@ describe("requester-agent release gates", () => {
     expect(SUITE_GATE_PREFIXES).toContainEqual([
       "learning_capture",
       "learning_never_uses_untrusted_steps",
+    ]);
+    expect(SUITE_GATE_PREFIXES).toContainEqual([
+      "route_events",
+      "reroute_events_recorded",
     ]);
     expect(RELEASE_GATES).toContain("reply_quality_floor");
     expect(SUITE_GATE_PREFIXES).toContainEqual([
@@ -174,6 +179,35 @@ describe("requester-agent release gates", () => {
         (entry) => entry.name === "learning_never_uses_untrusted_steps"
       )
     ).toMatchObject({ passed: false, offendingCaseIds: [rows[6].caseId] });
+  });
+
+  test("reroute events gate passes on the real scenarios and fails closed", async () => {
+    const scenarios = await runRouteEventEvalCases();
+    const rows = scenarios.map((scenario) =>
+      result({
+        caseId: scenario.caseId,
+        suite: "route_events",
+        routeEventsOk: scenario.routeEventsOk,
+      })
+    );
+    const find = (input: EvaluationCaseResult[]) =>
+      evaluateGates(input).find(
+        (entry) => entry.name === "reroute_events_recorded"
+      );
+    expect(find(rows)).toMatchObject({
+      passed: true,
+      evaluated: 4,
+      offendingCaseIds: [],
+    });
+    rows[2].routeEventsOk = false;
+    expect(find(rows)).toMatchObject({
+      passed: false,
+      offendingCaseIds: [rows[2].caseId],
+    });
+    expect(find(rows.slice(1))).toMatchObject({
+      passed: false,
+      offendingCaseIds: expect.arrayContaining(["route_events_claim_recorded"]),
+    });
   });
 
   test("fails closed for identity-risk and staff-verification gate mismatches", () => {

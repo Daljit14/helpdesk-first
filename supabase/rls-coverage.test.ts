@@ -214,6 +214,27 @@ describe("Supabase RLS coverage", () => {
     );
   });
 
+  test("keeps E6a route events read-only for org members", async () => {
+    const source = await readFile(
+      join(process.cwd(), "supabase/ticket-route-events.sql"),
+      "utf8"
+    );
+    expect(source).toMatch(/do not run automatically/i);
+    expect(source).toMatch(
+      /alter table public\.ticket_route_events enable row level security/i
+    );
+    expect(source).toMatch(
+      /for select\s+using \(public\.is_org_member\(organization_id\)\)/i
+    );
+    expect(source).toMatch(
+      /revoke all on public\.ticket_route_events from public, anon, authenticated/i
+    );
+    expect(source).toMatch(
+      /grant select on public\.ticket_route_events to authenticated/i
+    );
+    expect(source).not.toMatch(/for (insert|update|delete|all)/i);
+  });
+
   test("restricts E4 cluster writes and indexes agent-session events", async () => {
     const source = await readFile(
       join(process.cwd(), "supabase/knowledge-capture.sql"),

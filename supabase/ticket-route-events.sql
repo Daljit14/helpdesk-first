@@ -1,5 +1,6 @@
 -- E6a ticket route events. Additive, idempotent migration.
 -- Apply manually after ticket-workflow.sql and wave-3-organizations.sql.
+-- Do not run automatically. Writes go through the service role only.
 
 create table if not exists public.ticket_route_events (
   id uuid primary key default gen_random_uuid(),
@@ -18,6 +19,10 @@ create index if not exists ticket_route_events_ticket_idx
   on public.ticket_route_events (ticket_id, created_at);
 
 alter table public.ticket_route_events enable row level security;
+
+revoke all on public.ticket_route_events from public, anon, authenticated;
+grant select on public.ticket_route_events to authenticated;
+grant all on public.ticket_route_events to service_role;
 
 drop policy if exists "Organization members read ticket route events"
   on public.ticket_route_events;

@@ -37,6 +37,10 @@ export function getKnowledgeGuideHoldMode(): KnowledgeGuideHoldMode {
   return mode === "watch" || mode === "enforce" ? mode : "off";
 }
 
+export function isTicketRouteEventsEnabled(): boolean {
+  return process.env.HELP_DESK_TICKET_ROUTE_EVENTS_ENABLED === "true";
+}
+
 export function isKnowledgeFreshnessEnabled(): boolean {
   return (
     process.env.HELP_DESK_KNOWLEDGE_FRESHNESS_ENABLED === "true" &&

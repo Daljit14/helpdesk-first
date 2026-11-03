@@ -5,6 +5,7 @@ import { ISSUES } from "@/lib/issues";
 import { benchmarkCaseSchema } from "./benchmark/types";
 import { benchmarkCases } from "./benchmark/cases";
 import { runLearningCaptureEvalCases } from "./benchmark/learning-capture";
+import { runRouteEventEvalCases } from "./benchmark/route-events";
 import { evaluateGates } from "./gates";
 import { runBenchmark } from "./runner";
 
@@ -131,8 +132,11 @@ describe("versioned autonomy benchmark", () => {
     try {
       const report = await runBenchmark();
       const learningCaptureCases = await runLearningCaptureEvalCases();
+      const routeEventCases = await runRouteEventEvalCases();
       expect(report.cases).toBe(
-        benchmarkCases.length + learningCaptureCases.length
+        benchmarkCases.length +
+          learningCaptureCases.length +
+          routeEventCases.length
       );
       expect(
         Object.values(report.suites).every((suite) => suite.failed === 0)
@@ -218,6 +222,7 @@ describe("versioned autonomy benchmark", () => {
             ![
               "org_policy_deny_wins",
               "learning_never_uses_untrusted_steps",
+              "reroute_events_recorded",
             ].includes(item.name)
         )
         .map((item) => item.name)

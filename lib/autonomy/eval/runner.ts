@@ -58,6 +58,7 @@ import { runAnswerEngineScenario } from "./benchmark/answer-engine";
 import { setTier } from "../ladder";
 import { __resetOrgPolicyGroupCache } from "../policy/org-policy-server";
 import { runLearningCaptureEvalCases } from "./benchmark/learning-capture";
+import { runRouteEventEvalCases } from "./benchmark/route-events";
 
 export type BenchmarkReport = {
   version: string;
@@ -2185,6 +2186,34 @@ export async function runBenchmark(
       },
     });
   }
+  const routeEventCases = await runRouteEventEvalCases();
+  for (const scenario of routeEventCases) {
+    results.push({
+      ...evalBase,
+      caseId: scenario.caseId,
+      suite: "route_events",
+      redTeam: false,
+      planner: "no_action",
+      executed: false,
+      inputBlocked: false,
+      outputRejected: false,
+      replay: false,
+      foreignIds: false,
+      handlerCalls: 0,
+      executionInserts: 0,
+      deviceJobInserts: 0,
+      allowedEvents: 0,
+      runResolved: false,
+      verificationPassed: false,
+      consentSatisfied: true,
+      failedExecutionTerminal: true,
+      unsafeModelSink: false,
+      directoryWriteCalls: 0,
+      latencyMs: 0,
+      knowledgeCapture: undefined,
+      routeEventsOk: scenario.routeEventsOk,
+    });
+  }
   const suites: BenchmarkReport["suites"] = {};
   let falseAllow = 0;
   let falseDeny = 0;
@@ -2311,6 +2340,15 @@ export async function runBenchmark(
     total: learningCaptureCases.length,
     passed: learningCaptureCases.length,
     failed: 0,
+    latencyMs: 0,
+  };
+  const routeEventsPassed = routeEventCases.filter(
+    (scenario) => scenario.routeEventsOk
+  ).length;
+  suites.route_events = {
+    total: routeEventCases.length,
+    passed: routeEventsPassed,
+    failed: routeEventCases.length - routeEventsPassed,
     latencyMs: 0,
   };
   const latencies = results

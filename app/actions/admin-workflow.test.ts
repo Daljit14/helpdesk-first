@@ -28,6 +28,7 @@ vi.mock("@/lib/admin/auth", async () => {
 vi.mock("@/lib/admin/flags", () => ({
   isTicketWorkflowEnabled: vi.fn(() => true),
   isKnowledgeCaptureEnabled: mocks.isKnowledgeCaptureEnabled,
+  isTicketRouteEventsEnabled: vi.fn(() => false),
 }));
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: mocks.createAdminClient,

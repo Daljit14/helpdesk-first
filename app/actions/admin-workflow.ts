@@ -38,6 +38,10 @@ import { credentialPattern } from "@/lib/tickets/scrub";
 import { encryptCommentForWrite } from "@/lib/security/ticket-crypto";
 import { getAllIssueSlugs } from "@/lib/search";
 import { recordGuideReportedWrongFinding } from "@/lib/knowledge/health";
+import {
+  PING_PONG_THRESHOLD,
+  recordRouteEvent,
+} from "@/lib/tickets/route-events";
 
 type Result = { error: string } | { success: true };
 const id = z.string().uuid();
@@ -81,6 +85,27 @@ async function writeEvent(
   });
 }
 
+async function recordRoute(
+  session: { organizationId: string; userId: string },
+  ticketId: string,
+  source: "claim" | "assign",
+  fromAgentId: string | null,
+  toAgentId: string
+) {
+  const route = await recordRouteEvent(createAdminClient(), {
+    organizationId: session.organizationId,
+    ticketId,
+    source,
+    fromAgentId,
+    toAgentId,
+    actorId: session.userId,
+  });
+  if (route.pingPong)
+    await writeEvent(session, ticketId, "routing.ping_pong", {
+      reassignments: PING_PONG_THRESHOLD,
+    });
+}
+
 async function updateTicket(
   ticketId: string,
   organizationId: string,
@@ -111,6 +136,13 @@ export async function claimTicket(ticketId: string): Promise<Result> {
   });
   if (result.error) return { error: "Unable to claim ticket." };
   await writeEvent(found.session, ticketId, "employee.claimed");
+  await recordRoute(
+    found.session,
+    ticketId,
+    "claim",
+    null,
+    found.session.userId
+  );
   await recordAudit(found.session, "ticket.claim", ticketId);
   await notifyRequester("ticket.assigned", found.ticket, {
     status: "In Progress",
@@ -157,6 +189,13 @@ export async function assignTicket(
   await writeEvent(found.session, ticketId, "employee.assigned", {
     agentUserId,
   });
+  await recordRoute(
+    found.session,
+    ticketId,
+    "assign",
+    found.ticket.assigned_agent_id ?? null,
+    agentUserId
+  );
   await recordAudit(found.session, "ticket.assign", ticketId);
   await notifyRequester("ticket.assigned", found.ticket, {
     status: "In Progress",

@@ -9,17 +9,20 @@ import {
 } from "lucide-react";
 import { AutonomyMetricsCard } from "@/components/admin/resolution/autonomy-metrics-card";
 import { AnswerEngineCard } from "@/components/admin/resolution/answer-engine-card";
+import { RouteMetricsCard } from "@/components/admin/resolution/route-metrics-card";
 import { OutcomeFeedbackPanel } from "@/components/admin/resolution/outcome-feedback-panel";
 import { ResolutionCenterTable } from "@/components/admin/resolution/resolution-center-table";
 import { ResolutionTabs } from "@/components/admin/resolution/resolution-tabs";
 import { AuditChainExportForm } from "./audit-chain-export-form";
 import { getAutonomyMetrics } from "@/lib/analytics/autonomy-metrics";
 import { loadAnswerEngineMetrics } from "@/lib/analytics/answer-engine-metrics";
+import { loadRouteMetrics } from "@/lib/analytics/route-metrics";
 import { requireAdminPage } from "@/lib/admin/auth";
 import {
   isOutcomeFeedbackEnabled,
   isResolutionCenterEnabled,
   isAnswerEngineEnabled,
+  isTicketRouteEventsEnabled,
 } from "@/lib/admin/flags";
 import { getResolutionCenterOverview } from "@/lib/admin/resolution-center";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -57,11 +60,18 @@ export default async function ResolutionCenterPage({
   const showExcluded =
     session.role === "org_admin" && params.showExcluded === "1";
   const admin = createAdminClient();
-  const [overview, autonomyMetrics, answerEngineMetrics] = await Promise.all([
-    getResolutionCenterOverview(session, { showExcluded }),
-    getAutonomyMetrics(session, { showExcluded }),
-    loadAnswerEngineMetrics(admin, session.organizationId, { windowDays: 30 }),
-  ]);
+  const routeEventsEnabled = isTicketRouteEventsEnabled();
+  const [overview, autonomyMetrics, answerEngineMetrics, routeMetrics] =
+    await Promise.all([
+      getResolutionCenterOverview(session, { showExcluded }),
+      getAutonomyMetrics(session, { showExcluded }),
+      loadAnswerEngineMetrics(admin, session.organizationId, {
+        windowDays: 30,
+      }),
+      routeEventsEnabled
+        ? loadRouteMetrics(admin, session.organizationId, { windowDays: 30 })
+        : Promise.resolve(null),
+    ]);
   const status = params.status?.toLowerCase();
   const runs = overview.runs.filter((run) => {
     if (!status) return true;
@@ -151,6 +161,7 @@ export default async function ResolutionCenterPage({
         metrics={answerEngineMetrics}
         enabled={isAnswerEngineEnabled()}
       />
+      {routeEventsEnabled && <RouteMetricsCard metrics={routeMetrics} />}
       {session.role === "org_admin" && <AuditChainExportForm />}
       {isOutcomeFeedbackEnabled() && (
         <OutcomeFeedbackPanel

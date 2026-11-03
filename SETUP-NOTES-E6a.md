@@ -38,8 +38,18 @@ after `ticket-workflow.sql` and `wave-3-organizations.sql`, and turn the flag on
 only after it is applied. Org members can read; writes go through the service
 role. Rollback is in the file's comments and drops routing history.
 
-## Not in E6a (planned for E6b)
+## E6b — routing card and triage review cases
 
-Up to 2 clarifying questions when triage confidence is low (using the org
-profile), the admin reroute-rate card, and turning staff reroutes into triage
-eval cases.
+With the same flag on, the AI Resolution Center (`/admin/resolution`) shows a
+"Ticket routing" card for the last 30 days: reroute rate, ping-pong ticket
+count, and up to 10 **triage review cases** (rerouted tickets, most rerouted
+first, with category and the triage result: suggested guide or handoff
+reason). These are the staff corrections to turn into triage evaluation cases.
+Only ticket metadata is read; no ticket text. `loadRouteMetrics` pages route
+events in batches of 1,000 and returns `null` (card shows "Not installed") if
+the table is missing. No new SQL.
+
+## Not yet built (E6c)
+
+Up to 2 clarifying questions when triage confidence is low, using the org
+profile to skip questions it already answers.

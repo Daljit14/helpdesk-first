@@ -121,6 +121,10 @@ is rerouted 3 times. Recording fails open. Release gate
 `supabase/ticket-route-events.sql` has not been applied. See
 `SETUP-NOTES-E6a.md`.
 
+E6b adds a "Ticket routing" card to the AI Resolution Center behind the same
+flag: 30-day reroute rate, ping-pong tickets, and rerouted tickets listed as
+triage review cases (metadata only). No new SQL.
+
 ## Phase E — E5b requester guide hold
 
 E5b adds `HELP_DESK_KNOWLEDGE_GUIDE_HOLD_MODE` (`off` by default; needs

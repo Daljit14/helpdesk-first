@@ -136,7 +136,29 @@ export async function triageWorkflowTicket(params: {
         alreadyAsked: clarifyRound,
         categoryId: matched?.category ?? issue?.category ?? null,
       });
-      if (questions.length > 0) {
+      const recorded =
+        questions.length > 0
+          ? await admin.from("ticket_system_events").insert({
+              ticket_id: ticketId,
+              organization_id: organizationId,
+              event_type: CLARIFY_EVENT,
+              actor_type: "ai",
+              actor_id: null,
+              detail: {
+                questionIds: questions.map((question) => question.id),
+                reason: decision.resolver === "human" ? decision.reason : null,
+              },
+            })
+          : null;
+      if (recorded?.error) {
+        console.warn(
+          JSON.stringify({
+            event: "tickets.smart_intake.event_rejected",
+            ticketId,
+            message: recorded.error.message,
+          })
+        );
+      } else if (recorded) {
         await admin
           .from("tickets")
           .update({
@@ -156,10 +178,6 @@ export async function triageWorkflowTicket(params: {
             organizationId,
             clarifyCommentText(questions)
           ),
-        });
-        await event(ticketId, organizationId, CLARIFY_EVENT, "ai", null, {
-          questionIds: questions.map((question) => question.id),
-          reason: decision.resolver === "human" ? decision.reason : null,
         });
         await notifyRequester("info.requested", {
           id: ticketId,

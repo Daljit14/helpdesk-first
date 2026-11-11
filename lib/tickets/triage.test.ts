@@ -312,4 +312,53 @@ describe("triageWorkflowTicket", () => {
       vi.unstubAllEnvs();
     }
   });
+  it("hands off normally when the clarify event is rejected by the database", async () => {
+    vi.stubEnv("HELP_DESK_SMART_INTAKE_ENABLED", "true");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    mocks.runInvestigationTurn.mockResolvedValue({
+      status: "success",
+      output: { decision: "clarify", confidence: 0.4 },
+    });
+    const updates: Record<string, unknown>[] = [];
+    const chain = {
+      update: vi.fn((value: Record<string, unknown>) => {
+        updates.push(value);
+        return chain;
+      }),
+      eq: vi.fn(() => chain),
+    };
+    mocks.createAdminClient.mockReturnValue({
+      from: vi.fn((table: string) =>
+        table === "tickets"
+          ? chain
+          : {
+              insert: vi.fn(async (value: Record<string, unknown>) =>
+                value.event_type === "ai.clarify_requested"
+                  ? { error: { message: "violates check constraint" } }
+                  : { error: null }
+              ),
+            }
+      ),
+    });
+    try {
+      await triageWorkflowTicket({
+        ticketId: "ticket-1",
+        organizationId: "org-1",
+        userId: "user-1",
+        issue: null,
+        message: "Something is broken",
+        platform: "Windows",
+        diagnosticAnswers: [],
+        due: "2026-01-01T00:00:00.000Z",
+      });
+      expect(updates).toEqual([
+        expect.objectContaining({ status: "Needs Human" }),
+      ]);
+      expect(warn).toHaveBeenCalled();
+      expect(mocks.notifyEmployeesOfHandoff).toHaveBeenCalledOnce();
+    } finally {
+      vi.unstubAllEnvs();
+      warn.mockRestore();
+    }
+  });
 });

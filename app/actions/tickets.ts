@@ -29,6 +29,10 @@ import { attachTicketAttachments } from "@/lib/attachments/server";
 import { resolveOrganizationForUser } from "@/lib/org/membership";
 import { event } from "@/lib/tickets/events";
 import { triageWorkflowTicket } from "@/lib/tickets/triage";
+import {
+  CLARIFY_EVENT,
+  rebuildClarifyAnswers,
+} from "@/lib/tickets/smart-intake";
 import { completeUserHandoff } from "@/lib/tickets/handoff";
 import { createKnowledgeDraftForTicket } from "@/lib/knowledge/learning";
 import { isAutonomousExecutionEnabled } from "@/lib/autonomy/config";
@@ -246,7 +250,9 @@ export async function addUserComment(
   const admin = createAdminClient();
   const ticket = await admin
     .from("tickets")
-    .select("id,organization_id,issue_title,assigned_agent_id")
+    .select(
+      "id,organization_id,issue_title,assigned_agent_id,status,resolver_type,ai_question_count"
+    )
     .eq("id", ticketId)
     .eq("user_id", user.id)
     .maybeSingle();
@@ -292,8 +298,89 @@ export async function addUserComment(
     publicReplyExcerpt: body.data,
     actorRole: "requester",
   });
+  // Not gated on the flag: tickets already waiting must still resume (and hand
+  // off) after the flag is turned off.
+  if (
+    ticket.data.organization_id &&
+    ticket.data.resolver_type === "ai" &&
+    ticket.data.status === "Waiting for User" &&
+    !ticket.data.assigned_agent_id &&
+    (ticket.data.ai_question_count ?? 0) > 0
+  ) {
+    await resumeSmartIntake(admin, ticketId, user.id);
+  }
   revalidatePath(`/tickets/${ticketId}`);
   return { success: true };
+}
+
+/** Re-triage a ticket after the requester answers smart-intake questions. */
+async function resumeSmartIntake(
+  admin: ReturnType<typeof createAdminClient>,
+  ticketId: string,
+  userId: string
+) {
+  const [{ data: row }, { data: asked }, { data: replies }] = await Promise.all(
+    [
+      admin
+        .from("tickets")
+        .select(
+          "id,organization_id,issue_id,platform,message,diagnostic_answers,ai_question_count,human_response_due_at"
+        )
+        .eq("id", ticketId)
+        .eq("user_id", userId)
+        .maybeSingle(),
+      admin
+        .from("ticket_system_events")
+        .select("created_at,detail")
+        .eq("ticket_id", ticketId)
+        .eq("event_type", CLARIFY_EVENT)
+        .order("created_at", { ascending: true }),
+      admin
+        .from("ticket_comments")
+        .select("organization_id,message,created_at")
+        .eq("ticket_id", ticketId)
+        .eq("author_type", "user")
+        .eq("author_id", userId)
+        .order("created_at", { ascending: true }),
+    ]
+  );
+  if (!row?.organization_id || !asked?.length) return;
+  const answers = rebuildClarifyAnswers(
+    asked,
+    await decryptCommentRows(admin, replies ?? [])
+  );
+  if (answers.length === 0) return;
+  const diagnosticAnswers = [
+    ...(Array.isArray(row.diagnostic_answers) ? row.diagnostic_answers : []),
+    ...answers,
+  ];
+  const updated = await admin
+    .from("tickets")
+    .update({ status: "AI Reviewing" })
+    .eq("id", ticketId)
+    .eq("organization_id", row.organization_id)
+    .eq("status", "Waiting for User")
+    .select("id")
+    .maybeSingle();
+  if (!updated.data) return;
+  const decrypted = await decryptTicketRow(admin, row);
+  const triage = () =>
+    triageWorkflowTicket({
+      ticketId,
+      organizationId: row.organization_id,
+      userId,
+      issue: getIssueBySlug(row.issue_id) ?? null,
+      message: decrypted.message ?? "",
+      platform: row.platform ?? "Other",
+      diagnosticAnswers,
+      due: row.human_response_due_at ?? new Date().toISOString(),
+      clarifyRound: row.ai_question_count ?? 0,
+    });
+  try {
+    after(triage);
+  } catch {
+    void triage();
+  }
 }
 
 export async function verifyTicket(

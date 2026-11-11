@@ -22,6 +22,13 @@ import {
 import { detectSafetyFlags, routeTicket } from "@/lib/tickets/routing";
 import type { Issue } from "@/lib/issues";
 import { encryptCommentForWrite } from "@/lib/security/ticket-crypto";
+import {
+  CLARIFY_EVENT,
+  clarifyCommentText,
+  pickClarifyingQuestions,
+  profileAnsweredIds,
+  shouldClarify,
+} from "@/lib/tickets/smart-intake";
 
 export async function triageWorkflowTicket(params: {
   ticketId: string;
@@ -35,6 +42,8 @@ export async function triageWorkflowTicket(params: {
     answer: string;
   }>;
   due: string;
+  /** Smart-intake questions already asked on this ticket. */
+  clarifyRound?: number;
 }): Promise<void> {
   const {
     ticketId,
@@ -45,6 +54,7 @@ export async function triageWorkflowTicket(params: {
     platform,
     diagnosticAnswers,
     due,
+    clarifyRound = 0,
   } = params;
   let admin: ReturnType<typeof createAdminClient> | null = null;
 
@@ -104,6 +114,62 @@ export async function triageWorkflowTicket(params: {
         [message, ...diagnosticAnswers.map((answer) => answer.answer)].join(" ")
       ),
     });
+    const safetyFlags = detectSafetyFlags(
+      [message, ...diagnosticAnswers.map((answer) => answer.answer)].join(" ")
+    );
+    if (
+      organizationId &&
+      shouldClarify({
+        decision,
+        ai: output,
+        safetyFlags,
+        alreadyAsked: clarifyRound,
+        organizationId,
+      })
+    ) {
+      const questions = pickClarifyingQuestions({
+        proposedIds: output.diagnosticQuestionIds ?? [],
+        answeredIds: [
+          ...diagnosticAnswers.map((answer) => answer.questionId),
+          ...(await profileAnsweredIds(admin, organizationId)),
+        ],
+        alreadyAsked: clarifyRound,
+        categoryId: matched?.category ?? issue?.category ?? null,
+      });
+      if (questions.length > 0) {
+        await admin
+          .from("tickets")
+          .update({
+            status: "Waiting for User",
+            resolver_type: "ai",
+            ai_question_count: clarifyRound + questions.length,
+          })
+          .eq("id", ticketId)
+          .eq("organization_id", organizationId);
+        await admin.from("ticket_comments").insert({
+          ticket_id: ticketId,
+          organization_id: organizationId,
+          author_type: "ai",
+          visibility: "public",
+          message: await encryptCommentForWrite(
+            admin,
+            organizationId,
+            clarifyCommentText(questions)
+          ),
+        });
+        await event(ticketId, organizationId, CLARIFY_EVENT, "ai", null, {
+          questionIds: questions.map((question) => question.id),
+          reason: decision.resolver === "human" ? decision.reason : null,
+        });
+        await notifyRequester("info.requested", {
+          id: ticketId,
+          user_id: userId,
+          issue_title: issue?.title ?? "IT support request",
+          status: "Waiting for User",
+        });
+        return;
+      }
+    }
     const update =
       decision.resolver === "ai"
         ? {

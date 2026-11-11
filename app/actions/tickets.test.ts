@@ -21,6 +21,7 @@ vi.mock("@/lib/admin/flags", () => ({
   isOrgEnvironmentEnabled: vi.fn(() => false),
   isSecureAttachmentsEnabled: vi.fn(() => false),
   getKnowledgeGuideHoldMode: vi.fn(() => "off"),
+  isSmartIntakeEnabled: vi.fn(() => false),
 }));
 vi.mock("@/lib/supabase/user", () => ({
   getCurrentUser: mocks.getCurrentUser,

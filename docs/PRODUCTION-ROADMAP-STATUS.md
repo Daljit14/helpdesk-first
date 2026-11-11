@@ -125,6 +125,13 @@ E6b adds a "Ticket routing" card to the AI Resolution Center behind the same
 flag: 30-day reroute rate, ping-pong tickets, and rerouted tickets listed as
 triage review cases (metadata only). No new SQL.
 
+E6c adds smart intake behind `HELP_DESK_SMART_INTAKE_ENABLED` (default off):
+when triage would hand off for low confidence or no guide, the AI asks up to 2
+clarifying questions on the ticket (skipping ones the org environment profile
+already answers), waits in `Waiting for User`, and re-triages on the
+requester's reply. Safety, human-request and high-risk handoffs are never
+delayed. No new SQL. See `SETUP-NOTES-E6c.md`.
+
 ## Phase E — E5b requester guide hold
 
 E5b adds `HELP_DESK_KNOWLEDGE_GUIDE_HOLD_MODE` (`off` by default; needs

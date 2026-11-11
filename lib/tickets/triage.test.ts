@@ -239,4 +239,77 @@ describe("triageWorkflowTicket", () => {
       })
     );
   });
+  it("asks up to two clarifying questions instead of handing off when smart intake is on", async () => {
+    vi.stubEnv("HELP_DESK_SMART_INTAKE_ENABLED", "true");
+    mocks.runInvestigationTurn.mockResolvedValue({
+      status: "success",
+      output: {
+        decision: "clarify",
+        confidence: 0.4,
+        diagnosticQuestionIds: ["error-message"],
+      },
+    });
+    const updates: Record<string, unknown>[] = [];
+    const inserts: Array<{ table: string; value: Record<string, unknown> }> =
+      [];
+    const chain = {
+      update: vi.fn((value: Record<string, unknown>) => {
+        updates.push(value);
+        return chain;
+      }),
+      eq: vi.fn(() => chain),
+    };
+    mocks.createAdminClient.mockReturnValue({
+      from: vi.fn((table: string) =>
+        table === "tickets"
+          ? chain
+          : {
+              insert: vi.fn(async (value: Record<string, unknown>) => {
+                inserts.push({ table, value });
+                return { error: null };
+              }),
+            }
+      ),
+    });
+    const params = {
+      ticketId: "ticket-1",
+      organizationId: "org-1",
+      userId: "user-1",
+      issue: null,
+      message: "Something is broken",
+      platform: "Windows",
+      diagnosticAnswers: [],
+      due: "2026-01-01T00:00:00.000Z",
+    };
+    try {
+      await triageWorkflowTicket(params);
+      expect(updates).toEqual([
+        {
+          status: "Waiting for User",
+          resolver_type: "ai",
+          ai_question_count: 2,
+        },
+      ]);
+      expect(
+        inserts.find((item) => item.table === "ticket_system_events")?.value
+      ).toMatchObject({
+        event_type: "ai.clarify_requested",
+        detail: { questionIds: ["error-message", "when-started"] },
+      });
+      expect(mocks.notifyRequester).toHaveBeenCalledWith(
+        "info.requested",
+        expect.objectContaining({ id: "ticket-1" })
+      );
+      expect(mocks.notifyEmployeesOfHandoff).not.toHaveBeenCalled();
+
+      updates.length = 0;
+      await triageWorkflowTicket({ ...params, clarifyRound: 2 });
+      expect(updates).toEqual([
+        expect.objectContaining({ status: "Needs Human" }),
+      ]);
+      expect(mocks.notifyEmployeesOfHandoff).toHaveBeenCalledOnce();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
 });

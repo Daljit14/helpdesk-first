@@ -30,7 +30,10 @@ import { attachTicketAttachments } from "@/lib/attachments/server";
 import { resolveOrganizationForUser } from "@/lib/org/membership";
 import { event } from "@/lib/tickets/events";
 import { triageWorkflowTicket } from "@/lib/tickets/triage";
-import { answersFromReply, CLARIFY_EVENT } from "@/lib/tickets/smart-intake";
+import {
+  CLARIFY_EVENT,
+  rebuildClarifyAnswers,
+} from "@/lib/tickets/smart-intake";
 import { completeUserHandoff } from "@/lib/tickets/handoff";
 import { createKnowledgeDraftForTicket } from "@/lib/knowledge/learning";
 import { isAutonomousExecutionEnabled } from "@/lib/autonomy/config";
@@ -316,37 +319,44 @@ async function resumeSmartIntake(
   userId: string,
   reply: string
 ) {
-  const [{ data: row }, { data: asked }] = await Promise.all([
-    admin
-      .from("tickets")
-      .select(
-        "id,organization_id,issue_id,platform,message,diagnostic_answers,ai_question_count,human_response_due_at"
-      )
-      .eq("id", ticketId)
-      .eq("user_id", userId)
-      .maybeSingle(),
-    admin
-      .from("ticket_system_events")
-      .select("detail")
-      .eq("ticket_id", ticketId)
-      .eq("event_type", CLARIFY_EVENT)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-  ]);
-  const questionIds = Array.isArray(asked?.detail?.questionIds)
-    ? (asked.detail.questionIds as unknown[]).filter(
-        (id): id is string => typeof id === "string"
-      )
-    : [];
-  if (!row?.organization_id || questionIds.length === 0) return;
+  const [{ data: row }, { data: asked }, { data: replies }] = await Promise.all(
+    [
+      admin
+        .from("tickets")
+        .select(
+          "id,organization_id,issue_id,platform,message,diagnostic_answers,ai_question_count,human_response_due_at"
+        )
+        .eq("id", ticketId)
+        .eq("user_id", userId)
+        .maybeSingle(),
+      admin
+        .from("ticket_system_events")
+        .select("created_at,detail")
+        .eq("ticket_id", ticketId)
+        .eq("event_type", CLARIFY_EVENT)
+        .order("created_at", { ascending: true }),
+      admin
+        .from("ticket_comments")
+        .select("organization_id,message,created_at")
+        .eq("ticket_id", ticketId)
+        .eq("author_type", "user")
+        .eq("author_id", userId)
+        .order("created_at", { ascending: true }),
+    ]
+  );
+  if (!row?.organization_id || !asked?.length) return;
+  const answers = rebuildClarifyAnswers(
+    asked,
+    await decryptCommentRows(admin, replies ?? [])
+  );
+  if (answers.length === 0) return;
   const diagnosticAnswers = [
     ...(Array.isArray(row.diagnostic_answers) ? row.diagnostic_answers : []),
-    ...answersFromReply(questionIds, reply),
+    ...answers,
   ];
   const updated = await admin
     .from("tickets")
-    .update({ status: "AI Reviewing", diagnostic_answers: diagnosticAnswers })
+    .update({ status: "AI Reviewing" })
     .eq("id", ticketId)
     .eq("organization_id", row.organization_id)
     .eq("status", "Waiting for User")

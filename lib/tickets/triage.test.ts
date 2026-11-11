@@ -287,14 +287,14 @@ describe("triageWorkflowTicket", () => {
         {
           status: "Waiting for User",
           resolver_type: "ai",
-          ai_question_count: 2,
+          ai_question_count: 1,
         },
       ]);
       expect(
         inserts.find((item) => item.table === "ticket_system_events")?.value
       ).toMatchObject({
         event_type: "ai.clarify_requested",
-        detail: { questionIds: ["error-message", "when-started"] },
+        detail: { questionIds: ["error-message"] },
       });
       expect(mocks.notifyRequester).toHaveBeenCalledWith(
         "info.requested",

@@ -55,7 +55,13 @@ const ticketId = "00000000-0000-4000-8000-000000000001";
 
 function setup(
   ticket: Record<string, unknown>,
-  questionIds = ["error-message"]
+  replies = [
+    {
+      organization_id: "org-1",
+      message: "Error 0x1 since Monday",
+      created_at: "2026-01-01T10:05:00Z",
+    },
+  ]
 ) {
   mocks.ticket = ticket;
   mocks.updates = [];
@@ -71,13 +77,25 @@ function setup(
         mocks.updates.push(value);
         return query;
       };
-      query.maybeSingle = async () => {
-        if (table === "ticket_system_events")
-          return { data: { detail: { questionIds } }, error: null };
-        if (mocks.updates.length > 0)
-          return { data: { id: ticketId }, error: null };
-        return { data: mocks.ticket, error: null };
-      };
+      query.maybeSingle = async () =>
+        mocks.updates.length > 0
+          ? { data: { id: ticketId }, error: null }
+          : { data: mocks.ticket, error: null };
+      query.then = (resolve: (value: unknown) => void) =>
+        resolve({
+          data:
+            table === "ticket_system_events"
+              ? [
+                  {
+                    created_at: "2026-01-01T10:00:00Z",
+                    detail: { questionIds: ["error-message"] },
+                  },
+                ]
+              : table === "ticket_comments"
+                ? replies
+                : [],
+          error: null,
+        });
       return query;
     },
   });
@@ -89,7 +107,8 @@ const waiting = {
   issue_title: "IT support request",
   assigned_agent_id: null,
   status: "Waiting for User",
-  ai_question_count: 2,
+  resolver_type: "ai",
+  ai_question_count: 1,
   issue_id: "workflow-intake",
   platform: "Windows",
   message: "Something is broken",
@@ -103,38 +122,27 @@ afterEach(() => {
 });
 
 describe("addUserComment smart intake", () => {
-  test("stores the reply as answers and re-runs triage", async () => {
-    setup(waiting, ["error-message", "when-started"]);
+  test("rebuilds the answer from the reply and re-runs triage", async () => {
+    setup(waiting);
     await expect(
       addUserComment(ticketId, "Error 0x1 since Monday")
-    ).resolves.toEqual({
-      success: true,
-    });
-    expect(mocks.updates).toEqual([
-      {
-        status: "AI Reviewing",
-        diagnostic_answers: [
-          { questionId: "which-platform", answer: "Windows" },
-          { questionId: "error-message", answer: "Error 0x1 since Monday" },
-          { questionId: "when-started", answer: "Error 0x1 since Monday" },
-        ],
-      },
-    ]);
+    ).resolves.toEqual({ success: true });
+    expect(mocks.updates).toEqual([{ status: "AI Reviewing" }]);
     expect(mocks.triageWorkflowTicket).toHaveBeenCalledWith(
       expect.objectContaining({
         ticketId,
         organizationId: "org-1",
         message: "Something is broken",
-        clarifyRound: 2,
+        clarifyRound: 1,
+        diagnosticAnswers: [
+          { questionId: "which-platform", answer: "Windows" },
+          { questionId: "error-message", answer: "Error 0x1 since Monday" },
+        ],
       })
     );
   });
 
-  test("does nothing extra when the flag is off or staff own the ticket", async () => {
-    mocks.isSmartIntakeEnabled.mockReturnValue(false);
-    setup(waiting);
-    await addUserComment(ticketId, "More detail");
-    mocks.isSmartIntakeEnabled.mockReturnValue(true);
+  test("does nothing extra when staff own the ticket or it is not waiting", async () => {
     setup({ ...waiting, assigned_agent_id: "staff-1" });
     await addUserComment(ticketId, "More detail");
     setup({ ...waiting, status: "In Progress" });

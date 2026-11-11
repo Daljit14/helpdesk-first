@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import {
-  answersFromReply,
   clarifyCommentText,
   pickClarifyingQuestions,
+  rebuildClarifyAnswers,
   shouldClarify,
   SMART_INTAKE_MAX_QUESTIONS,
 } from "./smart-intake";
@@ -66,17 +66,14 @@ describe("shouldClarify", () => {
 });
 
 describe("pickClarifyingQuestions", () => {
-  test("prefers model questions, skips answered ones and caps at two", () => {
+  test("asks one question per round, preferring unanswered model questions", () => {
     const questions = pickClarifyingQuestions({
       proposedIds: ["which-platform", "network-owner", "already-restarted"],
       answeredIds: ["which-platform"],
       alreadyAsked: 0,
       categoryId: "network",
     });
-    expect(questions.map((question) => question.id)).toEqual([
-      "network-owner",
-      "error-message",
-    ]);
+    expect(questions.map((question) => question.id)).toEqual(["network-owner"]);
   });
 
   test("only fills the remaining slot after one question was asked", () => {
@@ -100,16 +97,35 @@ describe("pickClarifyingQuestions", () => {
 });
 
 describe("reply helpers", () => {
-  test("numbers questions and maps a reply to every pending question", () => {
+  test("numbers the questions in the comment", () => {
     expect(
       clarifyCommentText([
         { id: "a", text: "First?" },
         { id: "b", text: "Second?" },
       ])
     ).toContain("1. First?\n2. Second?");
-    expect(answersFromReply(["a", "b"], "  It says 0x80070005 ")).toEqual([
-      { questionId: "a", answer: "It says 0x80070005" },
-      { questionId: "b", answer: "It says 0x80070005" },
+  });
+
+  test("pairs each question with the first reply after it", () => {
+    const events = [
+      { created_at: "2026-01-01T10:00:00Z", detail: { questionIds: ["a"] } },
+      { created_at: "2026-01-01T11:00:00Z", detail: { questionIds: ["b"] } },
+    ];
+    expect(
+      rebuildClarifyAnswers(events, [
+        { created_at: "2026-01-01T09:00:00Z", message: "before any question" },
+        { created_at: "2026-01-01T10:30:00Z", message: " Error 0x1 " },
+        { created_at: "2026-01-01T10:40:00Z", message: "second reply" },
+        { created_at: "2026-01-01T11:10:00Z", message: "Since Monday" },
+      ])
+    ).toEqual([
+      { questionId: "a", answer: "Error 0x1" },
+      { questionId: "b", answer: "Since Monday" },
     ]);
+    expect(
+      rebuildClarifyAnswers(events, [
+        { created_at: "2026-01-01T10:30:00Z", message: "Error 0x1" },
+      ])
+    ).toEqual([{ questionId: "a", answer: "Error 0x1" }]);
   });
 });

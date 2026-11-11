@@ -13,6 +13,8 @@ import type { createAdminClient } from "@/lib/supabase/admin";
 
 export const SMART_INTAKE_MAX_QUESTIONS = 2;
 export const CLARIFY_EVENT = "ai.clarify_requested";
+/** One question per round, so each reply answers exactly one question. */
+const QUESTIONS_PER_ROUND = 1;
 
 const CLARIFY_REASONS = new Set([
   "low_confidence",
@@ -51,7 +53,10 @@ export function pickClarifyingQuestions(input: {
   alreadyAsked: number;
   categoryId: string | null;
 }): DiagnosticQuestion[] {
-  const remaining = SMART_INTAKE_MAX_QUESTIONS - input.alreadyAsked;
+  const remaining = Math.min(
+    QUESTIONS_PER_ROUND,
+    SMART_INTAKE_MAX_QUESTIONS - input.alreadyAsked
+  );
   if (remaining <= 0) return [];
   const answered = new Set(input.answeredIds);
   const ordered = [
@@ -94,10 +99,41 @@ export function clarifyCommentText(questions: DiagnosticQuestion[]): string {
   ].join("\n");
 }
 
-export function answersFromReply(
-  questionIds: string[],
-  reply: string
+type ClarifyEvent = { created_at: string; detail: unknown };
+type Reply = { created_at: string; message: string | null };
+
+function questionIdsOf(detail: unknown): string[] {
+  const ids = (detail as { questionIds?: unknown } | null)?.questionIds;
+  return Array.isArray(ids)
+    ? ids.filter((id): id is string => typeof id === "string")
+    : [];
+}
+
+/**
+ * Pairs each asked question with the requester's first reply after it (and
+ * before the next question). Answers are rebuilt from the encrypted comments
+ * on every round instead of being copied into plaintext ticket fields.
+ */
+export function rebuildClarifyAnswers(
+  events: ClarifyEvent[],
+  replies: Reply[]
 ): Array<{ questionId: string; answer: string }> {
-  const answer = reply.trim().slice(0, 500);
-  return questionIds.map((questionId) => ({ questionId, answer }));
+  const byTime = <T extends { created_at: string }>(rows: T[]) =>
+    [...rows].sort((left, right) =>
+      left.created_at.localeCompare(right.created_at)
+    );
+  const asked = byTime(events);
+  const sortedReplies = byTime(replies);
+  const answers: Array<{ questionId: string; answer: string }> = [];
+  asked.forEach((event, index) => {
+    const [questionId] = questionIdsOf(event.detail);
+    const next = asked[index + 1]?.created_at;
+    const reply = sortedReplies.find(
+      (row) =>
+        row.created_at > event.created_at && (!next || row.created_at <= next)
+    );
+    const answer = reply?.message?.trim().slice(0, 500);
+    if (questionId && answer) answers.push({ questionId, answer });
+  });
+  return answers;
 }

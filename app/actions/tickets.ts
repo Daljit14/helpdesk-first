@@ -5,7 +5,6 @@ import { after } from "next/server";
 import { z } from "zod";
 import {
   isSecureAttachmentsEnabled,
-  isSmartIntakeEnabled,
   isTicketWorkflowEnabled,
   isUserPortalEnabled,
 } from "@/lib/admin/flags";
@@ -252,7 +251,7 @@ export async function addUserComment(
   const ticket = await admin
     .from("tickets")
     .select(
-      "id,organization_id,issue_title,assigned_agent_id,status,ai_question_count"
+      "id,organization_id,issue_title,assigned_agent_id,status,resolver_type,ai_question_count"
     )
     .eq("id", ticketId)
     .eq("user_id", user.id)
@@ -299,14 +298,16 @@ export async function addUserComment(
     publicReplyExcerpt: body.data,
     actorRole: "requester",
   });
+  // Not gated on the flag: tickets already waiting must still resume (and hand
+  // off) after the flag is turned off.
   if (
-    isSmartIntakeEnabled() &&
     ticket.data.organization_id &&
+    ticket.data.resolver_type === "ai" &&
     ticket.data.status === "Waiting for User" &&
     !ticket.data.assigned_agent_id &&
     (ticket.data.ai_question_count ?? 0) > 0
   ) {
-    await resumeSmartIntake(admin, ticketId, user.id, body.data);
+    await resumeSmartIntake(admin, ticketId, user.id);
   }
   revalidatePath(`/tickets/${ticketId}`);
   return { success: true };
@@ -316,8 +317,7 @@ export async function addUserComment(
 async function resumeSmartIntake(
   admin: ReturnType<typeof createAdminClient>,
   ticketId: string,
-  userId: string,
-  reply: string
+  userId: string
 ) {
   const [{ data: row }, { data: asked }, { data: replies }] = await Promise.all(
     [

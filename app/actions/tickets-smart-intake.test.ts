@@ -142,10 +142,20 @@ describe("addUserComment smart intake", () => {
     );
   });
 
+  test("still resumes waiting tickets after the flag is turned off", async () => {
+    mocks.isSmartIntakeEnabled.mockReturnValue(false);
+    setup(waiting);
+    await addUserComment(ticketId, "Error 0x1 since Monday");
+    expect(mocks.updates).toEqual([{ status: "AI Reviewing" }]);
+    expect(mocks.triageWorkflowTicket).toHaveBeenCalledOnce();
+  });
+
   test("does nothing extra when staff own the ticket or it is not waiting", async () => {
     setup({ ...waiting, assigned_agent_id: "staff-1" });
     await addUserComment(ticketId, "More detail");
     setup({ ...waiting, status: "In Progress" });
+    await addUserComment(ticketId, "More detail");
+    setup({ ...waiting, resolver_type: "unassigned" });
     await addUserComment(ticketId, "More detail");
     expect(mocks.updates).toEqual([]);
     expect(mocks.triageWorkflowTicket).not.toHaveBeenCalled();

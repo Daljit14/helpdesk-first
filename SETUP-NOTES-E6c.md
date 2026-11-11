@@ -1,7 +1,8 @@
 # E6c — smart intake: clarifying questions before handoff
 
 When triage is unsure, the AI asks the requester up to 2 clarifying questions
-on the ticket instead of handing it straight to IT. Off by default.
+on the ticket, one per round, instead of handing it straight to IT. Off by
+default.
 
 ## Flow
 
@@ -19,9 +20,12 @@ on the ticket instead of handing it straight to IT. Off by default.
    `ai.clarify_requested` event records the question IDs, and the requester gets
    an `info.requested` notification. No staff handoff yet.
 4. When the requester replies (`addUserComment`) on a `Waiting for User`,
-   unassigned ticket with smart-intake questions, the reply is stored as the
-   answer to those questions, the ticket returns to `AI Reviewing`, and triage
-   runs again with `clarifyRound = ai_question_count`.
+   unassigned, AI-owned ticket with smart-intake questions, the ticket returns
+   to `AI Reviewing` and triage runs again with
+   `clarifyRound = ai_question_count`. Answers are rebuilt each round from the
+   requester's (encrypted) comments with `rebuildClarifyAnswers`; they are never
+   copied into plaintext ticket fields. This resume path is not gated on the
+   flag, so tickets already waiting still hand off after a rollback.
 5. After 2 questions, triage hands off normally. Safety flags, explicit human
    requests, repeated failures and high-risk guides are never delayed.
 
@@ -31,11 +35,12 @@ on the ticket instead of handing it straight to IT. Off by default.
 HELP_DESK_SMART_INTAKE_ENABLED=false
 ```
 
-Needs `HELP_DESK_TICKET_WORKFLOW_ENABLED=true`. No new SQL: it uses the existing
-`Waiting for User` status, `ai_question_count`, `ticket_comments` and
-`ticket_system_events`.
+Needs `HELP_DESK_TICKET_WORKFLOW_ENABLED=true` and
+`supabase/smart-intake-events.sql`, which adds `ai.clarify_requested` (and the
+E6a `routing.ping_pong` alert) to the allowed `ticket_system_events` types.
+Without it the clarify event is rejected and triage hands off as before.
 
 ## Rollback
 
-Set the flag to `false`. Tickets already waiting stay in `Waiting for User`
-until the requester replies or staff pick them up from the queue.
+Set the flag to `false`. Tickets already waiting re-triage and hand off on
+the requester's next reply, or staff can pick them up from the queue.

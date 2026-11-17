@@ -33,6 +33,7 @@ Prerequisite migrations listed in each SETUP-NOTES file must already be applied.
 
 1. `supabase/knowledge-freshness.sql` (E5a, #168/#170) — after `knowledge-governance.sql` and `knowledge-health.sql`. Applied to production on 2026-11-01 in one transaction; no feature flags were changed.
 2. `supabase/ticket-route-events.sql` (E6a) — after `ticket-workflow.sql` and `wave-3-organizations.sql`. Not yet applied.
+3. `supabase/smart-intake-events.sql` (E6a/E6c) — after `wave-1-2-remediation.sql`; adds `routing.ping_pong` and `ai.clarify_requested` event types. Not yet applied.
 
 ## Phase E — E0 small follow-ups
 
@@ -124,6 +125,13 @@ is rerouted 3 times. Recording fails open. Release gate
 E6b adds a "Ticket routing" card to the AI Resolution Center behind the same
 flag: 30-day reroute rate, ping-pong tickets, and rerouted tickets listed as
 triage review cases (metadata only). No new SQL.
+
+E6c adds smart intake behind `HELP_DESK_SMART_INTAKE_ENABLED` (default off):
+when triage would hand off for low confidence or no guide, the AI asks up to 2
+clarifying questions on the ticket (skipping ones the org environment profile
+already answers), waits in `Waiting for User`, and re-triages on the
+requester's reply. Safety, human-request and high-risk handoffs are never
+delayed. Needs `supabase/smart-intake-events.sql`. See `SETUP-NOTES-E6c.md`.
 
 ## Phase E — E5b requester guide hold
 

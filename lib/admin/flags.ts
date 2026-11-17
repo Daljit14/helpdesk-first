@@ -37,6 +37,10 @@ export function getKnowledgeGuideHoldMode(): KnowledgeGuideHoldMode {
   return mode === "watch" || mode === "enforce" ? mode : "off";
 }
 
+export function isSmartIntakeEnabled(): boolean {
+  return process.env.HELP_DESK_SMART_INTAKE_ENABLED === "true";
+}
+
 export function isTicketRouteEventsEnabled(): boolean {
   return process.env.HELP_DESK_TICKET_ROUTE_EVENTS_ENABLED === "true";
 }
